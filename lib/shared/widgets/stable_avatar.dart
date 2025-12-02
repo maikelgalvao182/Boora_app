@@ -48,10 +48,12 @@ class StableAvatar extends StatelessWidget {
     final store = AvatarStore.instance;
     final notifier = store.getAvatarEntryNotifier(userId);
     
-    // Se já temos URL no cache, fornecer ao store
+    // Se já temos URL no cache, fornecer ao store após o build
     if (cachedUrl != null && cachedUrl.isNotEmpty) {
-      // Store pode usar a URL cacheada para carregar mais rápido
-      store.preloadAvatar(userId, cachedUrl);
+      // Usar addPostFrameCallback para evitar setState durante build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        store.preloadAvatar(userId, cachedUrl);
+      });
     }
 
     return _AvatarShell(

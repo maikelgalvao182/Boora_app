@@ -89,6 +89,7 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
     return AuthProtectedWrapper(
       loadingMessage: 'Carregando dados do usuário...',
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: (_selectedIndex == 0)
             ? HomeAppBar(
                 onNotificationsTap: () {

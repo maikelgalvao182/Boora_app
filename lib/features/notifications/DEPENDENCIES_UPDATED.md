@@ -89,9 +89,9 @@ GlimpseBackButton.iconButton(
 ### GlimpseColors
 **Path:** `lib/core/constants/glimpse_colors.dart`
 ```dart
-GlimpseColors.bgColorLight
+GlimpseColors.textSubTitle
 GlimpseColors.bgColorDark
-GlimpseColors.textColorLight
+GlimpseColors.textSubTitle
 GlimpseColors.primaryColorLight
 GlimpseColors.lightTextField
 ```

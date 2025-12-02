@@ -26,7 +26,7 @@ class BirthDateEditor extends StatelessWidget {
         Text(
           i18n.translate('birth_date'),
           style: const TextStyle(
-            color: GlimpseColors.textColorLight,
+            color: GlimpseColors.textSubTitle,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -41,7 +41,7 @@ class BirthDateEditor extends StatelessWidget {
                   controller: monthController,
                   keyboardType: TextInputType.number,
                   labelStyle: const TextStyle(
-                    color: GlimpseColors.descriptionTextColorLight,
+                    color: GlimpseColors.textSubTitle,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -55,7 +55,7 @@ class BirthDateEditor extends StatelessWidget {
                   controller: dayController,
                   keyboardType: TextInputType.number,
                   labelStyle: const TextStyle(
-                    color: GlimpseColors.descriptionTextColorLight,
+                    color: GlimpseColors.textSubTitle,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -69,7 +69,7 @@ class BirthDateEditor extends StatelessWidget {
                   controller: yearController,
                   keyboardType: TextInputType.number,
                   labelStyle: const TextStyle(
-                    color: GlimpseColors.descriptionTextColorLight,
+                    color: GlimpseColors.textSubTitle,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),

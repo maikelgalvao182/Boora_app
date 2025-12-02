@@ -14,7 +14,6 @@ class GlimpseDropdown extends StatefulWidget {
     this.labelStyle,
     this.searchEnabled = false,
     this.suffixIconPath,
-    this.isDarkMode = false,
     this.enabled = true,
   });
   final String labelText;
@@ -25,7 +24,6 @@ class GlimpseDropdown extends StatefulWidget {
   final TextStyle? labelStyle;
   final bool searchEnabled;
   final String? suffixIconPath;
-  final bool isDarkMode;
   final bool enabled;
 
   @override
@@ -47,25 +45,19 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
     final isDisabled = !widget.enabled;
     
     final borderColor = isDisabled
-        ? (widget.isDarkMode ? GlimpseColors.borderColorDark.withValues(alpha: 0.5) : GlimpseColors.borderColorLight.withValues(alpha: 0.5))
+        ? GlimpseColors.borderColorLight.withValues(alpha: 0.5)
         : (_isOpen 
             ? GlimpseColors.primaryColorLight
-            : (widget.isDarkMode 
-                ? GlimpseColors.borderColorDark 
-                : GlimpseColors.borderColorLight));
+            : GlimpseColors.borderColorLight);
     final backgroundColor = isDisabled
-        ? (widget.isDarkMode ? GlimpseColors.bgColorDark.withValues(alpha: 0.5) : GlimpseColors.lightTextField.withValues(alpha: 0.5))
+        ? GlimpseColors.lightTextField.withValues(alpha: 0.5)
         : GlimpseColors.lightTextField;
     final textColor = isDisabled
-        ? (widget.isDarkMode ? GlimpseColors.textColorDark.withValues(alpha: 0.4) : GlimpseColors.textColorLight.withValues(alpha: 0.4))
-        : (widget.isDarkMode 
-            ? GlimpseColors.textColorDark 
-            : GlimpseColors.textColorLight);
+        ? GlimpseColors.textSubTitle.withValues(alpha: 0.4)
+        : GlimpseColors.textSubTitle;
     final descriptionTextColor = isDisabled
-        ? (widget.isDarkMode ? GlimpseColors.descriptionTextColorDark.withValues(alpha: 0.4) : GlimpseColors.descriptionTextColorLight.withValues(alpha: 0.4))
-        : (widget.isDarkMode 
-            ? GlimpseColors.descriptionTextColorDark 
-            : GlimpseColors.descriptionTextColorLight);
+        ? GlimpseColors.textSubTitle.withValues(alpha: 0.4)
+        : GlimpseColors.textSubTitle;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

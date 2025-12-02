@@ -171,7 +171,6 @@ class _UserImagesGridState extends State<UserImagesGrid> {
   Widget build(BuildContext context) {
     debugPrint('=== [UserImagesGrid] 🏗️ BUILD CALLED ===');
     debugPrint('[UserImagesGrid] 🏗️ Building widget - ${DateTime.now()}');
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final uid = AppState.currentUserId;
     debugPrint('[UserImagesGrid] 👤 Current userId: $uid');
     
@@ -238,7 +237,6 @@ class _UserImagesGridState extends State<UserImagesGrid> {
               url: url,
               index: index,
               isUploading: _isUploading[index],
-              isDark: isDark,
               onAdd: () => _handleAddImage(context, index),
               onDelete: () => _handleDeleteImage(context, index),
               onOpenViewer: url == null
@@ -294,7 +292,6 @@ class _UserImageCell extends StatelessWidget {
     required this.url,
     required this.index,
     required this.isUploading,
-    required this.isDark,
     required this.onAdd,
     required this.onDelete,
     this.onOpenViewer,
@@ -303,7 +300,6 @@ class _UserImageCell extends StatelessWidget {
   final String? url;
   final int index;
   final bool isUploading;
-  final bool isDark;
   final VoidCallback onAdd;
   final VoidCallback onDelete;
   final VoidCallback? onOpenViewer;
@@ -327,8 +323,8 @@ class _UserImageCell extends StatelessWidget {
           },
           borderRadius: _cellRadius,
           child: Ink(
-            decoration: BoxDecoration(
-              color: isDark ? GlimpseColors.darkTextField : GlimpseColors.lightTextField,
+            decoration: const BoxDecoration(
+              color: GlimpseColors.lightTextField,
               borderRadius: _cellRadius,
             ),
             child: Stack(
@@ -338,7 +334,7 @@ class _UserImageCell extends StatelessWidget {
                       ? Center(
                           child: Icon(
                             CupertinoIcons.plus_circle,
-                            color: isDark ? GlimpseColors.textColorDark : GlimpseColors.textColorLight,
+                            color: GlimpseColors.textSubTitle,
                             size: 35,
                           ),
                         )
@@ -349,9 +345,9 @@ class _UserImageCell extends StatelessWidget {
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: double.infinity,
-                            errorWidget: (context, u, error) => Icon(
+                            errorWidget: (context, u, error) => const Icon(
                               Icons.broken_image,
-                              color: isDark ? GlimpseColors.textColorDark : GlimpseColors.textColorLight,
+                              color: GlimpseColors.textSubTitle,
                             ),
                           ),
                         ),

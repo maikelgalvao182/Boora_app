@@ -7,7 +7,6 @@ class ConversationsList extends StatefulWidget {
   const ConversationsList({
     required this.itemCount,
     required this.buildTile,
-    required this.isDarkMode,
     required this.isVipEffective,
     required this.controller,
     required this.onTap,
@@ -18,7 +17,6 @@ class ConversationsList extends StatefulWidget {
   });
   final int itemCount;
   final Widget Function(BuildContext context, int index) buildTile;
-  final bool isDarkMode;
   final bool isVipEffective;
   final ScrollController controller;
   // REMOVIDO: onRefresh - pull-to-refresh foi removido

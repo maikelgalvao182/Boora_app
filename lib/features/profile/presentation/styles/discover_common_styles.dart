@@ -9,11 +9,11 @@ class DiscoverCommonStyles {
 
   // CORES
   static const Color backgroundColor = Colors.white;
-  static const Color bgColorLight = GlimpseColors.bgColorLight;
+  static const Color textSubTitle = GlimpseColors.textSubTitle;
   static const Color lightTextField = GlimpseColors.lightTextField;
-  static const Color primaryColor = GlimpseColors.primaryColorLight;
-  static const Color textColor = GlimpseColors.textColorLight;
-  static const Color subtitleTextColor = GlimpseColors.subtitleTextColorLight;
+  static const Color primaryColorLight = GlimpseColors.primaryColorLight;
+  static const Color textColor = GlimpseColors.textSubTitle;
+  static const Color subtitleTextColor = GlimpseColors.textSubTitle;
   static const Color filterButtonColor = GlimpseColors.primaryColorLight;
   
   // Cores específicas para tabs do profile

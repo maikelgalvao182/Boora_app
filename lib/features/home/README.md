@@ -151,7 +151,7 @@ HomeScreenRefactored (StatefulWidget)
 
 ### Cores
 - `GlimpseColors.primaryColorLight` - Cor principal (preto)
-- `GlimpseColors.subtitleTextColorLight` - Cinza para texto secundário
+- `GlimpseColors.textSubTitle` - Cinza para texto secundário
 - `GlimpseColors.lightTextField` - Fundo claro para skeleton
 
 ### Tipografia

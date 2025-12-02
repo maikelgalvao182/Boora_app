@@ -18,7 +18,6 @@ class GlimpseTabHeader extends StatelessWidget {
     this.tabLabels,
     this.selectedTabIndex,
     this.onTabTap,
-    this.isDarkMode,
   });
 
   /// Creates a simple header with title and search button.
@@ -39,7 +38,7 @@ class GlimpseTabHeader extends StatelessWidget {
   /// 
   /// Used in Likes tab where users can switch between different views.
   factory GlimpseTabHeader.withTabs({
-    required String title, required VoidCallback onSearchTap, required List<String> tabLabels, required int selectedTabIndex, required ValueChanged<int> onTabTap, required bool isDarkMode, Key? key,
+    required String title, required VoidCallback onSearchTap, required List<String> tabLabels, required int selectedTabIndex, required ValueChanged<int> onTabTap, Key? key,
   }) {
     return GlimpseTabHeader._(
       key: key,
@@ -49,7 +48,6 @@ class GlimpseTabHeader extends StatelessWidget {
       tabLabels: tabLabels,
       selectedTabIndex: selectedTabIndex,
       onTabTap: onTabTap,
-      isDarkMode: isDarkMode,
     );
   }
 
@@ -67,7 +65,6 @@ class GlimpseTabHeader extends StatelessWidget {
       tabLabels: tabLabels,
       selectedTabIndex: selectedTabIndex,
       onTabTap: onTabTap,
-      isDarkMode: false, // Not used for tabs-only mode
     );
   }
   final String title;
@@ -78,12 +75,9 @@ class GlimpseTabHeader extends StatelessWidget {
   final List<String>? tabLabels;
   final int? selectedTabIndex;
   final ValueChanged<int>? onTabTap;
-  final bool? isDarkMode;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = isDarkMode ?? Theme.of(context).brightness == Brightness.dark;
-
     // Tabs-only mode (no header)
     if (hasTabs && title.isEmpty) {
       return RepaintBoundary(child: _buildTabSwitcher());
@@ -91,7 +85,7 @@ class GlimpseTabHeader extends StatelessWidget {
 
     // Simple header mode (no tabs)
     if (!hasTabs) {
-      return RepaintBoundary(child: _buildSimpleHeader(isDark));
+      return RepaintBoundary(child: _buildSimpleHeader());
     }
 
     // Full mode (header + tabs)
@@ -99,14 +93,14 @@ class GlimpseTabHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSimpleHeader(isDark),
+          _buildSimpleHeader(),
           _buildTabSwitcher(),
         ],
       ),
     );
   }
 
-  Widget _buildSimpleHeader(bool isDark) {
+  Widget _buildSimpleHeader() {
     return Padding(
       padding: hasTabs 
           ? const EdgeInsets.fromLTRB(20, 8, 20, 0)
@@ -116,9 +110,7 @@ class GlimpseTabHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: GlimpseStyles.messagesTitleStyle(
-                isDark: isDark,
-              ),
+              style: GlimpseStyles.messagesTitleStyle(),
             ),
           ),
           SizedBox(
@@ -129,7 +121,7 @@ class GlimpseTabHeader extends StatelessWidget {
               icon: const Icon(
                 Iconsax.search_normal_1,
                 size: 22,
-                color: GlimpseColors.textColorLight,
+                color: GlimpseColors.textSubTitle,
               ),
               onPressed: onSearchTap,
             ),

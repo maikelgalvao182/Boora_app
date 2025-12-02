@@ -142,7 +142,7 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
                     fontWeight: FontWeight.w600,
                     color: _selectedInterests.length >= maxInterests
                         ? GlimpseColors.primary
-                        : GlimpseColors.textColorLight,
+                        : GlimpseColors.textSubTitle,
                   ),
                 ),
               ),

@@ -16,7 +16,7 @@ class GlimpseButton extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.width,
-  this.height = 56,
+  this.height = 48,
     this.outline = false,
     this.isProcessing = false,
   });

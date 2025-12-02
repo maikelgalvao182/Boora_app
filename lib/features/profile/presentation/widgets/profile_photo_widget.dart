@@ -81,7 +81,7 @@ class ProfilePhotoWidget extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
+                      color: Theme.of(context).primaryColorLight,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(

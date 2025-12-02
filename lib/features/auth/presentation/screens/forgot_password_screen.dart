@@ -227,9 +227,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: GlimpseColors.bgColorLight,
+        backgroundColor: GlimpseColors.textSubTitle,
         appBar: AppBar(
-          backgroundColor: GlimpseColors.bgColorLight,
+          backgroundColor: GlimpseColors.textSubTitle,
           elevation: 0,
           leading: GlimpseBackButton.iconButton(
             onPressed: () => context.pop(),

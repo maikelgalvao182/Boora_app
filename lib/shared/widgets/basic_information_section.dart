@@ -52,7 +52,7 @@ class BasicInformationSection extends StatelessWidget {
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
             fontWeight: FontWeight.w700,
             fontSize: 18,
-            color: GlimpseColors.textColorLight,
+            color: GlimpseColors.textSubTitle,
           ),
         ),
         SizedBox(height: spacing),
@@ -72,7 +72,7 @@ class BasicInformationSection extends StatelessWidget {
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
-                        color: GlimpseColors.subtitleTextColorLight,
+                        color: GlimpseColors.textSubTitle,
                       ),
                     ),
                   ),
@@ -88,8 +88,8 @@ class BasicInformationSection extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                             color: item.onTap != null
-                                ? Theme.of(context).primaryColor
-                                : GlimpseColors.textColorLight,
+                                ? Theme.of(context).primaryColorLight
+                                : GlimpseColors.textSubTitle,
                             decoration: TextDecoration.none,
                           ),
                           maxLines: 2,

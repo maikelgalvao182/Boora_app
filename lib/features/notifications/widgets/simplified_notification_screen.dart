@@ -75,7 +75,7 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
         FONT_PLUS_JAKARTA_SANS,
         fontSize: _NotificationScreenConstants.titleFontSize,
         fontWeight: FontWeight.w700,
-        color: GlimpseColors.textColorLight,
+        color: GlimpseColors.textSubTitle,
       );
       _clearStyle = GoogleFonts.getFont(
         FONT_PLUS_JAKARTA_SANS,
@@ -94,9 +94,7 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? GlimpseColors.bgColorDark : GlimpseColors.bgColorLight;
+    final bgColor = GlimpseColors.textSubTitle;
 
     return Scaffold(
       backgroundColor: bgColor,

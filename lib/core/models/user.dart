@@ -189,7 +189,7 @@ class User {
       userBirthYear: doc['birthYear'] ?? 2000,
       userJobTitle: doc['jobTitle'] ?? '',
       userBio: doc['bio'] ?? '',
-      userGallery: normalizeToMap(doc['gallery']),
+      userGallery: normalizeToMap(doc['user_gallery']),
       userCountry: doc['country'] ?? '',
       userLocality: doc['locality'] ?? '',
       userState: doc['state'],

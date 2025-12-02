@@ -56,7 +56,7 @@ class StarRatingDisplay extends StatelessWidget {
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               fontSize: size * 0.875,
               fontWeight: FontWeight.w600,
-              color: GlimpseColors.textColorLight,
+              color: GlimpseColors.textSubTitle,
             ),
           ),
         ],

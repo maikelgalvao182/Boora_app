@@ -1,20 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
+import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
+import 'package:partiu/features/home/presentation/widgets/create_button.dart';
+import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
 
 /// Tela de descoberta (Tab 0)
-/// TODO: Implementar funcionalidade de descoberta
+/// Exibe mapa interativo com atividades próximas
 class DiscoverTab extends StatelessWidget {
   const DiscoverTab({super.key});
 
+  void _showCreateDrawer(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CreateDrawer(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: GlimpseEmptyState.standard(
-          text: 'Nenhum usuário encontrado\nImplementar funcionalidade de descoberta',
+    return Stack(
+      children: [
+        // Mapa Apple Maps
+        const DiscoverScreen(),
+        
+        // Botão flutuante no canto inferior direito
+        Positioned(
+          right: 16,
+          bottom: 24,
+          child: CreateButton(
+            onPressed: () => _showCreateDrawer(context),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

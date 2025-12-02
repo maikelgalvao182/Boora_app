@@ -88,7 +88,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
                     icon: const Icon(
                       IconsaxPlusLinear.notification,
                       size: 24,
-                      color: GlimpseColors.textColorLight,
+                      color: GlimpseColors.textSubTitle,
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();
@@ -108,8 +108,8 @@ class _HomeAppBarState extends State<HomeAppBar> {
                     IconsaxPlusLinear.setting_4,
                     size: 24,
                     color: _isFilterOpening
-                        ? GlimpseColors.subtitleTextColorLight
-                        : GlimpseColors.textColorLight,
+                        ? GlimpseColors.textSubTitle
+                        : GlimpseColors.textSubTitle,
                   ),
                 ),
               ),
@@ -157,7 +157,7 @@ class _GuestAppBarContent extends StatelessWidget {
                   FONT_PLUS_JAKARTA_SANS,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: GlimpseColors.textColorLight,
+                  color: GlimpseColors.textSubTitle,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -169,7 +169,7 @@ class _GuestAppBarContent extends StatelessWidget {
                   FONT_PLUS_JAKARTA_SANS,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: GlimpseColors.subtitleTextColorLight,
+                  color: GlimpseColors.textSubTitle,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

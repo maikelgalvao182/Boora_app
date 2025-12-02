@@ -85,7 +85,7 @@ class _LanguagesEditorState extends State<LanguagesEditor> {
                 Text(
                   i18n.translate('placeholder_languages'),
                   style: const TextStyle(
-                    color: GlimpseColors.descriptionTextColorLight,
+                    color: GlimpseColors.textSubTitle,
                     fontSize: 16,
                     fontWeight: FontWeight.w300,
                   ),

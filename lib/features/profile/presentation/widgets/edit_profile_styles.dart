@@ -12,7 +12,7 @@ class EditProfileStyles {
   // COLORS
   // =============================================================================
   static const Color backgroundColor = Colors.white;
-  static Color get textColorLight => GlimpseColors.textColorLight;
+  static Color get textSubTitle => GlimpseColors.textSubTitle;
   static Color get actionColor => GlimpseColors.actionColor;
   static Color get primaryColorLight => GlimpseColors.primaryColorLight;
   
@@ -106,8 +106,8 @@ class EditProfileStyles {
   // =============================================================================
   
   // Form colors
-  static Color get labelTextColor => GlimpseColors.subtitleTextColorLight;
-  static Color get inputTextColor => GlimpseColors.textColorLight;
+  static Color get labelTextColor => GlimpseColors.textSubTitle;
+  static Color get inputTextColor => GlimpseColors.textSubTitle;
   static Color get borderColor => GlimpseColors.borderColorLight;
   static Color get snackBarColor => GlimpseColors.primaryColorLight;
   
@@ -120,19 +120,19 @@ class EditProfileStyles {
   static const TextStyle labelTextStyle = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
   );
   
   static const TextStyle inputTextStyle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w500,
-    color: GlimpseColors.textColorLight,
+    color: GlimpseColors.textSubTitle,
   );
   
   static const TextStyle placeholderTextStyle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
   );
   
   // Form configurations

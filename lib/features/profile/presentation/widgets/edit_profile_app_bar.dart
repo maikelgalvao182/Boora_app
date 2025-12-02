@@ -37,7 +37,7 @@ class EditProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
             fontSize: EditProfileStyles.appBarTitleStyle.fontSize,
             fontWeight: EditProfileStyles.appBarTitleStyle.fontWeight,
-            color: EditProfileStyles.textColorLight,
+            color: EditProfileStyles.textSubTitle,
           ),
         ),
         leading: GlimpseBackButton.iconButton(
@@ -45,8 +45,8 @@ class EditProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
           constraints: EditProfileStyles.iconButtonConstraints,
           onPressed: isBackEnabled ? onBack : () {},
           color: isBackEnabled 
-              ? EditProfileStyles.textColorLight 
-              : EditProfileStyles.textColorLight.withValues(alpha: 0.3),
+              ? EditProfileStyles.textSubTitle 
+              : EditProfileStyles.textSubTitle.withValues(alpha: 0.3),
         ),
         leadingWidth: 56,
         actions: [

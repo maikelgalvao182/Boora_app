@@ -108,27 +108,23 @@ class ConversationStyles {
   // ============================================================================
   
   /// Estilo do título (display name)
-  static TextStyle title(bool isDark) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+  static TextStyle title() => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: titleFontSize,
         fontWeight: titleFontWeight,
-        color: isDark ? GlimpseColors.textColorDark : GlimpseColors.textColorLight,
+        color: GlimpseColors.textSubTitle,
       );
 
   /// Estilo do subtítulo (last message)
-  static TextStyle subtitle(bool isDark) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+  static TextStyle subtitle() => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: subtitleFontSize,
-        color: isDark
-            ? GlimpseColors.descriptionTextColorDark
-            : GlimpseColors.descriptionTextColorLight,
+        color: GlimpseColors.textSubTitle,
       );
 
   /// Estilo do label de tempo (trailing time)
-  static TextStyle timeLabel(bool isDark) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+  static TextStyle timeLabel() => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: timeLabelFontSize,
         fontWeight: timeLabelFontWeight,
-        color: isDark
-            ? GlimpseColors.descriptionTextColorDark
-            : GlimpseColors.descriptionTextColorLight,
+        color: GlimpseColors.textSubTitle,
       );
 
   /// Estilo do texto do chip "new" (unread badge)
@@ -139,31 +135,26 @@ class ConversationStyles {
   );
 
   // ============================================================================
-  // COLORS - DYNAMIC
+  // COLORS - STATIC
   // ============================================================================
   
   /// Cor de fundo da tela
-  static Color backgroundColor(bool isDark) =>
-      isDark ? GlimpseColors.bgColorDark : GlimpseColors.bgColorLight;
+  static Color backgroundColor() => GlimpseColors.textSubTitle;
 
   /// Cor de fundo do chip "new" (não lida)
-  static Color unreadChipBg(bool isDark) =>
-    isDark ? GlimpseColors.primaryColorDark : GlimpseColors.primaryColorLight;
+  static Color unreadChipBg() => GlimpseColors.primaryColorLight;
 
   /// Cor do divider entre conversas
-  static Color dividerColor(bool isDark) =>
-    isDark ? GlimpseColors.borderColorDark : GlimpseColors.borderColorLight;
+  static Color dividerColor() => GlimpseColors.borderColorLight;
 
   /// Cor do ícone de busca no header
-  static Color searchIconColor(bool isDark) =>
-    isDark ? GlimpseColors.textColorDark : GlimpseColors.textColorLight;
+  static Color searchIconColor() => GlimpseColors.textSubTitle;
 
   /// Cor do loader
-  static Color loaderColor(bool isDark) =>
-    isDark ? Colors.white70 : Colors.black54;
+  static Color loaderColor() => Colors.black54;
   
   /// Cor de fundo do tile quando há mensagem não lida
-  static Color unreadTileBackground(bool isDark) => GlimpseColors.lightTextField;
+  static Color unreadTileBackground() => GlimpseColors.lightTextField;
 
   // ============================================================================
   // MARKDOWN STYLES

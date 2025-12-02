@@ -22,7 +22,6 @@ class ConversationTile extends StatelessWidget {
   const ConversationTile({
     required this.conversationId,
     required this.rawData,
-    required this.isDarkMode,
     required this.isVipEffective,
     required this.isLast,
     required this.onTap,
@@ -31,7 +30,6 @@ class ConversationTile extends StatelessWidget {
   });
   final String conversationId;
   final Map<String, dynamic> rawData;
-  final bool isDarkMode;
   final bool isVipEffective;
   final bool isLast;
   final VoidCallback onTap;
@@ -119,7 +117,7 @@ class ConversationTile extends StatelessWidget {
 
     final tile = ListTile(
       tileColor: displayData.hasUnreadMessage 
-          ? (isDarkMode ? GlimpseColors.darkTextField : GlimpseColors.lightTextField) 
+          ? GlimpseColors.lightTextField
           : null,
       leading: leading,
       title: Row(
@@ -128,7 +126,7 @@ class ConversationTile extends StatelessWidget {
           Expanded(
             child: ReactiveUserNameWithBadge(
               userId: displayData.otherUserId,
-              style: ConversationStyles.title(isDarkMode),
+              style: ConversationStyles.title(),
             ),
           ),
           const SizedBox(width: 8),
@@ -157,7 +155,7 @@ class ConversationTile extends StatelessWidget {
               
               return Text(
                 timeAgoText,
-                style: ConversationStyles.timeLabel(isDarkMode),
+                style: ConversationStyles.timeLabel(),
               );
             },
           ),
@@ -219,14 +217,14 @@ class ConversationTile extends StatelessWidget {
                   return MarkdownBody(
                     data: lastMessageText,
                     styleSheet: MarkdownStyleSheet(
-                      p: ConversationStyles.subtitle(isDarkMode).copyWith(
+                      p: ConversationStyles.subtitle().copyWith(
                         height: ConversationStyles.markdownLineHeight,
                       ),
-                      strong: ConversationStyles.subtitle(isDarkMode).copyWith(
+                      strong: ConversationStyles.subtitle().copyWith(
                         fontWeight: ConversationStyles.markdownBoldWeight,
                         height: ConversationStyles.markdownLineHeight,
                       ),
-                      em: ConversationStyles.subtitle(isDarkMode).copyWith(
+                      em: ConversationStyles.subtitle().copyWith(
                         fontStyle: FontStyle.italic,
                         height: ConversationStyles.markdownLineHeight,
                       ),
@@ -268,7 +266,7 @@ class ConversationTile extends StatelessWidget {
           if (!isLast)
             Divider(
               height: ConversationStyles.dividerHeight,
-              color: ConversationStyles.dividerColor(isDarkMode),
+              color: ConversationStyles.dividerColor(),
             ),
         ],
       ),

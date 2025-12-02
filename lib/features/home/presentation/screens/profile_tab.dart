@@ -264,9 +264,7 @@ class _ProfileHeader extends StatelessWidget {
           Expanded(
             child: Text(
               i18n.translate('profile') ?? 'Perfil',
-              style: GlimpseStyles.messagesTitleStyle(
-                isDark: Theme.of(context).brightness == Brightness.dark,
-              ),
+              style: GlimpseStyles.messagesTitleStyle(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

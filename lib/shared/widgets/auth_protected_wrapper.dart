@@ -22,7 +22,7 @@ class AuthProtectedWrapper extends StatelessWidget {
         // Se ainda não inicializou ou não está logado, mostra loader
         if (!authSync.initialized || !authSync.isLoggedIn) {
           return Scaffold(
-            backgroundColor: GlimpseColors.bgColorLight,
+            backgroundColor: Colors.white,
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

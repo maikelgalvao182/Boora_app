@@ -66,7 +66,7 @@ class ReviewsHeader extends StatelessWidget {
                   style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                     fontSize: 48,
                     fontWeight: FontWeight.w700,
-                    color: GlimpseColors.primaryColor,
+                    color: GlimpseColors.primaryColorLight,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -79,7 +79,7 @@ class ReviewsHeader extends StatelessWidget {
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: GlimpseColors.textPrimary,
+                        color: GlimpseColors.textSubTitle,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -88,7 +88,7 @@ class ReviewsHeader extends StatelessWidget {
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: GlimpseColors.textSecondary,
+                        color: GlimpseColors.textSubTitle,
                       ),
                     ),
                   ],
@@ -125,7 +125,7 @@ class ReviewsHeader extends StatelessWidget {
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: GlimpseColors.textPrimary,
+            color: GlimpseColors.textSubTitle,
           ),
         ),
         const SizedBox(height: 8),
@@ -151,7 +151,7 @@ class ReviewsHeader extends StatelessWidget {
                         style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: GlimpseColors.textSecondary,
+                          color: GlimpseColors.textSubTitle,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -195,7 +195,7 @@ class ReviewsHeader extends StatelessWidget {
     if (rating >= 4.5) {
       return Colors.green;
     } else if (rating >= 3.5) {
-      return GlimpseColors.primaryColor;
+      return GlimpseColors.primaryColorLight;
     } else if (rating >= 2.5) {
       return Colors.orange;
     } else {

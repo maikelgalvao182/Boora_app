@@ -24,7 +24,7 @@ class GlimpseCloseButton extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: GlimpseColors.primary,
+        color: GlimpseColors.lightTextField,
         borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(
@@ -34,7 +34,7 @@ class GlimpseCloseButton extends StatelessWidget {
         icon: Icon(
           Icons.close,
           size: 24,
-          color: color ?? Colors.black87,
+          color: color ?? Colors.black,
         ),
         onPressed: () {
           HapticFeedback.lightImpact();

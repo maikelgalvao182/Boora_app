@@ -34,7 +34,7 @@ class GlimpseSignupLayout extends StatelessWidget {
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: backgroundColor ?? GlimpseColors.bgColorLight,
+        backgroundColor: backgroundColor ?? Colors.white,
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           child: Padding(

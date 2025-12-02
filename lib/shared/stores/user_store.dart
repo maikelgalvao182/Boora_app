@@ -111,6 +111,7 @@ class UserStore {
   final Map<String, ValueNotifier<String?>> _fromNotifiers = {};
   final Map<String, ValueNotifier<List<String>?>> _interestsNotifiers = {};
   final Map<String, ValueNotifier<String?>> _languagesNotifiers = {};
+  final Map<String, ValueNotifier<String?>> _instagramNotifiers = {};
   // Notifiers para campos do wizard foram removidos pois não são utilizados atualmente
   // Podem ser adicionados de volta quando necessário
   
@@ -268,6 +269,15 @@ class UserStore {
     _ensureListening(userId);
     return _languagesNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.languages);
+    });
+  }
+
+  /// ✅ Instagram
+  ValueNotifier<String?> getInstagramNotifier(String userId) {
+    if (userId.isEmpty) return ValueNotifier<String?>(null);
+    _ensureListening(userId);
+    return _instagramNotifiers.putIfAbsent(userId, () {
+      return ValueNotifier<String?>(_users[userId]?.instagram);
     });
   }
 
@@ -581,6 +591,10 @@ class UserStore {
       if (oldEntry == null || oldEntry.languages != newEntry.languages) {
         _languagesNotifiers[userId]?.value = newEntry.languages;
       }
+
+      if (oldEntry == null || oldEntry.instagram != newEntry.instagram) {
+        _instagramNotifiers[userId]?.value = newEntry.instagram;
+      }
     }
     
     // 🛡️ PROTEÇÃO: Se estamos durante build phase, adia para próximo frame
@@ -657,6 +671,9 @@ class UserStore {
     
     _countryNotifiers[userId]?.dispose();
     _countryNotifiers.remove(userId);
+    
+    _instagramNotifiers[userId]?.dispose();
+    _instagramNotifiers.remove(userId);
     
     _users.remove(userId);
   }

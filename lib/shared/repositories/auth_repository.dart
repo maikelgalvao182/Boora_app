@@ -389,7 +389,7 @@ class AuthRepository implements IAuthRepository {
       
       // Atualizar array de galeria
       await _firestore.collection('Users').doc(user.uid).update({
-        'gallery.$index': downloadUrl,
+        'user_gallery.$index': downloadUrl,
       });
 
       AppLogger.success('Gallery image uploaded successfully', tag: 'AUTH_REPOSITORY');
@@ -411,8 +411,8 @@ class AuthRepository implements IAuthRepository {
       final doc = await _firestore.collection('Users').doc(user.uid).get();
       final data = doc.data();
       
-      if (data != null && data['gallery'] != null) {
-        final gallery = data['gallery'] as Map<String, dynamic>;
+      if (data != null && data['user_gallery'] != null) {
+        final gallery = data['user_gallery'] as Map<String, dynamic>;
         final imageUrl = gallery[index.toString()] as String?;
         
         if (imageUrl != null) {
@@ -428,7 +428,7 @@ class AuthRepository implements IAuthRepository {
 
       // Remover do documento
       await _firestore.collection('Users').doc(user.uid).update({
-        'gallery.$index': FieldValue.delete(),
+        'user_gallery.$index': FieldValue.delete(),
       });
 
       AppLogger.success('Gallery image removed successfully', tag: 'AUTH_REPOSITORY');

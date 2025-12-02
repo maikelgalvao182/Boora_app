@@ -129,7 +129,7 @@ class SessionManager {
       'isOnline': user.isUserOnline,
       
       // Campos opcionais
-      if (user.userGallery != null) 'gallery': user.userGallery,
+      if (user.userGallery != null) 'user_gallery': user.userGallery,
       if (user.userSettings != null) 'settings': user.userSettings,
       if (user.userInstagram != null) 'instagram': user.userInstagram,
       if (user.interests != null) 'interests': user.interests,

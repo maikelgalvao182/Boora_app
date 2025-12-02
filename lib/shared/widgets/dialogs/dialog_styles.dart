@@ -75,7 +75,7 @@ class DialogStyles {
     FONT_PLUS_JAKARTA_SANS, 
     fontSize: 18,
     fontWeight: FontWeight.w900,
-    color: GlimpseColors.textColorLight,
+    color: GlimpseColors.textSubTitle,
     letterSpacing: .3,
   );
   /// Estilo da mensagem/descrição do diálogo
@@ -84,7 +84,7 @@ class DialogStyles {
     fontSize: 16,
     fontWeight: FontWeight.w600,
     height: 1.5,
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
   );
   
   /// Padding horizontal do texto da mensagem

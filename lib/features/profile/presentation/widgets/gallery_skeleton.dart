@@ -7,8 +7,7 @@ class GallerySkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? GlimpseColors.darkTextField : GlimpseColors.lightTextField;
+    const backgroundColor = GlimpseColors.lightTextField;
     
     return GridView.builder(
       physics: const ScrollPhysics(),
@@ -23,13 +22,11 @@ class GallerySkeleton extends StatelessWidget {
       itemBuilder: (context, index) {
         return Shimmer.fromColors(
           baseColor: backgroundColor,
-          highlightColor: (isDark 
-              ? GlimpseColors.darkTextField.withValues(alpha: 0.7)
-              : GlimpseColors.lightTextField.withValues(alpha: 0.7)),
+          highlightColor: GlimpseColors.lightTextField.withValues(alpha: 0.7),
           child: Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: backgroundColor,
-              borderRadius: const BorderRadius.all(Radius.circular(8)),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
           ),
         );

@@ -75,7 +75,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
             hintStyle: const TextStyle(
               fontFamily: FONT_PLUS_JAKARTA_SANS,
               fontSize: 14,
-              color: GlimpseColors.descriptionTextColorLight,
+              color: GlimpseColors.textSubTitle,
             ),
             filled: true,
             fillColor: GlimpseColors.lightTextField,
@@ -97,13 +97,13 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             prefixIcon: const Icon(
               Icons.search,
-              color: GlimpseColors.descriptionTextColorLight,
+              color: GlimpseColors.textSubTitle,
             ),
           ),
           searchBoxTextStyle: const TextStyle(
             fontFamily: FONT_PLUS_JAKARTA_SANS,
             fontSize: 14,
-            color: GlimpseColors.textColorLight,
+            color: GlimpseColors.textSubTitle,
           ),
         ) as Widget,
       ) as Widget,
@@ -162,7 +162,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                       CountrySelectorLocalization.of(context)?.countryName(_selectedCountry!) ?? _selectedCountry!.name,
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        color: GlimpseColors.textColorLight,
+                        color: GlimpseColors.textSubTitle,
                         fontWeight: FontWeight.w400,
                         fontSize: 16,
                         height: 1.4,
@@ -176,7 +176,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                       i18n.translate('select_country'),
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        color: GlimpseColors.descriptionTextColorLight,
+                        color: GlimpseColors.textSubTitle,
                         fontWeight: FontWeight.w300,
                         fontSize: 16,
                         height: 1.4,
@@ -188,7 +188,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                 // Ícone de dropdown
                 Icon(
                   Icons.keyboard_arrow_down,
-                  color: GlimpseColors.textColorLight,
+                  color: GlimpseColors.textSubTitle,
                 ),
               ],
             ),

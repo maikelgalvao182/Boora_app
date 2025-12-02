@@ -79,6 +79,23 @@ service cloud.firestore {
     }
 
     //
+    // ⭐ Coleção de reviews/avaliações
+    // Path usado no app:
+    // - Reviews/{reviewId}
+    //   - revieweeId: string (usuário que recebeu a review)
+    //   - reviewerId: string (usuário que fez a review)
+    //   - rating: number
+    //   - comment: string
+    //   - createdAt: timestamp
+    //
+    match /Reviews/{reviewId} {
+      allow read: if isSignedIn(); // Qualquer usuário logado pode ler reviews
+      allow create: if isSignedIn(); // Qualquer usuário logado pode criar reviews
+      allow update, delete: if isSignedIn() && 
+        request.auth.uid == resource.data.reviewerId; // Apenas o autor pode editar/deletar
+    }
+
+    //
     // 🚫 Outras coleções: bloqueadas por padrão
     //
     match /{document=**} {

@@ -20,16 +20,15 @@ class ConversationsTab extends StatelessWidget {
     return Consumer<ConversationsViewModel>(
       builder: (context, viewModel, _) {
         final i18n = AppLocalizations.of(context);
-        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final isGuest = AuthStateService.instance.isGuest;
 
         return Scaffold(
-          backgroundColor: ConversationStyles.backgroundColor(isDarkMode),
+          backgroundColor: ConversationStyles.backgroundColor(),
           body: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ConversationsHeader(isDarkMode: isDarkMode),
+                const ConversationsHeader(),
                 const SizedBox(height: ConversationStyles.headerSpacing),
                 Expanded(
                   child: isGuest
@@ -40,7 +39,6 @@ class ConversationsTab extends StatelessWidget {
                           ),
                         )
                       : ConversationStreamWidget(
-                          isDarkMode: isDarkMode,
                           isVipEffective: viewModel.isVipEffective,
                           onTap: (QueryDocumentSnapshot<Map<String, dynamic>>? doc, Map<String, dynamic> data) =>
                               viewModel.navigationService.handleConversationTap(

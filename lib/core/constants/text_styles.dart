@@ -25,7 +25,7 @@ class TextStyles {
   static TextStyle get headerTitle => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
     fontSize: 18,
     fontWeight: FontWeight.w700,
-    color: GlimpseColors.textColorLight,
+    color: GlimpseColors.textSubTitle,
   );
 
   /// Subtítulo dos cabeçalhos das telas (GlimpseProgressHeader)
@@ -33,7 +33,7 @@ class TextStyles {
   static TextStyle get headerSubtitle => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: GlimpseColors.descriptionTextColorLight,
+    color: GlimpseColors.textSubTitle,
   );
 
   /// Título para telas de avaliação e feedback
@@ -73,7 +73,7 @@ class TextStyles {
   static TextStyle get screenSubtitle => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
     fontSize: 16,
     fontWeight: FontWeight.w500,
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
     height: 1.4,
   );
 
@@ -82,7 +82,7 @@ class TextStyles {
   static TextStyle get description => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: GlimpseColors.descriptionTextColorLight,
+    color: GlimpseColors.textSubTitle,
     height: 1.4,
   );
 
@@ -126,7 +126,7 @@ class TextStyles {
 
   /// Texto de link para navegação (ex: "Don't have account?")
   static TextStyle get navigationText => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
     fontSize: 14,
   );
 
@@ -148,7 +148,7 @@ class TextStyles {
 
   /// Label de campos de formulário
   static TextStyle get inputLabel => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-    color: GlimpseColors.descriptionTextColorLight,
+    color: GlimpseColors.textSubTitle,
     fontWeight: FontWeight.w600,
     fontSize: 14,
   );

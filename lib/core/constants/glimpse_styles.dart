@@ -14,17 +14,17 @@ class GlimpseStyles {
       );
       
   // Estilo para o título de páginas
-  static TextStyle messagesTitleStyle({Color? color, bool isDark = false}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+  static TextStyle messagesTitleStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 20, // Alterado de 24 para 20
         fontWeight: FontWeight.w700,
-        color: color ?? (isDark ? GlimpseColors.textColorDark : GlimpseColors.textColorLight),
+        color: color ?? GlimpseColors.textSubTitle,
       );
 
   // Estilos de texto para subtítulos
   static TextStyle subtitleStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 18,
         fontWeight: FontWeight.w300,
-        color: color ?? GlimpseColors.descriptionTextColorLight,
+        color: color ?? GlimpseColors.textSubTitle,
       );
 
   // Estilos de texto para campos de texto
@@ -38,7 +38,7 @@ class GlimpseStyles {
   static TextStyle hintTextStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 18,
         fontWeight: FontWeight.w300,
-        color: color ?? GlimpseColors.descriptionTextColorLight,
+        color: color ?? GlimpseColors.textSubTitle,
       );
 
   // Estilos de texto para botões
@@ -52,7 +52,7 @@ class GlimpseStyles {
   static TextStyle smallTextStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 14,
         fontWeight: FontWeight.w400,
-        color: color ?? GlimpseColors.descriptionTextColorLight,
+        color: color ?? GlimpseColors.textSubTitle,
       );
 
   // Estilo para labels de campos de formulário (baseado no personal_tab.dart)
@@ -64,7 +64,7 @@ class GlimpseStyles {
 
   // Estilo alternativo para labels menores (usado em campos específicos como Month, Day, Year)
   static TextStyle smallFieldLabelStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-        color: GlimpseColors.descriptionTextColorLight,
+        color: GlimpseColors.textSubTitle,
         fontWeight: FontWeight.w600,
         fontSize: 14,
       );

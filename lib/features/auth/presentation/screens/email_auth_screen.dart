@@ -248,7 +248,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       viewModel.obscurePassword ? IconsaxPlusLinear.eye_slash : IconsaxPlusLinear.eye,
-                      color: GlimpseColors.subtitleTextColorLight,
+                      color: GlimpseColors.textSubTitle,
                     ),
                     onPressed: viewModel.togglePasswordVisibility,
                   ),
@@ -350,9 +350,9 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
               systemNavigationBarIconBrightness: Brightness.dark,
             ),
             child: Scaffold(
-              backgroundColor: GlimpseColors.bgColorLight,
+              backgroundColor: GlimpseColors.textSubTitle,
               appBar: AppBar(
-                backgroundColor: GlimpseColors.bgColorLight,
+                backgroundColor: GlimpseColors.textSubTitle,
                 elevation: 0,
                 leading: GlimpseBackButton.iconButton(
                   onPressed: () => context.pop(),

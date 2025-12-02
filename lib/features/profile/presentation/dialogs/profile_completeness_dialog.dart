@@ -183,7 +183,7 @@ class ProfileCompletenessDialog extends StatelessWidget {
       FONT_PLUS_JAKARTA_SANS,
       fontSize: 14,
       fontWeight: FontWeight.w400,
-      color: GlimpseColors.descriptionTextColorLight,
+      color: GlimpseColors.textSubTitle,
     );
     
     if (match == null) {

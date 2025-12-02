@@ -219,7 +219,7 @@ class SignupSuccessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GlimpseColors.bgColorLight,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [

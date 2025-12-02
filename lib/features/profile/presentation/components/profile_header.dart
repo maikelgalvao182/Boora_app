@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:circle_flags/circle_flags.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
@@ -177,6 +178,11 @@ class _ProfileHeaderState extends State<ProfileHeader> {
           
           // Localização (Cidade, Estado)
           _buildLocationWithState(),
+          
+          const SizedBox(height: 8),
+          
+          // Instagram
+          _buildInstagram(),
         ],
       ),
     );
@@ -271,6 +277,49 @@ class _ProfileHeaderState extends State<ProfileHeader> {
         );
       },
     );
+  }
+
+  Widget _buildInstagram() {
+    return ValueListenableBuilder<String?>(
+      valueListenable: UserStore.instance.getInstagramNotifier(widget.user.userId),
+      builder: (context, instagram, _) {
+        if (instagram == null || instagram.isEmpty) return const SizedBox.shrink();
+        
+        return GestureDetector(
+          onTap: () => _openInstagram(instagram),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Iconsax.instagram,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                instagram,
+                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withValues(alpha: 0.8),
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openInstagram(String username) async {
+    // Remove @ se estiver presente
+    final cleanUsername = username.replaceAll('@', '');
+    final url = Uri.parse('https://www.instagram.com/$cleanUsername');
+    
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
 
   String _getFirstValidImage() {

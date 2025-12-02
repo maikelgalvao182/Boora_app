@@ -6,8 +6,7 @@ import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:flutter/material.dart';
 
 class ConversationsHeader extends StatelessWidget {
-  const ConversationsHeader({required this.isDarkMode, super.key});
-  final bool isDarkMode;
+  const ConversationsHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -19,12 +18,11 @@ class ConversationsHeader extends StatelessWidget {
           Expanded(
             child: Text(
               i18n.translate('conversations'),
-              style: GlimpseStyles.messagesTitleStyle(isDark: isDarkMode),
+              style: GlimpseStyles.messagesTitleStyle(),
             ),
           ),
           // TODO: Implementar SlidingSearchIconButton
           // SlidingSearchIconButton(
-          //   iconColor: ConversationStyles.searchIconColor(isDarkMode),
           //   iconSize: ConversationStyles.searchIconSize,
           //   placeholder: i18n.translate('search_profiles'),
           //   onQueryChanged: (q) => context.read<ConversationsViewModel>().updateQuery(q),
@@ -32,7 +30,7 @@ class ConversationsHeader extends StatelessWidget {
           IconButton(
             icon: Icon(
               Icons.search,
-              color: ConversationStyles.searchIconColor(isDarkMode),
+              color: ConversationStyles.searchIconColor(),
               size: ConversationStyles.searchIconSize,
             ),
             onPressed: () {

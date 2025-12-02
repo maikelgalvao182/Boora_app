@@ -44,7 +44,7 @@ class GlimpseProgressHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final textColor = whiteMode ? Colors.white : GlimpseColors.textColorLight;
+    final textColor = whiteMode ? Colors.white : GlimpseColors.textSubTitle;
     final titleStyle = whiteMode 
         ? TextStyles.headerTitle.copyWith(color: Colors.white) 
         : TextStyles.headerTitle;
@@ -150,7 +150,7 @@ class GlimpseScreenHeader extends StatelessWidget {
           child: const Icon(
             IconsaxPlusLinear.arrow_left,
             size: 24,
-            color: GlimpseColors.textColorLight,
+            color: GlimpseColors.textSubTitle,
           ),
         ),
         const SizedBox(height: 24),

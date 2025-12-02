@@ -18,9 +18,8 @@ import 'package:provider/provider.dart';
 class ConversationStreamWidget extends StatelessWidget {
 
   const ConversationStreamWidget({
-    required this.isDarkMode, required this.isVipEffective, required this.onTap, required this.stateService, super.key,
+    required this.isVipEffective, required this.onTap, required this.stateService, super.key,
   });
-  final bool isDarkMode;
   final bool isVipEffective;
   final void Function(QueryDocumentSnapshot<Map<String, dynamic>>?, Map<String, dynamic>) onTap;
   final ConversationStateService stateService;
@@ -81,7 +80,6 @@ class ConversationStreamWidget extends StatelessWidget {
           key: ValueKey(item.id),
           conversationId: item.id,
           rawData: data,
-          isDarkMode: isDarkMode,
           isVipEffective: isVipEffective,
           isLast: isLast,
           chatService: _chatService,
@@ -90,7 +88,6 @@ class ConversationStreamWidget extends StatelessWidget {
           },
         );
       },
-      isDarkMode: isDarkMode,
       isVipEffective: isVipEffective,
       controller: context.read<ConversationsViewModel>().scrollController,
       // REMOVIDO: onRefresh - pull-to-refresh foi removido

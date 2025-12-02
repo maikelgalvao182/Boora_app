@@ -93,7 +93,7 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
           controller: _controller,
           keyboardType: TextInputType.none, // Desativa o teclado
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-            color: GlimpseColors.textColorLight,
+            color: GlimpseColors.textSubTitle,
             fontWeight: FontWeight.w500,
             fontSize: 16,
           ),
@@ -168,7 +168,7 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
               borderRadius: BorderRadius.circular(12),
             ),
             hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-              color: GlimpseColors.descriptionTextColorLight,
+              color: GlimpseColors.textSubTitle,
               fontWeight: FontWeight.w300,
               fontSize: 16,
             ),

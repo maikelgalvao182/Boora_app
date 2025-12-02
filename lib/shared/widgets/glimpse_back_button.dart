@@ -33,7 +33,7 @@ class GlimpseBackButton extends StatelessWidget {
       icon: Icon(
         IconsaxPlusLinear.arrow_left,
         size: width ?? 24,
-        color: color ?? GlimpseColors.textColorLight,
+        color: color ?? GlimpseColors.textSubTitle,
       ),
       onPressed: () {
         HapticFeedback.lightImpact();
@@ -52,7 +52,7 @@ class GlimpseBackButton extends StatelessWidget {
       child: Icon(
         IconsaxPlusLinear.arrow_left,
         size: width ?? 24,
-        color: color ?? GlimpseColors.textColorLight,
+        color: color ?? GlimpseColors.textSubTitle,
       ),
     );
   }

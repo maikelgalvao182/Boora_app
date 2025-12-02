@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -17,13 +16,8 @@ class _TabIcons {
   static const _unselectedColor = Colors.grey;
 
   // Discover icons
-  static const discoverNormal = Icon(Iconsax.map, size: _size, color: _unselectedColor);
-  static final discoverBold = SvgPicture.asset(
-    'assets/svg/map-bold.svg',
-    width: _size,
-    height: _size,
-    colorFilter: const ColorFilter.mode(_selectedColor, BlendMode.srcIn),
-  );
+  static const discoverNormal = Icon(Iconsax.location, size: _size, color: _unselectedColor);
+  static const discoverBold = Icon(Iconsax.location5, size: _size, color: _selectedColor);
 
   // Matches icons
   static const matchesNormal = Icon(Iconsax.heart, size: _size, color: _unselectedColor);
@@ -67,7 +61,7 @@ class HomeBottomNavigationBar extends StatelessWidget {
     FONT_PLUS_JAKARTA_SANS,
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    color: GlimpseColors.subtitleTextColorLight,
+    color: GlimpseColors.textSubTitle,
   );
 
   @override
@@ -109,7 +103,7 @@ class _BottomNavBarContent extends StatelessWidget {
       elevation: 0,
       backgroundColor: Colors.white,
       selectedItemColor: Colors.black,
-      unselectedItemColor: GlimpseColors.subtitleTextColorLight,
+      unselectedItemColor: GlimpseColors.textSubTitle,
       selectedFontSize: 12,
       selectedLabelStyle: HomeBottomNavigationBar._selectedLabelStyle,
       unselectedLabelStyle: HomeBottomNavigationBar._unselectedLabelStyle,

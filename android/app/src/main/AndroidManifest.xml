@@ -10,6 +10,12 @@
         android:label="partiu"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        
+        <!-- Google Maps API Key - Necessário para Maps SDK funcionar -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCykzqaHI74daUNLuQfXyRyNgZRTltz4Vc" />
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"

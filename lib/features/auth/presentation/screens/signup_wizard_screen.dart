@@ -367,7 +367,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
               systemNavigationBarIconBrightness: isOnboarding ? Brightness.light : Brightness.dark,
             ),
             child: Scaffold(
-              backgroundColor: isOnboarding ? Colors.black : GlimpseColors.bgColorLight,
+              backgroundColor: isOnboarding ? Colors.black : GlimpseColors.textSubTitle,
               body: isOnboarding
                   ? _buildOnboardingLayout()
                   : _buildNormalLayout(),

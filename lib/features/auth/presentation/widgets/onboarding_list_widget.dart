@@ -45,7 +45,7 @@ class OnboardingListWidget extends StatelessWidget {
           Text(
             i18n.translate(titleKey),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-              color: GlimpseColors.textColorLight,
+              color: GlimpseColors.textSubTitle,
               fontSize: 56,
               fontWeight: FontWeight.w800,
               letterSpacing: -2,
@@ -57,7 +57,7 @@ class OnboardingListWidget extends StatelessWidget {
           Text(
             i18n.translate(subtitleKey),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-              color: GlimpseColors.textColorLight.withValues(alpha: 0.7),
+              color: GlimpseColors.textSubTitle.withValues(alpha: 0.7),
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: -0.3,
