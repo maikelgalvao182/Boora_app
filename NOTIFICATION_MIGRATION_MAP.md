@@ -6,7 +6,7 @@
 3. [Arquivos Core (Obrigatórios)](#arquivos-core-obrigatórios)
 4. [Arquivos de UI (Widgets)](#arquivos-de-ui-widgets)
 5. [Arquivos de Negócio (Services)](#arquivos-de-negócio-services)
-6. [Arquivos de Dados (API/Repository)](#arquivos-de-dados-apirepository)
+6. [Arquivos de Dados (Repository Firestore)](#arquivos-de-dados-repository-firestore)
 7. [Arquivos de Models](#arquivos-de-models)
 8. [Dependências](#dependências)
 9. [Configurações](#configurações)
@@ -27,6 +27,7 @@ Este documento mapeia TODOS os arquivos relacionados ao sistema de notificaçõe
 - ✅ **Mascaramento VIP** - Paywall para notificações premium
 - ✅ **Paginação Eficiente** - Scroll infinito com cache
 - ✅ **Background Handler** - Notificações em background
+- ✅ **Firestore Direto** - Sem camada API, acesso direto ao Firestore
 
 ### ⚠️ IMPORTANTE: Triggers Limpos
 Os triggers específicos do Advanced-Dating (like, visit, wedding, application) **NÃO serão migrados**. Manteremos apenas a infraestrutura genérica para que você possa implementar seus próprios triggers.

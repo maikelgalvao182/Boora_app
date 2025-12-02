@@ -1,0 +1,402 @@
+import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/screens/notifications/controllers/simplified_notification_controller.dart';
+import 'package:partiu/screens/notifications/widgets/notification_item_widget.dart';
+import 'package:partiu/screens/notifications/widgets/notification_horizontal_filters.dart';
+import 'package:partiu/shared/widgets/glimpse_back_button.dart';
+import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
+import 'package:partiu/widgets/skeletons/notification_list_skeleton.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+/// [MVVM] Constantes da View - evita magic numbers
+class _NotificationScreenConstants {
+  static const int filterCount = 2; // All, Messages
+  static const double titleFontSize = 20;
+  static const double clearFontSize = 14;
+  static const double backButtonSize = 24;
+  static const double horizontalPadding = 20;
+  static const double loadingIndicatorPadding = 16;
+}
+
+/// SIMPLIFIED NOTIFICATION SCREEN
+/// Baseado no padrão Chatter: simples, direto e eficaz
+/// 
+/// Arquitetura MVVM:
+/// - View: Este widget (apenas renderização e eventos)
+/// - ViewModel: SimplifiedNotificationController (lógica e estado)
+/// - Model: NotificationsRepository (dados)
+/// 
+/// Características:
+/// - Widget único com RefreshIndicator
+/// - Lista simples com scroll infinito
+/// - Controller gerencia todo o estado
+class SimplifiedNotificationScreen extends StatefulWidget {
+  const SimplifiedNotificationScreen({
+    required this.controller,
+    super.key,
+    this.onBackPressed,
+  });
+  
+  final SimplifiedNotificationController controller;
+  final VoidCallback? onBackPressed;
+
+  @override
+  State<SimplifiedNotificationScreen> createState() => _SimplifiedNotificationScreenState();
+}
+
+class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScreen> {
+  // [PERF] Cache de páginas de filtro para evitar List.generate em cada build
+  late final List<Widget> _filterPages = List.generate(
+    _NotificationScreenConstants.filterCount,
+    (index) => _NotificationFilterPage(
+      key: ValueKey('filter_page_$index'),
+      filterIndex: index,
+      controller: widget.controller,
+    ),
+    growable: false,
+  );
+
+  // [PERF] Cache de TextStyles - criados uma vez no didChangeDependencies
+  late final TextStyle _titleStyle;
+  late final TextStyle _clearStyle;
+  bool _isInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    if (!_isInitialized) {
+      _isInitialized = true;
+
+      _titleStyle = GoogleFonts.getFont(
+        FONT_PLUS_JAKARTA_SANS,
+        fontSize: _NotificationScreenConstants.titleFontSize,
+        fontWeight: FontWeight.w700,
+        color: GlimpseColors.textColorLight,
+      );
+      _clearStyle = GoogleFonts.getFont(
+        FONT_PLUS_JAKARTA_SANS,
+        fontSize: _NotificationScreenConstants.clearFontSize,
+        fontWeight: FontWeight.w600,
+        color: Colors.red,
+      );
+      
+      // Inicializa controller (sem VIP check)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.controller.initialize(true); // isVip sempre true no Partiu
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? GlimpseColors.bgColorDark : GlimpseColors.bgColorLight;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: Column(
+        children: [
+          // AppBar
+          _NotificationAppBar(
+            titleStyle: _titleStyle,
+            clearStyle: _clearStyle,
+            bgColor: bgColor,
+            i18n: i18n,
+            onBack: widget.onBackPressed ?? () => Navigator.pop(context),
+            onClear: () => _showDeleteConfirmation(context, i18n),
+          ),
+          
+          // Filtros horizontais
+          _FilterSection(
+            controller: widget.controller,
+            i18n: i18n,
+          ),
+          
+          // [PERF] IndexedStack com páginas cacheadas
+          Expanded(
+            child: ListenableBuilder(
+              listenable: widget.controller,
+              builder: (context, _) {
+                return IndexedStack(
+                  index: widget.controller.selectedFilterIndex,
+                  sizing: StackFit.expand,
+                  children: _filterPages,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDeleteConfirmation(BuildContext context, AppLocalizations i18n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(i18n.translate('delete_notifications')),
+        content: Text(i18n.translate('all_notifications_will_be_deleted')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(i18n.translate('CANCEL')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              i18n.translate('DELETE'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await widget.controller.deleteAllNotifications();
+    }
+  }
+}
+
+/// [PERF] Widget de seção de filtros otimizado
+class _FilterSection extends StatefulWidget {
+  const _FilterSection({
+    required this.controller,
+    required this.i18n,
+  });
+  
+  final SimplifiedNotificationController controller;
+  final AppLocalizations i18n;
+
+  @override
+  State<_FilterSection> createState() => _FilterSectionState();
+}
+
+class _FilterSectionState extends State<_FilterSection> {
+  late final List<String> _filterLabels;
+
+  @override
+  void initState() {
+    super.initState();
+    _filterLabels = SimplifiedNotificationController.filterLabelKeys
+        .map((key) => widget.i18n.translate(key))
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.controller.selectedFilterIndexNotifier,
+      builder: (context, selectedIndex, _) {
+        return NotificationHorizontalFilters(
+          items: _filterLabels,
+          selectedIndex: selectedIndex,
+          onSelected: widget.controller.setFilter,
+        );
+      },
+    );
+  }
+}
+
+/// Widget de página de filtro
+class _NotificationFilterPage extends StatefulWidget {
+  const _NotificationFilterPage({
+    required this.filterIndex,
+    required this.controller,
+    super.key,
+  });
+  
+  final int filterIndex;
+  final SimplifiedNotificationController controller;
+
+  @override
+  State<_NotificationFilterPage> createState() => _NotificationFilterPageState();
+}
+
+class _NotificationFilterPageState extends State<_NotificationFilterPage> 
+    with AutomaticKeepAliveClientMixin {
+  
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    
+    final i18n = AppLocalizations.of(context);
+    final filterKey = widget.controller.mapFilterIndexToKey(widget.filterIndex);
+    
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.controller.getFilterNotifier(filterKey),
+      builder: (context, updateCount, _) {
+        final notifications = widget.controller.getNotificationsForFilter(filterKey);
+        final hasMore = widget.controller.hasMoreForFilter(filterKey);
+        final isLoading = widget.controller.isLoading && 
+                         widget.controller.selectedFilterKey == filterKey;
+        final errorMessage = widget.controller.errorMessage;
+        final isFirstLoadForThisFilter = widget.controller.isFirstLoadForFilter(filterKey);
+        final isVipEffective = widget.controller.isVipEffective;
+        
+        // Loading inicial
+        if (isLoading && notifications.isEmpty && isFirstLoadForThisFilter) {
+          return const NotificationListSkeleton();
+        }
+
+        // Erro
+        if (errorMessage != null && notifications.isEmpty) {
+          return _ErrorState(
+            errorMessage: errorMessage,
+            i18n: i18n,
+            onRetry: () => widget.controller.fetchNotifications(shouldRefresh: true),
+          );
+        }
+
+        // Lista vazia
+        if (notifications.isEmpty) {
+          return GlimpseEmptyState(
+            text: i18n.translate('no_notifications_yet'),
+          );
+        }
+
+        // Lista com dados
+        return CustomScrollView(
+          key: PageStorageKey('notif_${widget.filterIndex}'),
+          controller: widget.controller.getScrollController(widget.filterIndex),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            CupertinoSliverRefreshControl(
+              onRefresh: () => widget.controller.fetchNotifications(shouldRefresh: true),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index == notifications.length) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(
+                            _NotificationScreenConstants.loadingIndicatorPadding,
+                          ),
+                          child: CupertinoActivityIndicator(),
+                        ),
+                      );
+                    }
+
+                    final doc = notifications[index];
+                    
+                    return RepaintBoundary(
+                      child: NotificationItemWidget(
+                        key: ValueKey(doc.id),
+                        notification: doc,
+                        isVipEffective: isVipEffective,
+                        i18n: i18n,
+                        index: index,
+                        totalCount: notifications.length,
+                        onTap: () => widget.controller.markAsRead(doc.id),
+                      ),
+                    );
+                  },
+                  childCount: notifications.length + (hasMore ? 1 : 0),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// AppBar
+class _NotificationAppBar extends StatelessWidget {
+  const _NotificationAppBar({
+    required this.titleStyle,
+    required this.clearStyle,
+    required this.bgColor,
+    required this.i18n,
+    required this.onBack,
+    required this.onClear,
+  });
+  
+  final TextStyle titleStyle;
+  final TextStyle clearStyle;
+  final Color bgColor;
+  final AppLocalizations i18n;
+  final VoidCallback onBack;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final notificationsText = i18n.translate('notifications');
+    final clearText = i18n.translate('clear');
+    
+    return AppBar(
+      backgroundColor: bgColor,
+      automaticallyImplyLeading: false,
+      centerTitle: true,
+      leading: GlimpseBackButton.iconButton(
+        onPressed: onBack,
+        width: _NotificationScreenConstants.backButtonSize,
+        height: _NotificationScreenConstants.backButtonSize,
+      ),
+      title: Text(notificationsText, style: titleStyle),
+      actions: [
+        Center(
+          child: GestureDetector(
+            onTap: onClear,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: _NotificationScreenConstants.horizontalPadding,
+              ),
+              child: Text(clearText, style: clearStyle),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Estado de erro
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({
+    required this.errorMessage,
+    required this.i18n,
+    required this.onRetry,
+  });
+  
+  final String errorMessage;
+  final AppLocalizations i18n;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final tryAgainText = i18n.translate('try_again');
+    
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            errorMessage,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.red),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: onRetry,
+            child: Text(tryAgainText),
+          ),
+        ],
+      ),
+    );
+  }
+}

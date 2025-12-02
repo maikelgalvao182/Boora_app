@@ -60,6 +60,25 @@ service cloud.firestore {
     }
 
     //
+    // 🔔 Coleção de notificações
+    // Path usado no app:
+    // - Users/{userId}/Notifications/{notificationId}
+    //   - n_type: string
+    //   - n_sender_id: string
+    //   - n_sender_fullname: string
+    //   - n_sender_photo_url: string
+    //   - n_params: map
+    //   - n_metadata: map
+    //   - n_related_id: string
+    //   - n_read: bool
+    //   - timestamp: timestamp
+    //
+    match /Users/{userId}/Notifications/{notificationId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isSignedIn(); // Qualquer usuário logado pode criar notificações para outros
+    }
+
+    //
     // 🚫 Outras coleções: bloqueadas por padrão
     //
     match /{document=**} {

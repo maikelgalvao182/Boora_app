@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
+import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/home/presentation/widgets/auto_updating_badge.dart';
 import 'package:partiu/features/home/presentation/widgets/home_app_bar_controller.dart';
 
@@ -88,7 +90,10 @@ class _HomeAppBarState extends State<HomeAppBar> {
                       size: 24,
                       color: GlimpseColors.textColorLight,
                     ),
-                    onPressed: widget.onNotificationsTap,
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      context.push(AppRoutes.notifications);
+                    },
                     tooltip: 'Notificações',
                   ),
                 ),

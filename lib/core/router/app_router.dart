@@ -16,6 +16,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
+import 'package:partiu/screens/notifications/widgets/simplified_notification_screen_wrapper.dart';
 
 /// Rotas da aplicação
 class AppRoutes {
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String blocked = '/blocked';
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile';
+  static const String notifications = '/notifications';
 }
 
 /// Cria o GoRouter com proteção baseada no AuthSyncService
@@ -179,6 +181,13 @@ GoRouter createAppRouter(BuildContext context) {
       path: AppRoutes.editProfile,
       name: 'editProfile',
       builder: (context, state) => const EditProfileScreen(),
+    ),
+    
+    // Notifications
+    GoRoute(
+      path: AppRoutes.notifications,
+      name: 'notifications',
+      builder: (context, state) => const SimplifiedNotificationScreenWrapper(),
     ),
   ],
   
