@@ -26,7 +26,7 @@ class SocketService {
     return 'ws://127.0.0.1:8080'; // ✅ iOS Simulator
   }
   
-  static const String _prodUrl = 'wss://partiu-websocket-kps2yw5qra-uc.a.run.app';
+  static const String _prodUrl = 'wss://partiu-websocket-13564294004.us-central1.run.app';
 
   bool get isConnected => _isConnected;
 
@@ -74,11 +74,11 @@ class SocketService {
       final token = await user.getIdToken();
 
 
-      // Configura Socket.IO com polling + websocket (fallback para Cloud Run)
+      // Configura Socket.IO forçando WebSocket puro
       _socket = IO.io(
         _wsUrl,
         IO.OptionBuilder()
-            .setTransports(['polling', 'websocket']) // Polling primeiro, depois upgrade para WebSocket
+            .setTransports(['websocket']) // APENAS WebSocket, sem polling
             .disableAutoConnect() // Controle manual
             .enableReconnection()
             .setReconnectionDelay(2000)
@@ -86,8 +86,7 @@ class SocketService {
             .setReconnectionAttempts(3)
             .setAuth({'token': token})
             .setExtraHeaders({'Authorization': 'Bearer $token'})
-            // 🔥 REMOVIDAS FLAGS PERIGOSAS: enableForceNew() e enableForceNewConnection()
-            // Essas flags causavam múltiplas instâncias de socket e desconexões frequentes
+            .enableForceNew() // Força nova conexão
             // Configurações adicionais
             .setTimeout(10000) // 10s timeout
             .build(),

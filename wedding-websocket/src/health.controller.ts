@@ -1,12 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
 
 @Controller('api')
-export class AppController {
-  constructor(private readonly appService: AppService) {}
-
+export class HealthController {
   @Get('health')
-  getHealth(): any {
+  check() {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

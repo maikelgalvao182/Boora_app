@@ -25,10 +25,6 @@ async function bootstrap() {
   // Garante que responde a requisições do Cloud Run Load Balancer
   app.enableShutdownHooks();
 
-  // 🔍 LOG CRÍTICO - Verificar PORT do Cloud Run
-  console.log('🔍 DEBUG - process.env.PORT =', process.env.PORT);
-  console.log('🔍 DEBUG - PORT type:', typeof process.env.PORT);
-  
   // Cloud Run SEMPRE define PORT - garantir tipo para TypeScript
   const port = process.env.PORT || '8080';
   console.log('🔍 DEBUG - Using PORT:', port);
