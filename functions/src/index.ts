@@ -203,6 +203,31 @@ export const onApplicationApproved = functions.firestore
         (doc) => doc.data().userId
       );
 
+      // 🆕 Buscar dados completos de todos os participantes
+      console.log(
+        `🔍 Buscando dados de ${participantIds.length} participantes...`
+      );
+      const participantDocs = await Promise.all(
+        participantIds.map((id) =>
+          admin.firestore().collection("Users").doc(id).get()
+        )
+      );
+
+      // Criar array de participantes com dados completos
+      const participants = participantDocs
+        .filter((doc) => doc.exists)
+        .map((doc) => {
+          const data = doc.data() || {};
+          return {
+            uid: doc.id,
+            name: data.fullName || data.userFullname || "Usuário",
+            avatar: data.profilePhoto || data.userProfilePhoto || "",
+            role: doc.id === eventData.userId ? "organizador" : "participante",
+          };
+        });
+
+      console.log(`✅ Dados de ${participants.length} participantes carregados`);
+
       const batch = admin.firestore().batch();
 
       // Mensagem de sistema
@@ -240,12 +265,13 @@ export const onApplicationApproved = functions.firestore
         .doc();
 
       batch.set(messageRef, {
-        senderId: "system",
-        senderName: "Sistema",
-        senderPhotoUrl: "",
+        sender_id: "system",
+        sender_name: "Sistema", // 🆕 Nome do remetente
+        sender_photo_url: "", // 🆕 Avatar do remetente
         message: systemMessage,
-        messageType: "system",
-        imgLink: "",
+        message_text: systemMessage, // Compatibilidade
+        message_type: "system",
+        message_img_link: "",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         readBy: [userId], // Apenas novo participante marca como lido
       });
@@ -276,6 +302,8 @@ export const onApplicationApproved = functions.firestore
               admin.firestore.FieldValue.increment(1),
             is_event_chat: true,
             participant_ids: participantIds,
+            // 🆕 Array completo com dados dos participantes
+            participants: participants,
             schedule: schedule,
           },
           {merge: true}
@@ -283,7 +311,8 @@ export const onApplicationApproved = functions.firestore
 
         console.log(
           `✅ Conversation atualizada para ${participantId} ` +
-          `com activityText: "${activityText}"`
+          `com activityText: "${activityText}" e ` +
+          `${participants.length} participantes`
         );
       }
 

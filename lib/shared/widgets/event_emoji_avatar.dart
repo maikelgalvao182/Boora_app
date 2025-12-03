@@ -7,7 +7,7 @@ class EventEmojiAvatar extends StatelessWidget {
   const EventEmojiAvatar({
     required this.emoji,
     required this.eventId,
-    this.size = 40,
+    this.size = 44,
     this.emojiSize = 24,
     super.key,
   });

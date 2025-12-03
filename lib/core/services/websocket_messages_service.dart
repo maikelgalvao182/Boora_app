@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:partiu/features/conversations/models/message.dart';
+import 'package:partiu/screens/chat/models/message.dart';
 import 'package:partiu/core/services/socket_service.dart';
 
 /// Serviço WebSocket REESCRITO com arquitetura correta, segura e escalável.

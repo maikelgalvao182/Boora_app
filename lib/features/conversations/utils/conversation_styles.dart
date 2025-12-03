@@ -120,7 +120,7 @@ class ConversationStyles {
   static const FontWeight titleFontWeight = FontWeight.w600;
   
   /// Tamanho da fonte do activityText (nome do evento)
-  static const double eventNameFontSize = 14;
+  static const double eventNameFontSize = 15;
   
   /// Peso da fonte do activityText
   static const FontWeight eventNameFontWeight = FontWeight.w700;

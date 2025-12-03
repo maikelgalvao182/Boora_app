@@ -18,6 +18,7 @@ import 'package:partiu/shared/widgets/reactive/reactive_widgets.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/event_emoji_avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
@@ -163,19 +164,20 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                   // Avatar reativo - evento ou usuário
                   user.userId.startsWith('event_')
                       ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          stream: FirebaseFirestore.instance
-                              .collection('events')
-                              .doc(user.userId.replaceFirst('event_', ''))
-                              .snapshots(),
+                          stream: chatService.getConversationSummary(user.userId),
                           builder: (context, snap) {
                             String emoji = EventEmojiAvatar.defaultEmoji;
+                            String eventId = user.userId.replaceFirst('event_', '');
+                            
                             if (snap.hasData && snap.data!.data() != null) {
                               final data = snap.data!.data()!;
                               emoji = data['emoji'] ?? EventEmojiAvatar.defaultEmoji;
+                              eventId = data['event_id']?.toString() ?? eventId;
                             }
+                            
                             return EventEmojiAvatar(
                               emoji: emoji,
-                              eventId: user.userId.replaceFirst('event_', ''),
+                              eventId: eventId,
                               size: ConversationStyles.avatarSizeChatAppBar,
                               emojiSize: ConversationStyles.eventEmojiFontSizeChatAppBar,
                             );
@@ -200,10 +202,7 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                           children: [
                             user.userId.startsWith('event_')
                                 ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                                    stream: FirebaseFirestore.instance
-                                        .collection('events')
-                                        .doc(user.userId.replaceFirst('event_', ''))
-                                        .snapshots(),
+                                    stream: chatService.getConversationSummary(user.userId),
                                     builder: (context, snap) {
                                       String eventName = 'Evento';
                                       if (snap.hasData && snap.data!.data() != null) {
@@ -230,34 +229,122 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        // Linha 2: APENAS time-ago da última mensagem
-                        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          stream: chatService.getConversationSummary(user.userId),
-                          builder: (context, snap) {
-                            var timeAgoText = '';
-                            if (snap.hasData && snap.data!.data() != null) {
-                              final data = snap.data!.data()!;
-                              final timestampValue = data['last_message_timestamp']
-                                  ?? data['last_message_at']
-                                  ?? data['lastMessageAt']
-                                  ?? data[TIMESTAMP]
-                                  ?? data['timestamp'];
+                        // Linha 2: Schedule formatado
+                        if (user.userId.startsWith('event_'))
+                          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: chatService.getConversationSummary(user.userId),
+                            builder: (context, snap) {
+                              String scheduleText = '';
+                              if (snap.hasData && snap.data!.data() != null) {
+                                final data = snap.data!.data()!;
+                                final schedule = data['schedule'];
+                                if (schedule != null && schedule is Map) {
+                                  final date = schedule['date'];
+                                  if (date != null) {
+                                    DateTime? dateTime;
+                                    if (date is Timestamp) {
+                                      dateTime = date.toDate();
+                                    } else if (date is DateTime) {
+                                      dateTime = date;
+                                    }
+                                    
+                                    if (dateTime != null) {
+                                      final day = dateTime.day.toString().padLeft(2, '0');
+                                      final month = dateTime.month.toString().padLeft(2, '0');
+                                      final year = dateTime.year.toString().substring(2);
+                                      final hour = dateTime.hour.toString().padLeft(2, '0');
+                                      final minute = dateTime.minute.toString().padLeft(2, '0');
+                                      scheduleText = '$day/$month/$year às $hour:$minute';
+                                    }
+                                  }
+                                }
+                              }
                               
-                              timeAgoText = TimeAgoHelper.format(
-                                timestamp: timestampValue,
-                                locale: i18n.translate('lang'),
+                              if (scheduleText.isEmpty) return const SizedBox.shrink();
+                              
+                              return Text(
+                                scheduleText,
+                                style: GoogleFonts.getFont(
+                                  FONT_PLUS_JAKARTA_SANS,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: GlimpseColors.textSubTitle,
+                                ),
                               );
-                            }
-                            if (timeAgoText.isEmpty) return const SizedBox.shrink();
-                            
-                            final baseStyle = ConversationStyles.subtitle(
-                              color: GlimpseColors.textSubTitle,
-                            );
-                            return Text(timeAgoText, style: baseStyle);
-                          },
-                        ),
+                            },
+                          ),
                       ],
                     ),
+                  ),
+                  
+                  // Coluna direita: Menu 3 pontos e time-ago
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Menu de opções (3 pontos) - removendo paddings internos
+                      GlimpseActionMenuButton(
+                        iconColor: GlimpseColors.primaryColorLight,
+                        padding: EdgeInsets.zero,
+                        buttonSize: 24,
+                        iconSize: 20,
+                        items: [
+                          GlimpseActionMenuItem(
+                            label: i18n.translate('delete_conversation'),
+                            icon: Icons.delete_outline,
+                            onTap: onDeleteChat,
+                            isDestructive: true,
+                          ),
+                          GlimpseActionMenuItem(
+                            label: i18n.translate('remove_application'),
+                            icon: Icons.highlight_off,
+                            onTap: () => _handleRemoveApplication(context),
+                            isDestructive: true,
+                          ),
+                          if (!chatService.isRemoteUserBlocked)
+                            GlimpseActionMenuItem(
+                              label: i18n.translate('Block'),
+                              icon: Icons.block,
+                              onTap: () => _blockProfile(context),
+                            )
+                          else
+                            GlimpseActionMenuItem(
+                              label: i18n.translate('Unblock'),
+                              icon: Icons.block,
+                              onTap: () => _unblockProfile(context),
+                            ),
+                        ],
+                      ),
+                      // Time-ago da última mensagem
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: chatService.getConversationSummary(user.userId),
+                        builder: (context, snap) {
+                          var timeAgoText = '';
+                          if (snap.hasData && snap.data!.data() != null) {
+                            final data = snap.data!.data()!;
+                            final timestampValue = data['last_message_timestamp']
+                                ?? data['last_message_at']
+                                ?? data['lastMessageAt']
+                                ?? data[TIMESTAMP]
+                                ?? data['timestamp'];
+                            
+                            timeAgoText = TimeAgoHelper.format(
+                              timestamp: timestampValue,
+                              locale: i18n.translate('lang'),
+                            );
+                          }
+                          if (timeAgoText.isEmpty) return const SizedBox.shrink();
+                          
+                          final baseStyle = ConversationStyles.subtitle(
+                            color: GlimpseColors.textSubTitle,
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(timeAgoText, style: baseStyle),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -265,57 +352,7 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
-      actions: [
-  // Disabled: Video call and Voice call icons
-  // IconButton(
-  //   icon: SvgIcon(
-  //     "assets/svg/video.svg",
-  //     color: isDarkMode ? GlimpseColors.textColorDark : GlimpseColors.textSubTitle,
-  //   ),
-  //   onPressed: () => _makeVideoCall(context),
-  // ),
-  // const SizedBox(width: 4),
-  // IconButton(
-  //   icon: SvgIcon(
-  //     "assets/svg/call.svg",
-  //     color: isDarkMode ? GlimpseColors.textColorDark : GlimpseColors.textSubTitle,
-  //   ),
-  //   onPressed: () => _makeVoiceCall(context),
-  // ),
-  // const SizedBox(width: 4),
-
-        // Menu de opções (reutilizando GlimpseActionMenuButton)
-        GlimpseActionMenuButton(
-          iconColor: GlimpseColors.primaryColorLight,
-          items: [
-            GlimpseActionMenuItem(
-              label: i18n.translate('delete_conversation'),
-              icon: Icons.delete_outline,
-              onTap: onDeleteChat,
-              isDestructive: true,
-            ),
-            GlimpseActionMenuItem(
-              label: i18n.translate('remove_application'),
-              icon: Icons.highlight_off,
-              onTap: () => _handleRemoveApplication(context),
-              isDestructive: true,
-            ),
-            if (!chatService.isRemoteUserBlocked)
-              GlimpseActionMenuItem(
-                label: i18n.translate('Block'),
-                icon: Icons.block,
-                onTap: () => _blockProfile(context),
-              )
-            else
-              GlimpseActionMenuItem(
-                label: i18n.translate('Unblock'),
-                icon: Icons.block,
-                onTap: () => _unblockProfile(context),
-              ),
-          ],
-        ),
-        const SizedBox(width: 20),
-      ],
+      actions: const [],
     );
   }
 }

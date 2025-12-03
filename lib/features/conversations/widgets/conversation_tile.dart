@@ -83,14 +83,26 @@ class ConversationTile extends StatelessWidget {
     // Leading: Avatar ou Emoji do evento
     final Widget leading;
     if (isEventChat) {
-      // Usar widget compartilhável de emoji avatar
-      final emoji = rawData['emoji'] ?? EventEmojiAvatar.defaultEmoji;
-      final eventId = rawData['event_id']?.toString() ?? '';
-      leading = EventEmojiAvatar(
-        emoji: emoji,
-        eventId: eventId,
-        size: ConversationStyles.avatarSize,
-        emojiSize: ConversationStyles.eventEmojiFontSize,
+      // Buscar emoji da coleção Connections
+      leading = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: chatService.getConversationSummary(displayData.otherUserId),
+        builder: (context, snap) {
+          String emoji = EventEmojiAvatar.defaultEmoji;
+          String eventId = rawData['event_id']?.toString() ?? '';
+          
+          if (snap.hasData && snap.data!.data() != null) {
+            final data = snap.data!.data()!;
+            emoji = data['emoji'] ?? EventEmojiAvatar.defaultEmoji;
+            eventId = data['event_id']?.toString() ?? eventId;
+          }
+          
+          return EventEmojiAvatar(
+            emoji: emoji,
+            eventId: eventId,
+            size: ConversationStyles.avatarSize,
+            emojiSize: ConversationStyles.eventEmojiFontSize,
+          );
+        },
       );
     } else {
       // Avatar normal para conversas 1-1
@@ -117,26 +129,19 @@ class ConversationTile extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: isEventChat
-                ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection('events')
-                        .doc(displayData.otherUserId.replaceFirst('event_', ''))
-                        .snapshots(),
-                    builder: (context, snap) {
-                      String eventName = 'Evento';
-                      if (snap.hasData && snap.data!.data() != null) {
-                        final data = snap.data!.data()!;
-                        eventName = data['activityText'] ?? 'Evento';
-                      }
-                      return ConversationStyles.buildEventNameText(
-                        name: eventName,
-                      );
-                    },
-                  )
-                : ConversationStyles.buildEventNameText(
-                    name: rawData['activityText'] ?? 'Usuário',
-                  ),
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: chatService.getConversationSummary(displayData.otherUserId),
+              builder: (context, snap) {
+                String displayName = 'Usuário';
+                if (snap.hasData && snap.data!.data() != null) {
+                  final data = snap.data!.data()!;
+                  displayName = data['activityText'] ?? data['user_fullname'] ?? 'Usuário';
+                }
+                return ConversationStyles.buildEventNameText(
+                  name: displayName,
+                );
+              },
+            ),
           ),
           const SizedBox(width: 8),
           // 🔥 Time-ago reativo usando StreamBuilder (igual ao chat_app_bar_widget.dart)
@@ -171,7 +176,7 @@ class ConversationTile extends StatelessWidget {
         ],
       ),
       subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4.0),
+        padding: const EdgeInsets.only(top: 2.0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [

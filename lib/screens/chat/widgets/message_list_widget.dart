@@ -85,33 +85,18 @@ class _MessageListWidgetState extends State<MessageListWidget> {
       print('  - text: ${message.text}');
       print('  - senderId: ${message.senderId}');
       print('  - receiverId: ${message.receiverId}');
-      print('  - userId: ${message.userId}');
       print('  - currentUserId: ${AppState.currentUserId}');
       
-      // Correct sender logic for old vs new messages
-      bool isSender;
-      
-      if (message.senderId != null && message.senderId!.isNotEmpty) {
-        // New messages (WebSocket) with proper sender_id
-        isSender = message.senderId == AppState.currentUserId;
-        print('  - [New Message] Using senderId: ${message.senderId}, isSender: $isSender');
-      } else {
-        // Legacy messages from Firestore without sender_id
-        // Use userId (collection owner) to determine sender
-        isSender = message.userId == AppState.currentUserId;
-        print('  - [Legacy Message] Using userId: ${message.userId}, isSender: $isSender');
-      }
+      // ✅ Lógica correta do advanced-dating:
+      // Uma mensagem é "enviada" (isSender=true) se senderId == currentUserId
+      // Isso funciona tanto para mensagens novas quanto antigas (com fallback para user_id)
+      final isSender = message.senderId == AppState.currentUserId;
       
       print('  - ✅ FINAL DECISION: isSender = $isSender');
       
       final processedMessage = _ProcessedMessage(
         id: docId,
         message: message.text ?? '',
-        // Regra definitiva corrigida:
-        // - Usa senderId (autor real) ao invés de userId (dono da subcoleção)
-        // - Compara senderId com currentUserId para determinar se foi enviada pelo usuário atual
-        // - Mensagens onde senderId == currentUserId ficam à direita (enviadas)
-        // - Mensagens onde senderId != currentUserId ficam à esquerda (recebidas)
         isUserSender: isSender,
         time: messageTime,
         isRead: message.isRead ?? false,

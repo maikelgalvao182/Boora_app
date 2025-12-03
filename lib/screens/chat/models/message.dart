@@ -29,23 +29,25 @@ class Message {
       timestamp = null;
     }
 
-    final senderId = data['sender_id'] as String?; // Don't fallback to user_id
+    final senderId = data['sender_id'] as String?;
+    final receiverId = data['receiver_id'] as String?;
     final userId = data['user_id'] as String? ?? '';
     
     // Debug log
     print('🔍 Message.fromDocument - id: $id');
     print('   sender_id (raw): ${data['sender_id']}');
+    print('   receiver_id (raw): ${data['receiver_id']}');
     print('   user_id (raw): ${data['user_id']}');
     print('   senderId (final): $senderId');
     print('   userId (final): $userId');
 
     return Message(
       id: id,
-      text: data['message_text'] as String?,
+      text: data['message'] ?? data['message_text'] as String?, // ✅ Suporta ambos os campos
       imageUrl: data['message_img_link'] as String?,
       userId: userId,
-      senderId: senderId, // Can be null for old messages
-      receiverId: data['receiver_id'] as String?,
+      senderId: senderId ?? userId, // ✅ Fallback para user_id em mensagens antigas
+      receiverId: receiverId,
       type: data['message_type'] as String? ?? 'text',
       timestamp: timestamp,
       isRead: data['message_read'] as bool?,
@@ -66,7 +68,8 @@ class Message {
   /// Converter para Map para salvar no Firestore
   Map<String, dynamic> toMap() {
     return {
-      'message_text': text,
+      'message': text, // ✅ Campo principal
+      'message_text': text, // Compatibilidade
       'message_img_link': imageUrl,
       'user_id': userId,
       'sender_id': senderId,

@@ -278,14 +278,19 @@ match /EventChats/{eventId} {
 
   /// 💬 Mensagens dentro do chat
   match /Messages/{messageId} {
-    // Qualquer participante pode ler mensagens
-    allow read: if isSignedIn() && 
-      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
+    // Helper: verifica se usuário é participante do evento
+    function isParticipant() {
+      return request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
+    }
     
-    // Qualquer participante pode enviar mensagens
+    // Qualquer participante pode ler mensagens
+    allow read: if isSignedIn() && isParticipant();
+    
+    // Qualquer participante pode criar mensagens (validação forte de sender_id)
     allow create: if isSignedIn() && 
-      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds &&
-      request.resource.data.senderId == request.auth.uid;
+      isParticipant() &&
+      request.resource.data.sender_id == request.auth.uid &&
+      request.resource.data.keys().hasAll(['sender_id', 'message_type', 'timestamp']);
     
     // Não pode editar/deletar mensagens
     allow update, delete: if false;

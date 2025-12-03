@@ -93,15 +93,22 @@ class ChatRepository implements IChatRepository {
       
       print('🔍 [CHAT DEBUG] Message Path: EventChats/$eventId/Messages/${messageRef.id}');
       
+      // Para mensagens de imagem, usar texto descritivo se textMsg estiver vazio
+      final displayText = textMsg.isEmpty && type == 'image' ? '📷 Imagem' : textMsg;
+      
       batch.set(messageRef, {
-        'senderId': senderId,
-        'senderName': userFullName,
-        'senderPhotoUrl': userPhotoLink,
-        'message': textMsg,
-        'messageType': type,
-        'imgLink': imgLink,
+        'sender_id': senderId,
+        'receiver_id': receiverId, // ✅ Agora incluído para compatibilidade
+        'user_id': senderId, // Compatibilidade com modelo Message
+        'sender_name': userFullName,
+        'sender_photo_url': userPhotoLink,
+        'message': displayText, // ✅ Campo principal
+        'message_text': displayText, // Compatibilidade
+        'message_type': type,
+        'message_img_link': imgLink,
         'timestamp': timestamp,
-        'readBy': [senderId], // Marca como lido pelo sender
+        'message_read': false, // Event messages não usam message_read individual
+        'readBy': [senderId], // Marca como lido pelo sender no array
       });
       
       // 2. Atualiza conversa do sender em Connections (para lista de conversas)
@@ -118,7 +125,7 @@ class ChatRepository implements IChatRepository {
         USER_FULLNAME: userFullName,
         USER_PROFILE_PHOTO: userPhotoLink,
         MESSAGE_TYPE: type,
-        LAST_MESSAGE: textMsg,
+        LAST_MESSAGE: displayText, // ✅ Usa displayText para EventChats também
         MESSAGE_READ: true,
         TIMESTAMP: timestamp,
       }, SetOptions(merge: true));
@@ -151,12 +158,19 @@ class ChatRepository implements IChatRepository {
     
     print('🔍 [CHAT DEBUG] Sender Message Path: Messages/$senderId/$receiverId/${senderMsgRef.id}');
 
+    // Para mensagens de imagem, usar texto descritivo se textMsg estiver vazio
+    final displayText = textMsg.isEmpty && type == 'image' ? '📷 Imagem' : textMsg;
+
     batch.set(senderMsgRef, {
-      SENDER_ID: senderId,
-      MESSAGE_TYPE: type,
-      MESSAGE: textMsg,
-      TIMESTAMP: timestamp,
-      IMG_LINK: imgLink,
+      'sender_id': senderId,
+      'receiver_id': receiverId,
+      'user_id': senderId, // ID do dono da subcoleção
+      'message_type': type,
+      'message': displayText, // ✅ Campo principal
+      'message_text': displayText, // Compatibilidade
+      'message_img_link': imgLink,
+      'timestamp': timestamp,
+      'message_read': true, // Sender marca como lido
     });
 
     // Mensagem no documento do receiver
@@ -169,11 +183,15 @@ class ChatRepository implements IChatRepository {
     print('🔍 [CHAT DEBUG] Receiver Message Path: Messages/$receiverId/$senderId/${receiverMsgRef.id}');
 
     batch.set(receiverMsgRef, {
-      SENDER_ID: senderId,
-      MESSAGE_TYPE: type,
-      MESSAGE: textMsg,
-      TIMESTAMP: timestamp,
-      IMG_LINK: imgLink,
+      'sender_id': senderId,
+      'receiver_id': receiverId,
+      'user_id': receiverId, // ID do dono da subcoleção
+      'message_type': type,
+      'message': displayText, // ✅ Campo principal (usa displayText definido acima)
+      'message_text': displayText, // Compatibilidade
+      'message_img_link': imgLink,
+      'timestamp': timestamp,
+      'message_read': isRead, // Receiver usa o parâmetro isRead
     });
 
     // Atualiza conversa do sender
@@ -190,7 +208,7 @@ class ChatRepository implements IChatRepository {
       USER_PROFILE_PHOTO: userPhotoLink,
       USER_FULLNAME: userFullName,
       MESSAGE_TYPE: type,
-      LAST_MESSAGE: textMsg,
+      LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: true,
       TIMESTAMP: timestamp,
     });
@@ -210,7 +228,7 @@ class ChatRepository implements IChatRepository {
       USER_PROFILE_PHOTO: currentUser?.userProfilePhoto ?? '',
       USER_FULLNAME: currentUser?.userFullname ?? '',
       MESSAGE_TYPE: type,
-      LAST_MESSAGE: textMsg,
+      LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: isRead,
       TIMESTAMP: timestamp,
     });
@@ -285,35 +303,58 @@ class ChatRepository implements IChatRepository {
     required User receiver,
   }) async {
     try {
+      print('🖼️ [CHAT DEBUG] ===== SEND IMAGE MESSAGE =====');
+      
       final currentUserId = AppState.currentUserId;
+      print('🖼️ [CHAT DEBUG] Current User ID: $currentUserId');
+      
       if (currentUserId == null) {
+        print('❌ [CHAT DEBUG] ERRO: Usuário não autenticado!');
         throw Exception('Usuário não autenticado');
       }
 
+      print('🖼️ [CHAT DEBUG] Receiver User ID: ${receiver.userId}');
+      print('🖼️ [CHAT DEBUG] Is Event Chat: ${receiver.userId.startsWith("event_")}');
+      print('🖼️ [CHAT DEBUG] Image file path: ${imageFile.path}');
+      print('🖼️ [CHAT DEBUG] Image file size: ${await imageFile.length()} bytes');
+
       // Comprimir e fazer upload para Firebase Storage
+      print('🖼️ [CHAT DEBUG] Starting image compression...');
       const compressor = ImageCompressService();
       final compressed = await compressor.compressFileToTempFile(imageFile);
+      print('🖼️ [CHAT DEBUG] Image compressed: ${compressed.path}');
+      print('🖼️ [CHAT DEBUG] Compressed size: ${await compressed.length()} bytes');
       
       final fileName = 'chat_${currentUserId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = _storage.ref().child('chat_images').child(fileName);
       
+      print('🖼️ [CHAT DEBUG] Starting upload to Storage: $fileName');
       await ref.putFile(compressed);
+      print('🖼️ [CHAT DEBUG] Upload complete, getting download URL...');
+      
       final imageUrl = await ref.getDownloadURL();
+      print('🖼️ [CHAT DEBUG] Download URL obtained: $imageUrl');
       
       // Limpar arquivo temporário comprimido
       try {
         if (compressed.path != imageFile.path && await compressed.exists()) {
           await compressed.delete();
+          print('🖼️ [CHAT DEBUG] Temporary file cleaned');
         }
-      } catch (_) {
-        // Ignorar erro de limpeza
+      } catch (e) {
+        print('⚠️ [CHAT DEBUG] Failed to clean temp file: $e');
       }
 
       final currentUser = AppState.currentUser.value;
+      print('🖼️ [CHAT DEBUG] Current User Full Name: ${currentUser?.userFullname}');
+      
       if (currentUser == null) {
+        print('❌ [CHAT DEBUG] ERRO: Dados do usuário não disponíveis!');
         throw Exception('Dados do usuário não disponíveis');
       }
 
+      print('🖼️ [CHAT DEBUG] Calling saveMessage with image...');
+      
       // Salva a mensagem
       await saveMessage(
         type: 'image',
@@ -326,7 +367,11 @@ class ChatRepository implements IChatRepository {
         imgLink: imageUrl,
         isRead: false,
       );
-    } catch (e) {
+      
+      print('✅ [CHAT DEBUG] sendImageMessage completed successfully!');
+    } catch (e, stackTrace) {
+      print('❌ [CHAT DEBUG] sendImageMessage FAILED: $e');
+      print('❌ [CHAT DEBUG] Stack trace: $stackTrace');
       rethrow;
     }
   }
