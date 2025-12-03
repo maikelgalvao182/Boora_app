@@ -1,36 +1,129 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
+import 'package:partiu/features/home/create_flow/activity_repository.dart';
+import 'package:partiu/features/home/presentation/widgets/controllers/participants_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
+import 'package:partiu/features/home/presentation/widgets/schedule/people_picker.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
+import 'package:partiu/shared/widgets/animated_expandable.dart';
 
 /// Bottom sheet para seleção de participantes e privacidade da atividade
 class ParticipantsDrawer extends StatefulWidget {
-  const ParticipantsDrawer({super.key});
+  const ParticipantsDrawer({super.key, this.coordinator});
+
+  final CreateFlowCoordinator? coordinator;
 
   @override
   State<ParticipantsDrawer> createState() => _ParticipantsDrawerState();
 }
 
 class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
-  double _minAge = 18;
-  double _maxAge = 80;
-  PrivacyType? _selectedPrivacyType;
+  late final ParticipantsDrawerController _controller;
+  late final ActivityRepository _repository;
+  bool _isSaving = false;
 
-  void _handleContinue() {
-    if (_selectedPrivacyType == null) return;
+  @override
+  void initState() {
+    super.initState();
+    _controller = ParticipantsDrawerController();
+    _repository = ActivityRepository();
+    _controller.addListener(_onControllerChanged);
+  }
 
-    final result = {
-      'minAge': _minAge.round(),
-      'maxAge': _maxAge.round(),
-      'privacyType': _selectedPrivacyType,
-    };
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
 
-    Navigator.of(context).pop(result);
+  void _onControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _handleContinue() async {
+    if (!_controller.canContinue || _isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // Verificar autenticação
+      final currentUser = fire_auth.FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Salvar dados no coordinator
+      if (widget.coordinator != null) {
+        widget.coordinator!.setParticipants(
+          minAge: _controller.minAge.round(),
+          maxAge: _controller.maxAge.round(),
+          privacyType: _controller.selectedPrivacyType!,
+          maxParticipants: _controller.maxParticipants,
+        );
+
+        // Verificar se o draft está completo
+        if (widget.coordinator!.canSave) {
+          debugPrint('📦 [ParticipantsDrawer] Salvando atividade...');
+          debugPrint(widget.coordinator!.summary);
+
+          // Salvar no Firestore com o userId do Firebase Auth
+          final activityId = await _repository.saveActivity(
+            widget.coordinator!.draft,
+            currentUser.uid,
+          );
+
+          debugPrint('✅ [ParticipantsDrawer] Atividade salva com ID: $activityId');
+
+          if (mounted) {
+            // Retornar sucesso
+            Navigator.of(context).pop({
+              'success': true,
+              'activityId': activityId,
+              ..._controller.getParticipantsData(),
+            });
+          }
+        } else {
+          debugPrint('⚠️ [ParticipantsDrawer] Draft incompleto, não pode salvar');
+          if (mounted) {
+            Navigator.of(context).pop(_controller.getParticipantsData());
+          }
+        }
+      } else {
+        // Sem coordinator, apenas retornar dados
+        if (mounted) {
+          Navigator.of(context).pop(_controller.getParticipantsData());
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ [ParticipantsDrawer] Erro ao salvar: $e');
+      debugPrint('Stack: $stack');
+      
+      if (mounted) {
+        // Mostrar erro para o usuário
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao criar atividade: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -115,13 +208,10 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: AgeRangeFilter(
-                  minAge: _minAge,
-                  maxAge: _maxAge,
+                  minAge: _controller.minAge,
+                  maxAge: _controller.maxAge,
                   onRangeChanged: (RangeValues values) {
-                    setState(() {
-                      _minAge = values.start;
-                      _maxAge = values.end;
-                    });
+                    _controller.setAgeRange(values.start, values.end);
                   },
                 ),
               ),
@@ -132,12 +222,30 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: PrivacyTypeSelector(
-                  selectedType: _selectedPrivacyType,
+                  selectedType: _controller.selectedPrivacyType,
                   onTypeSelected: (type) {
-                    setState(() {
-                      _selectedPrivacyType = type;
-                    });
+                    _controller.setPrivacyType(type);
                   },
+                ),
+              ),
+
+              // People Picker (apenas quando Aberto está selecionado)
+              AnimatedExpandable(
+                isExpanded: _controller.selectedPrivacyType == PrivacyType.open,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: PeoplePicker(
+                        isExpanded: _controller.isPeoplePickerExpanded,
+                        selectedCount: _controller.maxParticipants,
+                        onToggle: _controller.togglePeoplePickerExpanded,
+                        onCountChanged: _controller.setMaxParticipants,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -147,8 +255,8 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: GlimpseButton(
-                  text: 'Continuar',
-                  onPressed: _selectedPrivacyType != null ? _handleContinue : null,
+                  text: _isSaving ? 'Salvando...' : 'Continuar',
+                  onPressed: _controller.canContinue && !_isSaving ? _handleContinue : null,
                 ),
               ),
 

@@ -96,6 +96,57 @@ service cloud.firestore {
     }
 
     //
+    // 🎉 Coleção de eventos/atividades
+    // Path usado no app:
+    // - events/{eventId}
+    //   - activityText: string (descrição da atividade)
+    //   - emoji: string
+    //   - createdBy: string (userId do criador)
+    //   - createdAt: timestamp
+    //   - updatedAt: timestamp
+    //   - location: map
+    //     - latitude: number
+    //     - longitude: number
+    //     - formattedAddress: string
+    //     - locationName: string
+    //     - locality: string
+    //     - placeId: string
+    //   - photoReferences: array<string> (opcional, fotos do Google Places)
+    //   - schedule: map
+    //     - date: timestamp
+    //     - timeType: string ("flexible" | "specific")
+    //     - specificTime: timestamp (opcional, quando timeType == "specific")
+    //   - participants: map
+    //     - minAge: number
+    //     - maxAge: number
+    //     - privacyType: string ("open" | "private")
+    //     - currentCount: number
+    //     - maxCount: number
+    //     - participantIds: array<string>
+    //     - pendingApprovalIds: array<string>
+    //   - status: string ("active" | "canceled" | "completed")
+    //   - isActive: bool
+    //   - isCanceled: bool
+    //   - expiresAt: timestamp
+    //
+    match /events/{eventId} {
+      // Qualquer usuário autenticado pode ler eventos ativos
+      allow read: if isSignedIn() && resource.data.isActive == true;
+      
+      // Apenas usuários autenticados podem criar eventos
+      allow create: if isSignedIn() && 
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.participants.participantIds[0] == request.auth.uid;
+      
+      // Apenas o criador pode atualizar ou deletar o evento
+      allow update: if isSignedIn() && 
+        resource.data.createdBy == request.auth.uid;
+      
+      allow delete: if isSignedIn() && 
+        resource.data.createdBy == request.auth.uid;
+    }
+
+    //
     // 🚫 Outras coleções: bloqueadas por padrão
     //
     match /{document=**} {

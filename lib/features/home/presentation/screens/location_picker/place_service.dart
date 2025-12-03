@@ -15,6 +15,14 @@ class PlaceService {
   final String apiKey;
   final http.Client _httpClient;
 
+  /// Converte photo_reference em URL real do Google Places
+  String getGooglePhotoUrl(String photoReference, {int maxWidth = 800}) {
+    return 'https://maps.googleapis.com/maps/api/place/photo'
+        '?maxwidth=$maxWidth'
+        '&photoreference=$photoReference'
+        '&key=$apiKey';
+  }
+
   /// Autocomplete de lugares
   Future<List<RichSuggestion>> autocomplete({
     required String query,
@@ -119,6 +127,55 @@ class PlaceService {
     }
   }
 
+  /// Busca fotos de um lugar específico por placeId
+  Future<List<String>> getPlacePhotos({
+    required String placeId,
+    required String languageCode,
+  }) async {
+    try {
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/place/details/json?'
+        'key=$apiKey&'
+        'language=$languageCode&'
+        'fields=photos&'
+        'placeid=$placeId',
+      );
+
+      final response = await _httpClient.get(url).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw TimeoutException('Place photos timeout'),
+          );
+
+      if (response.statusCode != 200) {
+        throw Exception('Place photos failed: ${response.statusCode}');
+      }
+
+      final responseJson = json.decode(response.body) as Map<String, dynamic>;
+
+      if (responseJson['status'] != 'OK') {
+        debugPrint('❌ Place photos API error: ${responseJson['status']}');
+        return [];
+      }
+
+      final photos = responseJson['result']?['photos'] as List<dynamic>?;
+      if (photos == null || photos.isEmpty) {
+        debugPrint('⚠️ No photos found for place');
+        return [];
+      }
+
+      debugPrint('✅ Found ${photos.length} photos for place');
+
+      // Retornar URLs reais ao invés de photo_references
+      return photos.map((photo) {
+        final photoReference = photo['photo_reference'] as String;
+        return getGooglePhotoUrl(photoReference);
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Place photos error: $e');
+      return [];
+    }
+  }
+
   /// Busca lugares próximos a uma localização
   Future<List<NearbyPlace>> getNearbyPlaces({
     required LatLng location,
@@ -167,12 +224,14 @@ class PlaceService {
         if (item['photos'] != null && (item['photos'] as List).isNotEmpty) {
           try {
             final photo = (item['photos'] as List)[0] as Map<String, dynamic>;
-            photoReference = photo['photo_reference'] as String?;
+            final rawPhotoReference = photo['photo_reference'] as String?;
             photoWidth = photo['width'] as int?;
             photoHeight = photo['height'] as int?;
 
-            if (photoReference != null && photoReference.isNotEmpty) {
-              debugPrint('✅ Photo found for: ${item['name']}');
+            if (rawPhotoReference != null && rawPhotoReference.isNotEmpty) {
+              // Converter para URL real
+              photoReference = getGooglePhotoUrl(rawPhotoReference);
+              debugPrint('✅ Photo URL created for: ${item['name']}');
             }
           } catch (e) {
             debugPrint('⚠️ Error extracting photo: $e');

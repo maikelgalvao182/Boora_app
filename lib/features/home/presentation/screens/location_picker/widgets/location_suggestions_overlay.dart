@@ -15,7 +15,7 @@ class LocationSuggestionsOverlay extends StatelessWidget {
   });
 
   final List<AutoCompleteItem> suggestions;
-  final ValueChanged<String> onTap;
+  final void Function(String placeId, String placeName) onTap;
   final double top;
 
   @override
@@ -49,8 +49,8 @@ class LocationSuggestionsOverlay extends StatelessWidget {
                 final suggestion = suggestions[index];
                 return InkWell(
                   onTap: () {
-                    if (suggestion.id != null) {
-                      onTap(suggestion.id!);
+                    if (suggestion.id != null && suggestion.text != null) {
+                      onTap(suggestion.id!, suggestion.text!);
                     }
                   },
                   child: Padding(

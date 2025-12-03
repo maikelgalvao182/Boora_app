@@ -35,69 +35,48 @@ class PeoplePicker extends StatelessWidget {
         GestureDetector(
           onTap: onToggle,
           child: Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isExpanded
-                  ? GlimpseColors.primaryLight
-                  : GlimpseColors.lightTextField,
+              color: GlimpseColors.lightTextField,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Container(
-              margin: isExpanded ? const EdgeInsets.all(1.5) : EdgeInsets.zero,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isExpanded
-                    ? GlimpseColors.primaryLight
-                    : GlimpseColors.lightTextField,
-                borderRadius: BorderRadius.circular(10.5),
-                border: isExpanded
-                    ? Border.all(
-                        color: GlimpseColors.primary,
-                        width: 1.5,
-                      )
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  // Ícone
-                  Icon(
-                    IconsaxPlusLinear.profile_2user,
-                    color: (isExpanded || selectedCount > 0)
-                        ? GlimpseColors.primary
-                        : GlimpseColors.textSubTitle,
-                    size: 24,
-                  ),
+            child: Row(
+              children: [
+                // Ícone
+                Icon(
+                  IconsaxPlusLinear.profile_2user,
+                  color: (isExpanded || selectedCount > 0)
+                      ? GlimpseColors.primary
+                      : GlimpseColors.textSubTitle,
+                  size: 24,
+                ),
 
-                  const SizedBox(width: 16),
+                const SizedBox(width: 16),
 
-                  // Título
-                  Expanded(
-                    child: Text(
-                      'Definir vagas',
-                      style: GoogleFonts.getFont(
-                        FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: isExpanded
-                            ? GlimpseColors.textSubTitle
-                            : GlimpseColors.textSubTitle,
-                      ),
-                    ),
-                  ),
-
-                  // Valor selecionado (direita)
-                  Text(
-                    _displayText,
+                // Título
+                Expanded(
+                  child: Text(
+                    'Definir vagas',
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isExpanded
-                          ? GlimpseColors.primaryColorLight
-                          : GlimpseColors.textSubTitle,
+                      fontWeight: FontWeight.w700,
+                      color: GlimpseColors.textSubTitle,
                     ),
                   ),
-                ],
-              ),
+                ),
+
+                // Valor selecionado (direita)
+                Text(
+                  _displayText,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: GlimpseColors.primary,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -120,7 +99,8 @@ class PeoplePicker extends StatelessWidget {
                     textTheme: CupertinoTextThemeData(
                       pickerTextStyle: TextStyle(
                         fontSize: 14,
-                        color: GlimpseColors.textSubTitle,
+                        fontWeight: FontWeight.w800,
+                        color: GlimpseColors.primaryColorLight,
                       ),
                     ),
                   ),
@@ -140,8 +120,8 @@ class PeoplePicker extends StatelessWidget {
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: GlimpseColors.textSubTitle,
+                            fontWeight: FontWeight.w500,
+                            color: GlimpseColors.textSubTitle.withOpacity(0.5),
                           ),
                         ),
                       ),
@@ -154,8 +134,8 @@ class PeoplePicker extends StatelessWidget {
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: GlimpseColors.textSubTitle,
+                              fontWeight: FontWeight.w500,
+                              color: GlimpseColors.textSubTitle.withOpacity(0.5),
                             ),
                           ),
                         ),

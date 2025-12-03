@@ -22,11 +22,21 @@ class LocationPickerController extends ChangeNotifier {
   LatLng? _selectedLocation;
   Set<Marker> _markers = {};
 
-  // Estado dos lugares
+  // Estado do lugar selecionado
   LocationResult? _locationResult;
+  List<String> _selectedPlacePhotos = [];
+  String? _selectedPlaceId;
+
+  // Controla se deve ignorar updates automáticos do mapa
+  bool _lockOnSelectedPlace = false;
+
+  // Controla se usuário confirmou a seleção clicando no dropdown
+  bool _isLocationConfirmed = false;
+
+  // Nearby Places
   List<NearbyPlace> _nearbyPlaces = [];
 
-  // Estado do autocomplete
+  // Autocomplete
   List<RichSuggestion> _suggestions = [];
   bool _hasSearchTerm = false;
   String _previousSearchTerm = '';
@@ -37,19 +47,18 @@ class LocationPickerController extends ChangeNotifier {
   LatLng? get selectedLocation => _selectedLocation;
   Set<Marker> get markers => _markers;
   LocationResult? get locationResult => _locationResult;
+  List<String> get selectedPlacePhotos => _selectedPlacePhotos;
   List<NearbyPlace> get nearbyPlaces => _nearbyPlaces;
-  List<RichSuggestion> get suggestions => _suggestions;
   bool get hasSearchTerm => _hasSearchTerm;
+  List<RichSuggestion> get suggestions => _suggestions;
+  bool get isLocked => _lockOnSelectedPlace;
+  bool get isLocationConfirmed => _isLocationConfirmed;
 
-  /// Atualiza localização atual
-  void setCurrentLocation(LatLng location) {
-    _currentLocation = location;
-    notifyListeners();
-  }
+  // -------------------------------------------------------------
+  //  ATUALIZAÇÕES DO MAPA
+  // -------------------------------------------------------------
 
-  /// Atualiza marcador no mapa
   void setMarker(LatLng location) {
-    debugPrint('🟢 [Controller] setMarker chamado para: $location');
     _selectedLocation = location;
     _markers = {
       Marker(
@@ -57,89 +66,33 @@ class LocationPickerController extends ChangeNotifier {
         position: location,
       ),
     };
-    debugPrint('✅ [Controller] Markers definidos, chamando notifyListeners...');
     notifyListeners();
-    debugPrint('✅ [Controller] notifyListeners concluído');
   }
 
-  /// Move para uma localização e atualiza dados
-  Future<void> moveToLocation(LatLng location, {bool loadNearby = false}) async {
-    debugPrint('🟢 [Controller] moveToLocation iniciado: $location');
+  Future<void> moveToLocation(LatLng location,
+      {String? placeId, bool loadNearby = false}) async {
     setMarker(location);
-    debugPrint('✅ [Controller] Marker definido');
 
-    // Sempre carregar reverse geocoding para mostrar o endereço
-    try {
-      debugPrint('🟢 [Controller] Iniciando reverse geocoding...');
-      await _loadReverseGeocode(location).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          debugPrint('⏰ [Controller] Timeout no reverse geocoding');
-        },
-      );
-      debugPrint('✅ [Controller] Reverse geocoding concluído');
-    } catch (e) {
-      debugPrint('❌ [Controller] Erro no reverse geocoding: $e');
+    final isExplicitSelection = placeId != null;
+
+    if (isExplicitSelection) {
+      _selectedPlaceId = placeId;
+      _lockOnSelectedPlace = true; // trava qualquer movimento automático
+      await _loadPlacePhotos(placeId);
     }
-    
-    // Só carregar lugares próximos se solicitado
-    if (loadNearby) {
-      try {
-        debugPrint('🟢 [Controller] Iniciando busca de lugares próximos...');
-        await _loadNearbyPlaces(location).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            debugPrint('⏰ [Controller] Timeout na busca de lugares próximos');
-          },
-        );
-        debugPrint('✅ [Controller] Busca de lugares próximos concluída');
-      } catch (e) {
-        debugPrint('❌ [Controller] Erro ao buscar lugares próximos: $e');
-      }
-    }
-    
-    debugPrint('🏁 [Controller] moveToLocation concluído');
+
+    // reverse geocode NUNCA altera as fotos
+    await _loadReverseGeocode(location);
+
+    if (loadNearby) await _loadNearbyPlaces(location);
   }
 
-  /// Carrega reverse geocoding
-  Future<void> _loadReverseGeocode(LatLng location) async {
-    debugPrint('🟢 [Controller] _loadReverseGeocode chamado');
-    final result = await placeService.reverseGeocode(
-      location: location,
-      languageCode: localizationItem.languageCode,
-    );
-    debugPrint('✅ [Controller] Reverse geocoding retornou: ${result != null}');
+  // -------------------------------------------------------------
+  //  BUSCAS
+  // -------------------------------------------------------------
 
-    if (result != null) {
-      _locationResult = result;
-      debugPrint('✅ [Controller] LocationResult definido: ${result.formattedAddress}');
-      notifyListeners();
-      debugPrint('✅ [Controller] Listeners notificados');
-    } else {
-      debugPrint('⚠️ [Controller] Reverse geocoding retornou null');
-    }
-  }
-
-  /// Carrega lugares próximos
-  Future<void> _loadNearbyPlaces(LatLng location) async {
-    debugPrint('🟢 [Controller] _loadNearbyPlaces chamado');
-    final places = await placeService.getNearbyPlaces(
-      location: location,
-      languageCode: localizationItem.languageCode,
-    );
-    debugPrint('✅ [Controller] Encontrados ${places.length} lugares próximos');
-
-    _nearbyPlaces = places;
-    _hasSearchTerm = false;
-    notifyListeners();
-    debugPrint('✅ [Controller] Listeners notificados');
-  }
-
-  /// Busca autocomplete
   Future<void> searchPlace(String query) async {
-    if (query == _previousSearchTerm) {
-      return;
-    }
+    if (query == _previousSearchTerm) return;
 
     _previousSearchTerm = query;
     _hasSearchTerm = query.isNotEmpty;
@@ -161,22 +114,73 @@ class LocationPickerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Seleciona um lugar do autocomplete
   Future<LatLng?> selectPlaceFromSuggestion(String placeId) async {
+    debugPrint('🔵 [LocationPickerController] selectPlaceFromSuggestion iniciado');
+    _selectedPlaceId = placeId;
+    _lockOnSelectedPlace = true; // trava o mapa
+    _isLocationConfirmed = true; // confirma a seleção
+    debugPrint('✅ [LocationPickerController] _isLocationConfirmed = true');
+    notifyListeners(); // Notificar imediatamente para atualizar UI
+    debugPrint('🔔 [LocationPickerController] notifyListeners() chamado');
+
     final location = await placeService.getPlaceLatLng(
       placeId: placeId,
       languageCode: localizationItem.languageCode,
     );
 
     if (location != null) {
-      // Quando seleciona da busca, carrega os nearby places
-      await moveToLocation(location, loadNearby: true);
+      debugPrint('📍 [LocationPickerController] Movendo para localização: $location');
+      await moveToLocation(location,
+          placeId: placeId, loadNearby: true);
     }
 
     return location;
   }
 
-  /// Limpa termo de busca
+  // -------------------------------------------------------------
+  //  LOADERS
+  // -------------------------------------------------------------
+
+  Future<void> _loadPlacePhotos(String placeId) async {
+    try {
+      final photos = await placeService.getPlacePhotos(
+        placeId: placeId,
+        languageCode: localizationItem.languageCode,
+      );
+
+      _selectedPlacePhotos = photos;
+      notifyListeners();
+    } catch (_) {
+      _selectedPlacePhotos = [];
+    }
+  }
+
+  Future<void> _loadReverseGeocode(LatLng location) async {
+    final result = await placeService.reverseGeocode(
+      location: location,
+      languageCode: localizationItem.languageCode,
+    );
+
+    if (result != null) {
+      _locationResult = result;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadNearbyPlaces(LatLng location) async {
+    final places = await placeService.getNearbyPlaces(
+      location: location,
+      languageCode: localizationItem.languageCode,
+    );
+
+    _nearbyPlaces = places;
+    notifyListeners();
+  }
+
+  // -------------------------------------------------------------
+  //  UTIL
+  // -------------------------------------------------------------
+
   void clearSearch() {
     _hasSearchTerm = false;
     _suggestions = [];
@@ -184,27 +188,33 @@ class LocationPickerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reseta session token
-  void resetSession() {
-    _sessionToken = Uuid().generateV4();
+  void unlockLocation() {
+    _lockOnSelectedPlace = false;
+    _isLocationConfirmed = false; // remove confirmação ao mover mapa manualmente
+    notifyListeners();
   }
 
-  /// Obtém nome da localização formatado
   String getLocationName() {
     if (_locationResult == null) {
       return localizationItem.unnamedLocation;
     }
 
-    // Verificar se algum nearby place tem um nome melhor
-    for (final np in _nearbyPlaces) {
-      if (np.latLng == _locationResult?.latLng &&
-          np.name != _locationResult?.locality) {
-        _locationResult?.name = np.name;
-        return '${np.name}, ${_locationResult?.locality}';
-      }
+    final result = _locationResult!;
+
+    if (result.name != null && result.name!.isNotEmpty) {
+      return result.name!;
     }
 
-    return '${_locationResult?.name}, ${_locationResult?.locality}';
+    if (result.locality != null && result.locality!.isNotEmpty) {
+      return result.locality!;
+    }
+
+    return result.formattedAddress ?? localizationItem.unnamedLocation;
+  }
+
+  bool _isSameCoord(LatLng a, LatLng b) {
+    return (a.latitude - b.latitude).abs() < 0.00001 &&
+        (a.longitude - b.longitude).abs() < 0.00001;
   }
 
   @override

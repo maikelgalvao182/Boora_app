@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/services/google_maps_config_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_controller.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_map.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/place_service.dart';
@@ -12,6 +13,7 @@ import 'package:partiu/features/home/presentation/screens/location_picker/widget
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_suggestions_overlay.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/map_center_pin.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/meeting_point_info_card.dart';
+import 'package:partiu/features/home/presentation/screens/location_picker/widgets/nearby_places_carousel.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule_drawer.dart';
 import 'package:partiu/plugins/locationpicker/entities/localization_item.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -23,11 +25,13 @@ class LocationPickerPageRefactored extends StatefulWidget {
     this.displayLocation,
     this.localizationItem,
     this.defaultLocation = const LatLng(-23.5505, -46.6333), // São Paulo
+    this.coordinator,
   });
 
   final LatLng? displayLocation;
   final LocalizationItem? localizationItem;
   final LatLng defaultLocation;
+  final CreateFlowCoordinator? coordinator;
 
   @override
   State<LocationPickerPageRefactored> createState() => _LocationPickerPageRefactoredState();
@@ -45,6 +49,7 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
   bool _isLoadingMap = true;
   bool _isInitializing = true;
   OverlayEntry? _overlayEntry;
+  bool _isProgrammaticMove = false; // Flag para indicar movimento programático do mapa
 
   @override
   void initState() {
@@ -126,7 +131,11 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
     final mapState = _mapKey.currentState;
     if (mapState != null && mapState.controller != null) {
       debugPrint('📍 [LocationPicker] Movendo câmera do mapa...');
+      _isProgrammaticMove = true;
       mapState.setInitialCamera(target);
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _isProgrammaticMove = false;
+      });
     } else {
       debugPrint('⚠️ [LocationPicker] Mapa ainda não está pronto, aguardando...');
       // Tentar novamente após 500ms
@@ -137,7 +146,7 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
     }
 
     // DEPOIS: reverse + nearby em background (sem await)
-    unawaited(_controller.moveToLocation(target));
+    unawaited(_controller.moveToLocation(target, loadNearby: true));
   }
 
   /// Obtém localização atual do dispositivo
@@ -238,14 +247,24 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
   }
 
   /// Callback quando usuário seleciona uma sugestão
-  Future<void> _onSuggestionTap(String placeId) async {
+  Future<void> _onSuggestionTap(String placeId, String placeName) async {
+    debugPrint('👆 [LocationPicker] _onSuggestionTap: $placeName');
     FocusScope.of(context).unfocus();
     _clearOverlay();
-    _searchController.clear();
+    
+    // Atualizar input com o nome do lugar selecionado
+    _searchController.text = placeName;
+    debugPrint('✏️ [LocationPicker] Input atualizado com: $placeName');
 
     final location = await _controller.selectPlaceFromSuggestion(placeId);
+    debugPrint('📍 [LocationPicker] Localização retornada: $location');
     if (location != null) {
+      _isProgrammaticMove = true; // Marcar como movimento programático
       _mapKey.currentState?.animateToLocation(location);
+      // Resetar flag após animação (com delay)
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        _isProgrammaticMove = false;
+      });
     }
   }
 
@@ -282,7 +301,7 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
     _overlayEntry = OverlayEntry(
       builder: (context) => LocationSuggestionsOverlay(
         suggestions: suggestions,
-        onTap: _onSuggestionTap,
+        onTap: (placeId, placeName) => _onSuggestionTap(placeId, placeName),
         top: top,
       ),
     );
@@ -300,6 +319,7 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     debugPrint('🎨 [LocationPicker] build - _isLoadingMap: $_isLoadingMap, _isInitializing: $_isInitializing');
+    debugPrint('🟢 [LocationPicker] isLocationConfirmed: ${_controller.isLocationConfirmed}, selectedLocation: ${_controller.selectedLocation}');
     
     // Se ainda está inicializando, mostrar loading
     if (_isInitializing) {
@@ -323,7 +343,19 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
             markers: const {}, // Sem markers, usamos pin fixo
             onMapCreated: _onMapCreated,
             onTap: _onMapTap,
-            onCameraIdle: _updateLocationFromMapCenter,
+            onCameraIdle: () {
+              if (_controller.isLocked) return;
+              _updateLocationFromMapCenter();
+            },
+            onCameraMoveStarted: () {
+              // Só desbloquear se for movimento manual (não programático)
+              if (!_isProgrammaticMove) {
+                debugPrint('🔓 [LocationPicker] Movimento manual detectado - desbloqueando');
+                _controller.unlockLocation();
+              } else {
+                debugPrint('🤖 [LocationPicker] Movimento programático - mantendo bloqueio');
+              }
+            },
           ),
 
           // Pin personalizado no centro
@@ -352,6 +384,13 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
 
                 // Card informativo
                 const MeetingPointInfoCard(),
+
+                // Carousel de fotos do lugar selecionado
+                if (_controller.selectedPlacePhotos.isNotEmpty)
+                  SelectedPlacePhotosCarousel(
+                    photoUrls: _controller.selectedPlacePhotos, // Já são URLs reais
+                    placeName: _controller.getLocationName(),
+                  ),
               ],
             ),
           ),
@@ -363,14 +402,24 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
             right: 16,
             child: GlimpseButton(
               text: i18n.translate('set_activity_location'),
-              onPressed: _controller.selectedLocation != null
+              onPressed: _controller.selectedLocation != null && _controller.isLocationConfirmed
                   ? () async {
+                      // Salvar localização no coordinator
+                      if (widget.coordinator != null && _controller.locationResult != null) {
+                        widget.coordinator!.setLocation(
+                          _controller.locationResult!,
+                          photoReferences: _controller.selectedPlacePhotos,
+                        );
+                      }
+
                       // Abrir drawer de agendamento
                       final scheduleResult = await showModalBottomSheet<Map<String, dynamic>>(
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
-                        builder: (_) => const ScheduleDrawer(),
+                        builder: (_) => ScheduleDrawer(
+                          coordinator: widget.coordinator,
+                        ),
                       );
 
                       if (scheduleResult != null && mounted) {

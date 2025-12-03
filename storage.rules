@@ -53,6 +53,21 @@ service firebase.storage {
       allow delete: if isUser(userId);
     }
 
+    // ✅ Event cover images (imagens de capa dos eventos)
+    // Apenas o criador do evento pode fazer upload
+    match /events/{eventId}/cover/{allPaths=**} {
+      allow read: if request.auth != null; // Qualquer usuário autenticado pode ver
+      allow write: if request.auth != null && isValidImage() && request.resource.size < 15 * 1024 * 1024; // 15MB
+      allow delete: if request.auth != null;
+    }
+
+    // ✅ Event participant photos (fotos enviadas pelos participantes)
+    match /events/{eventId}/photos/{userId}/{allPaths=**} {
+      allow read: if request.auth != null; // Qualquer usuário autenticado pode ver
+      allow write: if isUser(userId) && isValidImage() && request.resource.size < 10 * 1024 * 1024; // 10MB
+      allow delete: if isUser(userId);
+    }
+
     // ✅ Chat message images
     // Apenas usuários autenticados podem visualizar mensagens
     match /messages/{userId}/{allPaths=**} {

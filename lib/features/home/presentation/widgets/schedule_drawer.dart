@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
+import 'package:partiu/features/home/presentation/widgets/controllers/schedule_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/horizontal_week_calendar.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_type_selector.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_picker_widget.dart';
@@ -14,32 +16,61 @@ import 'package:partiu/shared/widgets/animated_expandable.dart';
 
 /// Bottom sheet para seleção de data e horário da atividade
 class ScheduleDrawer extends StatefulWidget {
-  const ScheduleDrawer({super.key});
+  const ScheduleDrawer({super.key, this.coordinator});
+
+  final CreateFlowCoordinator? coordinator;
 
   @override
   State<ScheduleDrawer> createState() => _ScheduleDrawerState();
 }
 
 class _ScheduleDrawerState extends State<ScheduleDrawer> {
-  DateTime _selectedDate = DateTime.now();
-  TimeType? _selectedTimeType;
-  DateTime _selectedTime = DateTime.now();
+  late final ScheduleDrawerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScheduleDrawerController();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   void _handleContinue() async {
-    if (_selectedTimeType == null) return;
+    if (!_controller.canContinue) return;
 
-    final result = {
-      'date': _selectedDate,
-      'timeType': _selectedTimeType,
-      if (_selectedTimeType == TimeType.specific) 'time': _selectedTime,
-    };
+    // Salvar dados no coordinator
+    if (widget.coordinator != null) {
+      widget.coordinator!.setSchedule(
+        date: _controller.selectedDate,
+        timeType: _controller.selectedTimeType!,
+        time: _controller.selectedTimeType == TimeType.specific
+            ? _controller.selectedTime
+            : null,
+      );
+    }
+
+    final result = _controller.getScheduleData();
 
     // Abre o drawer de participantes
     final participantsResult = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const ParticipantsDrawer(),
+      builder: (context) => ParticipantsDrawer(
+        coordinator: widget.coordinator,
+      ),
     );
 
     if (participantsResult != null) {
@@ -135,11 +166,9 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
 
               // Calendário horizontal (7 dias)
               HorizontalWeekCalendar(
-                selectedDate: _selectedDate,
+                selectedDate: _controller.selectedDate,
                 onDateSelected: (date) {
-                  setState(() {
-                    _selectedDate = date;
-                  });
+                  _controller.setDate(date);
                 },
               ),
 
@@ -149,18 +178,16 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: TimeTypeSelector(
-                  selectedType: _selectedTimeType,
+                  selectedType: _controller.selectedTimeType,
                   onTypeSelected: (type) {
-                    setState(() {
-                      _selectedTimeType = type;
-                    });
+                    _controller.setTimeType(type);
                   },
                 ),
               ),
 
               // Hour Picker (apenas quando específico está selecionado)
               AnimatedExpandable(
-                isExpanded: _selectedTimeType == TimeType.specific,
+                isExpanded: _controller.selectedTimeType == TimeType.specific,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -168,11 +195,9 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: TimePickerWidget(
-                        selectedTime: _selectedTime,
+                        selectedTime: _controller.selectedTime,
                         onTimeChanged: (DateTime newTime) {
-                          setState(() {
-                            _selectedTime = newTime;
-                          });
+                          _controller.setTime(newTime);
                         },
                       ),
                     ),
@@ -204,7 +229,7 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: GlimpseButton(
                   text: 'Continuar',
-                  onPressed: _selectedTimeType != null ? _handleContinue : null,
+                  onPressed: _controller.canContinue ? _handleContinue : null,
                 ),
               ),
 

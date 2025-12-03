@@ -26,7 +26,8 @@ class TimePickerWidget extends StatelessWidget {
           textTheme: CupertinoTextThemeData(
             dateTimePickerTextStyle: TextStyle(
               fontSize: 14,
-              color: GlimpseColors.textSubTitle,
+              fontWeight: FontWeight.w800,
+              color: GlimpseColors.primaryColorLight,
             ),
           ),
         ),

@@ -333,3 +333,91 @@ String? getCountryFlag(String countryName) {
 String? getCountryKey(String countryName) {
   return getCountryInfo(countryName)?.translationKey;
 }
+
+/// Modelo de sugestão de atividade
+class ActivitySuggestion {
+  final String text;
+  final String emoji;
+
+  const ActivitySuggestion(this.emoji, this.text);
+}
+
+/// Lista de sugestões de atividades
+const List<ActivitySuggestion> activitySuggestions = [
+  // Ao ar livre / atividade física
+  ActivitySuggestion('🏃', 'Correr no parque'),
+  ActivitySuggestion('🏋️', 'Treinar na academia'),
+  ActivitySuggestion('🚶', 'Fazer uma caminhada'),
+  ActivitySuggestion('🧘', 'Fazer yoga'),
+  ActivitySuggestion('🚴', 'Pedalar pela cidade'),
+  ActivitySuggestion('🐕', 'Passear com o cachorro'),
+
+  // Bebidas / Rolês leves
+  ActivitySuggestion('☕', 'Tomar um café'),
+  ActivitySuggestion('🍺', 'Tomar um chopp'),
+  ActivitySuggestion('🍷', 'Beber um vinho'),
+  ActivitySuggestion('🥤', 'Tomar um açaí'),
+  ActivitySuggestion('🍹', 'Tomar um drink'),
+  ActivitySuggestion('🧋', 'Tomar um bubble tea'),
+
+  // Comida
+  ActivitySuggestion('🍕', 'Comer pizza'),
+  ActivitySuggestion('🍔', 'Comer hambúrguer'),
+  ActivitySuggestion('🍣', 'Comer sushi'),
+  ActivitySuggestion('🍝', 'Jantar em algum lugar'),
+  ActivitySuggestion('🌮', 'Comer tacos'),
+  ActivitySuggestion('🥗', 'Comer algo leve'),
+
+  // Casa / geek
+  ActivitySuggestion('🎬', 'Ir ao cinema'),
+  ActivitySuggestion('📺', 'Assistir um filme'),
+  ActivitySuggestion('🎮', 'Jogar videogame'),
+  ActivitySuggestion('🎲', 'Jogar board games'),
+  ActivitySuggestion('🎤', 'Ir ao karaokê'),
+  ActivitySuggestion('🎯', 'Jogar dardos'),
+
+  // Arte / cultura
+  ActivitySuggestion('📸', 'Tirar fotos'),
+  ActivitySuggestion('🖼️', 'Visitar museu'),
+  ActivitySuggestion('🎨', 'Fazer algo artístico'),
+  ActivitySuggestion('📚', 'Ler um livro'),
+  ActivitySuggestion('🧩', 'Montar um quebra-cabeça'),
+  ActivitySuggestion('🎹', 'Tocar algum instrumento'),
+
+  // Sociais / rolê leve
+  ActivitySuggestion('🛍️', 'Dar uma volta no shopping'),
+  ActivitySuggestion('🛒', 'Fazer compras'),
+  ActivitySuggestion('🌳', 'Fazer um piquenique'),
+  ActivitySuggestion('🧺', 'Sentar na praça e conversar'),
+
+  // Jogos físicos
+  ActivitySuggestion('🎳', 'Jogar boliche'),
+  ActivitySuggestion('🎱', 'Jogar sinuca'),
+  ActivitySuggestion('🏓', 'Jogar ping-pong'),
+  ActivitySuggestion('⛳', 'Mini-golfe'),
+
+  // Passeios
+  ActivitySuggestion('🚗', 'Dar uma volta pela cidade'),
+  ActivitySuggestion('🏞️', 'Ver o pôr do sol'),
+  ActivitySuggestion('🍧', 'Tomar sorvete'),
+  ActivitySuggestion('🥐', 'Ir numa padaria legal'),
+
+  // 🎶 Shows / Música / Festas
+  ActivitySuggestion('🎤', 'Ir em um show'),
+  ActivitySuggestion('🎶', 'Ir num pagode'),
+  ActivitySuggestion('🥁', 'Samba com amigos'),
+  ActivitySuggestion('🪗', 'Dançar um Forrozinho'),
+  ActivitySuggestion('🤠', 'Ir num sertanejo'),
+  ActivitySuggestion('🎸', 'Ir num show de rock'),
+  ActivitySuggestion('🎧', 'CurtirFesta eletrônica'),
+  ActivitySuggestion('🔊', 'Ouvir música ao vivo'),
+  ActivitySuggestion('🪩', 'Ir numa balada'),
+  ActivitySuggestion('🕺', 'Sair pra dançar'),
+  ActivitySuggestion('🎪', 'Ir em um festival'),
+  ActivitySuggestion('🔥', 'Curtir Rave / Techno'),
+  ActivitySuggestion('🎵', 'Curtir Trap / Hip-hop night'),
+  ActivitySuggestion('💃', 'Curtir Baile funk'),
+  ActivitySuggestion('🎛️', 'After em algum lugar'),
+  ActivitySuggestion('🎚️', 'Rolê com DJ set'),
+  ActivitySuggestion('🌃', 'Night out na cidade'),
+];

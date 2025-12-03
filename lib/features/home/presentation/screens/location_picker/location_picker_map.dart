@@ -11,6 +11,7 @@ class LocationPickerMap extends StatefulWidget {
     required this.onMapCreated,
     required this.onTap,
     this.onCameraIdle,
+    this.onCameraMoveStarted,
     this.markers = const {},
   });
 
@@ -19,6 +20,7 @@ class LocationPickerMap extends StatefulWidget {
   final Function(GoogleMapController) onMapCreated;
   final ValueChanged<LatLng> onTap;
   final VoidCallback? onCameraIdle;
+  final VoidCallback? onCameraMoveStarted;
   final Set<Marker> markers;
 
   @override
@@ -54,6 +56,7 @@ class LocationPickerMapState extends State<LocationPickerMap> {
       },
       onTap: widget.onTap,
       onCameraIdle: widget.onCameraIdle,
+      onCameraMoveStarted: widget.onCameraMoveStarted,
       markers: widget.markers,
     );
   }

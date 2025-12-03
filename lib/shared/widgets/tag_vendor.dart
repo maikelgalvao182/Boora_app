@@ -28,15 +28,13 @@ class TagVendor extends StatelessWidget {
     // Quando não selecionado: borda cinza + fundo transparente
     final defaultBorderColor = isSelected
         ? GlimpseColors.primary
-        : Colors.grey.shade300;
+        : GlimpseColors.primaryColorLight;
 
     final bgColor = isSelected
         ? GlimpseColors.primaryLight
         : Colors.transparent;
 
-    final txtColor = isSelected
-        ? Colors.black
-        : Colors.black87;
+    final txtColor = GlimpseColors.primaryColorLight;
 
     return GestureDetector(
       onTap: onTap,
@@ -55,7 +53,7 @@ class TagVendor extends StatelessWidget {
           style: TextStyle(
             color: textColor ?? txtColor,
             fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
