@@ -1,22 +1,28 @@
+import 'dart:async';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/repositories/event_map_repository.dart';
 import 'package:partiu/features/home/data/services/user_location_service.dart';
 import 'package:partiu/features/home/presentation/services/event_marker_service.dart';
+import 'package:partiu/services/location/location_query_service.dart';
+import 'package:partiu/services/location/location_stream_controller.dart';
 
 /// ViewModel responsável por gerenciar o estado e lógica do mapa
 /// 
 /// Responsabilidades:
-/// - Carregar eventos
+/// - Carregar eventos com filtro de raio
 /// - Gerar markers
 /// - Gerenciar estado dos markers
 /// - Fornecer dados limpos para o widget
 /// - Orquestrar serviços
+/// - Reagir a mudanças de raio em tempo real
 class AppleMapViewModel extends ChangeNotifier {
   final EventMapRepository _eventRepository;
   final UserLocationService _locationService;
   final EventMarkerService _markerService;
+  final LocationQueryService _locationQueryService;
+  final LocationStreamController _streamController;
 
   /// Markers atualmente exibidos no mapa
   Set<Annotation> _eventMarkers = {};
@@ -37,14 +43,32 @@ class AppleMapViewModel extends ChangeNotifier {
   /// Callback quando um marker é tocado
   Function(String eventId)? onMarkerTap;
 
+  /// Subscription para mudanças de raio
+  StreamSubscription<double>? _radiusSubscription;
+
   AppleMapViewModel({
     EventMapRepository? eventRepository,
     UserLocationService? locationService,
     EventMarkerService? markerService,
+    LocationQueryService? locationQueryService,
+    LocationStreamController? streamController,
     this.onMarkerTap,
   })  : _eventRepository = eventRepository ?? EventMapRepository(),
         _locationService = locationService ?? UserLocationService(),
-        _markerService = markerService ?? EventMarkerService();
+        _markerService = markerService ?? EventMarkerService(),
+        _locationQueryService = locationQueryService ?? LocationQueryService(),
+        _streamController = streamController ?? LocationStreamController() {
+    _initializeRadiusListener();
+  }
+
+  /// Inicializa listener para mudanças de raio
+  void _initializeRadiusListener() {
+    _radiusSubscription = _streamController.radiusStream.listen((radiusKm) {
+      debugPrint('🗺️ AppleMapViewModel: Raio atualizado para $radiusKm km');
+      // Recarregar eventos com novo raio
+      loadNearbyEvents();
+    });
+  }
 
   /// Inicializa o ViewModel
   /// 
@@ -57,9 +81,10 @@ class AppleMapViewModel extends ChangeNotifier {
   /// 
   /// Este método:
   /// 1. Obtém localização do usuário
-  /// 2. Busca eventos próximos
-  /// 3. Gera markers
-  /// 4. Atualiza estado
+  /// 2. Inicializa dados no Firestore se necessário
+  /// 3. Busca eventos próximos com filtro de raio
+  /// 4. Gera markers
+  /// 5. Atualiza estado
   Future<void> loadNearbyEvents() async {
     if (_isLoading) return;
 
@@ -67,22 +92,38 @@ class AppleMapViewModel extends ChangeNotifier {
 
     try {
       // 1. Obter localização
-      final location = await _locationService.getLocationOrDefault();
-      _lastLocation = location;
+      final locationResult = await _locationService.getUserLocation();
+      _lastLocation = locationResult.location;
 
-      // 2. Buscar eventos
-      final events = await _eventRepository.getEventsWithinRadius(location);
-      _events = events;
+      // 2. Inicializar dados do usuário no Firestore se necessário
+      // Isso garante que os campos latitude, longitude e radiusKm existem
+      await _locationQueryService.initializeUserLocation(
+        latitude: _lastLocation!.latitude,
+        longitude: _lastLocation!.longitude,
+      );
 
-      // 3. Gerar markers com callback de tap
+      // 3. Buscar eventos com filtro de raio usando LocationQueryService
+      final eventsWithDistance = await _locationQueryService.getEventsWithinRadiusOnce();
+
+      // 4. Converter para EventModel
+      _events = eventsWithDistance.map((eventWithDistance) {
+        return EventModel.fromMap(
+          eventWithDistance.eventData,
+          eventWithDistance.eventId,
+        );
+      }).toList();
+
+      // 5. Gerar markers com callback de tap
       final markers = await _markerService.buildEventAnnotations(
-        events,
+        _events,
         onTap: onMarkerTap,
       );
       _eventMarkers = markers;
 
+      debugPrint('🗺️ AppleMapViewModel: ${_events.length} eventos carregados');
       notifyListeners();
     } catch (e) {
+      debugPrint('❌ AppleMapViewModel: Erro ao carregar eventos: $e');
       // Erro será silencioso - markers continuam vazios
       _eventMarkers = {};
       notifyListeners();
@@ -155,6 +196,7 @@ class AppleMapViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _radiusSubscription?.cancel();
     _markerService.clearCache();
     super.dispose();
   }

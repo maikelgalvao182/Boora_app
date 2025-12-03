@@ -171,7 +171,9 @@ match /Reviews/{reviewId} {
 
 match /events/{eventId} {
   // Qualquer usuário autenticado pode ler eventos ativos
-  allow read: if isSignedIn() && resource.data.isActive == true;
+  // Permite leitura mesmo se isActive não existe (para compatibilidade)
+  allow read: if isSignedIn() && 
+    (!resource.data.keys().hasAny(['isActive']) || resource.data.isActive == true);
   
   // Apenas usuários autenticados podem criar eventos
   allow create: if isSignedIn() && 

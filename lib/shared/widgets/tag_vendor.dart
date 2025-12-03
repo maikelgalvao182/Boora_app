@@ -53,7 +53,7 @@ class TagVendor extends StatelessWidget {
           style: TextStyle(
             color: textColor ?? txtColor,
             fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
