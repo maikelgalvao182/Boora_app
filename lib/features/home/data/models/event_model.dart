@@ -20,14 +20,26 @@ class EventModel {
 
   /// Factory para criar EventModel a partir de um Map
   factory EventModel.fromMap(Map<String, dynamic> map, String id) {
+    // Tentar extrair coordenadas da raiz ou do objeto location
+    final location = map['location'] as Map<String, dynamic>?;
+    final lat = (map['latitude'] as num?)?.toDouble() ?? 
+                (location?['latitude'] as num?)?.toDouble() ?? 
+                0.0;
+    final lng = (map['longitude'] as num?)?.toDouble() ?? 
+                (location?['longitude'] as num?)?.toDouble() ?? 
+                0.0;
+    
+    final locationName = map['locationName'] as String? ?? 
+                         location?['locationName'] as String?;
+
     return EventModel(
       id: id,
       emoji: map['emoji'] as String? ?? '🎉',
       createdBy: map['createdBy'] as String? ?? '',
-      lat: (map['latitude'] as num?)?.toDouble() ?? 0.0,
-      lng: (map['longitude'] as num?)?.toDouble() ?? 0.0,
+      lat: lat,
+      lng: lng,
       title: map['activityText'] as String? ?? '',
-      locationName: map['locationName'] as String?,
+      locationName: locationName,
     );
   }
 }

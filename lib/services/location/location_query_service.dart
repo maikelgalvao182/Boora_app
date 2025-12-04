@@ -82,9 +82,11 @@ class LocationQueryService {
 
       // 1. Carregar localização do usuário
       final userLocation = await _getUserLocation();
+      debugPrint('📍 LocationQueryService: User Location: ${userLocation.latitude}, ${userLocation.longitude}');
 
       // 2. Obter raio
       final radiusKm = customRadiusKm ?? await _getUserRadius();
+      debugPrint('📍 LocationQueryService: Radius: ${radiusKm}km');
 
       // 3. Verificar cache de eventos (apenas se filtros não mudaram)
       // Nota: Para cache perfeito com filtros, precisaríamos incluir filtros na chave do cache
@@ -275,18 +277,27 @@ class LocationQueryService {
   Future<List<EventLocation>> _filterByBoundingBox(
     Map<String, double> boundingBox,
   ) async {
+    debugPrint('📦 LocationQueryService: Bounding Box: $boundingBox');
+
     final eventsQuery = await FirebaseFirestore.instance
         .collection('events')
-        .where('latitude', isGreaterThanOrEqualTo: boundingBox['minLat'])
-        .where('latitude', isLessThanOrEqualTo: boundingBox['maxLat'])
+        .where('location.latitude', isGreaterThanOrEqualTo: boundingBox['minLat'])
+        .where('location.latitude', isLessThanOrEqualTo: boundingBox['maxLat'])
         .get();
+
+    debugPrint('📦 LocationQueryService: Firestore returned ${eventsQuery.docs.length} docs based on latitude');
 
     final events = <EventLocation>[];
 
     for (final doc in eventsQuery.docs) {
       final data = doc.data();
-      final latitude = data['latitude'] as double?;
-      final longitude = data['longitude'] as double?;
+      final location = data['location'] as Map<String, dynamic>?;
+      final latitude = location?['latitude'] as double?;
+      final longitude = location?['longitude'] as double?;
+
+      if (latitude == null || longitude == null) {
+         debugPrint('⚠️ LocationQueryService: Event ${doc.id} missing lat/lng. Data: $data');
+      }
 
       if (latitude != null && longitude != null) {
         // Filtro adicional de longitude (Firestore só permite 1 range query)
@@ -300,6 +311,8 @@ class LocationQueryService {
               eventData: data,
             ),
           );
+        } else {
+             debugPrint('⚠️ LocationQueryService: Event ${doc.id} excluded by longitude. Event Lng: $longitude, Range: ${boundingBox['minLng']} - ${boundingBox['maxLng']}');
         }
       }
     }

@@ -1,13 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
 
 /// Repositório para gerenciar aplicações de usuários em eventos
 class EventApplicationRepository {
   final FirebaseFirestore _firestore;
+  final UserRepository _userRepo;
 
-  EventApplicationRepository([FirebaseFirestore? firestore])
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  EventApplicationRepository({
+    FirebaseFirestore? firestore,
+    UserRepository? userRepository,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _userRepo = userRepository ?? UserRepository(firestore);
 
   /// Cria uma nova aplicação para um evento
   /// 
@@ -181,30 +186,33 @@ class EventApplicationRepository {
         return [];
       }
 
-      // 2. Buscar dados dos usuários (photoUrl + fullName)
+      // 2. Extrair userIds e buscar em batch (otimizado)
+      final userIds = applicationsSnapshot.docs
+          .map((doc) => doc.data()['userId'] as String)
+          .toList();
+
+      final usersBasicInfo = await _userRepo.getUsersBasicInfo(userIds);
+      
+      // 3. Criar mapa userId → userData para lookup rápido
+      final userDataMap = {
+        for (var user in usersBasicInfo) user['userId'] as String: user
+      };
+
+      // 4. Combinar applications com user data
       final results = <Map<String, dynamic>>[];
       
       for (final appDoc in applicationsSnapshot.docs) {
         final appData = appDoc.data();
         final userId = appData['userId'] as String;
+        final userData = userDataMap[userId];
         
-        try {
-          final userDoc = await _firestore
-              .collection('Users')
-              .doc(userId)
-              .get();
-          
-          if (userDoc.exists) {
-            final userData = userDoc.data()!;
-            results.add({
-              'userId': userId,
-              'photoUrl': userData['photoUrl'] as String?,
-              'fullName': userData['fullName'] as String?,
-              'appliedAt': appData['appliedAt'] as Timestamp?,
-            });
-          }
-        } catch (e) {
-          debugPrint('⚠️ Erro ao buscar usuário $userId: $e');
+        if (userData != null) {
+          results.add({
+            'userId': userId,
+            'photoUrl': userData['photoUrl'] as String?,
+            'fullName': userData['fullName'] as String?,
+            'appliedAt': appData['appliedAt'] as Timestamp?,
+          });
         }
       }
 
@@ -212,6 +220,111 @@ class EventApplicationRepository {
     } catch (e) {
       debugPrint('❌ Erro ao buscar aplicações aprovadas com user data: $e');
       return [];
+    }
+  }
+
+  /// Busca as aplicações mais recentes com dados dos usuários (limitado)
+  /// 
+  /// Útil para exibir preview de participantes em cards/listas
+  /// 
+  /// Retorna Map com:
+  /// - userId
+  /// - photoUrl
+  /// - fullName
+  /// - appliedAt
+  Future<List<Map<String, dynamic>>> getRecentApplicationsWithUserData(
+    String eventId, {
+    int limit = 5,
+  }) async {
+    try {
+      // 1. Buscar applications aprovadas ou auto-aprovadas (limitado)
+      final applicationsSnapshot = await _firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .where('status', whereIn: [
+            ApplicationStatus.approved.value,
+            ApplicationStatus.autoApproved.value,
+          ])
+          .orderBy('appliedAt', descending: false) // Mais antigos primeiro
+          .limit(limit)
+          .get();
+
+      if (applicationsSnapshot.docs.isEmpty) {
+        return [];
+      }
+
+      // 2. Extrair userIds e buscar em batch (otimizado)
+      final userIds = applicationsSnapshot.docs
+          .map((doc) => doc.data()['userId'] as String)
+          .toList();
+
+      final usersBasicInfo = await _userRepo.getUsersBasicInfo(userIds);
+      
+      // 3. Criar mapa userId → userData para lookup rápido
+      final userDataMap = {
+        for (var user in usersBasicInfo) user['userId'] as String: user
+      };
+
+      // 4. Combinar applications com user data
+      final results = <Map<String, dynamic>>[];
+      
+      for (final appDoc in applicationsSnapshot.docs) {
+        final appData = appDoc.data();
+        final userId = appData['userId'] as String;
+        final userData = userDataMap[userId];
+        
+        if (userData != null) {
+          results.add({
+            'userId': userId,
+            'photoUrl': userData['photoUrl'] as String?,
+            'fullName': userData['fullName'] as String?,
+            'appliedAt': appData['appliedAt'] as Timestamp?,
+          });
+        }
+      }
+
+      return results;
+    } catch (e) {
+      debugPrint('❌ Erro ao buscar aplicações recentes com user data: $e');
+      return [];
+    }
+  }
+
+  /// Conta total de aplicações aprovadas de um evento
+  /// 
+  /// Mais eficiente que buscar todas e contar
+  Future<int> getApprovedApplicationsCount(String eventId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .where('status', whereIn: [
+            ApplicationStatus.approved.value,
+            ApplicationStatus.autoApproved.value,
+          ])
+          .count()
+          .get();
+
+      return querySnapshot.count ?? 0;
+    } catch (e) {
+      debugPrint('❌ Erro ao contar aplicações aprovadas: $e');
+      return 0;
+    }
+  }
+
+  /// Conta total de todas as aplicações de um evento (qualquer status)
+  Future<int> getAllApplicationsCount(String eventId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .count()
+          .get();
+
+      return querySnapshot.count ?? 0;
+    } catch (e) {
+      debugPrint('❌ Erro ao contar todas as aplicações: $e');
+      return 0;
     }
   }
 }

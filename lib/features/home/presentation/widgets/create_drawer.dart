@@ -185,7 +185,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                         FONT_PLUS_JAKARTA_SANS,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: GlimpseColors.textSubTitle,
+                        color: GlimpseColors.primaryColorLight,
                       ),
                     ),
                     GestureDetector(

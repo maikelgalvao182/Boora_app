@@ -121,9 +121,7 @@ class _PrivacyTypeCard extends StatelessWidget {
                       FONT_PLUS_JAKARTA_SANS,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? GlimpseColors.primaryColorLight
-                          : GlimpseColors.textSubTitle,
+                      color: GlimpseColors.primaryColorLight,
                     ),
                     textAlign: TextAlign.center,
                   ),

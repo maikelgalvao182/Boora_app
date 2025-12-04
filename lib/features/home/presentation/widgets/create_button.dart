@@ -14,6 +14,7 @@ class CreateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton(
+      heroTag: 'create_activity_button',
       onPressed: () {
         HapticFeedback.lightImpact();
         onPressed();

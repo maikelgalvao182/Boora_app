@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 /// Constantes de cores utilizadas no aplicativo
 class GlimpseColors {
   // Cores do tema claro
+  static const Color primaryDarker = Color(0xFF266017);
   static const Color primary = Color(0xFF5BAD46);
   static const Color primaryLight = Color(0xFFEBF6E6);
   static const Color primaryColorLight = Color(0xFF000000);

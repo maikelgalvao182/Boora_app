@@ -106,7 +106,7 @@ class _DayCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: isSelected
                     ? Colors.white
-                    : GlimpseColors.textSubTitle,
+                    : GlimpseColors.primaryColorLight,
               ),
             ),
           ],

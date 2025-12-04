@@ -61,7 +61,7 @@ class PeoplePicker extends StatelessWidget {
                       FONT_PLUS_JAKARTA_SANS,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: GlimpseColors.textSubTitle,
+                      color: GlimpseColors.primaryColorLight,
                     ),
                   ),
                 ),
@@ -94,54 +94,43 @@ class PeoplePicker extends StatelessWidget {
                   color: GlimpseColors.lightTextField,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: CupertinoTheme(
-                  data: const CupertinoThemeData(
-                    textTheme: CupertinoTextThemeData(
-                      pickerTextStyle: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: GlimpseColors.primaryColorLight,
+                child: CupertinoPicker(
+                  scrollController: FixedExtentScrollController(
+                    initialItem: selectedCount,
+                  ),
+                  itemExtent: 40,
+                  onSelectedItemChanged: (index) {
+                    onCountChanged(index); // 0 = Aberto, 1-20 = específico
+                  },
+                  children: [
+                    // Primeiro item: "Aberto"
+                    Center(
+                      child: Text(
+                        'Aberto',
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: GlimpseColors.primaryColorLight,
+                        ),
                       ),
                     ),
-                  ),
-                  child: CupertinoPicker(
-                    scrollController: FixedExtentScrollController(
-                      initialItem: selectedCount,
-                    ),
-                    itemExtent: 40,
-                    onSelectedItemChanged: (index) {
-                      onCountChanged(index); // 0 = Aberto, 1-20 = específico
-                    },
-                    children: [
-                      // Primeiro item: "Aberto"
-                      Center(
+                    // Itens 1-20
+                    ...List.generate(
+                      20,
+                      (index) => Center(
                         child: Text(
-                          'Aberto',
+                          '${index + 1} ${index == 0 ? 'pessoa' : 'pessoas'}',
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
                             fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: GlimpseColors.textSubTitle.withOpacity(0.5),
+                            fontWeight: FontWeight.w800,
+                            color: GlimpseColors.primaryColorLight,
                           ),
                         ),
                       ),
-                      // Itens 1-20
-                      ...List.generate(
-                        20,
-                        (index) => Center(
-                          child: Text(
-                            '${index + 1} ${index == 0 ? 'pessoa' : 'pessoas'}',
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: GlimpseColors.textSubTitle.withOpacity(0.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],

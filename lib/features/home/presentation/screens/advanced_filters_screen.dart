@@ -30,7 +30,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   
   // Filtros
   String? _selectedGender = 'all';
-  RangeValues _ageRange = const RangeValues(18, 35);
+  RangeValues _ageRange = const RangeValues(18, 100);
   bool _isVerified = false;
   Set<String> _selectedInterests = {};
   

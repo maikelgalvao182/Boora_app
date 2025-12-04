@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
 import 'package:partiu/features/home/presentation/widgets/create_button.dart';
 import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
+import 'package:partiu/features/home/presentation/widgets/list_button.dart';
+import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/navigate_to_user_button.dart';
 
 /// Tela de descoberta (Tab 0)
@@ -25,6 +27,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
+  void _showListDrawer(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const ListDrawer(),
+    );
+  }
+
   void _centerOnUser() {
     _discoverKey.currentState?.centerOnUser();
   }
@@ -42,6 +53,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
           bottom: 96, // 24 (bottom do CreateButton) + 56 (tamanho do FAB) + 16 (espaçamento)
           child: NavigateToUserButton(
             onPressed: _centerOnUser,
+          ),
+        ),
+        
+        // Botão de lista de atividades (centro inferior)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 24,
+          child: Center(
+            child: ListButton(
+              onPressed: () => _showListDrawer(context),
+            ),
           ),
         ),
         

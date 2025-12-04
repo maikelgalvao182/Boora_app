@@ -3,12 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
+import 'package:partiu/features/home/data/repositories/event_repository.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
 
 /// Controller para gerenciar dados do EventCard
 class EventCardController extends ChangeNotifier {
-  final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final EventApplicationRepository _applicationRepo;
+  final EventRepository _eventRepo;
+  final UserRepository _userRepo;
   final String eventId;
 
   String? _creatorFullName;
@@ -30,12 +33,14 @@ class EventCardController extends ChangeNotifier {
 
   EventCardController({
     required this.eventId,
-    FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     EventApplicationRepository? applicationRepo,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _applicationRepo = applicationRepo ?? EventApplicationRepository();
+    EventRepository? eventRepo,
+    UserRepository? userRepo,
+  })  : _auth = auth ?? FirebaseAuth.instance,
+        _applicationRepo = applicationRepo ?? EventApplicationRepository(),
+        _eventRepo = eventRepo ?? EventRepository(),
+        _userRepo = userRepo ?? UserRepository();
 
   // Getters
   String? get creatorFullName => _creatorFullName;
@@ -96,51 +101,29 @@ class EventCardController extends ChangeNotifier {
     }
   }
 
-  /// Carrega dados do evento e do criador
+  /// Carrega dados do evento e do criador usando repositories
   Future<void> _loadEventData() async {
-    // Buscar evento
-    final eventDoc = await _firestore
-        .collection('events')
-        .doc(eventId)
-        .get();
+    // Buscar dados básicos do evento
+    final eventData = await _eventRepo.getEventBasicInfo(eventId);
 
-    if (!eventDoc.exists) {
+    if (eventData == null) {
       throw Exception('Evento não encontrado');
     }
 
-    final eventData = eventDoc.data()!;
+    // Extrair campos já parseados
     _creatorId = eventData['createdBy'] as String?;
-    
-    // locationName está dentro do objeto location
-    final locationData = eventData['location'] as Map<String, dynamic>?;
-    _locationName = locationData?['locationName'] as String?;
-    
+    _locationName = eventData['locationName'] as String?;
     _emoji = eventData['emoji'] as String?;
     _activityText = eventData['activityText'] as String?;
-    
-    // schedule.date
-    final scheduleData = eventData['schedule'] as Map<String, dynamic>?;
-    final dateTimestamp = scheduleData?['date'] as Timestamp?;
-    _scheduleDate = dateTimestamp?.toDate();
-    
-    // privacyType
-    final participantsData = eventData['participants'] as Map<String, dynamic>?;
-    _privacyType = participantsData?['privacyType'] as String?;
+    _scheduleDate = eventData['scheduleDate'] as DateTime?;
+    _privacyType = eventData['privacyType'] as String?;
 
-    // Buscar criador
+    // Buscar dados do criador
     if (_creatorId != null) {
-      final userDoc = await _firestore
-          .collection('Users')
-          .doc(_creatorId)
-          .get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
-        _creatorFullName = userData['fullName'] as String?;
-      }
+      final userData = await _userRepo.getUserBasicInfo(_creatorId!);
+      _creatorFullName = userData?['fullName'] as String?;
     }
   }
-  
   /// Carrega aplicação do usuário atual (se existir)
   Future<void> _loadUserApplication() async {
     final userId = _auth.currentUser?.uid;

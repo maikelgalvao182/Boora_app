@@ -188,7 +188,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                               FONT_PLUS_JAKARTA_SANS,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: GlimpseColors.textSubTitle,
+                              color: GlimpseColors.primaryColorLight,
                             ),
                           ),
                         ),

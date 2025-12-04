@@ -60,6 +60,7 @@ class _NavigateToUserButtonState extends State<NavigateToUserButton>
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton(
+      heroTag: 'navigate_to_user_button',
       onPressed: _handlePress,
       backgroundColor: Colors.white,
       elevation: 2,
