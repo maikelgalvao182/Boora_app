@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
+import 'package:partiu/features/home/data/models/map_bounds.dart';
+import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
@@ -40,6 +42,9 @@ class GoogleMapViewState extends State<GoogleMapView> {
   
   /// Serviço para gerar markers customizados
   final GoogleEventMarkerService _markerService = GoogleEventMarkerService();
+  
+  /// Serviço para descoberta de eventos por bounding box
+  final MapDiscoveryService _discoveryService = MapDiscoveryService();
   
   /// Markers atuais do mapa
   Set<Marker> _markers = {};
@@ -151,8 +156,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
       stopwatch.stop();
       debugPrint('✅ GoogleMapView: ${_markers.length} markers gerados em ${stopwatch.elapsedMilliseconds}ms');
     }
-  }// Callback quando o mapa é criado
-  void _onMapCreated(GoogleMapController controller) {
+  }
+
+  /// Callback quando o mapa é criado
+  void _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
     
     // Aplicar estilo customizado ao mapa se já foi carregado
@@ -162,13 +169,60 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
     // Mover câmera para localização inicial (já carregada)
     if (widget.viewModel.lastLocation != null) {
-      _moveCameraTo(
+      await _moveCameraTo(
         widget.viewModel.lastLocation!.latitude,
         widget.viewModel.lastLocation!.longitude,
         zoom: 15.0,
       );
     } else {
-      _moveCameraToUserLocation();
+      await _moveCameraToUserLocation();
+    }
+
+    // Fazer busca inicial de eventos na região visível
+    // Isso garante que o drawer tenha dados logo ao abrir
+    await _triggerInitialEventSearch();
+  }
+
+  /// Callback quando a câmera para de se mover
+  /// 
+  /// Captura o bounding box visível e busca eventos na região.
+  Future<void> _onCameraIdle() async {
+    if (_mapController == null) return;
+
+    try {
+      final visibleRegion = await _mapController!.getVisibleRegion();
+      
+      final bounds = MapBounds.fromLatLngBounds(visibleRegion);
+      
+      debugPrint('📍 GoogleMapView: Câmera parou em $bounds');
+      
+      // Disparar busca de eventos no bounding box
+      await _discoveryService.loadEventsInBounds(bounds);
+    } catch (error) {
+      debugPrint('⚠️ GoogleMapView: Erro ao capturar bounding box: $error');
+    }
+  }
+
+  /// Faz busca inicial de eventos na região visível
+  /// 
+  /// Chamado logo após o mapa ser criado para garantir
+  /// que o drawer tenha dados ao abrir pela primeira vez.
+  Future<void> _triggerInitialEventSearch() async {
+    if (_mapController == null) return;
+
+    try {
+      // Pequeno delay para garantir que o mapa terminou de carregar
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final visibleRegion = await _mapController!.getVisibleRegion();
+      final bounds = MapBounds.fromLatLngBounds(visibleRegion);
+      
+      debugPrint('🎯 GoogleMapView: Busca inicial de eventos em $bounds');
+      
+      // Forçar busca imediata (ignora debounce)
+      await _discoveryService.forceRefresh(bounds);
+    } catch (error) {
+      debugPrint('⚠️ GoogleMapView: Erro na busca inicial: $error');
     }
   }
 
@@ -322,6 +376,9 @@ class GoogleMapViewState extends State<GoogleMapView> {
     return GoogleMap(
       // Callback de criação
       onMapCreated: _onMapCreated,
+
+      // Callback quando câmera para (após movimento)
+      onCameraIdle: _onCameraIdle,
 
       // Posição inicial (São Paulo)
       initialCameraPosition: const CameraPosition(

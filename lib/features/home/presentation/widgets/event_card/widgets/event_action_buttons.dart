@@ -143,7 +143,7 @@ class EventActionButtons extends StatelessWidget {
           backgroundColor: GlimpseColors.primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: GlimpseColors.disabledButtonColorLight,
-          disabledForegroundColor: GlimpseColors.textHint,
+          disabledForegroundColor: Colors.white, // Texto branco quando desabilitado
           shape: RoundedRectangleBorder(
             borderRadius: DialogStyles.buttonBorderRadius,
           ),
@@ -153,7 +153,7 @@ class EventActionButtons extends StatelessWidget {
         child: Text(
           buttonText,
           style: DialogStyles.buttonTextStyle.copyWith(
-            color: isEnabled ? Colors.white : GlimpseColors.textHint,
+            color: Colors.white, // Sempre branco (habilitado ou desabilitado)
           ),
         ),
       ),

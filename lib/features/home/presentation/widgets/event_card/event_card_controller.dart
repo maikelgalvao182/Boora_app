@@ -155,6 +155,12 @@ class EventCardController extends ChangeNotifier {
     if (isApproved) return 'view_event_chat';
     if (isPending) return 'awaiting_approval';
     if (isRejected) return 'application_rejected';
+    
+    // Verificar se evento está fora da área (indisponível por distância)
+    if (_preloadedEvent != null && !_preloadedEvent!.isAvailable) {
+      return 'out_of_your_area'; // "Fora da sua área"
+    }
+    
     return privacyType == 'open' ? 'participate' : 'request_participation';
   }
   

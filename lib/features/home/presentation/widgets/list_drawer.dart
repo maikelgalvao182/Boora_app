@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/features/home/data/models/event_location.dart';
+import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card/list_card_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/list_drawer/list_drawer_controller.dart';
@@ -19,6 +21,7 @@ class ListDrawer extends StatefulWidget {
 
 class _ListDrawerState extends State<ListDrawer> {
   late final ListDrawerController _controller;
+  final MapDiscoveryService _discoveryService = MapDiscoveryService();
 
   @override
   void initState() {
@@ -125,50 +128,78 @@ class _ListDrawerState extends State<ListDrawer> {
       );
     }
 
-    // Loading state (ambas streams carregando)
-    if (_controller.isLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            const ListCardShimmer(),
-            const ListCardShimmer(),
-            const ListCardShimmer(),
-          ],
-        ),
-      );
-    }
+    // Stream de eventos próximos do mapa
+    return StreamBuilder<List<EventLocation>>(
+      stream: _discoveryService.eventsStream,
+      builder: (context, snapshot) {
+        // Debug: verificar estado do stream
+        debugPrint('🔍 ListDrawer StreamBuilder:');
+        debugPrint('   - hasData: ${snapshot.hasData}');
+        debugPrint('   - data length: ${snapshot.data?.length ?? 0}');
+        debugPrint('   - isLoading: ${_discoveryService.isLoading}');
+        debugPrint('   - hasError: ${snapshot.hasError}');
+        
+        // Loading state - mostrar shimmer apenas no carregamento inicial
+        if (!snapshot.hasData && _controller.isLoadingMyEvents) {
+          debugPrint('   ⏳ Mostrando shimmer (loading inicial)');
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                const ListCardShimmer(),
+                const ListCardShimmer(),
+                const ListCardShimmer(),
+              ],
+            ),
+          );
+        }
 
-    // Empty state (terminou de carregar e não tem nada)
-    if (_controller.isEmpty) {
-      return Center(
-        child: GlimpseEmptyState.standard(
-          text: 'Nenhuma atividade encontrada',
-        ),
-      );
-    }
+        final nearbyEvents = snapshot.data ?? [];
+        final hasNearbyEvents = nearbyEvents.isNotEmpty;
 
-    // Content with data
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // SEÇÃO: Suas atividades
-            if (_controller.hasMyEvents) ...[
-              _buildSectionLabel('Suas atividades'),
-              const SizedBox(height: 12),
-              _buildMyEventsList(),
-              const SizedBox(height: 32),
-            ],
-            
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-          ],
-        ),
-      ),
+        debugPrint('   📊 nearbyEvents: ${nearbyEvents.length}');
+        debugPrint('   📊 myEvents: ${_controller.myEvents.length}');
+
+        // Empty state (terminou de carregar e não tem nada)
+        if (!hasNearbyEvents && !_controller.hasMyEvents) {
+          return Center(
+            child: GlimpseEmptyState.standard(
+              text: 'Nenhuma atividade encontrada',
+            ),
+          );
+        }
+
+        // Content with data
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // SEÇÃO: Atividades próximas (do mapa)
+                if (hasNearbyEvents) ...[
+                  _buildSectionLabel('Atividades próximas'),
+                  const SizedBox(height: 12),
+                  _buildNearbyEventsList(nearbyEvents),
+                  const SizedBox(height: 32),
+                ],
+
+                // SEÇÃO: Suas atividades
+                if (_controller.hasMyEvents) ...[
+                  _buildSectionLabel('Suas atividades'),
+                  const SizedBox(height: 12),
+                  _buildMyEventsList(),
+                  const SizedBox(height: 32),
+                ],
+                
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -192,6 +223,18 @@ class _ListDrawerState extends State<ListDrawer> {
         return _EventCardWrapper(
           key: ValueKey(eventDoc.id),
           eventId: eventDoc.id,
+        );
+      }).toList(),
+    );
+  }
+
+  /// Constrói lista de eventos próximos (do mapa)
+  Widget _buildNearbyEventsList(List<EventLocation> events) {
+    return Column(
+      children: events.map((event) {
+        return _EventCardWrapper(
+          key: ValueKey(event.eventId),
+          eventId: event.eventId,
         );
       }).toList(),
     );
