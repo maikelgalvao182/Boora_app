@@ -148,7 +148,7 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                               FONT_PLUS_JAKARTA_SANS,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: GlimpseColors.textSubTitle,
+                              color: GlimpseColors.primaryColorLight,
                             ),
                           ),
                         ),

@@ -363,3 +363,7 @@ export const onApplicationApproved = functions.firestore
 // ===== EVENT MANAGEMENT FUNCTIONS =====
 // Importa e exporta as Cloud Functions de gerenciamento de eventos
 export * from "./events";
+
+// ===== RANKING FUNCTIONS =====
+// Importa e exporta as Cloud Functions de ranking
+export * from "./ranking/updateRanking";

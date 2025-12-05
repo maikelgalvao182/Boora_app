@@ -14,6 +14,7 @@
 /// - rules/event_chats.rules    → Coleção EventChats/{eventId} + subcoleções
 /// - rules/connections.rules    → Coleção Connections/{userId}/Conversations/{withUserId}
 /// - rules/messages.rules       → Coleção Messages/{userId}/{partnerId}/{messageId}
+/// - rules/ranking.rules        → Coleções userRanking/{userId} e locationRanking/{placeId}
 
 rules_version = '2';
 service cloud.firestore {
@@ -448,6 +449,49 @@ match /Messages/{userId} {
     /// - Apenas o dono da conversa pode atualizar/deletar
     allow update, delete: if isSignedIn() && request.auth.uid == userId;
   }
+}
+
+    // ======================================
+    // 🏆 Rankings
+    // ======================================
+/// 🏆 Coleção de ranking de usuários
+/// Path usado no app:
+/// - userRanking/{userId}
+///   - userId: string
+///   - fullName: string
+///   - photoUrl: string
+///   - totalEventsCreated: number
+///   - lastEventAt: timestamp
+///   - lastLat: number
+///   - lastLng: number
+///   - updatedAt: timestamp
+
+match /userRanking/{userId} {
+  // Qualquer usuário autenticado pode ler rankings
+  allow read: if isSignedIn();
+  
+  // Apenas Cloud Functions podem criar/atualizar rankings
+  allow write: if false;
+}
+
+/// 🏆 Coleção de ranking de locais
+/// Path usado no app:
+/// - locationRanking/{placeId}
+///   - placeId: string
+///   - locationName: string
+///   - formattedAddress: string
+///   - totalEventsHosted: number
+///   - lastEventAt: timestamp
+///   - lastLat: number
+///   - lastLng: number
+///   - updatedAt: timestamp
+
+match /locationRanking/{placeId} {
+  // Qualquer usuário autenticado pode ler rankings
+  allow read: if isSignedIn();
+  
+  // Apenas Cloud Functions podem criar/atualizar rankings
+  allow write: if false;
 }
 
     // ======================================

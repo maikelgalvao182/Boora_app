@@ -79,12 +79,16 @@ class LocationSearchBar extends StatelessWidget {
             ),
 
             // Botão fechar
-            IconButton(
-              icon: const Icon(Icons.close, size: 24),
-              color: GlimpseColors.textSubTitle,
-              onPressed: onClose,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            GestureDetector(
+              onTap: onClose,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Icon(
+                  Icons.close,
+                  size: 24,
+                  color: GlimpseColors.textSubTitle,
+                ),
+              ),
             ),
           ],
         ),

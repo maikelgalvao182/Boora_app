@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:partiu/features/conversations/ui/conversations_tab.dart';
 import 'package:partiu/features/home/presentation/screens/discover_tab.dart';
-import 'package:partiu/features/home/presentation/screens/matches_tab.dart';
+import 'package:partiu/features/home/presentation/screens/actions_tab.dart';
 import 'package:partiu/features/home/presentation/screens/profile_tab.dart';
 import 'package:partiu/features/home/presentation/screens/ranking_tab.dart';
 import 'package:partiu/features/home/presentation/widgets/home_app_bar.dart';
@@ -51,7 +51,7 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
       case 0:
         return DiscoverTab(mapViewModel: widget.mapViewModel);
       case 1:
-        return const MatchesTab();
+        return const ActionsTab();
       case 2:
         return const RankingTab();
       case 3:

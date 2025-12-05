@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:partiu/plugins/locationpicker/entities/address_component.dart';
+import 'package:partiu/plugins/locationpicker/entities/location_result.dart';
 import 'package:partiu/plugins/locationpicker/entities/localization_item.dart';
 import 'package:partiu/plugins/locationpicker/place_picker.dart';
 
@@ -88,18 +90,24 @@ class PlaceService {
     }
   }
 
-  /// Busca detalhes de um lugar por ID
-  Future<LatLng?> getPlaceLatLng({
+  /// Busca detalhes completos de um lugar por ID
+  /// Retorna name, formatted_address e coordenadas
+  Future<LocationResult?> getPlaceDetails({
     required String placeId,
     required String languageCode,
   }) async {
     try {
+      // ✅ SOLUÇÃO: Buscar campos essenciais (name, formatted_address, geometry)
+      // Nunca usar plus_code, vicinity ou secondary_text
       final url = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/details/json?'
         'key=$apiKey&'
         'language=$languageCode&'
+        'fields=name,formatted_address,geometry,address_components,place_id&'
         'placeid=$placeId',
       );
+
+      debugPrint('🟢 [PlaceService] Buscando detalhes do lugar: $placeId');
 
       final response = await _httpClient.get(url).timeout(
             const Duration(seconds: 10),
@@ -116,11 +124,82 @@ class PlaceService {
         throw Exception('API error: ${responseJson['status']}');
       }
 
-      final location = responseJson['result']['geometry']['location'];
-      return LatLng(
+      final result = responseJson['result'] as Map<String, dynamic>;
+      final location = result['geometry']['location'];
+      final latLng = LatLng(
         (location['lat'] as num).toDouble(),
         (location['lng'] as num).toDouble(),
       );
+
+      // ✅ Extrair name e formatted_address (NUNCA plus_code)
+      final name = result['name'] as String?;
+      final formattedAddress = result['formatted_address'] as String?;
+
+      debugPrint('✅ [PlaceService] Lugar encontrado:');
+      debugPrint('   - name: $name');
+      debugPrint('   - formattedAddress: $formattedAddress');
+
+      // Extrair componentes do endereço
+      String? locality;
+      String? country;
+      String? administrativeAreaLevel1;
+      String? administrativeAreaLevel2;
+      String? subLocalityLevel1;
+      String? subLocalityLevel2;
+      String? postalCode;
+
+      final components = result['address_components'] as List<dynamic>?;
+      if (components != null) {
+        for (final component in components) {
+          final types = component['types'] as List<dynamic>;
+          final shortName = component['short_name'] as String?;
+
+          if (types.contains('sublocality_level_1')) {
+            subLocalityLevel1 = shortName;
+          } else if (types.contains('sublocality_level_2')) {
+            subLocalityLevel2 = shortName;
+          } else if (types.contains('locality')) {
+            locality = shortName;
+          } else if (types.contains('administrative_area_level_2')) {
+            administrativeAreaLevel2 = shortName;
+          } else if (types.contains('administrative_area_level_1')) {
+            administrativeAreaLevel1 = shortName;
+          } else if (types.contains('country')) {
+            country = shortName;
+          } else if (types.contains('postal_code')) {
+            postalCode = shortName;
+          }
+        }
+      }
+
+      locality = locality ?? administrativeAreaLevel1;
+      final city = locality;
+
+      return LocationResult()
+        ..name = name
+        ..formattedAddress = formattedAddress
+        ..latLng = latLng
+        ..placeId = placeId
+        ..locality = locality
+        ..postalCode = postalCode
+        ..country = AddressComponent(name: country, shortName: country)
+        ..administrativeAreaLevel1 = AddressComponent(
+          name: administrativeAreaLevel1,
+          shortName: administrativeAreaLevel1,
+        )
+        ..administrativeAreaLevel2 = AddressComponent(
+          name: administrativeAreaLevel2,
+          shortName: administrativeAreaLevel2,
+        )
+        ..city = AddressComponent(name: city, shortName: city)
+        ..subLocalityLevel1 = AddressComponent(
+          name: subLocalityLevel1,
+          shortName: subLocalityLevel1,
+        )
+        ..subLocalityLevel2 = AddressComponent(
+          name: subLocalityLevel2,
+          shortName: subLocalityLevel2,
+        );
     } catch (e) {
       debugPrint('❌ Place details error: $e');
       return null;

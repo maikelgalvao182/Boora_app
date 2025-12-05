@@ -5,7 +5,7 @@
 ### Telas Principais
 - `lib/features/home/presentation/screens/home_screen_refactored.dart` - Tela principal com navegação por tabs
 - `lib/features/home/presentation/screens/discover_tab.dart` - Tab de descoberta (placeholder)
-- `lib/features/home/presentation/screens/matches_tab.dart` - Tab de matches (placeholder)
+- `lib/features/home/presentation/screens/actions_tab.dart` - Tab de ações (placeholder)
 - `lib/features/home/presentation/screens/ranking_tab.dart` - Tab de ranking (placeholder)
 - `lib/features/home/presentation/screens/conversations_tab.dart` - Tab de conversas (placeholder)
 - `lib/features/home/presentation/screens/profile_tab.dart` - Tab de perfil (placeholder)
@@ -74,7 +74,7 @@ Bottom navigation com 5 tabs:
 
 ### Funcionalidades das Tabs
 - [ ] Implementar tela de descoberta (DiscoverTab)
-- [ ] Implementar tela de matches (MatchesTab)
+- [ ] Implementar tela de ações (ActionsTab)
 - [ ] Implementar tela de ranking (RankingTab)
 - [ ] Implementar tela de conversas (ConversationsTab)
 - [ ] Implementar tela de perfil (ProfileTab)
@@ -139,7 +139,7 @@ HomeScreenRefactored (StatefulWidget)
 │   └── Filter button
 ├── IndexedStack (preserva estado)
 │   ├── DiscoverTab
-│   ├── MatchesTab
+│   ├── ActionsTab
 │   ├── RankingTab
 │   ├── ConversationsTab
 │   └── ProfileTab

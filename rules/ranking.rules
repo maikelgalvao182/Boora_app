@@ -1,0 +1,39 @@
+/// 🏆 Coleção de ranking de usuários
+/// Path usado no app:
+/// - userRanking/{userId}
+///   - userId: string
+///   - fullName: string
+///   - photoUrl: string (nullable)
+///   - totalEventsCreated: number
+///   - lastEventAt: timestamp
+///   - lastLat: number
+///   - lastLng: number
+///   - updatedAt: timestamp
+
+match /userRanking/{userId} {
+  // Qualquer usuário autenticado pode ler rankings
+  allow read: if isSignedIn();
+  
+  // Apenas Cloud Functions podem criar/atualizar rankings
+  allow write: if false;
+}
+
+/// 🏆 Coleção de ranking de locais
+/// Path usado no app:
+/// - locationRanking/{placeId}
+///   - placeId: string
+///   - locationName: string
+///   - formattedAddress: string
+///   - totalEventsHosted: number
+///   - lastEventAt: timestamp
+///   - lastLat: number
+///   - lastLng: number
+///   - updatedAt: timestamp
+
+match /locationRanking/{placeId} {
+  // Qualquer usuário autenticado pode ler rankings
+  allow read: if isSignedIn();
+  
+  // Apenas Cloud Functions podem criar/atualizar rankings
+  allow write: if false;
+}

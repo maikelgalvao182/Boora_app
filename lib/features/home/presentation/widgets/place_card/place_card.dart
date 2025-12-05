@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/nearby_places_carousel.dart';
@@ -15,10 +16,12 @@ class PlaceCard extends StatefulWidget {
     required this.controller,
     super.key,
     this.onTap,
+    this.customTagWidget,
   });
 
   final PlaceCardController controller;
   final VoidCallback? onTap;
+  final Widget? customTagWidget;
 
   @override
   State<PlaceCard> createState() => _PlaceCardState();
@@ -85,42 +88,67 @@ class _PlaceCardState extends State<PlaceCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Location Name
-            Text(
-              _controller.locationName ?? '',
-              style: GoogleFonts.getFont(
-                FONT_PLUS_JAKARTA_SANS,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: GlimpseColors.primaryColorLight,
+            // Location Name (clicável) + Tag
+            GestureDetector(
+              onTap: () => _openGoogleMaps(_controller.placeId),
+              child: Row(
+                children: [
+                  const Icon(
+                    Iconsax.link_2,
+                    size: 16,
+                    color: GlimpseColors.primaryDarker,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _controller.locationName ?? '',
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: GlimpseColors.primaryColorLight,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (widget.customTagWidget != null) ...[
+                    const SizedBox(width: 8),
+                    widget.customTagWidget!,
+                  ],
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
             
             const SizedBox(height: 4),
             
-            // Formatted Address
+            // Formatted Address (clicável)
             if (_controller.formattedAddress != null) ...[
-              Text(
-                _controller.formattedAddress!,
-                style: GoogleFonts.getFont(
-                  FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: GlimpseColors.textSubTitle,
+              GestureDetector(
+                onTap: () => _openGoogleMaps(_controller.placeId),
+                child: Text(
+                  _controller.formattedAddress!,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: GlimpseColors.textSubTitle,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 12),
             ],
             
-            // Photos Carousel
+            // Photos Carousel (clicável)
             if (_controller.photoUrls.isNotEmpty) ...[
-              SelectedPlacePhotosCarousel(
-                photoUrls: _controller.photoUrls,
-                placeName: _controller.locationName ?? '',
+              GestureDetector(
+                onTap: () => _openGoogleMaps(_controller.placeId),
+                child: SelectedPlacePhotosCarousel(
+                  photoUrls: _controller.photoUrls,
+                  placeName: _controller.locationName ?? '',
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -128,21 +156,7 @@ class _PlaceCardState extends State<PlaceCard> {
             // Visitors Section
             if (_controller.visitors.isNotEmpty) ...[
               _buildVisitorsSection(),
-              const SizedBox(height: 16),
             ],
-            
-            // Visit Location Button
-            if (_controller.placeId != null)
-              GlimpseButton(
-                text: 'Visitar local',
-                onTap: () => _openGoogleMaps(_controller.placeId!),
-                backgroundColor: GlimpseColors.primary,
-                textColor: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                height: 40,
-                noPadding: true,
-              ),
           ],
         ),
       ),
@@ -275,7 +289,9 @@ class _PlaceCardState extends State<PlaceCard> {
   }
 
   /// Abre Google Maps com o placeId
-  Future<void> _openGoogleMaps(String placeId) async {
+  Future<void> _openGoogleMaps(String? placeId) async {
+    if (placeId == null) return;
+    
     final url = Uri.parse('https://www.google.com/maps/place/?q=place_id:$placeId');
     
     if (await canLaunchUrl(url)) {

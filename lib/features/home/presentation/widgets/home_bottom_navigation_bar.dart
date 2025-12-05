@@ -19,9 +19,9 @@ class _TabIcons {
   static const discoverNormal = Icon(Iconsax.location, size: _size, color: _unselectedColor);
   static const discoverBold = Icon(Iconsax.location5, size: _size, color: _selectedColor);
 
-  // Matches icons
-  static const matchesNormal = Icon(Iconsax.heart, size: _size, color: _unselectedColor);
-  static const matchesBold = Icon(Iconsax.heart5, size: _size, color: _selectedColor);
+  // actions icons
+  static const actionsNormal = Icon(IconsaxPlusLinear.flash, size: _size, color: _unselectedColor);
+  static const actionsBold = Icon(IconsaxPlusBold.flash, size: _size, color: _selectedColor);
 
   // Ranking icons
   static const rankingNormal = Icon(Iconsax.cup, size: _size, color: _unselectedColor);
@@ -118,10 +118,10 @@ class _BottomNavBarContent extends StatelessWidget {
           index: 0,
         ),
 
-        // Aba Matches
+        // Aba actions
         _buildBottomNavigationBarItem(
-          icon: currentIndex == 1 ? _TabIcons.matchesBold : _TabIcons.matchesNormal,
-          label: 'Matches',
+          icon: currentIndex == 1 ? _TabIcons.actionsBold : _TabIcons.actionsNormal,
+          label: 'Ações',
           index: 1,
         ),
 

@@ -120,21 +120,35 @@ class LocationPickerController extends ChangeNotifier {
     _lockOnSelectedPlace = true; // trava o mapa
     _isLocationConfirmed = true; // confirma a seleção
     debugPrint('✅ [LocationPickerController] _isLocationConfirmed = true');
-    notifyListeners(); // Notificar imediatamente para atualizar UI
+    notifyListeners(); // Notificar imediatamente para atualizar UI (habilitar botão)
     debugPrint('🔔 [LocationPickerController] notifyListeners() chamado');
 
-    final location = await placeService.getPlaceLatLng(
+    // ✅ Buscar detalhes completos do lugar (name + formatted_address)
+    final locationResult = await placeService.getPlaceDetails(
       placeId: placeId,
       languageCode: localizationItem.languageCode,
     );
 
-    if (location != null) {
-      debugPrint('📍 [LocationPickerController] Movendo para localização: $location');
-      await moveToLocation(location,
-          placeId: placeId, loadNearby: true);
+    if (locationResult != null && locationResult.latLng != null) {
+      final location = locationResult.latLng!;
+      debugPrint('📍 [LocationPickerController] Lugar selecionado:');
+      debugPrint('   - name: ${locationResult.name}');
+      debugPrint('   - formattedAddress: ${locationResult.formattedAddress}');
+      debugPrint('   - latLng: $location');
+
+      // Salvar resultado completo sem fazer reverse geocode
+      _locationResult = locationResult;
+      setMarker(location);
+
+      // Carregar fotos e nearby
+      await _loadPlacePhotos(placeId);
+      await _loadNearbyPlaces(location);
+
+      notifyListeners();
+      return location;
     }
 
-    return location;
+    return null;
   }
 
   // -------------------------------------------------------------
