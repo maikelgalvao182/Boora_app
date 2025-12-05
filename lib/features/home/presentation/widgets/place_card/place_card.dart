@@ -136,8 +136,8 @@ class _PlaceCardState extends State<PlaceCard> {
               GlimpseButton(
                 text: 'Visitar local',
                 onTap: () => _openGoogleMaps(_controller.placeId!),
-                backgroundColor: GlimpseColors.primaryLight,
-                textColor: GlimpseColors.primary,
+                backgroundColor: GlimpseColors.primary,
+                textColor: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 height: 40,

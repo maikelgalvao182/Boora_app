@@ -3,6 +3,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/dialogs/common_dialogs.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
+import 'package:partiu/screens/chat/services/event_deletion_service.dart';
 import 'package:partiu/shared/services/toast_service.dart';
 
 /// Handler externo para ações do EventCard
@@ -61,6 +62,30 @@ class EventCardHandler {
     } else {
       debugPrint('⚠️ Usuário já aplicou anteriormente');
     }
+  }
+
+  /// Lida com a deleção do evento (apenas para owner)
+  static Future<void> handleDeleteEvent({
+    required BuildContext context,
+    required EventCardController controller,
+  }) async {
+    final i18n = AppLocalizations.of(context);
+    final progressDialog = ProgressDialog(context);
+    final deletionService = EventDeletionService();
+    
+    // Chama o serviço de deleção que já tem toda a lógica
+    await deletionService.handleDeleteEvent(
+      context: context,
+      eventId: controller.eventId,
+      i18n: i18n,
+      progressDialog: progressDialog,
+      onSuccess: () {
+        // Fechar o card após deletar
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+    );
   }
 
   /// Lida com a saída do evento

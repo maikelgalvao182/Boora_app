@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:partiu/features/home/presentation/widgets/apple_map_view.dart';
+import 'package:partiu/features/home/presentation/widgets/google_map_view.dart';
 import 'package:partiu/features/home/presentation/viewmodels/apple_map_viewmodel.dart';
 
 /// Tela de descoberta de atividades com mapa interativo
 /// 
-/// Esta tela exibe um mapa Apple Maps com a localização do usuário.
+/// Esta tela exibe um mapa Google Maps com a localização do usuário.
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({
     super.key, 
@@ -20,7 +20,7 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class DiscoverScreenState extends State<DiscoverScreen> {
-  final GlobalKey<AppleMapViewState> _mapKey = GlobalKey<AppleMapViewState>();
+  final GlobalKey<GoogleMapViewState> _mapKey = GlobalKey<GoogleMapViewState>();
 
   @override
   void initState() {
@@ -35,7 +35,7 @@ class DiscoverScreenState extends State<DiscoverScreen> {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      child: AppleMapView(
+      child: GoogleMapView(
         key: _mapKey,
         viewModel: widget.mapViewModel,
       ),

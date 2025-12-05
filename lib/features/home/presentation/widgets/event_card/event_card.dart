@@ -141,12 +141,17 @@ class _EventCardState extends State<EventCard> {
                     buttonText: i18n.translate(_controller.buttonText),
                     chatButtonText: _controller.chatButtonText,
                     leaveButtonText: _controller.leaveButtonText,
+                    deleteButtonText: _controller.deleteButtonText,
                     onChatPressed: () => EventCardHandler.handleButtonPress(
                       context: context,
                       controller: _controller,
                       onActionSuccess: widget.onActionPressed,
                     ),
                     onLeavePressed: () => EventCardHandler.handleLeaveEvent(
+                      context: context,
+                      controller: _controller,
+                    ),
+                    onDeletePressed: () => EventCardHandler.handleDeleteEvent(
                       context: context,
                       controller: _controller,
                     ),

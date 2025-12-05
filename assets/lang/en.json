@@ -550,5 +550,7 @@
   "failed_to_remove_application": "Failed to remove application",
   "delete_event": "Delete Event",
   "delete_event_confirmation": "Are you sure you want to delete the event '{event}'? This action cannot be undone.",
-  "this_event": "this event"
+  "this_event": "this event",
+  "sign_out": "Sign Out",
+  "signing_out": "Signing out..."
 }

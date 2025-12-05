@@ -119,7 +119,6 @@ class _UserCardState extends State<UserCard> {
 
   Widget _buildErrorCard() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       height: 80,
       decoration: BoxDecoration(
@@ -173,7 +172,6 @@ class _UserCardState extends State<UserCard> {
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -191,7 +189,7 @@ class _UserCardState extends State<UserCard> {
               photoUrl: photoUrl ?? _controller.photoUrl,
               size: 58,
               borderRadius: BorderRadius.circular(8),
-              enableNavigation: false,
+              enableNavigation: true,
             ),
             
             const SizedBox(width: 12),

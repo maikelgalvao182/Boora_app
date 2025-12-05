@@ -5,6 +5,8 @@ import 'package:partiu/core/services/cache/avatar_cache_service.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/stores/avatar_store.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/core/models/user.dart';
 
 /// Avatar reativo, quadrado, leve, sem jank e com skeleton automático.
 ///
@@ -118,7 +120,7 @@ class _AvatarShell extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget child;
 
-  void _handleTap(BuildContext context) {
+  void _handleTap(BuildContext context) async {
     // Se há callback customizado, usa ele
     if (onTap != null) {
       onTap!();
@@ -131,21 +133,36 @@ class _AvatarShell extends StatelessWidget {
     final currentUserId = AppState.currentUserId;
     if (currentUserId == null) return;
 
-    // Por enquanto, só navega se for o próprio usuário
-    // TODO: Implementar busca de outros usuários quando necessário
-    if (userId != currentUserId) return;
+    try {
+      User userToShow;
 
-    final currentUser = AppState.currentUser.value;
-    if (currentUser == null) return;
+      // Se for o próprio usuário, usa AppState
+      if (userId == currentUserId) {
+        final currentUser = AppState.currentUser.value;
+        if (currentUser == null) return;
+        userToShow = currentUser;
+      } else {
+        // Buscar dados do outro usuário
+        final userRepository = UserRepository();
+        final userData = await userRepository.getUserById(userId!);
+        if (userData == null) return;
+        
+        userToShow = User.fromDocument(userData);
+      }
 
-    // Navega para o perfil usando GoRouter
-    context.push(
-      '${AppRoutes.profile}/$userId',
-      extra: {
-        'user': currentUser,
-        'currentUserId': currentUserId,
-      },
-    );
+      // Navega para o perfil usando GoRouter
+      if (context.mounted) {
+        context.push(
+          '${AppRoutes.profile}/$userId',
+          extra: {
+            'user': userToShow,
+            'currentUserId': currentUserId,
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error navigating to profile from avatar: $e');
+    }
   }
 
   @override

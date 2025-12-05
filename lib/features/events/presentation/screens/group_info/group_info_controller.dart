@@ -6,6 +6,7 @@ import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/dialogs/common_dialogs.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
+import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
 import 'package:partiu/screens/chat/services/event_application_removal_service.dart';
@@ -177,56 +178,54 @@ class GroupInfoController extends ChangeNotifier {
     }
   }
 
-  void showEditNameDialog(BuildContext context) {
+  void showEditNameDialog(BuildContext context) async {
     if (!isCreator) return;
 
-    final i18n = AppLocalizations.of(context);
-    final controller = TextEditingController(text: eventName);
-
-    showDialog(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(i18n.translate('edit_event_name')),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: i18n.translate('event_name'),
-          ),
-          maxLength: 50,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(i18n.translate('cancel')),
-          ),
-          TextButton(
-            onPressed: () async {
-              final newName = controller.text.trim();
-              if (newName.isEmpty) return;
-
-              Navigator.of(context).pop();
-              await _updateEventName(context, newName);
-            },
-            child: Text(i18n.translate('save')),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CreateDrawer(
+        initialName: eventName,
+        initialEmoji: eventEmoji,
+        editMode: true,
       ),
     );
+
+    if (result != null) {
+      final newName = result['name'] as String?;
+      final newEmoji = result['emoji'] as String?;
+      
+      if (newName != null && newName.trim().isNotEmpty) {
+        await _updateEventName(context, newName, newEmoji);
+      }
+    }
   }
 
-  Future<void> _updateEventName(BuildContext context, String newName) async {
+  Future<void> _updateEventName(BuildContext context, String newName, String? newEmoji) async {
     final i18n = AppLocalizations.of(context);
     final progressDialog = ProgressDialog(context);
 
     try {
       progressDialog.show(i18n.translate('updating'));
 
+      final updates = <String, dynamic>{
+        'activityText': newName,
+      };
+      
+      if (newEmoji != null && newEmoji.isNotEmpty) {
+        updates['emoji'] = newEmoji;
+      }
+
       await FirebaseFirestore.instance
           .collection('events')
           .doc(eventId)
-          .update({'activityText': newName});
+          .update(updates);
 
       _eventData?['activityText'] = newName;
+      if (newEmoji != null) {
+        _eventData?['emoji'] = newEmoji;
+      }
       notifyListeners();
 
       await progressDialog.hide();

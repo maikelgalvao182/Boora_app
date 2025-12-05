@@ -20,6 +20,7 @@ import 'package:partiu/shared/widgets/glimpse_action_menu_button.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_widgets.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
+import 'package:partiu/shared/widgets/stacked_avatars.dart';
 import 'package:partiu/shared/widgets/event_emoji_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -446,7 +447,7 @@ class _ChatUserInfo extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         if (isEvent)
-          _EventScheduleText(
+          _EventInfoRow(
             user: user,
             chatService: chatService,
           ),
@@ -485,6 +486,103 @@ class _ChatNameRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Linha com avatares empilhados, contador de membros e schedule
+class _EventInfoRow extends StatelessWidget {
+  const _EventInfoRow({
+    required this.user,
+    required this.chatService,
+  });
+
+  final User user;
+  final ChatService chatService;
+  
+  String get _eventId => user.userId.replaceFirst('event_', '');
+
+  String _formatSchedule(dynamic schedule) {
+    if (schedule == null || schedule is! Map) return '';
+    
+    final date = schedule['date'];
+    if (date == null) return '';
+
+    DateTime? dateTime;
+    if (date is Timestamp) {
+      dateTime = date.toDate();
+    } else if (date is DateTime) {
+      dateTime = date;
+    }
+    
+    if (dateTime == null) return '';
+    
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final year = dateTime.year.toString().substring(2);
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    
+    return '$day/$month/$year às $hour:$minute';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: chatService.getConversationSummary(user.userId),
+      builder: (context, snap) {
+        String scheduleText = '';
+        if (snap.hasData && snap.data!.data() != null) {
+          final data = snap.data!.data()!;
+          scheduleText = _formatSchedule(data['schedule']);
+        }
+        
+        return Row(
+          children: [
+            // Avatares empilhados com contador
+            StackedAvatars(
+              eventId: _eventId,
+              avatarSize: 18,
+              maxVisible: 3,
+              showMemberCount: true,
+              textStyle: GoogleFonts.getFont(
+                FONT_PLUS_JAKARTA_SANS,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: GlimpseColors.textSubTitle,
+              ),
+            ),
+            
+            // Separador e data
+            if (scheduleText.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  '·',
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: GlimpseColors.textSubTitle,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  scheduleText,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: GlimpseColors.textSubTitle,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -633,51 +731,7 @@ class _ChatMenuColumn extends StatelessWidget {
               );
             },
           ),
-        _TimeAgoText(user: user, chatService: chatService),
       ],
-    );
-  }
-}
-
-/// Texto de time-ago
-class _TimeAgoText extends StatelessWidget {
-  const _TimeAgoText({
-    required this.user,
-    required this.chatService,
-  });
-
-  final User user;
-  final ChatService chatService;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: chatService.getConversationSummary(user.userId),
-      builder: (context, snap) {
-        var timeAgoText = '';
-        if (snap.hasData && snap.data!.data() != null) {
-          final data = snap.data!.data()!;
-          final timestampValue = data['last_message_timestamp']
-              ?? data['last_message_at']
-              ?? data['lastMessageAt']
-              ?? data[TIMESTAMP]
-              ?? data['timestamp'];
-          
-          timeAgoText = TimeAgoHelper.format(
-            context,
-            timestamp: timestampValue,
-          );
-        }
-        if (timeAgoText.isEmpty) return const SizedBox.shrink();
-        
-        final baseStyle = ConversationStyles.subtitle(
-          color: GlimpseColors.textSubTitle,
-        );
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Text(timeAgoText, style: baseStyle),
-        );
-      },
     );
   }
 }

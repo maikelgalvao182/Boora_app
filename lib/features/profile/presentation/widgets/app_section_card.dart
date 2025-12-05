@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/app/services/localization_service.dart';
-import 'package:partiu/features/auth/presentation/screens/sign_in_screen_refactored.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
 import 'package:partiu/features/profile/presentation/viewmodels/app_section_view_model.dart';
 import 'package:partiu/features/profile/presentation/widgets/dialogs/delete_account_confirm_dialog.dart';
@@ -10,10 +9,13 @@ import 'package:partiu/core/services/distance_unit_service.dart';
 import 'package:partiu/app/services/locale_service.dart';
 import 'package:partiu/shared/widgets/dialogs/language_selector_dialog.dart';
 import 'package:partiu/core/helpers/app_helper.dart';
+import 'package:partiu/dialogs/progress_dialog.dart';
+import 'package:partiu/core/router/app_router.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -27,7 +29,6 @@ class AppSectionCard extends StatefulWidget {
 
 class _AppSectionCardState extends State<AppSectionCard> {
   final AppHelper _appHelper = AppHelper();
-  bool _isLoggingOut = false;
   AppSectionViewModel? _viewModel;
 
   @override
@@ -159,27 +160,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
             context,
             icon: Iconsax.logout,
             title: i18n.translate('sign_out') ?? 'Sair',
-            showSpinner: _isLoggingOut,
-            onTap: _isLoggingOut ? null : () async {
-              setState(() => _isLoggingOut = true);
-              
-              try {
-                await _viewModel?.signOut();
-              } catch (e) {
-                debugPrint('Erro durante logout: $e');
-              } finally {
-                // Garante navegação mesmo se houver erro
-                if (!mounted) return;
-                
-                setState(() => _isLoggingOut = false);
-                
-                // Navega para tela de login
-                Navigator.of(context).popUntil((route) => route.isFirst);
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const SignInScreenRefactored()),
-                );
-              }
-            },
+            onTap: () => _handleLogout(context, i18n),
           ),
           Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
           
@@ -220,6 +201,44 @@ class _AppSectionCardState extends State<AppSectionCard> {
     );
   }
   
+  /// Executa logout com loading e navegação via go_router
+  Future<void> _handleLogout(BuildContext context, LocalizationService i18n) async {
+    final progressDialog = ProgressDialog(context);
+    
+    try {
+      // Mostra loading
+      progressDialog.show(i18n.translate('signing_out') ?? 'Saindo...');
+      
+      // Executa logout (processo de 9 etapas)
+      await _viewModel?.signOut();
+      
+      // Esconde loading
+      await progressDialog.hide();
+      
+      // Aguarda frame para garantir que dialog foi fechado
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Navega para login usando go_router (declarative navigation)
+      if (mounted) {
+        context.go(AppRoutes.signIn);
+      }
+    } catch (e) {
+      debugPrint('❌ Erro durante logout: $e');
+      
+      // Tenta esconder loading mesmo com erro
+      try {
+        await progressDialog.hide();
+      } catch (_) {}
+      
+      // Navega mesmo assim (logout provavelmente foi executado)
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        context.go(AppRoutes.signIn);
+      }
+    }
+  }
+
   Widget _buildSwitchItem(BuildContext context, {
     required IconData icon,
     required String title,
@@ -290,7 +309,6 @@ class _AppSectionCardState extends State<AppSectionCard> {
     required VoidCallback? onTap,
     Color? iconColor,
     Color? textColor,
-    bool showSpinner = false,
   }) {
     return InkWell(
       onTap: onTap != null
@@ -312,19 +330,11 @@ class _AppSectionCardState extends State<AppSectionCard> {
                     color: GlimpseColors.lightTextField,
                     borderRadius: BorderRadius.circular(100),
                   ),
-                  child: showSpinner
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CupertinoActivityIndicator(
-                            radius: 8,
-                          ),
-                        )
-                      : Icon(
-                          icon,
-                          size: 20,
-                          color: iconColor ?? Colors.black,
-                        ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: iconColor ?? Colors.black,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(

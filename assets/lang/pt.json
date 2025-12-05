@@ -359,7 +359,7 @@
   "reviews_plural": "avaliações",
   "rating_by_criteria": "Avaliações por critério",
   "just_now": "agora mesmo",
-  "minutes_ago": "há {count} minutos",
+  "minutes_ago": "há {count} min",
   "hours_ago": "há {count} horas",
   "days_ago": "há {count} dias",
   "months_ago": "há {count} meses",
@@ -568,6 +568,8 @@
   "failed_to_remove_application": "Falha ao remover aplicação",
   "delete_event": "Deletar Evento",
   "delete_event_confirmation": "Tem certeza que deseja deletar o evento '{event}'? Esta ação não pode ser desfeita.",
-  "this_event": "este evento"
+  "this_event": "este evento",
+  "sign_out": "Sair",
+  "signing_out": "Saindo..."
 }
 

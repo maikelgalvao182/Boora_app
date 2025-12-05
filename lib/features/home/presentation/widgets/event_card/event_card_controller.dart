@@ -99,7 +99,8 @@ class EventCardController extends ChangeNotifier {
   // Application getters
   EventApplicationModel? get userApplication => _userApplication;
   bool get hasApplied => _userApplication != null;
-  bool get isApproved => _userApplication?.isApproved ?? false;
+  /// Owner sempre é considerado aprovado, mesmo sem application carregada
+  bool get isApproved => isCreator || (_userApplication?.isApproved ?? false);
   bool get isPending => _userApplication?.isPending ?? false;
   bool get isRejected => _userApplication?.isRejected ?? false;
   bool get isApplying => _isApplying;
@@ -153,6 +154,9 @@ class EventCardController extends ChangeNotifier {
   
   /// Texto do botão Sair (hardcoded para não depender de i18n)
   String get leaveButtonText => 'Sair';
+  
+  /// Texto do botão Deletar para o owner (hardcoded para não depender de i18n)
+  String get deleteButtonText => 'Deletar';
   
   /// Se o botão deve estar habilitado
   bool get isButtonEnabled {

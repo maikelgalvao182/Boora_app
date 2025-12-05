@@ -8,6 +8,7 @@ import 'package:partiu/core/utils/emoji_helper.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
 import 'package:partiu/features/home/presentation/widgets/create/suggestion_tags_view.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/create_drawer_controller.dart';
+import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/shared/widgets/emoji_container.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -15,9 +16,18 @@ import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 
 /// Bottom sheet para criar nova atividade
 class CreateDrawer extends StatefulWidget {
-  const CreateDrawer({super.key, this.coordinator});
+  const CreateDrawer({
+    super.key, 
+    this.coordinator,
+    this.initialName,
+    this.initialEmoji,
+    this.editMode = false,
+  });
 
   final CreateFlowCoordinator? coordinator;
+  final String? initialName;
+  final String? initialEmoji;
+  final bool editMode;
 
   @override
   State<CreateDrawer> createState() => _CreateDrawerState();
@@ -26,6 +36,7 @@ class CreateDrawer extends StatefulWidget {
 class _CreateDrawerState extends State<CreateDrawer> {
   late final CreateDrawerController _controller;
   late final CreateFlowCoordinator _coordinator;
+  late final Color _containerColor;
 
   @override
   void initState() {
@@ -33,6 +44,19 @@ class _CreateDrawerState extends State<CreateDrawer> {
     _controller = CreateDrawerController();
     _coordinator = widget.coordinator ?? CreateFlowCoordinator();
     _controller.addListener(_onControllerChanged);
+    
+    // Gera uma cor aleatória ao abrir o drawer
+    _containerColor = MarkerColorHelper.getRandomColor();
+    
+    // Se estiver em modo de edição, preencher com valores iniciais
+    if (widget.editMode) {
+      if (widget.initialName != null) {
+        _controller.textController.text = widget.initialName!;
+      }
+      if (widget.initialEmoji != null) {
+        _controller.setEmoji(widget.initialEmoji!);
+      }
+    }
   }
 
   @override
@@ -72,6 +96,15 @@ class _CreateDrawerState extends State<CreateDrawer> {
 
   void _handleCreate() async {
     if (!_controller.canContinue) return;
+
+    // Se estiver em modo de edição, apenas retornar os valores
+    if (widget.editMode) {
+      Navigator.of(context).pop({
+        'name': _controller.textController.text.trim(),
+        'emoji': _controller.currentEmoji,
+      });
+      return;
+    }
 
     // Salvar informações no coordinator
     _coordinator.setActivityInfo(
@@ -169,6 +202,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 emoji: _controller.currentEmoji,
                 size: 80,
                 emojiSize: 40,
+                backgroundColor: _containerColor,
               ),
 
               const SizedBox(height: 24),
@@ -276,7 +310,9 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: GlimpseButton(
-                    text: AppLocalizations.of(context).translate('continue'),
+                    text: widget.editMode 
+                        ? AppLocalizations.of(context).translate('save')
+                        : AppLocalizations.of(context).translate('continue'),
                     onPressed: _controller.canContinue
                         ? _handleCreate
                         : null,

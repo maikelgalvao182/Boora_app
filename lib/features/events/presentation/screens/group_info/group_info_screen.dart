@@ -13,6 +13,7 @@ import 'package:partiu/features/home/presentation/widgets/user_card.dart';
 import 'package:partiu/shared/services/toast_service.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
+import 'package:partiu/shared/widgets/swipeable_member_card.dart';
 
 /// Tela de informações do grupo/evento
 class GroupInfoScreen extends StatefulWidget {
@@ -171,50 +172,56 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               ),
             )
           else
-            ListView.builder(
+            ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               itemCount: _controller.participantUserIds.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final userId = _controller.participantUserIds[index];
                 
-                // Se for o owner, adiciona opção de remover membro
+                // Se for o owner, adiciona swipe-to-delete (exceto para si mesmo)
                 if (_controller.isCreator) {
-                  return UserCard(
-                    key: ValueKey(userId),
-                    userId: userId,
-                    onTap: () {
-                      // TODO: Navegar para perfil do usuário
-                    },
-                    onLongPress: () {
-                      // Não permite remover a si mesmo
-                      if (userId == _controller.creatorId) {
-                        ToastService.showError(
-                          context: context,
-                          title: i18n.translate('error'),
-                          subtitle: i18n.translate('cannot_remove_yourself'),
+                  final isCurrentUser = userId == _controller.creatorId;
+                  
+                  // Owner não tem swipe no próprio card
+                  if (isCurrentUser) {
+                    return Padding(
+                      padding: EdgeInsets.zero,
+                      child: UserCard(
+                        key: ValueKey(userId),
+                        userId: userId,
+                      ),
+                    );
+                  }
+                  
+                  // Outros membros têm swipe-to-delete
+                  return Padding(
+                    padding: EdgeInsets.zero,
+                    child: SwipeableMemberCard(
+                      key: ValueKey(userId),
+                      userId: userId,
+                      deleteLabel: i18n.translate('remove'),
+                      onDelete: () {
+                        // Exibe dialog de confirmação para remover
+                        _controller.showRemoveParticipantDialog(
+                          context,
+                          userId,
+                          'Participante', // TODO: Buscar nome real do usuário
                         );
-                        return;
-                      }
-                      
-                      // Exibe dialog de confirmação para remover
-                      _controller.showRemoveParticipantDialog(
-                        context,
-                        userId,
-                        'Participante', // TODO: Buscar nome real do usuário
-                      );
-                    },
+                      },
+                    ),
                   );
                 }
                 
                 // Para membros normais, apenas exibe o card
-                return UserCard(
-                  key: ValueKey(userId),
-                  userId: userId,
-                  onTap: () {
-                    // TODO: Navegar para perfil do usuário
-                  },
+                return Padding(
+                  padding: EdgeInsets.zero,
+                  child: UserCard(
+                    key: ValueKey(userId),
+                    userId: userId,
+                  ),
                 );
               },
             ),

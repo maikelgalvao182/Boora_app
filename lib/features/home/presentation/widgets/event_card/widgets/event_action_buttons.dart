@@ -15,8 +15,10 @@ class EventActionButtons extends StatelessWidget {
     required this.buttonText,
     required this.chatButtonText,
     required this.leaveButtonText,
+    required this.deleteButtonText,
     required this.onChatPressed,
     required this.onLeavePressed,
+    required this.onDeletePressed,
     required this.onSingleButtonPressed,
     super.key,
   });
@@ -27,8 +29,10 @@ class EventActionButtons extends StatelessWidget {
   final String buttonText;
   final String chatButtonText;
   final String leaveButtonText;
+  final String deleteButtonText;
   final VoidCallback onChatPressed;
   final VoidCallback onLeavePressed;
+  final VoidCallback onDeletePressed;
   final VoidCallback onSingleButtonPressed;
 
   @override
@@ -37,7 +41,53 @@ class EventActionButtons extends StatelessWidget {
     debugPrint('🔘 EventActionButtons.build()');
     debugPrint('   chatButtonText: "$chatButtonText"');
     debugPrint('   leaveButtonText: "$leaveButtonText"');
+    debugPrint('   deleteButtonText: "$deleteButtonText"');
     debugPrint('   isApproved: $isApproved, isCreator: $isCreator');
+    
+    // Dois botões: Chat e Deletar (quando é criador aprovado)
+    if (isApproved && isCreator) {
+      return Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: onChatPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: GlimpseColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  elevation: 0,
+                ),
+                icon: const Icon(Iconsax.message, size: 20),
+                label: Text(
+                  chatButtonText,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GlimpseButton(
+              text: deleteButtonText,
+              icon: Iconsax.trash,
+              backgroundColor: Colors.red,
+              textColor: Colors.white,
+              onPressed: onDeletePressed,
+              noPadding: true,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      );
+    }
     
     // Dois botões: Chat e Sair (quando aprovado e não é criador)
     if (isApproved && !isCreator) {

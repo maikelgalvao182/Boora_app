@@ -374,6 +374,8 @@
   "application_removed_successfully": "Tu aplicación para '{event}' fue eliminada con éxito",
   "failed_to_remove_application": "Error al eliminar aplicación",
   "delete_event": "Eliminar Evento",
-  "delete_event_confirmation": "¿Estás seguro de que deseas eliminar el evento '{event}'? Esta acción no se puede deshacer.",
-  "this_event": "este evento"
+  "delete_event_confirmation": "¿Estás seguro de que quieres eliminar el evento '{event}'? Esta acción no se puede deshacer.",
+  "this_event": "este evento",
+  "sign_out": "Cerrar Sesión",
+  "signing_out": "Cerrando sesión..."
 }
