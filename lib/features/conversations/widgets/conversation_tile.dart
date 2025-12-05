@@ -83,17 +83,22 @@ class ConversationTile extends StatelessWidget {
     // Leading: Avatar ou Emoji do evento
     final Widget leading;
     if (isEventChat) {
-      // Buscar emoji da coleção Connections
+      // Buscar emoji da coleção Connections com fallback do rawData
+      final fallbackEmoji = rawData['emoji']?.toString() ?? EventEmojiAvatar.defaultEmoji;
+      final fallbackEventId = rawData['event_id']?.toString() ?? '';
+      
       leading = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: chatService.getConversationSummary(displayData.otherUserId),
         builder: (context, snap) {
-          String emoji = EventEmojiAvatar.defaultEmoji;
-          String eventId = rawData['event_id']?.toString() ?? '';
+          // Usa dados do rawData imediatamente (evita flash)
+          String emoji = fallbackEmoji;
+          String eventId = fallbackEventId;
           
+          // Atualiza apenas se stream tiver dados diferentes
           if (snap.hasData && snap.data!.data() != null) {
             final data = snap.data!.data()!;
-            emoji = data['emoji'] ?? EventEmojiAvatar.defaultEmoji;
-            eventId = data['event_id']?.toString() ?? eventId;
+            emoji = data['emoji'] ?? fallbackEmoji;
+            eventId = data['event_id']?.toString() ?? fallbackEventId;
           }
           
           return EventEmojiAvatar(

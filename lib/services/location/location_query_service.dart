@@ -8,12 +8,22 @@ import 'package:partiu/services/location/location_stream_controller.dart';
 
 /// Serviço principal para queries de localização com filtro de raio
 /// 
+/// ATENÇÃO: Este serviço foi REFATORADO para buscar USUÁRIOS (pessoas) ao invés de eventos.
+/// 
 /// Responsabilidades:
-/// - Carregar eventos dentro do raio do usuário
+/// - Carregar USUÁRIOS dentro do raio do usuário atual
 /// - Cache com TTL (30 segundos)
 /// - Bounding box para queries otimizadas
 /// - Isolate para cálculo de distâncias sem jank
 /// - Stream de atualizações automáticas
+/// - Filtros sociais (gênero, idade, verificado, interesses)
+/// 
+/// USO:
+/// - find_people_screen.dart: Descoberta de pessoas próximas
+/// 
+/// NÃO USAR MAIS PARA:
+/// - discover_screen.dart: Usa EventMapRepository diretamente
+/// - Filtros de eventos: Lógica movida para AppleMapViewModel
 class LocationQueryService {
   /// Singleton
   static final LocationQueryService _instance =
@@ -26,22 +36,25 @@ class LocationQueryService {
   /// Cache de localização do usuário
   UserLocationCache? _userLocationCache;
 
-  /// Cache de eventos
-  EventsCache? _eventsCache;
+  /// Cache de usuários próximos
+  UsersCache? _usersCache;
 
   /// Filtros atuais
-  EventFilterOptions _currentFilters = EventFilterOptions();
+  UserFilterOptions _currentFilters = UserFilterOptions();
 
-  /// Stream controller para eventos
-  final _eventsStreamController =
-      StreamController<List<EventWithDistance>>.broadcast();
+  /// Stream controller para usuários
+  final _usersStreamController =
+      StreamController<List<UserWithDistance>>.broadcast();
+
+  /// Timer para debounce de reloads
+  Timer? _reloadDebounceTimer;
 
   /// TTL do cache (30 segundos)
   static const Duration cacheTTL = Duration(seconds: 30);
 
-  /// Stream de eventos
-  Stream<List<EventWithDistance>> get eventsStream =>
-      _eventsStreamController.stream;
+  /// Stream de usuários
+  Stream<List<UserWithDistance>> get usersStream =>
+      _usersStreamController.stream;
 
   /// Inicializa listeners para mudanças de raio/localização
   void _initializeListeners() {
@@ -50,20 +63,31 @@ class LocationQueryService {
     // Listener de mudanças de raio
     streamController.radiusStream.listen((radiusKm) {
       debugPrint('🔄 LocationQueryService: Raio mudou para $radiusKm km');
-      _invalidateEventsCache();
-      _loadAndEmitEvents(radiusKm: radiusKm);
+      _invalidateUsersCache();
+      _scheduleReload(radiusKm: radiusKm);
     });
 
     // Listener de reload manual
     streamController.reloadStream.listen((_) {
       debugPrint('🔄 LocationQueryService: Reload manual solicitado');
       _invalidateAllCaches();
-      _loadAndEmitEvents();
+      _scheduleReload();
     });
   }
 
-  /// Atualiza os filtros e recarrega eventos
-  void updateFilters(EventFilterOptions filters) {
+  /// Agenda reload com debounce para evitar queries simultâneas
+  void _scheduleReload({double? radiusKm}) {
+    // Cancelar reload pendente
+    _reloadDebounceTimer?.cancel();
+    
+    // Agendar novo reload após 300ms
+    _reloadDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _loadAndEmitUsers(radiusKm: radiusKm);
+    });
+  }
+
+  /// Atualiza os filtros e recarrega usuários
+  void updateFilters(UserFilterOptions filters) {
     _currentFilters = filters;
     debugPrint('🔍 LocationQueryService.updateFilters: radiusKm = ${filters.radiusKm}');
     debugPrint('🔍 LocationQueryService.updateFilters: gender = ${filters.gender}');
@@ -71,22 +95,27 @@ class LocationQueryService {
     debugPrint('🔍 LocationQueryService.updateFilters: verified = ${filters.isVerified}');
     debugPrint('🔍 LocationQueryService.updateFilters: interests = ${filters.interests}');
     debugPrint('🔄 LocationQueryService: Filtros atualizados');
-    _invalidateEventsCache();
-    _loadAndEmitEvents(radiusKm: filters.radiusKm);
+    _invalidateUsersCache();
     
-    // Emitir reload para notificar outros listeners (ex: AppleMapViewModel)
-    LocationStreamController().emitReload();
+    // Usar debounce para evitar race conditions
+    _scheduleReload(radiusKm: filters.radiusKm);
   }
 
-  /// Busca eventos dentro do raio - versão única (sem stream)
+  /// Busca usuários dentro do raio - versão única (sem stream)
   /// 
-  /// Uso: Quando precisa de uma consulta pontual
-  Future<List<EventWithDistance>> getEventsWithinRadiusOnce({
+  /// Uso: Quando precisa de uma consulta pontual de pessoas próximas
+  Future<List<UserWithDistance>> getUsersWithinRadiusOnce({
     double? customRadiusKm,
-    EventFilterOptions? filters,
+    UserFilterOptions? filters,
   }) async {
     try {
       final activeFilters = filters ?? _currentFilters;
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      
+      if (currentUserId == null) {
+        debugPrint('❌ LocationQueryService: Usuário não autenticado');
+        return [];
+      }
 
       // 1. Carregar localização do usuário
       final userLocation = await _getUserLocation();
@@ -94,17 +123,15 @@ class LocationQueryService {
 
       // 2. Obter raio (prioridade: customRadiusKm → filters.radiusKm → Firestore)
       final radiusKm = customRadiusKm ?? activeFilters.radiusKm ?? await _getUserRadius();
-      debugPrint('🔍 getEventsWithinRadiusOnce: radiusKm FINAL = $radiusKm (custom=$customRadiusKm, filters=${activeFilters.radiusKm})');
+      debugPrint('🔍 getUsersWithinRadiusOnce: radiusKm FINAL = $radiusKm (custom=$customRadiusKm, filters=${activeFilters.radiusKm})');
       debugPrint('📍 LocationQueryService: Radius: ${radiusKm}km');
 
-      // 3. Verificar cache de eventos (apenas se filtros não mudaram)
-      // Nota: Para cache perfeito com filtros, precisaríamos incluir filtros na chave do cache
-      // Por simplicidade, invalidamos cache ao mudar filtros
-      if (_eventsCache != null &&
-          !_eventsCache!.isExpired &&
-          _eventsCache!.radiusKm == radiusKm) {
-        debugPrint('✅ LocationQueryService: Usando cache de eventos');
-        return _eventsCache!.events;
+      // 3. Verificar cache de usuários (apenas se filtros não mudaram)
+      if (_usersCache != null &&
+          !_usersCache!.isExpired &&
+          _usersCache!.radiusKm == radiusKm) {
+        debugPrint('✅ LocationQueryService: Usando cache de usuários');
+        return _usersCache!.users;
       }
 
       // 4. Calcular bounding box
@@ -114,76 +141,73 @@ class LocationQueryService {
         radiusKm: radiusKm,
       );
 
-      // 5. Query Firestore (primeira filtragem rápida - Bounding Box)
-      final candidateEvents = await _filterByBoundingBox(boundingBox);
+      // 5. Query Firestore na coleção Users (primeira filtragem rápida - Bounding Box)
+      final candidateUsers = await _filterUsersByBoundingBox(boundingBox, currentUserId);
+      debugPrint('📊 LocationQueryService: ${candidateUsers.length} usuários ANTES dos filtros avançados');
 
-      // 6. Buscar criadores e unificar dados (Orquestração)
-      final unifiedEvents = await _enrichEventsWithCreators(candidateEvents);
-      debugPrint('📊 LocationQueryService: ${unifiedEvents.length} eventos ANTES dos filtros avançados');
-
-      // 7. Filtros em memória (Gender, Age, Verified, Interests) - Agora baseados no CRIADOR
+      // 6. Filtros em memória (Gender, Age, Verified, Interests)
       debugPrint('🔍 Filtros ativos: gender=${activeFilters.gender}, age=${activeFilters.minAge}-${activeFilters.maxAge}, verified=${activeFilters.isVerified}, interests=${activeFilters.interests}');
       
-      var filteredEvents = _filterByGender(unifiedEvents, activeFilters.gender);
-      debugPrint('📊 Após filtro de gênero: ${filteredEvents.length} eventos');
+      var filteredUsers = _filterByGender(candidateUsers, activeFilters.gender);
+      debugPrint('📊 Após filtro de gênero: ${filteredUsers.length} usuários');
       
-      filteredEvents = _filterByAge(filteredEvents, activeFilters.minAge, activeFilters.maxAge);
-      debugPrint('📊 Após filtro de idade: ${filteredEvents.length} eventos');
+      filteredUsers = _filterByAge(filteredUsers, activeFilters.minAge, activeFilters.maxAge);
+      debugPrint('📊 Após filtro de idade: ${filteredUsers.length} usuários');
       
-      filteredEvents = _filterByVerified(filteredEvents, activeFilters.isVerified);
-      debugPrint('📊 Após filtro verified: ${filteredEvents.length} eventos');
+      filteredUsers = _filterByVerified(filteredUsers, activeFilters.isVerified);
+      debugPrint('📊 Após filtro verified: ${filteredUsers.length} usuários');
       
-      filteredEvents = _filterByInterests(filteredEvents, activeFilters.interests);
-      debugPrint('📊 Após filtro de interesses: ${filteredEvents.length} eventos');
+      filteredUsers = _filterByInterests(filteredUsers, activeFilters.interests);
+      debugPrint('📊 Após filtro de interesses: ${filteredUsers.length} usuários');
 
-      // 8. Filtrar com isolate (distância exata e cálculos pesados)
-      final finalEvents = await _filterByDistanceIsolate(
-        events: filteredEvents,
+      // 7. Filtrar com isolate (distância exata e cálculos pesados)
+      final finalUsers = await _filterUsersByDistanceIsolate(
+        users: filteredUsers,
         centerLat: userLocation.latitude,
         centerLng: userLocation.longitude,
         radiusKm: radiusKm,
       );
-      debugPrint('📊 Após filtro de distância (Isolate): ${finalEvents.length} eventos');
+      debugPrint('📊 Após filtro de distância (Isolate): ${finalUsers.length} usuários');
 
-      // 9. Atualizar cache
-      _eventsCache = EventsCache(
-        events: finalEvents,
+      // 8. Atualizar cache
+      _usersCache = UsersCache(
+        users: finalUsers,
         radiusKm: radiusKm,
         timestamp: DateTime.now(),
       );
 
       debugPrint(
-          '✅ LocationQueryService: ${finalEvents.length} eventos retornados após todos os filtros (Orquestrado)');
+          '✅ LocationQueryService: ${finalUsers.length} usuários retornados após todos os filtros');
 
-      return finalEvents;
+      return finalUsers;
     } catch (e) {
-      debugPrint('❌ LocationQueryService: Erro ao buscar eventos: $e');
+      debugPrint('❌ LocationQueryService: Erro ao buscar usuários: $e');
       return [];
     }
   }
 
-  /// Busca eventos dentro do raio - versão stream (atualização automática)
+  /// Busca usuários dentro do raio - versão stream (atualização automática)
   /// 
-  /// Uso: Quando precisa de atualizações em tempo real
-  Stream<List<EventWithDistance>> getEventsWithinRadiusStream({
+  /// Uso: Quando precisa de atualizações em tempo real de pessoas próximas
+  Stream<List<UserWithDistance>> getUsersWithinRadiusStream({
     double? customRadiusKm,
   }) async* {
     while (true) {
-      final events = await getEventsWithinRadiusOnce(
+      final users = await getUsersWithinRadiusOnce(
         customRadiusKm: customRadiusKm,
       );
-      yield events;
+      yield users;
 
       // Aguardar próxima atualização
       await Future.delayed(const Duration(seconds: 5));
     }
   }
 
-  /// Carrega eventos e emite no stream principal
-  Future<void> _loadAndEmitEvents({double? radiusKm}) async {
-    final events = await getEventsWithinRadiusOnce(customRadiusKm: radiusKm);
-    if (!_eventsStreamController.isClosed) {
-      _eventsStreamController.add(events);
+  /// Carrega usuários e emite no stream principal
+  Future<void> _loadAndEmitUsers({double? radiusKm}) async {
+    final users = await getUsersWithinRadiusOnce(customRadiusKm: radiusKm);
+    if (!_usersStreamController.isClosed) {
+      _usersStreamController.add(users);
     }
   }
 
@@ -287,191 +311,130 @@ class LocationQueryService {
     }
   }
 
-  /// Query Firestore com bounding box (primeira filtragem)
-  Future<List<EventLocation>> _filterByBoundingBox(
+  /// Query Firestore com bounding box (primeira filtragem) na coleção Users
+  Future<List<UserLocation>> _filterUsersByBoundingBox(
     Map<String, double> boundingBox,
+    String currentUserId,
   ) async {
     debugPrint('📦 LocationQueryService: Bounding Box: $boundingBox');
 
-    final eventsQuery = await FirebaseFirestore.instance
-        .collection('events')
-        .where('location.latitude', isGreaterThanOrEqualTo: boundingBox['minLat'])
-        .where('location.latitude', isLessThanOrEqualTo: boundingBox['maxLat'])
+    final usersQuery = await FirebaseFirestore.instance
+        .collection('Users')
+        .where('latitude', isGreaterThanOrEqualTo: boundingBox['minLat'])
+        .where('latitude', isLessThanOrEqualTo: boundingBox['maxLat'])
         .get();
 
-    debugPrint('📦 LocationQueryService: Firestore returned ${eventsQuery.docs.length} docs based on latitude');
+    debugPrint('📦 LocationQueryService: Firestore returned ${usersQuery.docs.length} users based on latitude');
 
-    final events = <EventLocation>[];
+    final users = <UserLocation>[];
 
-    for (final doc in eventsQuery.docs) {
-      final data = doc.data();
-      final location = data['location'] as Map<String, dynamic>?;
-      final latitude = location?['latitude'] as double?;
-      final longitude = location?['longitude'] as double?;
-
-      if (latitude == null || longitude == null) {
-         debugPrint('⚠️ LocationQueryService: Event ${doc.id} missing lat/lng. Data: $data');
+    for (final doc in usersQuery.docs) {
+      // Pular o próprio usuário
+      if (doc.id == currentUserId) {
+        debugPrint('⏭️  LocationQueryService: Pulando próprio usuário ${doc.id}');
+        continue;
       }
 
-      if (latitude != null && longitude != null) {
-        // Filtro adicional de longitude (Firestore só permite 1 range query)
-        if (longitude >= boundingBox['minLng']! &&
-            longitude <= boundingBox['maxLng']!) {
-          events.add(
-            EventLocation(
-              eventId: doc.id,
-              latitude: latitude,
-              longitude: longitude,
-              eventData: data,
-            ),
-          );
-        } else {
-             debugPrint('⚠️ LocationQueryService: Event ${doc.id} excluded by longitude. Event Lng: $longitude, Range: ${boundingBox['minLng']} - ${boundingBox['maxLng']}');
-        }
+      final data = doc.data();
+      final latitude = data['latitude'] as double?;
+      final longitude = data['longitude'] as double?;
+
+      if (latitude == null || longitude == null) {
+         debugPrint('⚠️ LocationQueryService: User ${doc.id} missing lat/lng');
+         continue;
+      }
+
+      // Filtro adicional de longitude (Firestore só permite 1 range query)
+      if (longitude >= boundingBox['minLng']! &&
+          longitude <= boundingBox['maxLng']!) {
+        users.add(
+          UserLocation(
+            userId: doc.id,
+            latitude: latitude,
+            longitude: longitude,
+            userData: data,
+          ),
+        );
+      } else {
+         debugPrint('⚠️ LocationQueryService: User ${doc.id} excluded by longitude. User Lng: $longitude, Range: ${boundingBox['minLng']} - ${boundingBox['maxLng']}');
       }
     }
 
     debugPrint(
-        '📦 LocationQueryService: ${events.length} eventos candidatos do Firestore (Bounding Box)');
+        '📦 LocationQueryService: ${users.length} usuários candidatos do Firestore (Bounding Box)');
 
-    return events;
+    return users;
   }
 
-  /// Busca criadores e unifica com eventos
-  Future<List<EventLocation>> _enrichEventsWithCreators(List<EventLocation> events) async {
-    if (events.isEmpty) return [];
+  // --- FILTROS EM MEMÓRIA (Baseados nos dados do usuário) ---
 
-    debugPrint('🔍 _enrichEventsWithCreators: Processando ${events.length} eventos');
-
-    // Extrair IDs dos criadores
-    final creatorIds = events
-        .map((e) {
-          final creatorId = e.eventData['creatorId'] as String?;
-          final createdBy = e.eventData['createdBy'] as String?;
-          debugPrint('   Evento ${e.eventId}: creatorId=$creatorId, createdBy=$createdBy');
-          return creatorId ?? createdBy;
-        })
-        .where((id) => id != null)
-        .cast<String>()
-        .toSet()
-        .toList();
-
-    debugPrint('🔍 _enrichEventsWithCreators: ${creatorIds.length} creatorIds únicos encontrados');
-    debugPrint('🔍 Creator IDs: $creatorIds');
-
-    if (creatorIds.isEmpty) {
-      debugPrint('⚠️ _enrichEventsWithCreators: Nenhum creatorId encontrado nos eventos!');
-      return events;
+  List<UserLocation> _filterByGender(List<UserLocation> users, String? gender) {
+    if (gender == null || gender == 'all') {
+      debugPrint('🔍 _filterByGender: Filtro desabilitado (gender=$gender)');
+      return users;
     }
-
-    // Buscar criadores em batches (limite de 30 do Firestore para 'in')
-    final creatorsMap = <String, Map<String, dynamic>>{};
-    final chunks = _chunkList(creatorIds, 30);
-
-    debugPrint('🔍 _enrichEventsWithCreators: Buscando ${chunks.length} batches de criadores em Users...');
-
-    for (final chunk in chunks) {
-      try {
-        final query = await FirebaseFirestore.instance
-            .collection('Users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-
-        debugPrint('🔍 Batch retornou ${query.docs.length} criadores');
-
-        for (final doc in query.docs) {
-          creatorsMap[doc.id] = doc.data();
-          debugPrint('   ✅ Creator ${doc.id} encontrado');
-        }
-      } catch (e) {
-        debugPrint('❌ Erro ao buscar batch de criadores: $e');
-      }
-    }
-
-    debugPrint('🔍 _enrichEventsWithCreators: ${creatorsMap.length} criadores carregados no mapa');
-
-    // Unificar dados
-    final enrichedEvents = <EventLocation>[];
-    for (final event in events) {
-      final creatorId = (event.eventData['creatorId'] ?? event.eventData['createdBy']) as String?;
+    
+    debugPrint('🔍 _filterByGender: Filtrando ${users.length} usuários por gender=$gender');
+    
+    // Mapeamento: valores do filtro (EN) → valores salvos no Firestore (PT)
+    final Map<String, List<String>> genderMap = {
+      'male': ['Masculino', 'male', 'M'],
+      'female': ['Feminino', 'female', 'F'],
+      'non_binary': ['Não-binário', 'non_binary', 'Non-binary', 'NB'],
+    };
+    
+    final acceptedValues = genderMap[gender] ?? [];
+    
+    final filtered = users.where((u) {
+      final userGender = u.userData['gender'] as String?;
       
-      if (creatorId != null && creatorsMap.containsKey(creatorId)) {
-        // Criar cópia dos dados do evento e adicionar dados do criador
-        final newEventData = Map<String, dynamic>.from(event.eventData);
-        newEventData['creator'] = creatorsMap[creatorId];
-        
-        debugPrint('   ✅ Evento ${event.eventId}: Creator ${creatorId} ADICIONADO');
-        
-        enrichedEvents.add(EventLocation(
-          eventId: event.eventId,
-          latitude: event.latitude,
-          longitude: event.longitude,
-          eventData: newEventData,
-        ));
-      } else {
-        // Se não achou criador, mantém evento original (ou descarta? Vamos manter por segurança)
-        debugPrint('   ⚠️ Evento ${event.eventId}: Creator $creatorId NÃO ENCONTRADO no mapa');
-        enrichedEvents.add(event);
-      }
-    }
-
-    return enrichedEvents;
-  }
-
-  List<List<T>> _chunkList<T>(List<T> list, int chunkSize) {
-    List<List<T>> chunks = [];
-    for (var i = 0; i < list.length; i += chunkSize) {
-      chunks.add(list.sublist(i, (i + chunkSize) > list.length ? list.length : (i + chunkSize)));
-    }
-    return chunks;
-  }
-
-  // --- FILTROS EM MEMÓRIA (Baseados no Criador) ---
-
-  List<EventLocation> _filterByGender(List<EventLocation> events, String? gender) {
-    if (gender == null || gender == 'all') return events;
-    
-    return events.where((e) {
-      final creator = e.eventData['creator'] as Map<String, dynamic>?;
-      if (creator == null) return false; // Se filtrar por gênero e não tem criador, remove
-      return creator['gender'] == gender;
-    }).toList();
-  }
-
-  List<EventLocation> _filterByAge(List<EventLocation> events, int? min, int? max) {
-    if (min == null && max == null) {
-      debugPrint('🔍 _filterByAge: Filtro desabilitado (min=null, max=null)');
-      return events;
-    }
-    
-    debugPrint('🔍 _filterByAge: Filtrando ${events.length} eventos com faixa ${min ?? 0}-${max ?? 100}');
-    
-    final filtered = events.where((e) {
-      final creator = e.eventData['creator'] as Map<String, dynamic>?;
-      if (creator == null) {
-        debugPrint('❌ Evento ${e.eventId}: creator é NULL');
+      if (userGender == null) {
+        debugPrint('   ❌ User ${u.userId}: gender=null (campo ausente)');
         return false;
       }
+      
+      final matches = acceptedValues.contains(userGender);
+      
+      if (!matches) {
+        debugPrint('   ❌ User ${u.userId}: gender=$userGender NÃO match com filtro $gender (aceita: $acceptedValues)');
+      } else {
+        debugPrint('   ✅ User ${u.userId}: gender=$userGender MATCH!');
+      }
+      
+      return matches;
+    }).toList();
+    
+    debugPrint('🔍 _filterByGender: ${filtered.length} usuários passaram no filtro');
+    return filtered;
+  }
 
+  List<UserLocation> _filterByAge(List<UserLocation> users, int? min, int? max) {
+    if (min == null && max == null) {
+      debugPrint('🔍 _filterByAge: Filtro desabilitado (min=null, max=null)');
+      return users;
+    }
+    
+    debugPrint('🔍 _filterByAge: Filtrando ${users.length} usuários com faixa ${min ?? 0}-${max ?? 100}');
+    
+    final filtered = users.where((u) {
       // Tentar múltiplas formas de obter idade
-      dynamic ageValue = creator['age'];
+      dynamic ageValue = u.userData['age'];
       
       // Se age não existir, tentar calcular de birthYear
       if (ageValue == null) {
-        final birthYear = creator['birthYear'];
+        final birthYear = u.userData['birthYear'];
         if (birthYear != null) {
           final currentYear = DateTime.now().year;
           final parsedYear = birthYear is int ? birthYear : int.tryParse(birthYear.toString());
           if (parsedYear != null) {
             ageValue = currentYear - parsedYear;
-            debugPrint('🔍 Evento ${e.eventId}: age calculada de birthYear: $ageValue');
+            debugPrint('🔍 User ${u.userId}: age calculada de birthYear: $ageValue');
           }
         }
       }
       
       if (ageValue == null) {
-        debugPrint('❌ Evento ${e.eventId}: age e birthYear são NULL no creator');
-        debugPrint('   Creator keys: ${creator.keys.toList()}');
+        debugPrint('❌ User ${u.userId}: age e birthYear são NULL');
         return false;
       }
       
@@ -479,7 +442,7 @@ class LocationQueryService {
       final age = ageValue is int ? ageValue : int.tryParse(ageValue.toString());
       
       if (age == null) {
-        debugPrint('❌ Evento ${e.eventId}: Não foi possível converter age para int (valor: $ageValue)');
+        debugPrint('❌ User ${u.userId}: Não foi possível converter age para int (valor: $ageValue)');
         return false;
       }
       
@@ -489,64 +452,75 @@ class LocationQueryService {
       final isInRange = age >= userMin && age <= userMax;
       
       if (!isInRange) {
-        debugPrint('❌ Evento ${e.eventId}: Creator age=$age FORA da faixa $userMin-$userMax');
+        debugPrint('❌ User ${u.userId}: age=$age FORA da faixa $userMin-$userMax');
       } else {
-        debugPrint('✅ Evento ${e.eventId}: Creator age=$age DENTRO da faixa $userMin-$userMax');
+        debugPrint('✅ User ${u.userId}: age=$age DENTRO da faixa $userMin-$userMax');
       }
       
       return isInRange;
     }).toList();
     
-    debugPrint('🔍 _filterByAge: ${filtered.length} eventos passaram no filtro');
+    debugPrint('🔍 _filterByAge: ${filtered.length} usuários passaram no filtro');
     return filtered;
   }
 
-  List<EventLocation> _filterByVerified(List<EventLocation> events, bool? isVerified) {
-    if (isVerified == null || !isVerified) return events;
+  List<UserLocation> _filterByVerified(List<UserLocation> users, bool? isVerified) {
+    if (isVerified == null || !isVerified) {
+      debugPrint('🔍 _filterByVerified: Filtro desabilitado (isVerified=$isVerified)');
+      return users;
+    }
     
-    return events.where((e) {
-      final creator = e.eventData['creator'] as Map<String, dynamic>?;
-      if (creator == null) return false;
-      return creator['isVerified'] == true;
-    }).toList();
-  }
-
-  List<EventLocation> _filterByInterests(List<EventLocation> events, List<String>? interests) {
-    if (interests == null || interests.isEmpty) return events;
+    debugPrint('🔍 _filterByVerified: Filtrando ${users.length} usuários por isVerified=true');
     
-    return events.where((e) {
-      final creator = e.eventData['creator'] as Map<String, dynamic>?;
-      if (creator == null) return false;
+    final filtered = users.where((u) {
+      final userIsVerified = u.userData['isVerified'] == true;
       
-      final creatorInterests = List<String>.from(creator['interests'] ?? []);
+      if (!userIsVerified) {
+        debugPrint('   ❌ User ${u.userId}: isVerified=false (NÃO verificado)');
+      } else {
+        debugPrint('   ✅ User ${u.userId}: isVerified=true (VERIFICADO)');
+      }
+      
+      return userIsVerified;
+    }).toList();
+    
+    debugPrint('🔍 _filterByVerified: ${filtered.length} usuários passaram no filtro');
+    return filtered;
+  }
+
+  List<UserLocation> _filterByInterests(List<UserLocation> users, List<String>? interests) {
+    if (interests == null || interests.isEmpty) return users;
+    
+    return users.where((u) {
+      final userInterests = List<String>.from(u.userData['interests'] ?? []);
       // Retorna true se tiver pelo menos um interesse em comum
-      return creatorInterests.any((i) => interests.contains(i));
+      return userInterests.any((i) => interests.contains(i));
     }).toList();
   }
 
-  /// Filtra eventos com isolate (segunda filtragem precisa)
-  Future<List<EventWithDistance>> _filterByDistanceIsolate({
-    required List<EventLocation> events,
+  /// Filtra usuários com isolate (segunda filtragem precisa)
+  Future<List<UserWithDistance>> _filterUsersByDistanceIsolate({
+    required List<UserLocation> users,
     required double centerLat,
     required double centerLng,
     required double radiusKm,
   }) async {
-    if (events.isEmpty) return [];
+    if (users.isEmpty) return [];
 
-    final request = DistanceFilterRequest(
-      events: events,
+    final request = UserDistanceFilterRequest(
+      users: users,
       centerLat: centerLat,
       centerLng: centerLng,
       radiusKm: radiusKm,
     );
 
     // Usar compute() para executar em isolate
-    final filteredEvents = await compute(filterEventsByDistance, request);
+    final filteredUsers = await compute(filterUsersByDistance, request);
 
     debugPrint(
-        '🎯 LocationQueryService: ${filteredEvents.length} eventos filtrados por distância (Isolate)');
+        '🎯 LocationQueryService: ${filteredUsers.length} usuários filtrados por distância (Isolate)');
 
-    return filteredEvents;
+    return filteredUsers;
   }
 
   /// Invalida cache de localização
@@ -555,27 +529,28 @@ class LocationQueryService {
     debugPrint('🗑️ LocationQueryService: Cache de localização invalidado');
   }
 
-  /// Invalida cache de eventos
-  void _invalidateEventsCache() {
-    _eventsCache = null;
-    debugPrint('🗑️ LocationQueryService: Cache de eventos invalidado');
+  /// Invalida cache de usuários
+  void _invalidateUsersCache() {
+    _usersCache = null;
+    debugPrint('🗑️ LocationQueryService: Cache de usuários invalidado');
   }
 
   /// Invalida todos os caches
   void _invalidateAllCaches() {
     _invalidateLocationCache();
-    _invalidateEventsCache();
+    _invalidateUsersCache();
   }
 
   /// Força reload manual
   void forceReload() {
     _invalidateAllCaches();
-    _loadAndEmitEvents();
+    _loadAndEmitUsers();
   }
 
   /// Dispose
   void dispose() {
-    _eventsStreamController.close();
+    _reloadDebounceTimer?.cancel();
+    _usersStreamController.close();
   }
 }
 
@@ -598,14 +573,14 @@ class UserLocationCache {
   }
 }
 
-/// Cache de eventos
-class EventsCache {
-  final List<EventWithDistance> events;
+/// Cache de usuários próximos
+class UsersCache {
+  final List<UserWithDistance> users;
   final double radiusKm;
   final DateTime timestamp;
 
-  EventsCache({
-    required this.events,
+  UsersCache({
+    required this.users,
     required this.radiusKm,
     required this.timestamp,
   });
@@ -617,8 +592,8 @@ class EventsCache {
   }
 }
 
-/// Opções de filtro para eventos
-class EventFilterOptions {
+/// Opções de filtro para usuários
+class UserFilterOptions {
   final String? gender;
   final int? minAge;
   final int? maxAge;
@@ -626,7 +601,7 @@ class EventFilterOptions {
   final List<String>? interests;
   final double? radiusKm;
 
-  EventFilterOptions({
+  UserFilterOptions({
     this.gender,
     this.minAge,
     this.maxAge,

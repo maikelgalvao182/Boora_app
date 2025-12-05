@@ -31,10 +31,11 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   late final AdvancedFiltersController _filtersController;
   
   // Filtros (agora sincronizados com o controller)
-  String? _selectedGender = 'all';
+  String? _selectedGender;
   RangeValues _ageRange = const RangeValues(MIN_AGE, MAX_AGE);
   bool _isVerified = false;
   Set<String> _selectedInterests = {};
+  bool _isLoadingFilters = true;
   
   // User data
   String? _currentUserId;
@@ -45,27 +46,26 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     super.initState();
     _radiusController = RadiusController();
     _filtersController = AdvancedFiltersController();
-    _filtersController.addListener(_onFiltersLoaded);
     
     // Carregar dados salvos
     _radiusController.loadFromFirestore();
-    _filtersController.loadFromFirestore();
+    _filtersController.loadFromFirestore().then((_) {
+      // Sincronizar apenas UMA VEZ após carregar
+      if (mounted) {
+        setState(() {
+          _selectedGender = _filtersController.gender;
+          _ageRange = RangeValues(
+            _filtersController.minAge.toDouble(),
+            _filtersController.maxAge.toDouble(),
+          );
+          _isVerified = _filtersController.isVerified;
+          _selectedInterests = _filtersController.interests.toSet();
+          _isLoadingFilters = false;
+        });
+      }
+    });
     
     _loadUserInterests();
-  }
-  
-  void _onFiltersLoaded() {
-    if (_filtersController.isLoading) return;
-    
-    // Sincronizar estado local com filtros carregados
-    setState(() {
-      _selectedGender = _filtersController.gender;
-      _ageRange = RangeValues(
-        _filtersController.minAge.toDouble(),
-        _filtersController.maxAge.toDouble(),
-      );
-      _isVerified = _filtersController.isVerified;
-    });
   }
   
   void _loadUserInterests() {
@@ -93,8 +93,6 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
       final interestsNotifier = UserStore.instance.getInterestsNotifier(_currentUserId!);
       interestsNotifier.removeListener(_onInterestsChanged);
     }
-    // Remove listener dos filtros
-    _filtersController.removeListener(_onFiltersLoaded);
     _filtersController.dispose();
     // Não fazer dispose do radiusController - ele é singleton
     super.dispose();
@@ -148,6 +146,13 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   }
 
   Widget _buildBody(AppLocalizations i18n) {
+    // Mostrar loading enquanto carrega os filtros do Firestore
+    if (_isLoadingFilters) {
+      return const Center(
+        child: CupertinoActivityIndicator(),
+      );
+    }
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -163,14 +168,32 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
           const SizedBox(height: 20),
           
           GenderFilterWidget(
-            selectedGender: _selectedGender,
+            selectedGender: _selectedGender ?? 'all',
             onChanged: (value) => setState(() => _selectedGender = value),
           ),
           const SizedBox(height: 20),
           
           InterestsFilterWidget(
             selectedInterests: _selectedInterests,
-            onChanged: (interests) => setState(() => _selectedInterests = interests),
+            onChanged: (interests) async {
+              // Detectar se foi adição ou remoção
+              final added = interests.difference(_selectedInterests);
+              final removed = _selectedInterests.difference(interests);
+              
+              setState(() => _selectedInterests = interests);
+              
+              // Salvar/remover imediatamente no Firestore
+              if (added.isNotEmpty) {
+                for (final interest in added) {
+                  await _filtersController.addInterest(interest);
+                }
+              }
+              if (removed.isNotEmpty) {
+                for (final interest in removed) {
+                  await _filtersController.removeInterest(interest);
+                }
+              }
+            },
             availableInterests: _userInterests,
             showCount: false,
           ),
@@ -191,13 +214,65 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       color: Colors.white,
       child: SafeArea(
-        child: GlimpseButton(
-          text: i18n.translate('apply_filters'),
-          height: 55,
-          onTap: _applyFilters,
+        child: Row(
+          children: [
+            // Botão Limpar
+            Expanded(
+              child: GlimpseButton(
+                text: 'Limpar',
+                height: 55,
+                backgroundColor: GlimpseColors.primaryLight,
+                textColor: GlimpseColors.primary,
+                onTap: _clearFilters,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Botão Aplicar Filtros
+            Expanded(
+              child: GlimpseButton(
+                text: i18n.translate('apply_filters'),
+                height: 55,
+                onTap: _applyFilters,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _clearFilters() async {
+    // Limpar todos os filtros
+    await _filtersController.clearAllFilters();
+    
+    // Limpar radiusKm também
+    _radiusController.resetToDefault();
+    await _radiusController.saveImmediately();
+    
+    // Resetar UI
+    setState(() {
+      _selectedGender = 'all';
+      _ageRange = const RangeValues(MIN_AGE, MAX_AGE);
+      _isVerified = false;
+      _selectedInterests = {};
+    });
+    
+    // Limpar filtros no LocationQueryService (incluindo radiusKm)
+    final filters = UserFilterOptions(
+      gender: 'all',
+      minAge: MIN_AGE.toInt(),
+      maxAge: MAX_AGE.toInt(),
+      isVerified: false,
+      interests: [],
+      radiusKm: _radiusController.radiusKm, // Raio resetado para default
+    );
+    
+    LocationQueryService().updateFilters(filters);
+    
+    // Fechar
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   Future<void> _applyFilters() async {
@@ -210,13 +285,14 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     // 🔍 DEBUG: Verificar raio DEPOIS de salvar
     debugPrint('🔍 _applyFilters: radiusKm SALVO NO FIRESTORE');
     
-    // 2. Atualizar filtros no controller
+    // 2. Atualizar filtros no controller (SEMPRE salvar, incluindo 'all')
     debugPrint('🔍 _applyFilters: Atualizando controller com:');
     debugPrint('   - gender: $_selectedGender (${_selectedGender.runtimeType})');
     debugPrint('   - ageRange: ${_ageRange.start.round()}-${_ageRange.end.round()} (start: ${_ageRange.start.runtimeType}, end: ${_ageRange.end.runtimeType})');
     debugPrint('   - verified: $_isVerified (${_isVerified.runtimeType})');
     
-    _filtersController.gender = _selectedGender;
+    // ✅ SEMPRE atualizar o controller com o valor selecionado (incluindo 'all')
+    _filtersController.gender = _selectedGender ?? 'all';
     _filtersController.setAgeRange(
       _ageRange.start.round(),
       _ageRange.end.round(),
@@ -229,12 +305,12 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     debugPrint('   - maxAge: ${_filtersController.maxAge}');
     debugPrint('   - isVerified: ${_filtersController.isVerified}');
     
-    // 3. Salvar filtros no Firestore
+    // 3. Salvar filtros no Firestore (incluindo 'all')
     await _filtersController.saveToFirestore();
     
-    // 4. Criar objeto de filtros unificado (AGORA INCLUI RAIO)
-    final filters = EventFilterOptions(
-      gender: _selectedGender,
+    // 4. Criar objeto de filtros unificado (SEMPRE usar valor selecionado, incluindo 'all')
+    final filters = UserFilterOptions(
+      gender: _selectedGender ?? 'all', // ✅ Garantir que sempre passa o valor correto
       minAge: _ageRange.start.round(),
       maxAge: _ageRange.end.round(),
       isVerified: _isVerified,
@@ -243,9 +319,11 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     );
 
     debugPrint('🔍 _applyFilters: Objeto filters criado com radiusKm = ${filters.radiusKm}');
+    debugPrint('🔍 _applyFilters: gender final no filters = ${filters.gender}');
 
     // 5. Atualizar serviço orquestrador (LocationQueryService)
-    // Isso dispara o fluxo: Bounding Box -> Fetch Creators -> Filter -> Isolate
+    // NOTA: LocationQueryService agora busca USUÁRIOS (pessoas), não eventos
+    // Este filtro será usado pela tela de descoberta de pessoas
     LocationQueryService().updateFilters(filters);
     
     // 6. Fechar

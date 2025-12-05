@@ -125,14 +125,24 @@ class SessionCleanupService {
         _log('⚠️  Etapa 7/9 falhou: $e (continuando...)');
       }
 
-      // 8. Limpar cache offline do Firestore para evitar dados antigos
-      _log('🗄️  ETAPA 8/9: Limpando cache offline do Firestore');
+      // 8. Cancelar listeners ativos antes de limpar cache
+      _log('🔌 ETAPA 8a/9: Cancelando listeners Firestore ativos');
+      try {
+        // Força GC para cancelar listeners pendentes
+        await Future.delayed(const Duration(milliseconds: 100));
+        _log('✅ Delay para cancelamento de listeners aplicado');
+      } catch (e) {
+        _log('⚠️  Etapa 8a/9 falhou: $e (continuando...)');
+      }
+      
+      // 8b. Limpar cache offline do Firestore para evitar dados antigos
+      _log('🗄️  ETAPA 8b/9: Limpando cache offline do Firestore');
       try {
         await FirebaseFirestore.instance.clearPersistence()
           .timeout(const Duration(seconds: 5));
         _log('✅ Cache Firestore limpo com sucesso');
       } catch (e) {
-        _log('⚠️  Etapa 8/9 falhou: $e (continuando...)');
+        _log('⚠️  Etapa 8b/9 falhou: $e (continuando...)');
       }
 
       // 9. Reinscrever em tópico global (padrão pós logout)

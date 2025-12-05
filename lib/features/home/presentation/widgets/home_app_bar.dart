@@ -92,24 +92,6 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              // Botão de filtros
-              SizedBox(
-                width: 28,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(
-                    IconsaxPlusLinear.setting_4,
-                    size: 24,
-                    color: GlimpseColors.textSubTitle,
-                  ),
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    context.push(AppRoutes.advancedFilters);
-                  },
-                ),
-              ),
             ],
           ),
         ),

@@ -104,6 +104,13 @@ class RadiusController extends ChangeNotifier {
     await _saveToFirestore();
   }
 
+  /// Reseta o raio para o valor padrão
+  void resetToDefault() {
+    _radiusKm = DEFAULT_RADIUS_KM;
+    notifyListeners();
+    _radiusStreamController.add(_radiusKm);
+  }
+
   @override
   void dispose() {
     _debounceTimer?.cancel();

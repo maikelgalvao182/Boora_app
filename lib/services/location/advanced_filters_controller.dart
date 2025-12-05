@@ -10,6 +10,7 @@ class AdvancedFiltersController extends ChangeNotifier {
   int _minAge = MIN_AGE.toInt();
   int _maxAge = MAX_AGE.toInt();
   bool _isVerified = false;
+  List<String> _interests = [];
 
   bool _isLoading = false;
 
@@ -18,6 +19,7 @@ class AdvancedFiltersController extends ChangeNotifier {
   int get minAge => _minAge;
   int get maxAge => _maxAge;
   bool get isVerified => _isVerified;
+  List<String> get interests => _interests;
 
   AdvancedFiltersController();
 
@@ -42,6 +44,7 @@ class AdvancedFiltersController extends ChangeNotifier {
         _minAge = data['minAge'] as int? ?? MIN_AGE.toInt();
         _maxAge = data['maxAge'] as int? ?? MAX_AGE.toInt();
         _isVerified = data['isVerified'] as bool? ?? false;
+        _interests = List<String>.from(data['interests'] ?? []);
       }
 
     } catch (e) {
@@ -75,6 +78,12 @@ class AdvancedFiltersController extends ChangeNotifier {
     notifyListeners();
   }
 
+  set interests(List<String> value) {
+    debugPrint('⚠️ AdvancedFiltersController.interests SETTER chamado: $_interests -> $value');
+    _interests = value;
+    notifyListeners();
+  }
+
   // -------------------------------
   //   SALVAR (SEM SOBRESCREVER)
   // -------------------------------
@@ -92,6 +101,7 @@ class AdvancedFiltersController extends ChangeNotifier {
       debugPrint('   - minAge: $_minAge (${_minAge.runtimeType})');
       debugPrint('   - maxAge: $_maxAge (${_maxAge.runtimeType})');
       debugPrint('   - isVerified: $_isVerified (${_isVerified.runtimeType})');
+      debugPrint('   - interests: $_interests (${_interests.runtimeType})');
 
       final userRef = FirebaseFirestore.instance.collection('Users').doc(userId);
 
@@ -104,6 +114,7 @@ class AdvancedFiltersController extends ChangeNotifier {
         'advancedSettings.minAge': _minAge,
         'advancedSettings.maxAge': _maxAge,
         'advancedSettings.isVerified': _isVerified,
+        'advancedSettings.interests': _interests,
         'advancedSettings.updatedAt': FieldValue.serverTimestamp(),
       };
       
@@ -129,6 +140,95 @@ class AdvancedFiltersController extends ChangeNotifier {
     _minAge = MIN_AGE.toInt();
     _maxAge = MAX_AGE.toInt();
     _isVerified = false;
+    _interests = [];
     notifyListeners();
+  }
+
+  /// Adicionar um interesse e salvar imediatamente no Firestore
+  Future<void> addInterest(String interest) async {
+    if (!_interests.contains(interest)) {
+      _interests.add(interest);
+      notifyListeners();
+      
+      try {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId == null) return;
+
+        await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(userId)
+            .update({
+          'advancedSettings.interests': _interests,
+          'advancedSettings.updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        debugPrint('✅ Interest "$interest" adicionado ao Firestore');
+      } catch (e) {
+        debugPrint('❌ Erro ao adicionar interest: $e');
+      }
+    }
+  }
+
+  /// Remover um interesse e salvar imediatamente no Firestore
+  Future<void> removeInterest(String interest) async {
+    if (_interests.contains(interest)) {
+      _interests.remove(interest);
+      notifyListeners();
+      
+      try {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId == null) return;
+
+        await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(userId)
+            .update({
+          'advancedSettings.interests': _interests,
+          'advancedSettings.updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        debugPrint('✅ Interest "$interest" removido do Firestore');
+      } catch (e) {
+        debugPrint('❌ Erro ao remover interest: $e');
+      }
+    }
+  }
+
+  /// Limpar todos os filtros e remover do Firestore
+  Future<void> clearAllFilters() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        debugPrint('❌ clearAllFilters: userId é null');
+        return;
+      }
+
+      debugPrint('🧹 Limpando todos os filtros...');
+
+      // Resetar valores locais
+      _gender = 'all';
+      _minAge = MIN_AGE.toInt();
+      _maxAge = MAX_AGE.toInt();
+      _isVerified = false;
+      _interests = [];
+      notifyListeners();
+
+      // Remover do Firestore (exceto radiusKm e radiusUpdatedAt)
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .update({
+        'advancedSettings.gender': FieldValue.delete(),
+        'advancedSettings.minAge': FieldValue.delete(),
+        'advancedSettings.maxAge': FieldValue.delete(),
+        'advancedSettings.isVerified': FieldValue.delete(),
+        'advancedSettings.interests': FieldValue.delete(),
+        'advancedSettings.updatedAt': FieldValue.delete(),
+      });
+
+      debugPrint('✅ Todos os filtros foram removidos do Firestore');
+    } catch (e) {
+      debugPrint('❌ Erro ao limpar filtros: $e');
+    }
   }
 }

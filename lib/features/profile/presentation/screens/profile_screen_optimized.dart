@@ -44,6 +44,8 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   void initState() {
     super.initState();
     
+    debugPrint('🚀 [ProfileScreen] Inicializando para userId: ${widget.user.userId.substring(0, 8)}...');
+    
     _controller = ProfileController(
       userId: widget.user.userId,
       initialUser: widget.user,
@@ -52,7 +54,10 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
     // Aguarda frame inicial para carregar dados
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
+        debugPrint('📥 [ProfileScreen] Carregando dados do perfil');
         _controller.load(widget.user.userId);
+      } else {
+        debugPrint('⚠️  [ProfileScreen] Widget não mais montado, cancelando carregamento');
       }
     });
   }
@@ -239,6 +244,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
 
   @override
   void dispose() {
+    debugPrint('🗑️  [ProfileScreen] Dispose chamado para userId: ${widget.user.userId.substring(0, 8)}...');
     _controller.release();
     super.dispose();
   }

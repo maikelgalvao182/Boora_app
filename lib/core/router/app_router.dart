@@ -18,6 +18,7 @@ import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/features/auth/presentation/widgets/signup_widgets.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/services/session_cleanup_service.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
 import 'package:partiu/features/notifications/widgets/simplified_notification_screen_wrapper.dart';
@@ -52,11 +53,17 @@ GoRouter createAppRouter(BuildContext context) {
         final authSync = Provider.of<AuthSyncService>(context, listen: false);
         final currentPath = state.uri.path;
         
-        debugPrint('GoRouter redirect: path=$currentPath, initialized=${authSync.initialized}, isLoggedIn=${authSync.isLoggedIn}');
+        debugPrint('🔀 [GoRouter] redirect: path=$currentPath, initialized=${authSync.initialized}, isLoggedIn=${authSync.isLoggedIn}');
+        
+        // PROTEÇÃO: Se logout está em andamento, bloqueia navegação
+        if (SessionCleanupService.isLoggingOut) {
+          debugPrint('🚫 [GoRouter] Logout em andamento, bloqueando navegação');
+          return null;
+        }
         
         // Se ainda não inicializou, não navegar (aguardar)
         if (!authSync.initialized) {
-          debugPrint('GoRouter: Aguardando inicialização do AuthSyncService');
+          debugPrint('⏳ [GoRouter] Aguardando inicialização do AuthSyncService');
           return null; // Bloqueia navegação até inicializar
         }
         
@@ -74,20 +81,20 @@ GoRouter createAppRouter(BuildContext context) {
         
         // Se não está logado e tenta acessar rota protegida
         if (!isLoggedIn && !isPublicRoute) {
-          debugPrint('GoRouter: Usuário não logado, redirecionando para login');
+          debugPrint('🔒 [GoRouter] Usuário não logado, redirecionando para login');
           return AppRoutes.signIn;
         }
         
         // Se está logado mas tenta acessar rota de login
         if (isLoggedIn && currentPath == AppRoutes.signIn) {
-          debugPrint('GoRouter: Usuário logado tentando acessar login, redirecionando para home');
+          debugPrint('🏠 [GoRouter] Usuário logado tentando acessar login, redirecionando para home');
           return AppRoutes.home;
         }
         
-        debugPrint('GoRouter: Sem redirecionamento necessário');
+        debugPrint('✅ [GoRouter] Sem redirecionamento necessário');
         return null; // Sem redirecionamento
       } catch (e) {
-        debugPrint('GoRouter: Erro no redirect: $e');
+        debugPrint('❌ [GoRouter] Erro no redirect: $e');
         return null;
       }
     },

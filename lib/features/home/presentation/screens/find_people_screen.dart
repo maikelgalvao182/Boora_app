@@ -84,6 +84,27 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
       ),
       leadingWidth: 56,
       actions: [
+        // Botão de refresh
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: SizedBox(
+            width: 28,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(
+                IconsaxPlusLinear.refresh,
+                size: 22,
+                color: GlimpseColors.textSubTitle,
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _controller.refresh();
+              },
+            ),
+          ),
+        ),
+        // Botão de filtros
         Padding(
           padding: const EdgeInsets.only(right: 20),
           child: SizedBox(
@@ -96,13 +117,19 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                 size: 24,
                 color: GlimpseColors.textSubTitle,
               ),
-              onPressed: () {
+              onPressed: () async {
                 HapticFeedback.lightImpact();
-                Navigator.of(context).push(
+                final result = await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const AdvancedFiltersScreen(),
                   ),
                 );
+                
+                // Se filtros foram aplicados, o LocationQueryService já emitiu
+                // novos dados no stream e o controller já foi atualizado
+                if (result == true) {
+                  debugPrint('✅ Filtros aplicados, aguardando atualização automática do stream');
+                }
               },
             ),
           ),
@@ -168,9 +195,10 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     }
 
     // Success state - Lista de usuários
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.all(20),
       itemCount: _controller.users.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final user = _controller.users[index];
         return UserCard(

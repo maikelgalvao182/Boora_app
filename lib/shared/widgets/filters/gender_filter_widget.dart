@@ -40,7 +40,7 @@ class GenderFilterWidget extends StatelessWidget {
             i18n.translate('all_genders'),
             i18n.translate('male'),
             i18n.translate('female'),
-            i18n.translate('other'),
+            i18n.translate('gender_non_binary'),
           ],
           selectedValue: _getGenderDisplayValue(i18n),
           onChanged: (value) {
@@ -51,8 +51,8 @@ class GenderFilterWidget extends StatelessWidget {
               newGender = 'male';
             } else if (value == i18n.translate('female')) {
               newGender = 'female';
-            } else if (value == i18n.translate('other')) {
-              newGender = 'other';
+            } else if (value == i18n.translate('gender_non_binary')) {
+              newGender = 'non_binary';
             }
             onChanged(newGender);
           },
@@ -69,8 +69,8 @@ class GenderFilterWidget extends StatelessWidget {
         return i18n.translate('male');
       case 'female':
         return i18n.translate('female');
-      case 'other':
-        return i18n.translate('other');
+      case 'non_binary':
+        return i18n.translate('gender_non_binary');
       default:
         return null;
     }

@@ -157,19 +157,12 @@ class _ListDrawerState extends State<ListDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // SEÇÃO 1: Suas atividades
+            // SEÇÃO: Suas atividades
             if (_controller.hasMyEvents) ...[
               _buildSectionLabel('Suas atividades'),
               const SizedBox(height: 12),
               _buildMyEventsList(),
               const SizedBox(height: 32),
-            ],
-            
-            // SEÇÃO 2: Atividades próximas
-            if (_controller.hasNearbyEvents) ...[
-              _buildSectionLabel('Atividades próximas'),
-              const SizedBox(height: 12),
-              _buildNearbyEventsList(),
             ],
             
             SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
@@ -199,19 +192,6 @@ class _ListDrawerState extends State<ListDrawer> {
         return _EventCardWrapper(
           key: ValueKey(eventDoc.id),
           eventId: eventDoc.id,
-        );
-      }).toList(),
-    );
-  }
-
-  /// Constrói lista de eventos próximos
-  Widget _buildNearbyEventsList() {
-    return Column(
-      children: _controller.nearbyEvents.map((event) {
-        return _EventCardWrapper(
-          key: ValueKey(event.eventId),
-          eventId: event.eventId,
-          distanceKm: event.distanceKm,
         );
       }).toList(),
     );

@@ -200,7 +200,7 @@ const double MIN_RADIUS_KM = 1.0;
 const double MAX_RADIUS_KM = 30.0;
 
 /// Default radius when user first opens the app (in km)
-const double DEFAULT_RADIUS_KM = 25.0;
+const double DEFAULT_RADIUS_KM = 30.0;
 
 /// === AGE FILTER LIMITS ===
 /// Minimum age for event participation and filters

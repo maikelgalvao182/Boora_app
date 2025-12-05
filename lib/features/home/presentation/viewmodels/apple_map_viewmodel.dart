@@ -9,7 +9,6 @@ import 'package:partiu/features/home/data/repositories/event_map_repository.dart
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/services/user_location_service.dart';
 import 'package:partiu/features/home/presentation/services/event_marker_service.dart';
-import 'package:partiu/services/location/location_query_service.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 
@@ -22,11 +21,13 @@ import 'package:partiu/shared/repositories/user_repository.dart';
 /// - Fornecer dados limpos para o widget
 /// - Orquestrar serviços
 /// - Reagir a mudanças de raio em tempo real
+/// 
+/// NOTA: Este ViewModel usa EventMapRepository diretamente.
+/// Para descoberta de PESSOAS, use LocationQueryService (refatorado para usuários).
 class AppleMapViewModel extends ChangeNotifier {
   final EventMapRepository _eventRepository;
   final UserLocationService _locationService;
   final EventMarkerService _markerService;
-  final LocationQueryService _locationQueryService;
   final LocationStreamController _streamController;
   final UserRepository _userRepository;
   final EventApplicationRepository _applicationRepository;
@@ -64,7 +65,6 @@ class AppleMapViewModel extends ChangeNotifier {
     EventMapRepository? eventRepository,
     UserLocationService? locationService,
     EventMarkerService? markerService,
-    LocationQueryService? locationQueryService,
     LocationStreamController? streamController,
     UserRepository? userRepository,
     EventApplicationRepository? applicationRepository,
@@ -72,7 +72,6 @@ class AppleMapViewModel extends ChangeNotifier {
   })  : _eventRepository = eventRepository ?? EventMapRepository(),
         _locationService = locationService ?? UserLocationService(),
         _markerService = markerService ?? EventMarkerService(),
-        _locationQueryService = locationQueryService ?? LocationQueryService(),
         _streamController = streamController ?? LocationStreamController(),
         _userRepository = userRepository ?? UserRepository(),
         _applicationRepository = applicationRepository ?? EventApplicationRepository() {
@@ -108,11 +107,10 @@ class AppleMapViewModel extends ChangeNotifier {
   /// 
   /// Este método:
   /// 1. Obtém localização do usuário
-  /// 2. Inicializa dados no Firestore se necessário
-  /// 3. Busca eventos próximos (LocationQueryService - com filtros e bounding box)
-  /// 4. Enriquece com distância e disponibilidade (_enrichEvents)
-  /// 5. Gera markers
-  /// 6. Atualiza estado
+  /// 2. Busca eventos próximos (EventMapRepository - raio fixo ou dinâmico)
+  /// 3. Enriquece com distância e disponibilidade (_enrichEvents)
+  /// 4. Gera markers
+  /// 5. Atualiza estado
   Future<void> loadNearbyEvents() async {
     if (_isLoading) return;
 
@@ -123,25 +121,13 @@ class AppleMapViewModel extends ChangeNotifier {
       final locationResult = await _locationService.getUserLocation();
       _lastLocation = locationResult.location;
 
-      // REMOVIDO: initializeUserLocation() - não é mais necessário
-      // O RadiusController e LocationQueryService já garantem que os dados existem
-      // Chamar isso aqui sobrescreve o radiusKm salvo pelo usuário com o valor padrão!
+      // 2. Buscar eventos (EventMapRepository)
+      _events = await _eventRepository.getEventsWithinRadius(_lastLocation!);
 
-      // 2. Buscar eventos (LocationQueryService - otimizado com bounding box)
-      final eventsWithDistance = await _locationQueryService.getEventsWithinRadiusOnce();
-
-      // 3. Converter para EventModel
-      _events = eventsWithDistance.map((eventWithDistance) {
-        return EventModel.fromMap(
-          eventWithDistance.eventData,
-          eventWithDistance.eventId,
-        );
-      }).toList();
-
-      // 4. Enriquecer com distância e disponibilidade (lógica centralizada)
+      // 3. Enriquecer com distância e disponibilidade (lógica centralizada)
       await _enrichEvents();
 
-      // 5. Gerar markers com callback de tap
+      // 4. Gerar markers com callback de tap
       final markers = await _markerService.buildEventAnnotations(
         _events,
         onTap: onMarkerTap != null ? (eventId) {
@@ -178,8 +164,8 @@ class AppleMapViewModel extends ChangeNotifier {
   /// - isAvailable: Se o usuário pode ver o evento (premium OU dentro de 30km)
   /// - creatorFullName: Usa dados desnormalizados do Firestore (OTIMIZAÇÃO: elimina N+1 queries)
   /// 
-  /// Os repositórios (EventMapRepository, LocationQueryService) NÃO devem
-  /// incluir esses campos - toda lógica de enriquecimento fica aqui no ViewModel
+  /// Os repositórios (EventMapRepository) NÃO devem incluir esses campos - 
+  /// toda lógica de enriquecimento fica aqui no ViewModel
   Future<void> _enrichEvents() async {
     if (_lastLocation == null || _events.isEmpty) return;
 
@@ -268,12 +254,7 @@ class AppleMapViewModel extends ChangeNotifier {
   /// 
   /// Útil quando o usuário move o mapa manualmente
   /// 
-  /// DIFERENÇA de loadNearbyEvents():
-  /// - Usa EventMapRepository (raio fixo, sem filtros avançados)
-  /// - loadNearbyEvents() usa LocationQueryService (raio dinâmico, bounding box, filtros)
-  /// 
-  /// SEMELHANÇA:
-  /// - Ambos chamam _enrichEvents() para calcular distância e disponibilidade
+  /// Usa EventMapRepository (raio fixo/dinâmico, mesma lógica de loadNearbyEvents)
   Future<void> loadEventsAt(LatLng location) async {
     if (_isLoading) return;
 
