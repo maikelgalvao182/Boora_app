@@ -17,6 +17,52 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "PendingReviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "reviewer_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dismissed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "reviewee_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "schedule.date",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "reviewsCreated",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

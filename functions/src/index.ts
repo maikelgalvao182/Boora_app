@@ -368,3 +368,7 @@ export * from "./events";
 // ===== RANKING FUNCTIONS =====
 // Importa e exporta as Cloud Functions de ranking
 export * from "./ranking/updateRanking";
+
+// ===== REVIEW FUNCTIONS =====
+// Importa e exporta as Cloud Functions de reviews
+export * from "./reviews/checkEventsForReview";

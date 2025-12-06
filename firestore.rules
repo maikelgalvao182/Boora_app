@@ -118,20 +118,58 @@ match /Users/{userId}/Notifications/{notificationId} {
     // ======================================
     // ⭐ Reviews/Avaliações
     // ======================================
-/// ⭐ Coleção de reviews/avaliações
-/// Path usado no app:
-/// - Reviews/{reviewId}
-///   - revieweeId: string (usuário que recebeu a review)
-///   - reviewerId: string (usuário que fez a review)
-///   - rating: number
-///   - comment: string
-///   - createdAt: timestamp
+/// ⭐ Sistema completo de Reviews/Avaliações
+/// 
+/// Collections:
+/// - Reviews/{reviewId}           → Reviews finalizadas
+/// - PendingReviews/{pendingId}   → Reviews pendentes (aguardando resposta)
+/// - ReviewStats/{userId}         → Estatísticas agregadas por usuário
 
+// ============================================
+// Reviews finalizadas
+// ============================================
 match /Reviews/{reviewId} {
-  allow read: if isSignedIn(); // Qualquer usuário logado pode ler reviews
-  allow create: if isSignedIn(); // Qualquer usuário logado pode criar reviews
+  // Qualquer usuário logado pode ler reviews
+  allow read: if isSignedIn();
+  
+  // Criar review: apenas quem está fazendo a review (reviewerId)
+  allow create: if isSignedIn() && 
+    request.auth.uid == request.resource.data.reviewer_id;
+  
+  // Atualizar/deletar: apenas o autor da review
   allow update, delete: if isSignedIn() && 
-    request.auth.uid == resource.data.reviewerId; // Apenas o autor pode editar/deletar
+    request.auth.uid == resource.data.reviewer_id;
+}
+
+// ============================================
+// Reviews pendentes
+// ============================================
+match /PendingReviews/{pendingId} {
+  // Ler: apenas o reviewer (quem deve fazer a review)
+  allow read: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id;
+  
+  // Criar: apenas Cloud Functions (nenhum cliente pode criar)
+  allow create: if false;
+  
+  // Atualizar: apenas o reviewer pode marcar como dismissed
+  allow update: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id &&
+    request.resource.data.status == 'dismissed';
+  
+  // Deletar: não permitido (Cloud Functions gerencia)
+  allow delete: if false;
+}
+
+// ============================================
+// Estatísticas agregadas
+// ============================================
+match /ReviewStats/{userId} {
+  // Qualquer usuário logado pode ler stats de outros
+  allow read: if isSignedIn();
+  
+  // Criar/atualizar/deletar: apenas Cloud Functions
+  allow create, update, delete: if false;
 }
 
     // ======================================
