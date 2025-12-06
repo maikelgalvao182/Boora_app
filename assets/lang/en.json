@@ -35,6 +35,7 @@
   "home": "Home",
   "search": "Search",
   "notifications": "Notifications",
+  "no_notifications_yet": "No notifications yet",
   "messages": "Messages",
   "conversations": "Conversations",
   "chat": "Chat",
@@ -528,5 +529,25 @@
   "delete_event_confirmation": "Are you sure you want to delete the event '{event}'? This action cannot be undone.",
   "this_event": "this event",
   "sign_out": "Sign Out",
-  "signing_out": "Signing out..."
+  "signing_out": "Signing out...",
+  
+  "notification_activity_created": "{creatorName} created the activity {emoji} {activityText}. Want to join?",
+  "notification_activity_join_request": "{requesterName} asked to join your activity {emoji} {activityText}",
+  "notification_activity_join_approved": "You've been approved to participate in {emoji} {activityText}!",
+  "notification_activity_join_rejected": "Your request to join {emoji} {activityText} was rejected",
+  "notification_activity_new_participant": "{participantName} joined your activity {emoji} {activityText}!",
+  "notification_activity_heating_up": "The activity {emoji} {activityText} is heating up! Don't miss out",
+  "notification_activity_expiring_soon": "The activity {emoji} {activityText} is almost over. Last chance!",
+  "notification_activity_canceled": "The activity {emoji} {activityText} was canceled",
+  
+  "notification_event_chat_message": "{messagePreview}",
+  
+  "notification_profile_views_aggregated": "{count} people viewed your profile ✨",
+  
+  "notif_filter_all": "All",
+  "notif_filter_messages": "Messages",
+  "notif_filter_activities": "Activities",
+  "notif_filter_requests": "Requests",
+  "notif_filter_social": "Social",
+  "notif_filter_system": "System"
 }

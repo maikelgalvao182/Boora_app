@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:partiu/common/state/app_state.dart';
 
-/// Widget simplificado que exibe um badge de contador
-/// TODO: Integrar com sistema de notificações/mensagens quando disponível
+/// Widget que exibe um badge de contador
+/// Usa ValueListenableBuilder para reativamente atualizar com AppState (padrão Advanced-Dating)
 class AutoUpdatingBadge extends StatelessWidget {
   const AutoUpdatingBadge({
     required this.child,
     super.key,
-    this.count = 0,
+    this.count,
     this.badgeColor = Colors.red,
     this.textColor = Colors.white,
     this.fontSize = 10,
@@ -15,7 +16,7 @@ class AutoUpdatingBadge extends StatelessWidget {
   });
 
   final Widget child;
-  final int count;
+  final int? count; // Agora opcional - usa AppState.unreadNotifications se null
   final Color badgeColor;
   final Color textColor;
   final double fontSize;
@@ -29,12 +30,28 @@ class AutoUpdatingBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Se count foi passado explicitamente, usar o valor (para Actions/Conversations)
+    if (count != null) {
+      return _buildBadge(count!);
+    }
+    
+    // Caso contrário, usar AppState.unreadNotifications (padrão Advanced-Dating)
+    return ValueListenableBuilder<int>(
+      valueListenable: AppState.unreadNotifications,
+      child: child,
+      builder: (context, notificationCount, childWidget) {
+        return _buildBadge(notificationCount, childWidget: childWidget);
+      },
+    );
+  }
+
+  Widget _buildBadge(int badgeCount, {Widget? childWidget}) {
     return RepaintBoundary(
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          child,
-          if (count > 0)
+          childWidget ?? child,
+          if (badgeCount > 0)
             Positioned(
               right: _badgePosition,
               top: _badgeTop,
@@ -51,7 +68,7 @@ class AutoUpdatingBadge extends StatelessWidget {
                     minHeight: minBadgeSize,
                   ),
                   child: Text(
-                    count > 99 ? '99+' : count.toString(),
+                    badgeCount > 99 ? '99+' : badgeCount.toString(),
                     style: TextStyle(
                       color: textColor,
                       fontSize: fontSize,

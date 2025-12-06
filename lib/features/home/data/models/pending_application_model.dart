@@ -29,13 +29,25 @@ class PendingApplicationModel {
     required Map<String, dynamic> userData,
     required Map<String, dynamic> eventData,
   }) {
+    // Tenta buscar campos com nomes normalizados ou nomes do Firestore
+    final fullName = userData['fullName'] as String? ?? 
+                     userData['fullname'] as String? ?? 
+                     'Usuário';
+                     
+    final photoUrl = userData['photoUrl'] as String? ?? 
+                     userData['user_profile_photo'] as String?;
+
+    final activityName = eventData['activityText'] as String? ?? 
+                         eventData['name'] as String? ?? 
+                         'um evento';
+
     return PendingApplicationModel(
       applicationId: applicationId,
       eventId: applicationData['eventId'] as String,
       userId: applicationData['userId'] as String,
-      userFullName: userData['fullName'] as String? ?? 'Usuário',
-      userPhotoUrl: userData['photoUrl'] as String?,
-      activityText: eventData['activityText'] as String? ?? 'um evento',
+      userFullName: fullName,
+      userPhotoUrl: photoUrl,
+      activityText: activityName,
       eventEmoji: eventData['emoji'] as String? ?? '🎉',
       appliedAt: (applicationData['appliedAt'] as Timestamp).toDate(),
     );

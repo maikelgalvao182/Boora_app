@@ -26,6 +26,7 @@ class EventCardController extends ChangeNotifier {
   String? _creatorId;
   bool _loaded = false;
   String? _error;
+  bool _disposed = false;
   
   // Application state
   EventApplicationModel? _userApplication;
@@ -466,9 +467,11 @@ class EventCardController extends ChangeNotifier {
       
       debugPrint('✅ Aplicação removida com sucesso');
       
-      // Limpar aplicação local
-      _userApplication = null;
-      notifyListeners();
+      // Limpar aplicação local (verificar se não foi disposed)
+      if (!_disposed) {
+        _userApplication = null;
+        notifyListeners();
+      }
       
     } catch (e) {
       debugPrint('❌ Erro ao sair do evento: $e');
@@ -482,6 +485,12 @@ class EventCardController extends ChangeNotifier {
     _error = null;
     notifyListeners();
     await load();
+  }
+  
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 

@@ -44,6 +44,7 @@ dependencies:
   flutter_markdown: ^0.7.3
   markdown: ^7.2.2
   flutter_slidable: ^3.1.1
+  dropdown_search: ^6.0.2
   
   # Utils
   provider: ^6.1.5+1

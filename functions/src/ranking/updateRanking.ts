@@ -15,15 +15,27 @@ import * as admin from "firebase-admin";
 export const updateUserRanking = functions.firestore
   .document("events/{eventId}")
   .onCreate(async (snap) => {
+    console.log("🔍 [updateUserRanking] Trigger iniciado para evento:", snap.id);
+
     const eventData = snap.data();
+    console.log("📦 [updateUserRanking] Dados do evento:", JSON.stringify({
+      id: snap.id,
+      createdBy: eventData.createdBy,
+      activityText: eventData.activityText || eventData.title,
+      location: eventData.location ? "presente" : "ausente",
+      hasLocation: !!eventData.location,
+    }));
+
     const userId = eventData.createdBy;
 
     if (!userId) {
-      console.warn("⚠️ Evento sem createdBy:", snap.id);
+      console.warn("⚠️ [updateUserRanking] Evento sem createdBy:", snap.id);
       return null;
     }
 
     try {
+      console.log(`🔍 [updateUserRanking] Buscando usuário: ${userId}`);
+
       // Buscar dados do usuário
       const userDoc = await admin
         .firestore()
@@ -31,7 +43,20 @@ export const updateUserRanking = functions.firestore
         .doc(userId)
         .get();
 
+      if (!userDoc.exists) {
+        console.warn(
+          `⚠️ [updateUserRanking] Usuário não encontrado: ${userId}`
+        );
+        return null;
+      }
+
       const userData = userDoc.data();
+      console.log(
+        `✅ [updateUserRanking] Usuário encontrado: ${
+          userData?.fullName || "Sem nome"
+        }`
+      );
+
       const fullName = userData?.fullName || "Usuário";
       const photoUrl = userData?.photoUrl || null;
       const from = userData?.country || null;
@@ -57,15 +82,31 @@ export const updateUserRanking = functions.firestore
       if (location?.latitude && location?.longitude) {
         updateData.lastLat = location.latitude;
         updateData.lastLng = location.longitude;
+        console.log(
+          `📍 [updateUserRanking] Localização: ${
+            location.latitude
+          }, ${location.longitude}`
+        );
+      } else {
+        console.warn(
+          "⚠️ [updateUserRanking] Evento sem coordenadas de localização"
+        );
       }
 
+      console.log(`💾 [updateUserRanking] Atualizando userRanking/${userId}`);
       await rankingRef.set(updateData, {merge: true});
 
-      const msg = "✅ UserRanking atualizado para " + fullName;
-      console.log(msg + " (" + userId + ")");
+      console.log(
+        `✅ [updateUserRanking] UserRanking atualizado para ${
+          fullName
+        } (${userId})`
+      );
       return null;
     } catch (error) {
-      console.error("❌ Erro ao atualizar UserRanking:", error);
+      console.error(
+        "❌ [updateUserRanking] Erro ao atualizar UserRanking:",
+        error
+      );
       return null;
     }
   });
@@ -85,18 +126,36 @@ export const updateUserRanking = functions.firestore
 export const updateLocationRanking = functions.firestore
   .document("events/{eventId}")
   .onCreate(async (snap) => {
+    console.log(
+      "🔍 [updateLocationRanking] Trigger iniciado para evento:",
+      snap.id
+    );
+
     const eventData = snap.data();
     const location = eventData.location;
+
+    console.log("📦 [updateLocationRanking] Dados do evento:", JSON.stringify({
+      id: snap.id,
+      hasLocation: !!location,
+      placeId: location?.placeId || "ausente",
+      locationName: location?.locationName || "ausente",
+      activityText: eventData.activityText || eventData.title,
+    }));
 
     // placeId está dentro de location
     const placeId = location?.placeId;
 
     if (!placeId) {
-      console.warn("⚠️ Evento sem location.placeId:", snap.id);
+      console.warn(
+        "⚠️ [updateLocationRanking] Evento sem location.placeId:",
+        snap.id
+      );
       return null;
     }
 
     try {
+      console.log(`🔍 [updateLocationRanking] Processando placeId: ${placeId}`);
+
       const rankingRef = admin
         .firestore()
         .collection("locationRanking")
@@ -112,8 +171,19 @@ export const updateLocationRanking = functions.firestore
 
       // photoReferences está no root do evento, não dentro de location
       const photoReferences = eventData.photoReferences || [];
+      console.log(
+        `📸 [updateLocationRanking] photoReferences: ${
+          photoReferences.length
+        } foto(s)`
+      );
 
       // Buscar visitantes aprovados de todos os eventos neste local
+      console.log(
+        `🔍 [updateLocationRanking] Buscando eventos no local: ${
+          locationName
+        }`
+      );
+
       const eventsQuery = await admin
         .firestore()
         .collection("events")
@@ -122,12 +192,29 @@ export const updateLocationRanking = functions.firestore
         .where("isCanceled", "==", false)
         .get();
 
+      console.log(
+        `📊 [updateLocationRanking] Encontrados ${
+          eventsQuery.size
+        } eventos ativos no local`
+      );
+
       const allVisitorIds = new Set<string>();
       for (const eventDoc of eventsQuery.docs) {
         const participantIds = eventDoc.data().participants
           ?.participantIds || [];
+        console.log(
+          `👥 [updateLocationRanking] Evento ${eventDoc.id}: ${
+            participantIds.length
+          } participantes`
+        );
         participantIds.forEach((id: string) => allVisitorIds.add(id));
       }
+
+      console.log(
+        `👥 [updateLocationRanking] Total de visitantes únicos: ${
+          allVisitorIds.size
+        }`
+      );
 
       // Buscar dados dos 3 visitantes mais recentes
       const visitorsList: Array<Record<string, unknown>> = [];
@@ -151,6 +238,12 @@ export const updateLocationRanking = functions.firestore
           count++;
         }
       }
+
+      console.log(
+        `👤 [updateLocationRanking] Visitantes processados: ${
+          visitorsList.length
+        }/3`
+      );
 
       const updateData: Record<string, unknown> = {
         placeId: placeId,
@@ -184,15 +277,35 @@ export const updateLocationRanking = functions.firestore
       if (location?.latitude && location?.longitude) {
         updateData.lastLat = location.latitude;
         updateData.lastLng = location.longitude;
+        console.log(
+          `📍 [updateLocationRanking] Coordenadas: ${
+            location.latitude
+          }, ${location.longitude}`
+        );
       }
 
+      console.log(
+        `💾 [updateLocationRanking] Atualizando locationRanking/${
+          placeId
+        }`
+      );
       await rankingRef.set(updateData, {merge: true});
 
-      const msg = "✅ LocationRanking atualizado para " + locationName;
-      console.log(msg);
+      console.log(
+        `✅ [updateLocationRanking] LocationRanking atualizado para ${
+          locationName
+        }`
+      );
       return null;
     } catch (error) {
-      console.error("❌ Erro ao atualizar LocationRanking:", error);
+      console.error(
+        "❌ [updateLocationRanking] Erro ao atualizar LocationRanking:",
+        error
+      );
+      console.error(
+        "❌ [updateLocationRanking] Stack trace:",
+        (error as Error).stack
+      );
       return null;
     }
   });

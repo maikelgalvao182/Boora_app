@@ -54,14 +54,14 @@ class ConversationNavigationService {
     debugPrint('   - userId: "$userId"');
     debugPrint('   - is_event_chat: ${data['is_event_chat']}');
     debugPrint('   - event_id: ${data['event_id']}');
-    debugPrint('   - user_fullname: ${data['user_fullname']}');
+    debugPrint('   - fullname: ${data['fullname']}');
     debugPrint('   - user_profile_photo: ${data['user_profile_photo']}');
     debugPrint('   - data keys: ${data.keys.toList()}');
     debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     // Para chats de eventos, os dados já vêm corretos do backend
-    // Backend salva como: user_fullname (activityText) e user_profile_photo (emoji)
-    final userName = data['user_fullname'] ?? 'Unknown User';
+    // Backend salva como: fullname (activityText) e user_profile_photo (emoji)
+    final userName = data['fullname'] ?? 'Unknown User';
     final userPhoto = data['user_profile_photo'] ?? '';
     
     debugPrint('✅ User criado: userName="$userName", userPhoto="$userPhoto"');
@@ -70,7 +70,7 @@ class ConversationNavigationService {
     // Seguindo o padrão de: sessionManager._userToMap() e User.fromDocument()
     return User.fromDocument({
       'userId': userId,              // ✅ userId (não user_id)
-      'fullName': userName,          // ✅ fullName (não user_fullname)
+      'fullName': userName,          // ✅ fullName (não fullname)
       'profilePhotoUrl': userPhoto,  // ✅ profilePhotoUrl (não user_profile_photo)
       'gender': '',
       'birthDay': 1,

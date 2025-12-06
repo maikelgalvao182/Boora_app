@@ -187,7 +187,7 @@
 ## 🔲 FASE 11: CONSTANTES & CONFIGURAÇÕES (0/1 arquivo - 0%)
 
 - [ ] Mapear e criar constantes necessárias
-  - USER_ID, USER_FULLNAME, MESSAGE_READ, etc.
+  - USER_ID, fullname, MESSAGE_READ, etc.
   - Configurações de VIP, gating, etc.
 
 ---

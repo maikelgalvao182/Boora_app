@@ -124,8 +124,11 @@ class EventCardHandler {
           );
           
           // Fechar o card
-          Navigator.of(context).pop();
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
         } catch (e) {
+          debugPrint('❌ Erro ao sair do evento: $e');
           await progressDialog.hide();
           
           if (!context.mounted) return;

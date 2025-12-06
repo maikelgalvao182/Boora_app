@@ -109,23 +109,13 @@ class MarkerBitmapGenerator {
       final frame = await codec.getNextFrame();
       final image = frame.image;
 
-      // Adicionar padding extra para acomodar a sombra
-      final padding = 25;
+      // Sem padding extra - sombra removida
+      final padding = 0;
       final canvasSize = size + (padding * 2);
       final center = canvasSize / 2;
       
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-
-      // Sombra
-      final shadowPaint = Paint()
-        ..color = Colors.black.withOpacity(0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(
-        Offset(center, center + 3),
-        size / 2,
-        shadowPaint,
-      );
 
       // Borda branca
       final borderWidth = 8.0;

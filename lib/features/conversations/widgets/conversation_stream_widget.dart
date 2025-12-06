@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:partiu/core/api/conversations_api.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
@@ -69,7 +69,7 @@ class ConversationStreamWidget extends StatelessWidget {
         final isLast = index == items.length - 1;
         final data = {
           USER_ID: item.userId,
-          USER_FULLNAME: item.userFullname,
+          fullname: item.userFullname,
           USER_PROFILE_PHOTO: item.userPhotoUrl,
           LAST_MESSAGE: item.lastMessage ?? '',
           MESSAGE_READ: item.isRead,
@@ -114,11 +114,20 @@ class ConversationStreamWidget extends StatelessWidget {
     await viewModel.loadMore(({
       required DocumentSnapshot<Map<String, dynamic>> startAfter,
       int limit = 20
-    }) {
-      return ConversationsApi().fetchConversationsPage(
-        startAfter: startAfter,
-        limit: limit,
-      );
+    }) async {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      return await FirebaseFirestore.instance
+          .collection('Connections')
+          .doc(userId)
+          .collection('Conversations')
+          .orderBy('timestamp', descending: true)
+          .startAfterDocument(startAfter)
+          .limit(limit)
+          .get();
     });
   }
 }

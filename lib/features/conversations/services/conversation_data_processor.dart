@@ -232,7 +232,7 @@ class ConversationDataProcessor {
     required AppLocalizations i18n,
   }) async {
     final fullNameRaw = (data['activityText'] ??
-            data['user_fullname'] ??
+            data['fullname'] ??
             data['other_user_name'] ??
             data['otherUserName'] ??
             data['user_name'] ??
@@ -313,7 +313,7 @@ class ConversationDataProcessor {
     required AppLocalizations i18n,
   }) {
     final fullNameRaw = (data['activityText'] ??
-            data['user_fullname'] ??
+            data['fullname'] ??
             data['other_user_name'] ??
             data['otherUserName'] ??
             data['user_name'] ??

@@ -55,6 +55,37 @@ class NotificationMessageTranslator {
       case 'new_message':
         translationKey = 'notification_message';
       
+      // Notificações de atividades
+      case 'activity_created':
+        translationKey = 'notification_activity_created';
+      
+      case 'activity_join_request':
+        translationKey = 'notification_activity_join_request';
+      
+      case 'activity_join_approved':
+        translationKey = 'notification_activity_join_approved';
+      
+      case 'activity_join_rejected':
+        translationKey = 'notification_activity_join_rejected';
+      
+      case 'activity_new_participant':
+        translationKey = 'notification_activity_new_participant';
+      
+      case 'activity_heating_up':
+        translationKey = 'notification_activity_heating_up';
+      
+      case 'activity_expiring_soon':
+        translationKey = 'notification_activity_expiring_soon';
+      
+      case 'activity_canceled':
+        translationKey = 'notification_activity_canceled';
+      
+      case 'event_chat_message':
+        translationKey = 'notification_event_chat_message';
+      
+      case 'profile_views_aggregated':
+        translationKey = 'notification_profile_views_aggregated';
+      
       case 'alert':
         // Alertas podem ter mensagem customizada nos parâmetros
         final customMessage = params?['message'] as String?;

@@ -122,7 +122,7 @@ class ChatRepository implements IChatRepository {
       
       batch.set(senderConvRef, {
         USER_ID: receiverId,
-        USER_FULLNAME: userFullName,
+        fullname: userFullName,
         USER_PROFILE_PHOTO: userPhotoLink,
         MESSAGE_TYPE: type,
         LAST_MESSAGE: displayText, // ✅ Usa displayText para EventChats também
@@ -206,7 +206,7 @@ class ChatRepository implements IChatRepository {
     batch.set(senderConvRef, {
       USER_ID: receiverId,
       USER_PROFILE_PHOTO: userPhotoLink,
-      USER_FULLNAME: userFullName,
+      fullname: userFullName,
       MESSAGE_TYPE: type,
       LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: true,
@@ -226,7 +226,7 @@ class ChatRepository implements IChatRepository {
     batch.set(receiverConvRef, {
       USER_ID: senderId,
       USER_PROFILE_PHOTO: currentUser?.userProfilePhoto ?? '',
-      USER_FULLNAME: currentUser?.userFullname ?? '',
+      fullname: currentUser?.userFullname ?? '',
       MESSAGE_TYPE: type,
       LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: isRead,

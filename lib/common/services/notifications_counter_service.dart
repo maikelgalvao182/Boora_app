@@ -20,11 +20,16 @@ class NotificationsCounterService {
   // ValueNotifiers para badges reativos
   final pendingActionsCount = ValueNotifier<int>(0);
   final unreadConversationsCount = ValueNotifier<int>(0);
+  final unreadNotificationsCount = ValueNotifier<int>(0);
 
   /// Inicializa os listeners de contadores
   void initialize() {
+    debugPrint('🚀 [NotificationsCounter] Inicializando serviço...');
+    debugPrint('🚀 [NotificationsCounter] AppState.currentUserId: ${AppState.currentUserId}');
     _listenToPendingApplications();
     _listenToUnreadConversations();
+    _listenToUnreadNotifications();
+    debugPrint('🚀 [NotificationsCounter] Serviço inicializado');
   }
 
   /// Escuta aplicações pendentes (Actions Tab)
@@ -84,10 +89,49 @@ class NotificationsCounterService {
     );
   }
 
+  /// Escuta notificações não lidas (Notification Icon)
+  void _listenToUnreadNotifications() {
+    final currentUserId = AppState.currentUserId;
+    
+    debugPrint('📊 [NotificationsCounter] Iniciando listener de notificações não lidas');
+    debugPrint('📊 [NotificationsCounter] UserId: $currentUserId');
+    
+    if (currentUserId == null) {
+      debugPrint('⚠️ [NotificationsCounter] Usuário não autenticado - não pode iniciar listener');
+      return;
+    }
+
+    debugPrint('📊 [NotificationsCounter] Criando query: Notifications.userId == $currentUserId && n_read == false');
+    
+    _firestore
+        .collection('Notifications')
+        .where('userId', isEqualTo: currentUserId)
+        .where('n_read', isEqualTo: false)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        final count = snapshot.docs.length;
+        // Atualizar AppState diretamente (padrão Advanced-Dating)
+        AppState.unreadNotifications.value = count;
+        unreadNotificationsCount.value = count;
+        debugPrint('📊 [NotificationsCounter] ✅ Notificações não lidas atualizadas: $count');
+        debugPrint('📊 [NotificationsCounter] Documentos recebidos: ${snapshot.docs.map((d) => d.id).take(5).toList()}');
+      },
+      onError: (error) {
+        debugPrint('❌ [NotificationsCounter] Erro ao contar notificações: $error');
+        AppState.unreadNotifications.value = 0;
+        unreadNotificationsCount.value = 0;
+      },
+    );
+  }
+
   /// Limpa os contadores (usar no logout)
   void reset() {
+    // Atualizar AppState (padrão Advanced-Dating)
+    AppState.unreadNotifications.value = 0;
     pendingActionsCount.value = 0;
     unreadConversationsCount.value = 0;
+    unreadNotificationsCount.value = 0;
     debugPrint('🗑️ [NotificationsCounter] Contadores resetados');
   }
 
@@ -95,5 +139,6 @@ class NotificationsCounterService {
   void dispose() {
     pendingActionsCount.dispose();
     unreadConversationsCount.dispose();
+    unreadNotificationsCount.dispose();
   }
 }

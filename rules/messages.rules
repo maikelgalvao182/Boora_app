@@ -25,6 +25,11 @@ match /Messages/{userId} {
       return partnerId.split('_')[1];
     }
     
+    // Helper: verifica se usuário é participante de chat 1-1
+    function isParticipant(u1, u2) {
+      return request.auth.uid == u1 || request.auth.uid == u2;
+    }
+    
     // Helper: verifica se usuário é participante aprovado do evento
     // Como EventApplications não usa padrão de ID previsível, verificamos via query
     // Simplificação: assumimos que se o documento Messages/{userId}/event_{eventId} existe,

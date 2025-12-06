@@ -24,7 +24,7 @@ class UserModel {
 
     return UserModel(
       id: id,
-      name: data['user_fullname'] as String?,
+      name: data['fullname'] as String?,
       photoUrl: data['user_profile_photo'] as String?,
       isOnline: data['user_is_online'] as bool?,
       lastLogin: lastLogin,

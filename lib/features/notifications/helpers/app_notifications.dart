@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:go_router/go_router.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/router/app_router.dart';
+import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
+import 'package:partiu/features/notifications/models/activity_notification_types.dart';
 
 /// Helper para navegação baseada em notificações
 /// 
 /// SIMPLIFICADO: Remove lógica específica de casamento/VIP/aplicações
-/// Mantém apenas message, alert e custom types
+/// Mantém apenas message, alert, custom e activity types
 class AppNotifications {
   /// Handle notification click for push and database notifications
   Future<void> onNotificationClick(
@@ -15,6 +20,8 @@ class AppNotifications {
     String? deepLink,
     String? screen,
   }) async {
+    debugPrint('🔔 [AppNotifications] Handling click: type=$nType, relatedId=$nRelatedId');
+    
     /// Control notification type
     switch (nType) {
       case NOTIF_TYPE_MESSAGE:
@@ -38,10 +45,54 @@ class AppNotifications {
         }
         break;
       
+      // Notificações de atividades/eventos
+      case ActivityNotificationTypes.activityCreated:
+      case ActivityNotificationTypes.activityJoinRequest:
+      case ActivityNotificationTypes.activityJoinApproved:
+      case ActivityNotificationTypes.activityJoinRejected:
+      case ActivityNotificationTypes.activityNewParticipant:
+      case ActivityNotificationTypes.activityHeatingUp:
+      case ActivityNotificationTypes.activityExpiringSoon:
+      case ActivityNotificationTypes.activityCanceled:
+      case 'event_chat_message': // Mensagens de chat de evento
+        if (nRelatedId != null && nRelatedId.isNotEmpty) {
+          await _handleActivityNotification(context, nRelatedId);
+        }
+        break;
+      
       default:
-        // Tipo desconhecido, não fazer nada
+        debugPrint('⚠️ [AppNotifications] Tipo de notificação desconhecido: $nType');
         break;
     }
+  }
+
+  /// Trata notificações relacionadas a atividades/eventos
+  /// 
+  /// Usa o MapNavigationService singleton para:
+  /// 1. Registrar navegação pendente
+  /// 2. Navegar para a aba do mapa (Discover)
+  /// 3. Quando o mapa estiver pronto, executar navegação automaticamente
+  Future<void> _handleActivityNotification(
+    BuildContext context,
+    String eventId,
+  ) async {
+    debugPrint('🗺️ [AppNotifications] Opening activity: $eventId');
+    
+    if (!context.mounted) return;
+    
+    // 1. Registrar navegação pendente no singleton ANTES de navegar
+    MapNavigationService.instance.navigateToEvent(eventId);
+    
+    // 2. Agendar navegação para o próximo frame para evitar Navigator lock
+    // Isso garante que a navegação aconteça quando o Navigator estiver disponível
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        context.go(AppRoutes.home);
+      }
+    });
+    
+    // NOTA: O GoogleMapView vai registrar o handler quando estiver pronto
+    // e executar a navegação automaticamente (mover câmera + abrir card)
   }
 
   /// Navigate to conversations tab

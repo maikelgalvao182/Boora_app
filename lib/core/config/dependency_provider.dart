@@ -18,8 +18,15 @@ import 'package:partiu/core/services/image_picker_service.dart';
 import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
 import 'package:partiu/core/services/location_cache.dart';
-import 'package:partiu/core/services/location_background_updater.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
+import 'package:partiu/core/services/geo_index_service.dart';
+import 'package:partiu/features/notifications/repositories/notifications_repository_interface.dart';
+import 'package:partiu/features/notifications/repositories/notifications_repository.dart';
+import 'package:partiu/features/notifications/services/activity_notification_service.dart';
+import 'package:partiu/features/notifications/services/user_affinity_service.dart';
+import 'package:partiu/features/notifications/services/notification_targeting_service.dart';
+import 'package:partiu/features/notifications/services/notification_orchestrator.dart';
+import 'package:partiu/features/home/create_flow/activity_repository.dart';
 
 /// Sistema de injeção de dependências usando get_it
 class DependencyProvider extends InheritedWidget {
@@ -58,6 +65,7 @@ class ServiceLocator {
     _getIt.registerLazySingleton<IAuthRepository>(() => AuthRepository());
     _getIt.registerLazySingleton<LocationRepositoryInterface>(() => LocationRepository());
     _getIt.registerLazySingleton<IProfileRepository>(() => ProfileRepository());
+    _getIt.registerLazySingleton<INotificationsRepository>(() => NotificationsRepository());
     
     // Services
     _getIt.registerLazySingleton<ImagePickerService>(() => ImagePickerService());
@@ -68,6 +76,41 @@ class ServiceLocator {
     _getIt.registerLazySingleton<LocationCache>(() => LocationCache.instance);
     _getIt.registerLazySingleton<LocationAnalyticsService>(() => LocationAnalyticsService.instance);
     // LocationSyncScheduler é inicializado no main.dart
+    
+    // 🌍 Geo Services (CAMADA 0 - Infraestrutura Geográfica)
+    _getIt.registerLazySingleton<GeoIndexService>(() => GeoIndexService());
+    
+    // 💖 Affinity Services (CAMADA 1 - Cálculo de Afinidade)
+    _getIt.registerLazySingleton<UserAffinityService>(() => UserAffinityService());
+    
+    // 🎯 Targeting Services (CAMADA 2 - Targeting de Notificações)
+    _getIt.registerLazySingleton<NotificationTargetingService>(
+      () => NotificationTargetingService(
+        geoService: _getIt<GeoIndexService>(),
+        affinityService: _getIt<UserAffinityService>(),
+      ),
+    );
+    
+    // 📢 Orchestrator (CAMADA 3 - Orquestração de Criação)
+    _getIt.registerLazySingleton<NotificationOrchestrator>(
+      () => NotificationOrchestrator(),
+    );
+    
+    // 🔔 Notification Services (CAMADA 4 - Services Legados)
+    _getIt.registerLazySingleton<ActivityNotificationService>(
+      () => ActivityNotificationService(
+        notificationRepository: _getIt<INotificationsRepository>(),
+        targetingService: _getIt<NotificationTargetingService>(),
+        orchestrator: _getIt<NotificationOrchestrator>(),
+      ),
+    );
+    
+    // Activity Repository
+    _getIt.registerLazySingleton<ActivityRepository>(
+      () => ActivityRepository(
+        notificationService: _getIt<ActivityNotificationService>(),
+      ),
+    );
 
     // ViewModels
     _getIt.registerFactory<SignInViewModel>(

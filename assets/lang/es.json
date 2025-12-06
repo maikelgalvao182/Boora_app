@@ -34,6 +34,7 @@
   "home": "Inicio",
   "search": "Buscar",
   "notifications": "Notificaciones",
+  "no_notifications_yet": "Aún no hay notificaciones",
   "messages": "Mensajes",
   "chat": "Chat",
   "leave": "Salir",
@@ -378,5 +379,25 @@
   "delete_event_confirmation": "¿Estás seguro de que quieres eliminar el evento '{event}'? Esta acción no se puede deshacer.",
   "this_event": "este evento",
   "sign_out": "Cerrar Sesión",
-  "signing_out": "Cerrando sesión..."
+  "signing_out": "Cerrando sesión...",
+  
+  "notification_activity_created": "{creatorName} creó la actividad {emoji} {activityText}. ¿Quieres unirte?",
+  "notification_activity_join_request": "{requesterName} pidió unirse a tu actividad {emoji} {activityText}",
+  "notification_activity_join_approved": "¡Has sido aprobado para participar en {emoji} {activityText}!",
+  "notification_activity_join_rejected": "Tu solicitud para unirte a {emoji} {activityText} fue rechazada",
+  "notification_activity_new_participant": "¡{participantName} se unió a tu actividad {emoji} {activityText}!",
+  "notification_activity_heating_up": "¡La actividad {emoji} {activityText} está que arde! No te la pierdas",
+  "notification_activity_expiring_soon": "La actividad {emoji} {activityText} está por terminar. ¡Última oportunidad!",
+  "notification_activity_canceled": "La actividad {emoji} {activityText} fue cancelada",
+  
+  "notification_event_chat_message": "{messagePreview}",
+  
+  "notification_profile_views_aggregated": "{count} personas vieron tu perfil ✨",
+  
+  "notif_filter_all": "Todas",
+  "notif_filter_messages": "Mensajes",
+  "notif_filter_activities": "Actividades",
+  "notif_filter_requests": "Solicitudes",
+  "notif_filter_social": "Social",
+  "notif_filter_system": "Sistema"
 }

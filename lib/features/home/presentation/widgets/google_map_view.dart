@@ -6,6 +6,7 @@ import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
+import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
@@ -68,6 +69,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
     debugPrint('🔴 GoogleMapView: Configurando callback onMarkerTap');
     widget.viewModel.onMarkerTap = _onMarkerTap;
     debugPrint('🔴 GoogleMapView: Callback configurado? ${widget.viewModel.onMarkerTap != null}');
+    
+    // Registrar handler de navegação no MapNavigationService
+    MapNavigationService.instance.registerMapHandler(_handleEventNavigation);
+    debugPrint('🗺️ GoogleMapView: Handler de navegação registrado');
     
     // Listener para atualizar markers quando eventos mudarem
     widget.viewModel.addListener(_onEventsChanged);
@@ -277,6 +282,48 @@ class GoogleMapViewState extends State<GoogleMapView> {
     );
   }
 
+  /// Handler de navegação chamado pelo MapNavigationService
+  /// 
+  /// Responsável por:
+  /// 1. Encontrar o evento na lista de eventos carregados
+  /// 2. Mover câmera para o evento
+  /// 3. Abrir o EventCard
+  void _handleEventNavigation(String eventId) async {
+    debugPrint('🗺️ [GoogleMapView] Navegando para evento: $eventId');
+    
+    if (!mounted) return;
+    
+    // Buscar evento na lista de eventos carregados
+    final event = widget.viewModel.events.firstWhere(
+      (e) => e.id == eventId,
+      orElse: () {
+        debugPrint('⚠️ [GoogleMapView] Evento não encontrado na lista: $eventId');
+        // Se não encontrou, tentar recarregar eventos
+        widget.viewModel.loadNearbyEvents();
+        throw Exception('Evento não encontrado');
+      },
+    );
+    
+    debugPrint('✅ [GoogleMapView] Evento encontrado: ${event.title}');
+    
+    // Mover câmera para o evento
+    if (_mapController != null) {
+      final target = LatLng(event.lat, event.lng);
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(target, 15.0),
+      );
+      debugPrint('📍 [GoogleMapView] Câmera movida para: ${event.title}');
+    }
+    
+    // Aguardar animação da câmera
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    // Abrir EventCard
+    _onMarkerTap(event);
+  }
+
   /// Callback quando usuário toca em um marker
   void _onMarkerTap(EventModel event) {
     debugPrint('🔴🔴🔴 GoogleMapView._onMarkerTap CHAMADO! 🔴🔴🔴');
@@ -409,6 +456,8 @@ class GoogleMapViewState extends State<GoogleMapView> {
   @override
   void dispose() {
     widget.viewModel.removeListener(_onEventsChanged);
+    MapNavigationService.instance.unregisterMapHandler();
+    debugPrint('🗺️ GoogleMapView: Handler de navegação removido');
     _mapController?.dispose();
     _mapController = null;
     super.dispose();

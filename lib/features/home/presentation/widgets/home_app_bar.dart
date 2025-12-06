@@ -8,6 +8,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_profile_completeness_ring.dart';
 import 'package:partiu/features/home/presentation/widgets/auto_updating_badge.dart';
@@ -69,12 +70,12 @@ class _HomeAppBarState extends State<HomeAppBar> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Botão de notificações
+              // Botão de notificações (com badge usando AppState diretamente)
               AutoUpdatingBadge(
-                count: 0, // TODO: Pegar contador real
                 fontSize: 9,
                 minBadgeSize: 14.0,
                 badgePadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                badgeColor: GlimpseColors.actionColor,
                 child: SizedBox(
                   width: 28,
                   child: IconButton(

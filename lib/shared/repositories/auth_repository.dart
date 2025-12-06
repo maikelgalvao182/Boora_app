@@ -130,7 +130,7 @@ class AuthRepository implements IAuthRepository {
       // Verifica se o perfil está completo (tem nome e tipo de usuário)
       // Verifica tanto o campo moderno quanto o legado para compatibilidade
       final hasFullName = (userData['fullName'] != null && (userData['fullName'] as String).isNotEmpty) ||
-                          (userData['user_fullname'] != null && (userData['user_fullname'] as String).isNotEmpty);
+                          (userData['fullname'] != null && (userData['fullname'] as String).isNotEmpty);
       
       if (!hasFullName) {
         AppLogger.info('User profile incomplete - redirecting to signup wizard', tag: 'AUTH_REPOSITORY');

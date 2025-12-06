@@ -405,7 +405,7 @@ async function createPendingReviewsForEvent(
       created_at: admin.firestore.Timestamp.now(),
       expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
       dismissed: false,
-      reviewee_name: participantData?.user_fullname || 'Usuário',
+      reviewee_name: participantData?.fullname || 'Usuário',
       reviewee_photo_url: participantData?.user_photo_link || null
     });
     
@@ -428,7 +428,7 @@ async function createPendingReviewsForEvent(
       created_at: admin.firestore.Timestamp.now(),
       expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
       dismissed: false,
-      reviewee_name: ownerData?.user_fullname || 'Usuário',
+      reviewee_name: ownerData?.fullname || 'Usuário',
       reviewee_photo_url: ownerData?.user_photo_link || null
     });
   }

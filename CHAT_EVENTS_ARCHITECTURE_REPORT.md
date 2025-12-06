@@ -8,7 +8,7 @@
 ```
 Connections/{userId}/Conversations/{otherUserId}
   ├─ user_id: string (ID do outro usuário)
-  ├─ user_fullname: string
+  ├─ fullname: string
   ├─ user_profile_photo: string
   ├─ last_message: string
   ├─ message_type: string

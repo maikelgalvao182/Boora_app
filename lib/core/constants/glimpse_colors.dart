@@ -19,7 +19,7 @@ class GlimpseColors {
   static const Color rejectButtonColor = Color(0xFFEF4444);
 
   // Cor de ação genérica
-  static const Color actionColor = Color(0xFFFF8F39);
+  static const Color actionColor = Color(0xFFEF4444);
 
   // Chips/Tags colors
   static const Color locationChipBackground = primaryLight;

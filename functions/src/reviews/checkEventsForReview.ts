@@ -12,17 +12,58 @@ export const checkEventsForReview = functions.pubsub
   .timeZone("America/Sao_Paulo")
   .onRun(async () => {
     console.log("🔍 [checkEventsForReview] Starting...");
+    const currentTime = new Date().toISOString();
+    console.log(`🔍 [checkEventsForReview] Current time: ${currentTime}`);
 
     const now = admin.firestore.Timestamp.now();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const beforeTime = twentyFourHoursAgo.toISOString();
+    console.log(
+      `🔍 [checkEventsForReview] Looking for events before: ${beforeTime}`
+    );
 
     try {
       // Busca TODOS os eventos recentes
       // (sem filtrar por reviewsCreated na query)
       // Isso evita problemas com índice composto
+      console.log(
+        "🔍 [checkEventsForReview] Querying Events collection..."
+      );
+
+      // TESTE 1: Verifica se a coleção existe
+      const collectionRef = admin.firestore().collection("events");
+      console.log(
+        "🔍 [checkEventsForReview] Collection path:",
+        collectionRef.path
+      );
+
+      // TESTE 2: Tenta buscar SEM orderBy primeiro
+      const testSnapshot = await collectionRef.limit(5).get();
+      const testMsg =
+        `Test query (no orderBy): ${testSnapshot.size} docs found`;
+      console.log(`🔍 [checkEventsForReview] ${testMsg}`);
+
+      if (!testSnapshot.empty) {
+        console.log("🔍 [checkEventsForReview] Sample event structure:");
+        const sampleDoc = testSnapshot.docs[0];
+        const sampleData = sampleDoc.data();
+        console.log(`   - id: ${sampleDoc.id}`);
+        console.log(`   - has schedule: ${!!sampleData.schedule}`);
+        const dateType = typeof sampleData.schedule?.date;
+        console.log(`   - schedule.date type: ${dateType}`);
+        console.log(`   - schedule.date value: ${sampleData.schedule?.date}`);
+        const fields = Object.keys(sampleData).join(", ");
+        console.log(`   - all fields: ${fields}`);
+      }
+
+      // TESTE 3: Agora tenta com orderBy
+      console.log(
+        "🔍 [checkEventsForReview] Trying query with orderBy..."
+      );
       const eventsSnapshot = await admin
         .firestore()
-        .collection("Events")
+        .collection("events")
         .orderBy("schedule.date", "desc")
         .limit(200)
         .get();
@@ -32,24 +73,67 @@ export const checkEventsForReview = functions.pubsub
       );
 
       if (eventsSnapshot.empty) {
-        console.log("✅ [checkEventsForReview] No events found");
+        console.log(
+          "⚠️ [checkEventsForReview] No events found in collection"
+        );
+        console.log(
+          "⚠️ [checkEventsForReview] Checking if Events collection exists..."
+        );
+
+        // Tenta buscar pelo menos 1 documento
+        const testSnapshot2 = await admin
+          .firestore()
+          .collection("events")
+          .limit(1)
+          .get();
+
+        if (testSnapshot2.empty) {
+          const emptyMsg =
+            "Events collection is empty or doesn't exist";
+          console.log(`❌ [checkEventsForReview] ${emptyMsg}`);
+        } else {
+          const existMsg = "Events exist but none match the query";
+          console.log(`⚠️ [checkEventsForReview] ${existMsg}`);
+        }
         return null;
       }
+
+      const firstDate =
+        eventsSnapshot.docs[0]?.data()?.schedule?.date?.toDate?.()
+          ?.toISOString() || "N/A";
+      console.log(
+        `🔍 [checkEventsForReview] First event date: ${firstDate}`
+      );
+
+      const lastIndex = eventsSnapshot.size - 1;
+      const lastDate =
+        eventsSnapshot.docs[lastIndex]?.data()?.schedule?.date?.toDate?.()
+          ?.toISOString() || "N/A";
+      console.log(`🔍 [checkEventsForReview] Last event date: ${lastDate}`);
 
       // Filtra eventos que:
       // 1. Terminaram há mais de 24 horas
       // 2. Ainda não criaram reviews
+      console.log("🔍 [checkEventsForReview] Filtering events...");
       const eventsToProcess = eventsSnapshot.docs.filter((doc) => {
         const data = doc.data();
 
+        // Debug: Mostra dados de cada evento
+        console.log(`📄 [checkEventsForReview] Event ${doc.id}:`);
+        console.log(`   - reviewsCreated: ${data.reviewsCreated}`);
+        const scheduleDate =
+          data.schedule?.date?.toDate?.()?.toISOString() || "N/A";
+        console.log(`   - schedule.date: ${scheduleDate}`);
+
         // Verifica se já criou reviews
         if (data.reviewsCreated === true) {
+          console.log("   ⏭️ Skipping - reviews already created");
           return false;
         }
 
         // Verifica se o evento terminou há mais de 24h
-        const scheduleDate = data.schedule?.date;
-        if (!scheduleDate) {
+        const scheduleTimestamp = data.schedule?.date;
+        if (!scheduleTimestamp) {
           console.log(
             `⚠️ [checkEventsForReview] Event ${doc.id} has no date`
           );
@@ -57,9 +141,9 @@ export const checkEventsForReview = functions.pubsub
         }
 
         // Converte Timestamp para Date
-        const eventDate = scheduleDate.toDate ?
-          scheduleDate.toDate() :
-          new Date(scheduleDate);
+        const eventDate = scheduleTimestamp.toDate ?
+          scheduleTimestamp.toDate() :
+          new Date(scheduleTimestamp);
         const isOldEnough = eventDate <= twentyFourHoursAgo;
 
         if (isOldEnough) {
@@ -69,6 +153,14 @@ export const checkEventsForReview = functions.pubsub
           console.log(
             `✅ Event ${doc.id} qualifies - ended ${hoursAgo}h ago`
           );
+        } else {
+          const hoursUntilReview = Math.round(
+            (eventDate.getTime() - twentyFourHoursAgo.getTime()) /
+            (1000 * 60 * 60)
+          );
+          const skipMsg =
+            `too recent (needs ${hoursUntilReview}h more)`;
+          console.log(`   ⏭️ Skipping - ${skipMsg}`);
         }
 
         return isOldEnough;
@@ -222,7 +314,7 @@ async function createPendingReviewsForEvent(
       created_at: admin.firestore.Timestamp.now(),
       expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
       dismissed: false,
-      reviewee_name: participantData?.user_fullname || "Usuário",
+      reviewee_name: participantData?.fullname || "Usuário",
       reviewee_photo_url: participantData?.user_photo_link || null,
     });
 
@@ -251,7 +343,7 @@ async function createPendingReviewsForEvent(
       created_at: admin.firestore.Timestamp.now(),
       expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
       dismissed: false,
-      reviewee_name: ownerData?.user_fullname || "Usuário",
+      reviewee_name: ownerData?.fullname || "Usuário",
       reviewee_photo_url: ownerData?.user_photo_link || null,
     });
 
@@ -296,7 +388,7 @@ async function sendReviewNotifications(
   participants: admin.firestore.QueryDocumentSnapshot[],
   eventData: admin.firestore.DocumentData
 ): Promise<void> {
-  console.log("📬 [sendNotifications] Sending notifications...");
+  console.log("📬 [sendNotifications] Sending notifications... (v2)");
 
   const batch = admin.firestore().batch();
 
@@ -304,17 +396,21 @@ async function sendReviewNotifications(
   const ownerNotifRef = admin.firestore().collection("Notifications").doc();
   batch.set(ownerNotifRef, {
     userId: ownerId,
-    type: "review_request",
-    title: "⭐ Hora de avaliar!",
-    message: `Avalie os participantes do evento "${
-      eventData.activityText || eventData.title
-    }"`,
-    data: {
+    n_type: "review_request",
+    n_params: {
       eventId: eventData.id,
       actionType: "open_pending_reviews",
+      title: "⭐ Hora de avaliar!",
+      message: `Avalie os participantes do evento "${
+        eventData.activityText || eventData.title
+      }"`,
     },
-    createdAt: admin.firestore.Timestamp.now(),
-    read: false,
+    n_related_id: eventData.id,
+    n_read: false,
+    n_sender_id: "system",
+    n_sender_fullname: "Sistema",
+    n_sender_photo_link: "",
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
   });
 
   // Notificações para participantes
@@ -327,17 +423,21 @@ async function sendReviewNotifications(
 
     batch.set(participantNotifRef, {
       userId: participantId,
-      type: "review_request",
-      title: "⭐ Avalie o evento!",
-      message: `Como foi o evento "${
-        eventData.activityText || eventData.title
-      }"? Deixe sua avaliação!`,
-      data: {
+      n_type: "review_request",
+      n_params: {
         eventId: eventData.id,
         actionType: "open_pending_reviews",
+        title: "⭐ Avalie o evento!",
+        message: `Como foi o evento "${
+          eventData.activityText || eventData.title
+        }"? Deixe sua avaliação!`,
       },
-      createdAt: admin.firestore.Timestamp.now(),
-      read: false,
+      n_related_id: eventData.id,
+      n_read: false,
+      n_sender_id: "system",
+      n_sender_fullname: "Sistema",
+      n_sender_photo_link: "",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
 

@@ -1,15 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/create_flow/activity_draft.dart';
+import 'package:partiu/features/home/domain/models/activity_model.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_type_selector.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
+import 'package:partiu/features/notifications/services/activity_notification_service.dart';
 
 /// Repositório para gerenciar atividades no Firestore
 class ActivityRepository {
   final FirebaseFirestore _firestore;
+  final ActivityNotificationService? _notificationService;
 
-  ActivityRepository([FirebaseFirestore? firestore])
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  ActivityRepository({
+    FirebaseFirestore? firestore,
+    ActivityNotificationService? notificationService,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _notificationService = notificationService;
 
   /// Salva uma nova atividade no Firestore
   Future<String> saveActivity(ActivityDraft draft, String userId) async {
@@ -77,6 +83,40 @@ class ActivityRepository {
     try {
       final docRef = await _firestore.collection('events').add(docData);
       debugPrint('✅ [ActivityRepository] Atividade salva com ID: ${docRef.id}');
+      
+      // Notificar usuários próximos
+      debugPrint('🔔 [ActivityRepository.saveActivity] Verificando serviço de notificações...');
+      debugPrint('🔔 [ActivityRepository.saveActivity] Service disponível: ${_notificationService != null}');
+      
+      if (_notificationService != null) {
+        try {
+          debugPrint('🔔 [ActivityRepository.saveActivity] Criando ActivityModel para notificação');
+          final activity = ActivityModel(
+            id: docRef.id,
+            name: draft.activityText!,
+            emoji: draft.emoji!,
+            latitude: draft.location!.latLng!.latitude,
+            longitude: draft.location!.latLng!.longitude,
+            createdBy: userId,
+            createdAt: DateTime.now(),
+          );
+          debugPrint('🔔 [ActivityRepository.saveActivity] ActivityModel criado: ${activity.id}');
+          debugPrint('🔔 [ActivityRepository.saveActivity] Dados: ${activity.name} ${activity.emoji}');
+          debugPrint('🔔 [ActivityRepository.saveActivity] Localização: (${activity.latitude}, ${activity.longitude})');
+          debugPrint('🔔 [ActivityRepository.saveActivity] Criador: ${activity.createdBy}');
+          
+          debugPrint('🔔 [ActivityRepository.saveActivity] Chamando notifyActivityCreated...');
+          await _notificationService!.notifyActivityCreated(activity);
+          debugPrint('✅ [ActivityRepository.saveActivity] notifyActivityCreated concluído com sucesso');
+        } catch (notifError, stackTrace) {
+          debugPrint('❌ [ActivityRepository.saveActivity] Erro ao enviar notificações: $notifError');
+          debugPrint('❌ [ActivityRepository.saveActivity] StackTrace: $stackTrace');
+          // Não falhar a criação da atividade por erro de notificação
+        }
+      } else {
+        debugPrint('⚠️ [ActivityRepository.saveActivity] NotificationService é NULL - notificações NÃO serão enviadas');
+      }
+      
       return docRef.id;
     } catch (e, stackTrace) {
       debugPrint('❌ [ActivityRepository] Erro ao salvar atividade: $e');
@@ -102,6 +142,9 @@ class ActivityRepository {
   /// Cancela uma atividade
   Future<void> cancelActivity(String activityId, String userId) async {
     try {
+      // Buscar atividade antes de cancelar
+      final activityDoc = await _firestore.collection('events').doc(activityId).get();
+      
       await _firestore.collection('events').doc(activityId).update({
         'status': 'canceled',
         'isActive': false,
@@ -111,6 +154,36 @@ class ActivityRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       debugPrint('✅ [ActivityRepository] Atividade $activityId cancelada');
+      
+      // Notificar participantes
+      debugPrint('🔔 [ActivityRepository.cancelActivity] Verificando notificações...');
+      debugPrint('🔔 [ActivityRepository.cancelActivity] Service: ${_notificationService != null}, Doc exists: ${activityDoc.exists}');
+      
+      if (_notificationService != null && activityDoc.exists) {
+        try {
+          debugPrint('🔔 [ActivityRepository.cancelActivity] Criando ActivityModel do documento');
+          final data = activityDoc.data()!;
+          final activity = ActivityModel(
+            id: activityId,
+            name: data['activityText'] ?? '',
+            emoji: data['emoji'] ?? '',
+            latitude: data['location']?['latitude'] ?? 0.0,
+            longitude: data['location']?['longitude'] ?? 0.0,
+            createdBy: data['createdBy'] ?? '',
+            createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          );
+          debugPrint('🔔 [ActivityRepository.cancelActivity] ActivityModel: ${activity.id} - ${activity.name}');
+          
+          debugPrint('🔔 [ActivityRepository.cancelActivity] Chamando notifyActivityCanceled...');
+          await _notificationService!.notifyActivityCanceled(activity);
+          debugPrint('✅ [ActivityRepository.cancelActivity] Notificações enviadas com sucesso');
+        } catch (notifError, stackTrace) {
+          debugPrint('❌ [ActivityRepository.cancelActivity] Erro ao enviar notificações: $notifError');
+          debugPrint('❌ [ActivityRepository.cancelActivity] StackTrace: $stackTrace');
+        }
+      } else {
+        debugPrint('⚠️ [ActivityRepository.cancelActivity] Notificações puladas - Service: ${_notificationService != null}, Doc: ${activityDoc.exists}');
+      }
     } catch (e) {
       debugPrint('❌ [ActivityRepository] Erro ao cancelar atividade: $e');
       rethrow;
@@ -120,12 +193,55 @@ class ActivityRepository {
   /// Adiciona um participante à atividade
   Future<void> addParticipant(String activityId, String userId) async {
     try {
+      // Buscar atividade e dados do usuário antes de adicionar participante
+      final activityDoc = await _firestore.collection('events').doc(activityId).get();
+      final userDoc = await _firestore.collection('Users').doc(userId).get();
+      
       await _firestore.collection('events').doc(activityId).update({
         'participants.participantIds': FieldValue.arrayUnion([userId]),
         'participants.currentCount': FieldValue.increment(1),
         'updatedAt': FieldValue.serverTimestamp(),
       });
       debugPrint('✅ [ActivityRepository] Participante $userId adicionado');
+      
+      // Notificar outros participantes
+      debugPrint('🔔 [ActivityRepository.addParticipant] Verificando notificações...');
+      debugPrint('🔔 [ActivityRepository.addParticipant] Service: ${_notificationService != null}, Activity: ${activityDoc.exists}, User: ${userDoc.exists}');
+      
+      if (_notificationService != null && activityDoc.exists && userDoc.exists) {
+        try {
+          debugPrint('🔔 [ActivityRepository.addParticipant] Extraindo dados dos documentos');
+          final data = activityDoc.data()!;
+          final userData = userDoc.data()!;
+          
+          final activity = ActivityModel(
+            id: activityId,
+            name: data['activityText'] ?? '',
+            emoji: data['emoji'] ?? '',
+            latitude: data['location']?['latitude'] ?? 0.0,
+            longitude: data['location']?['longitude'] ?? 0.0,
+            createdBy: data['createdBy'] ?? '',
+            createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          );
+          final participantName = userData['fullname'] ?? 'Usuário';
+          
+          debugPrint('🔔 [ActivityRepository.addParticipant] Activity: ${activity.id} - ${activity.name}');
+          debugPrint('🔔 [ActivityRepository.addParticipant] Participant: $userId - $participantName');
+          
+          debugPrint('🔔 [ActivityRepository.addParticipant] Chamando notifyNewParticipant...');
+          await _notificationService!.notifyNewParticipant(
+            activity: activity,
+            participantId: userId,
+            participantName: participantName,
+          );
+          debugPrint('✅ [ActivityRepository.addParticipant] Notificações enviadas com sucesso');
+        } catch (notifError, stackTrace) {
+          debugPrint('❌ [ActivityRepository.addParticipant] Erro ao enviar notificações: $notifError');
+          debugPrint('❌ [ActivityRepository.addParticipant] StackTrace: $stackTrace');
+        }
+      } else {
+        debugPrint('⚠️ [ActivityRepository.addParticipant] Notificações puladas - Service: ${_notificationService != null}, Activity: ${activityDoc.exists}, User: ${userDoc.exists}');
+      }
     } catch (e) {
       debugPrint('❌ [ActivityRepository] Erro ao adicionar participante: $e');
       rethrow;

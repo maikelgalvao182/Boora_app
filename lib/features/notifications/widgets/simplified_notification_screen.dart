@@ -13,7 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// [MVVM] Constantes da View - evita magic numbers
 class _NotificationScreenConstants {
-  static const int filterCount = 2; // All, Messages
+  static const int filterCount = 6; // All, Messages, Activities, Requests, Social, System
   static const double titleFontSize = 20;
   static const double clearFontSize = 14;
   static const double backButtonSize = 24;
@@ -75,7 +75,7 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
         FONT_PLUS_JAKARTA_SANS,
         fontSize: _NotificationScreenConstants.titleFontSize,
         fontWeight: FontWeight.w700,
-        color: GlimpseColors.textSubTitle,
+        color: GlimpseColors.primaryColorLight,
       );
       _clearStyle = GoogleFonts.getFont(
         FONT_PLUS_JAKARTA_SANS,
@@ -94,7 +94,7 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final bgColor = GlimpseColors.textSubTitle;
+    final bgColor = GlimpseColors.bgColorLight;
 
     return Scaffold(
       backgroundColor: bgColor,

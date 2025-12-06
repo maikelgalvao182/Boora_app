@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:partiu/core/api/conversations_api.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/conversations/models/conversation_item.dart';
@@ -215,8 +215,20 @@ class ConversationsViewModel extends ChangeNotifier {
   Future<void> _loadInitialFromFirestore() async {
     _log('📥 _loadInitialFromFirestore: INICIANDO');
     try {
-      _log('📥 _loadInitialFromFirestore: Chamando ConversationsApi()');
-      final snapshot = await ConversationsApi().getConversationsFirstPage(limit: 20).first;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        _log('⚠️ _loadInitialFromFirestore: Usuário não autenticado');
+        return;
+      }
+      
+      _log('📥 _loadInitialFromFirestore: Buscando conversas do Firestore');
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Connections')
+          .doc(userId)
+          .collection('Conversations')
+          .orderBy('timestamp', descending: true)
+          .limit(20)
+          .get();
       _log('📥 _loadInitialFromFirestore: Snapshot recebido com ${snapshot.docs.length} docs');
       final items = <ConversationItem>[];
 
@@ -224,7 +236,7 @@ class ConversationsViewModel extends ChangeNotifier {
         try {
           final data = doc.data();
           final otherUserId = (data[USER_ID] ?? doc.id).toString();
-          final rawName = (data[USER_FULLNAME] ?? data['other_user_name'] ?? data['otherUserName'] ?? '').toString();
+          final rawName = (data[fullname] ?? data['other_user_name'] ?? data['otherUserName'] ?? '').toString();
           final name = _sanitizeText(rawName);
           final photo = (data[USER_PROFILE_PHOTO] ?? data['other_user_photo'] ?? data['otherUserPhoto']) as String?;
           final rawLastMessage = (data[LAST_MESSAGE] ?? '').toString();

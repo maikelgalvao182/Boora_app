@@ -118,7 +118,7 @@ class GoogleEventMarkerService {
             markerId: MarkerId('event_avatar_${event.id}'),
             position: LatLng(event.lat, event.lng),
             icon: avatarPin,
-            anchor: const Offset(0.5, 0.5), // Centralizado
+            anchor: const Offset(0.5, 0.80), // 8px abaixo do centro (0.08 = 8/100) para subir visualmente
             zIndex: 1, // Camada de cima
             onTap: onTap != null ? () {
               debugPrint('🔵 [MarkerService] Avatar marker tapped: ${event.id}');

@@ -113,22 +113,27 @@ class SimplifiedNotificationController extends ChangeNotifier {
   }
 
   // Mapeamento público para a View usar
-  // TODO: Customize estes filtros conforme as necessidades do seu app
+  // Cada índice corresponde a um tipo de notificação ou grupo
   String? mapFilterIndexToKey(int index) {
     switch (index) {
       case 0: return null; // All
       case 1: return 'message'; // Messages
-      // Adicione seus próprios filtros aqui
+      case 2: return 'activity'; // Activities (todos os tipos activity_*)
+      case 3: return 'activity_join_request'; // Requests
+      case 4: return 'profile_views_aggregated'; // Social
+      case 5: return 'alert'; // System
       default: return null;
     }
   }
 
   // Keys de tradução para filtros (a View deve traduzir)
-  // TODO: Ajuste conforme seus filtros
   static const List<String> filterLabelKeys = [
-    'filter_all',
-    'filter_messages',
-    // Adicione suas keys de tradução aqui
+    'notif_filter_all',
+    'notif_filter_messages',
+    'notif_filter_activities',
+    'notif_filter_requests',
+    'notif_filter_social',
+    'notif_filter_system',
   ];
 
   /// Inicializa o controller com status VIP e carrega dados iniciais

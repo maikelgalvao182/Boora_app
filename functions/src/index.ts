@@ -96,12 +96,13 @@ export const onEventCreated = functions.firestore
         .doc();
 
       batch.set(initialMessageRef, {
-        senderId: "system",
-        senderName: "Sistema",
-        senderPhotoUrl: "",
+        sender_id: "system",
+        sender_name: "Sistema",
+        sender_photo_url: "",
         message: `${creatorName} criou o evento`,
-        messageType: "system",
-        imgLink: "",
+        message_text: `${creatorName} criou o evento`,
+        message_type: "system",
+        message_img_link: "",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         readBy: [creatorId],
       });
@@ -151,11 +152,25 @@ export const onEventCreated = functions.firestore
  */
 export const onApplicationApproved = functions.firestore
   .document("EventApplications/{applicationId}")
-  .onWrite(async (change) => {
+  .onWrite(async (change, context) => {
+    const applicationId = context.params.applicationId;
     const after = change.after.exists ? change.after.data() : null;
     const before = change.before.exists ? change.before.data() : null;
 
-    if (!after) return; // Ignorar deleções
+    console.log(
+      `🔔 [onApplicationApproved] Trigger fired for: ${applicationId}`
+    );
+
+    if (!after) {
+      console.log("⏭️ Ignoring deletion");
+      return;
+    }
+
+    const beforeStatus = before?.status || "none";
+    const afterStatus = after.status || "none";
+
+    console.log(`   Before status: ${beforeStatus}`);
+    console.log(`   After status: ${afterStatus}`);
 
     let wasApproved = false;
 
@@ -163,14 +178,23 @@ export const onApplicationApproved = functions.firestore
       // Criação: verificar se já nasceu aprovado
       wasApproved =
         after.status === "approved" || after.status === "autoApproved";
+      console.log(`   Created with status: ${afterStatus}`);
     } else {
       // Atualização: verificar mudança de status
       wasApproved =
         (before.status !== "approved" && after.status === "approved") ||
         (before.status !== "autoApproved" && after.status === "autoApproved");
+      console.log(`   Status changed: ${beforeStatus} -> ${afterStatus}`);
     }
 
-    if (!wasApproved) return;
+    if (!wasApproved) {
+      console.log(
+        `⏭️ Not approved yet (status: ${afterStatus}), skipping...`
+      );
+      return;
+    }
+
+    console.log("✅ Application approved! Processing...");
 
     const eventId = after.eventId;
     const userId = after.userId;
@@ -185,6 +209,7 @@ export const onApplicationApproved = functions.firestore
       const eventData = eventDoc.data() || {};
       const userData = userDoc.data() || {};
       const userName = userData.fullName || "Alguém";
+      const userPhotoUrl = userData.profilePhoto || userData.photoUrl || "";
       const activityText = eventData.activityText || "Evento";
       const schedule = eventData.schedule || {}; // [NEW] Get schedule
 
@@ -266,12 +291,12 @@ export const onApplicationApproved = functions.firestore
         .doc();
 
       batch.set(messageRef, {
-        sender_id: "system",
-        sender_name: "Sistema", // 🆕 Nome do remetente
-        sender_photo_url: "", // 🆕 Avatar do remetente
+        sender_id: userId, // ✅ O usuário que entrou é o sender
+        sender_name: userName, // ✅ Nome do usuário que entrou
+        sender_photo_url: userPhotoUrl || "", // ✅ Foto do usuário que entrou
         message: systemMessage,
         message_text: systemMessage, // Compatibilidade
-        message_type: "system",
+        message_type: "event_join", // ✅ Tipo específico para entrada
         message_img_link: "",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         readBy: [userId], // Apenas novo participante marca como lido
@@ -372,3 +397,14 @@ export * from "./ranking/updateRanking";
 // ===== REVIEW FUNCTIONS =====
 // Importa e exporta as Cloud Functions de reviews
 export * from "./reviews/checkEventsForReview";
+
+// ===== NOTIFICATION FUNCTIONS =====
+// Importa e exporta as Cloud Functions de notificações agregadas
+export * from "./profileViewNotifications";
+
+// ===== EVENT CHAT NOTIFICATIONS =====
+// Importa e exporta as Cloud Functions de notificações de EventChat
+export * from "./eventChatNotifications";
+
+// ===== DEBUG FUNCTIONS =====
+export * from "./debug";

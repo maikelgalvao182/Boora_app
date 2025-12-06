@@ -113,9 +113,10 @@ match /AppInfo/{configName} {
     // ======================================
     // 🔔 Notificações
     // ======================================
-/// 🔔 Coleção de notificações
+/// 🔔 Coleção de notificações (root collection)
 /// Path usado no app:
-/// - Users/{userId}/Notifications/{notificationId}
+/// - Notifications/{notificationId}
+///   - n_receiver_id: string (quem recebe)
 ///   - n_type: string
 ///   - n_sender_id: string
 ///   - n_sender_fullname: string
@@ -126,9 +127,10 @@ match /AppInfo/{configName} {
 ///   - n_read: bool
 ///   - timestamp: timestamp
 
-match /Users/{userId}/Notifications/{notificationId} {
-  allow read, delete: if isOwner(userId);
-  allow create, update: if isSignedIn(); // Qualquer usuário logado pode criar notificações para outros
+match /Notifications/{notificationId} {
+  allow read: if isSignedIn() && resource.data.n_receiver_id == request.auth.uid;
+  allow delete: if isSignedIn() && resource.data.n_receiver_id == request.auth.uid;
+  allow create, update: if isSignedIn(); // Qualquer usuário logado pode criar notificações
 }
 
     // ======================================
@@ -391,7 +393,7 @@ match /EventChats/{eventId} {
 /// Path usado no app:
 /// - Connections/{userId}/Conversations/{withUserId}
 ///   - user_id: string (userId do outro usuário ou event_{eventId})
-///   - user_fullname: string
+///   - fullname: string
 ///   - user_profile_photo: string
 ///   - message_type: string
 ///   - last_message: string
@@ -475,6 +477,11 @@ match /Messages/{userId} {
     // Helper: extrai eventId do partnerId (event_{eventId})
     function getEventId() {
       return partnerId.split('_')[1];
+    }
+    
+    // Helper: verifica se usuário é participante de chat 1-1
+    function isParticipant(u1, u2) {
+      return request.auth.uid == u1 || request.auth.uid == u2;
     }
     
     // Helper: verifica se usuário é participante aprovado do evento

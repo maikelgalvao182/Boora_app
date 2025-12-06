@@ -149,7 +149,7 @@ class ConversationTile extends StatelessWidget {
                 String displayName = 'Usuário';
                 if (snap.hasData && snap.data!.data() != null) {
                   final data = snap.data!.data()!;
-                  displayName = data['activityText'] ?? data['user_fullname'] ?? 'Usuário';
+                  displayName = data['activityText'] ?? data['fullname'] ?? 'Usuário';
                 }
                 return ConversationStyles.buildEventNameText(
                   name: displayName,

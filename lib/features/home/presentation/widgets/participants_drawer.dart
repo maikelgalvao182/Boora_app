@@ -14,6 +14,7 @@ import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
+import 'package:partiu/core/config/dependency_provider.dart';
 
 /// Bottom sheet para seleção de participantes e privacidade da atividade
 class ParticipantsDrawer extends StatefulWidget {
@@ -34,7 +35,8 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
   void initState() {
     super.initState();
     _controller = ParticipantsDrawerController();
-    _repository = ActivityRepository();
+    // ✅ SEMPRE obter ActivityRepository via DI (com todas as 4 camadas de notificações)
+    _repository = ServiceLocator().get<ActivityRepository>();
     _controller.addListener(_onControllerChanged);
   }
 

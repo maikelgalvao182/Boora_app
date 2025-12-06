@@ -120,7 +120,7 @@ class SocialAuth {
           
           if (userDoc.exists) {
             final userData = userDoc.data();
-            final firestoreName = userData?['user_fullname'] as String?;
+            final firestoreName = userData?['fullname'] as String?;
             if (firestoreName != null && firestoreName.isNotEmpty) {
               finalName = firestoreName;
               // Atualiza também o displayName para próximas vezes
@@ -291,7 +291,7 @@ class SocialAuth {
           
           if (userDoc.exists) {
             final userData = userDoc.data();
-            final firestoreName = userData?['user_fullname'] as String?;
+            final firestoreName = userData?['fullname'] as String?;
             if (firestoreName != null && firestoreName.isNotEmpty) {
               finalName = firestoreName;
               // Atualiza também o displayName para próximas vezes

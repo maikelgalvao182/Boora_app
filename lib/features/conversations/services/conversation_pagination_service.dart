@@ -204,7 +204,7 @@ class ConversationPaginationService extends ChangeNotifier {
     if (_query.isNotEmpty) {
       result = result.where((d) {
         final data = d.data();
-        final fullName = (data['user_fullname'] ?? '').toString().toLowerCase();
+        final fullName = (data['fullname'] ?? '').toString().toLowerCase();
         return fullName.contains(_query);
       }).toList();
     }

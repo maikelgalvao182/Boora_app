@@ -41,4 +41,38 @@ abstract class INotificationsRepository {
   
   /// Marca uma notificação como lida
   Future<void> readNotification(String notificationId);
+  
+  // ===============================================
+  // MÉTODOS ESPECÍFICOS PARA ATIVIDADES
+  // ===============================================
+  
+  /// Cria notificação de atividade com parâmetros estruturados
+  /// 
+  /// Este método suporta o novo formato semântico com n_params
+  Future<void> createActivityNotification({
+    required String receiverId,
+    required String type,
+    required Map<String, dynamic> params,
+    String? senderId,
+    String? senderName,
+    String? senderPhotoUrl,
+    String? relatedId,
+  });
+  
+  /// Busca notificações relacionadas a uma atividade específica
+  Future<List<DocumentSnapshot<Map<String, dynamic>>>> fetchNotificationsByActivity({
+    required String activityId,
+    int limit = 50,
+  });
+  
+  /// Marca todas as notificações de uma atividade como lidas
+  Future<void> markAllActivityNotificationsAsRead({
+    required String activityId,
+  });
+  
+  /// Deleta todas as notificações relacionadas a uma atividade
+  /// Útil quando uma atividade é deletada permanentemente
+  Future<void> deleteActivityNotifications({
+    required String activityId,
+  });
 }

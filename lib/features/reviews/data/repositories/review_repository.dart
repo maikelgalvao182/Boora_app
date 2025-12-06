@@ -146,7 +146,7 @@ class ReviewRepository {
       comment: comment?.trim().isEmpty == true ? null : comment?.trim(),
       createdAt: now,
       updatedAt: now,
-      reviewerName: userData?['user_fullname'] as String?,
+      reviewerName: userData?['fullname'] as String?,
       reviewerPhotoUrl: userData?['user_photo_link'] as String?,
     );
 

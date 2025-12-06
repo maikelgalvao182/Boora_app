@@ -438,7 +438,7 @@ await SessionManager.instance.clearAll();
 #### Atualizar Usuário Parcialmente
 ```dart
 SessionManager.instance.updateCurrentUserFromMap({
-  'user_fullname': 'Novo Nome',
+  'fullname': 'Novo Nome',
   'user_bio': 'Nova bio',
 });
 ```

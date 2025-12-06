@@ -2,6 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
+import 'package:partiu/features/home/domain/models/activity_model.dart';
+import 'package:partiu/features/notifications/services/activity_notification_service.dart';
+import 'package:partiu/features/notifications/repositories/notifications_repository.dart';
+import 'package:partiu/core/services/geo_index_service.dart';
+import 'package:partiu/features/notifications/services/user_affinity_service.dart';
+import 'package:partiu/features/notifications/services/notification_targeting_service.dart';
+import 'package:partiu/features/notifications/services/notification_orchestrator.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 
 /// Repositório para gerenciar aplicações de usuários em eventos
@@ -9,13 +16,32 @@ class EventApplicationRepository {
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
   final UserRepository _userRepo;
+  late final ActivityNotificationService _notificationService;
 
   EventApplicationRepository({
     FirebaseFirestore? firestore,
     UserRepository? userRepository,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _functions = FirebaseFunctions.instance,
-        _userRepo = userRepository ?? UserRepository(firestore);
+        _userRepo = userRepository ?? UserRepository(firestore) {
+    // Inicializar serviço de notificações com todas as dependências
+    final notificationRepo = NotificationsRepository();
+    final geoService = GeoIndexService(firestore: _firestore);
+    final affinityService = UserAffinityService(firestore: _firestore);
+    final targetingService = NotificationTargetingService(
+      geoService: geoService,
+      affinityService: affinityService,
+      firestore: _firestore,
+    );
+    final orchestrator = NotificationOrchestrator(firestore: _firestore);
+    
+    _notificationService = ActivityNotificationService(
+      notificationRepository: notificationRepo,
+      targetingService: targetingService,
+      orchestrator: orchestrator,
+      firestore: _firestore,
+    );
+  }
 
   /// Cria uma nova aplicação para um evento
   /// 
@@ -49,6 +75,25 @@ class EventApplicationRepository {
           .add(application.toFirestore());
 
       debugPrint('✅ Aplicação criada: ${docRef.id} (status: ${status.value})');
+      
+      // Se foi auto-aprovado, verificar threshold para notificação "heating up"
+      if (status == ApplicationStatus.autoApproved) {
+        // Contar participantes aprovados
+        final approvedCount = await _getApprovedParticipantsCount(eventId);
+        debugPrint('🔥 Contagem de participantes aprovados: $approvedCount');
+        
+        // Disparar notificação se atingiu threshold
+        final eventDoc = await _firestore.collection('events').doc(eventId).get();
+        if (eventDoc.exists) {
+          final activity = ActivityModel.fromFirestore(eventDoc);
+          await _notificationService.notifyActivityHeatingUp(
+            activity: activity,
+            currentCount: approvedCount,
+          );
+          debugPrint('✅ Verificação heating up executada para $approvedCount participantes');
+        }
+      }
+      
       return docRef.id;
     } catch (e) {
       debugPrint('❌ Erro ao criar aplicação: $e');
@@ -92,9 +137,40 @@ class EventApplicationRepository {
     return application != null;
   }
 
+  /// Conta participantes aprovados de um evento
+  Future<int> _getApprovedParticipantsCount(String eventId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .where('status', whereIn: ['approved', 'autoApproved'])
+          .get();
+      
+      return querySnapshot.docs.length;
+    } catch (e) {
+      debugPrint('❌ Erro ao contar participantes: $e');
+      return 0;
+    }
+  }
+
   /// Aprova uma aplicação (apenas para eventos privados, apenas pelo criador)
   Future<void> approveApplication(String applicationId) async {
     try {
+      // Buscar dados da aplicação antes de atualizar
+      final appDoc = await _firestore
+          .collection('EventApplications')
+          .doc(applicationId)
+          .get();
+      
+      if (!appDoc.exists) {
+        throw Exception('Aplicação não encontrada');
+      }
+      
+      final appData = appDoc.data()!;
+      final userId = appData['userId'] as String;
+      final eventId = appData['eventId'] as String;
+      
+      // Atualizar status da aplicação
       await _firestore
           .collection('EventApplications')
           .doc(applicationId)
@@ -104,6 +180,31 @@ class EventApplicationRepository {
       });
 
       debugPrint('✅ Aplicação aprovada: $applicationId');
+      
+      // Buscar dados do evento para disparar notificação
+      final eventDoc = await _firestore.collection('events').doc(eventId).get();
+      if (eventDoc.exists) {
+        final activity = ActivityModel.fromFirestore(eventDoc);
+        
+        // Disparar notificação de aprovação
+        await _notificationService.notifyJoinApproved(
+          activity: activity,
+          approvedUserId: userId,
+        );
+        
+        debugPrint('✅ Notificação de aprovação disparada para: $userId');
+        
+        // Contar participantes aprovados para verificar heating up
+        final approvedCount = await _getApprovedParticipantsCount(eventId);
+        debugPrint('🔥 Contagem de participantes aprovados após aprovação: $approvedCount');
+        
+        // Disparar notificação heating up se atingiu threshold
+        await _notificationService.notifyActivityHeatingUp(
+          activity: activity,
+          currentCount: approvedCount,
+        );
+        debugPrint('✅ Verificação heating up executada para $approvedCount participantes');
+      }
     } catch (e) {
       debugPrint('❌ Erro ao aprovar aplicação: $e');
       rethrow;
@@ -113,6 +214,21 @@ class EventApplicationRepository {
   /// Rejeita uma aplicação (apenas para eventos privados, apenas pelo criador)
   Future<void> rejectApplication(String applicationId) async {
     try {
+      // Buscar dados da aplicação antes de atualizar
+      final appDoc = await _firestore
+          .collection('EventApplications')
+          .doc(applicationId)
+          .get();
+      
+      if (!appDoc.exists) {
+        throw Exception('Aplicação não encontrada');
+      }
+      
+      final appData = appDoc.data()!;
+      final userId = appData['userId'] as String;
+      final eventId = appData['eventId'] as String;
+      
+      // Atualizar status da aplicação
       await _firestore
           .collection('EventApplications')
           .doc(applicationId)
@@ -122,6 +238,20 @@ class EventApplicationRepository {
       });
 
       debugPrint('❌ Aplicação rejeitada: $applicationId');
+      
+      // Buscar dados do evento para disparar notificação
+      final eventDoc = await _firestore.collection('events').doc(eventId).get();
+      if (eventDoc.exists) {
+        final activity = ActivityModel.fromFirestore(eventDoc);
+        
+        // Disparar notificação de rejeição
+        await _notificationService.notifyJoinRejected(
+          activity: activity,
+          rejectedUserId: userId,
+        );
+        
+        debugPrint('❌ Notificação de rejeição disparada para: $userId');
+      }
     } catch (e) {
       debugPrint('❌ Erro ao rejeitar aplicação: $e');
       rethrow;

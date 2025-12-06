@@ -2,7 +2,7 @@
 /// Path usado no app:
 /// - Connections/{userId}/Conversations/{withUserId}
 ///   - user_id: string (userId do outro usuário ou event_{eventId})
-///   - user_fullname: string
+///   - fullname: string
 ///   - user_profile_photo: string
 ///   - message_type: string
 ///   - last_message: string
