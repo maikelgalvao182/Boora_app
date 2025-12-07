@@ -8,6 +8,7 @@ import 'package:partiu/features/reviews/data/repositories/review_repository.dart
 import 'package:partiu/features/reviews/presentation/widgets/review_card.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
+import 'package:partiu/shared/widgets/action_card_shimmer.dart';
 
 /// Tela de ações (Tab 1)
 /// 
@@ -62,8 +63,11 @@ class _ActionsTabState extends State<ActionsTab> {
                       
                       if (isLoading) {
                         debugPrint('   ⏳ Aguardando dados iniciais...');
-                        return const Center(
-                          child: CircularProgressIndicator(),
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: 3,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (_, __) => const ActionCardShimmer(),
                         );
                       }
 

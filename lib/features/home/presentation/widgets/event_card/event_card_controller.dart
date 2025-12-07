@@ -44,6 +44,12 @@ class EventCardController extends ChangeNotifier {
 
   // Participants
   List<Map<String, dynamic>> _approvedParticipants = [];
+  
+  // Age restriction
+  int? _minAge;
+  int? _maxAge;
+  int? _userAge;
+  bool _isAgeRestricted = false;
 
   EventCardController({
     required this.eventId,
@@ -145,6 +151,11 @@ class EventCardController extends ChangeNotifier {
     if (_preloadedEvent != null && !_preloadedEvent!.isAvailable) {
       return 'out_of_your_area';
     }
+    
+    // ✅ RETORNAR mensagem de restrição de idade
+    if (_isAgeRestricted) {
+      return 'age_restricted'; // Ou retornar direto: 'Indisponível para sua idade'
+    }
 
     return privacyType == 'open' ? 'participate' : 'request_participation';
   }
@@ -162,8 +173,21 @@ class EventCardController extends ChangeNotifier {
     if (_preloadedEvent != null && !_preloadedEvent!.isAvailable) {
       return false;
     }
+    
+    // ✅ BLOQUEAR se idade não está na faixa permitida
+    if (_isAgeRestricted) {
+      return false;
+    }
 
     return true;
+  }
+  
+  bool get isAgeRestricted => _isAgeRestricted;
+  String? get ageRestrictionMessage {
+    if (_isAgeRestricted && _minAge != null && _maxAge != null) {
+      return 'Indisponível para sua idade';
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -196,7 +220,7 @@ class EventCardController extends ChangeNotifier {
       notifyListeners();
     });
 
-    // LISTENER DO EVENTO
+    // LISTENER DO EVENTO (para detectar mudanças em minAge/maxAge)
     _eventSub = FirebaseFirestore.instance
         .collection('events')
         .doc(eventId)
@@ -212,6 +236,22 @@ class EventCardController extends ChangeNotifier {
       final participantsData = data['participants'] as Map<String, dynamic>?;
       if (participantsData != null) {
         _privacyType = participantsData['privacyType'] ?? _privacyType;
+        
+        // ✅ ATUALIZAR restrições de idade e revalidar
+        final newMinAge = participantsData['minAge'] as int?;
+        final newMaxAge = participantsData['maxAge'] as int?;
+        
+        if (newMinAge != _minAge || newMaxAge != _maxAge) {
+          _minAge = newMinAge;
+          _maxAge = newMaxAge;
+          // Resetar validação para forçar nova verificação
+          _userAge = null;
+          _isAgeRestricted = false;
+          // Revalidar idade assincronamente
+          if (uid != null && !isCreator) {
+            _validateUserAge(uid);
+          }
+        }
       }
 
       _emoji = data['emoji'] ?? _emoji;
@@ -285,6 +325,13 @@ class EventCardController extends ChangeNotifier {
     _activityText = eventData['activityText'];
     _scheduleDate = eventData['scheduleDate'];
     _privacyType = eventData['privacyType'];
+    
+    // ✅ CARREGAR restrições de idade
+    final participants = eventData['participants'] as Map<String, dynamic>?;
+    if (participants != null) {
+      _minAge = participants['minAge'] as int?;
+      _maxAge = participants['maxAge'] as int?;
+    }
   }
 
   Future<void> _loadUserApplication() async {
@@ -311,6 +358,15 @@ class EventCardController extends ChangeNotifier {
 
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
+    
+    // ✅ VALIDAR idade antes de aplicar
+    await _validateUserAge(uid);
+    
+    if (_isAgeRestricted) {
+      _error = ageRestrictionMessage;
+      notifyListeners();
+      return;
+    }
 
     _isApplying = true;
     notifyListeners();
@@ -324,6 +380,56 @@ class EventCardController extends ChangeNotifier {
     } finally {
       _isApplying = false;
       notifyListeners();
+    }
+  }
+  
+  /// Valida se o usuário tem idade permitida para o evento
+  Future<void> _validateUserAge(String userId) async {
+    // Se já validou ou é criador, não precisa validar novamente
+    if (_userAge != null || isCreator) return;
+    
+    // Se não há restrições de idade definidas, permitir
+    if (_minAge == null || _maxAge == null) {
+      _isAgeRestricted = false;
+      return;
+    }
+    
+    try {
+      // Buscar idade do usuário na coleção users
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (!userDoc.exists) {
+        _isAgeRestricted = true;
+        return;
+      }
+      
+      final userData = userDoc.data();
+      if (userData == null) {
+        _isAgeRestricted = true;
+        return;
+      }
+      
+      // ✅ Obter idade como number (int) da raiz do documento
+      final age = userData['age'];
+      
+      if (age == null) {
+        _isAgeRestricted = true;
+        return;
+      }
+      
+      // Converter para int se vier como num
+      _userAge = age is int ? age : (age as num).toInt();
+      
+      // ✅ VALIDAR se está na faixa permitida
+      _isAgeRestricted = _userAge! < _minAge! || _userAge! > _maxAge!;
+      
+      debugPrint('🔒 [EventCard] Validação de idade: userAge=$_userAge, range=$_minAge-$_maxAge, restricted=$_isAgeRestricted');
+    } catch (e) {
+      debugPrint('❌ [EventCard] Erro ao validar idade: $e');
+      _isAgeRestricted = true;
     }
   }
 

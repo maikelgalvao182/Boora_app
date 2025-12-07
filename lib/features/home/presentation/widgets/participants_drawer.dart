@@ -9,7 +9,6 @@ import 'package:partiu/features/home/create_flow/activity_repository.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/participants_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
-import 'package:partiu/features/home/presentation/widgets/schedule/people_picker.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -74,7 +73,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
           minAge: _controller.minAge.round(),
           maxAge: _controller.maxAge.round(),
           privacyType: _controller.selectedPrivacyType!,
-          maxParticipants: _controller.maxParticipants,
+          maxParticipants: null,
         );
 
         // Verificar se o draft está completo
@@ -235,26 +234,6 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                   onTypeSelected: (type) {
                     _controller.setPrivacyType(type);
                   },
-                ),
-              ),
-
-              // People Picker (apenas quando Aberto está selecionado)
-              AnimatedExpandable(
-                isExpanded: _controller.selectedPrivacyType == PrivacyType.open,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: PeoplePicker(
-                        isExpanded: _controller.isPeoplePickerExpanded,
-                        selectedCount: _controller.maxParticipants,
-                        onToggle: _controller.togglePeoplePickerExpanded,
-                        onCountChanged: _controller.setMaxParticipants,
-                      ),
-                    ),
-                  ],
                 ),
               ),
 

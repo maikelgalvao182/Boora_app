@@ -34,6 +34,10 @@ match /EventApplications/{applicationId} {
   /// - Usuário autenticado
   /// - userId deve ser o próprio usuário
   /// - Status deve ser "pending" ou "autoApproved" baseado no privacyType
+  /// 
+  /// ⚠️ NOTA: Proteção contra duplicatas é feita no app (event_application_repository.dart)
+  /// pois Firestore Rules não permite queries para verificar aplicações existentes.
+  /// A validação acontece antes de chamar .add() no repositório.
   allow create: if isSignedIn() && 
     request.resource.data.userId == request.auth.uid &&
     request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&

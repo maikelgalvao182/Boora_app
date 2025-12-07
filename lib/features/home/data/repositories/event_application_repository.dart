@@ -50,11 +50,26 @@ class EventApplicationRepository {
   /// O status é determinado automaticamente baseado no privacyType do evento:
   /// - "open" → autoApproved
   /// - "private" → pending
+  /// 
+  /// ⚠️ Se usuário já tiver aplicação, lança exceção
   Future<String> createApplication({
     required String eventId,
     required String userId,
     required String eventPrivacyType,
   }) async {
+    // ✅ VERIFICAR se já existe aplicação deste usuário para este evento
+    final existingQuery = await _firestore
+        .collection('EventApplications')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    
+    if (existingQuery.docs.isNotEmpty) {
+      debugPrint('⚠️ [EventApplicationRepo] Usuário já aplicou para este evento');
+      throw Exception('Você já aplicou para este evento');
+    }
+    
     // Determinar status baseado no tipo de privacidade
     final status = eventPrivacyType == 'open' 
         ? ApplicationStatus.autoApproved 

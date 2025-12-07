@@ -67,7 +67,7 @@ class ActivityRepository {
         'maxAge': draft.maxAge!,
         'privacyType': _privacyTypeToString(draft.privacyType!),
         'currentCount': 1, // Criador já está participando
-        'maxCount': draft.maxParticipants ?? 100, // 0 = Aberto (100 padrão), 1-20 = específico
+        'maxCount': 100, // Sempre ilimitado
         'participantIds': [userId], // Criador é o primeiro participante
         'pendingApprovalIds': [], // Vazio inicialmente
       },

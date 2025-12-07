@@ -452,6 +452,7 @@
   "participate": "Participate",
   "request_participation": "Request participation",
   "out_of_your_area": "Out of your area",
+  "age_restricted": "Unavailable for your age",
   "no_data_available": "No data available",
   "participant_singular": "participant",
   "participant_plural": "participants",

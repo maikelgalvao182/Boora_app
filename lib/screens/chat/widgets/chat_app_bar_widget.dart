@@ -8,6 +8,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/conversations/state/optimistic_removal_bus.dart';
@@ -20,6 +21,7 @@ import 'package:partiu/screens/chat/services/event_deletion_service.dart';
 import 'package:partiu/screens/chat/widgets/chat_avatar_widget.dart';
 import 'package:partiu/screens/chat/widgets/event_info_row.dart';
 import 'package:partiu/screens/chat/widgets/event_name_text.dart';
+import 'package:partiu/screens/chat/widgets/user_location_time_widget.dart';
 import 'package:partiu/screens/chat/widgets/user_presence_status_widget.dart';
 import 'package:partiu/shared/widgets/glimpse_action_menu_button.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
@@ -275,6 +277,12 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                             user: user,
                             chatService: chatService,
                             controller: controller,
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 2),
+                          UserLocationTimeWidget(
+                            user: user,
+                            chatService: chatService,
                           ),
                         ],
                       ],

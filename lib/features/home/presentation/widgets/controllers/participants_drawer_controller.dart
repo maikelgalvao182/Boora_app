@@ -7,14 +7,10 @@ class ParticipantsDrawerController extends ChangeNotifier {
   double _minAge = MIN_AGE;
   double _maxAge = DEFAULT_MAX_AGE_PARTICIPANTS;
   PrivacyType? _selectedPrivacyType;
-  bool _isPeoplePickerExpanded = false;
-  int _maxParticipants = 0; // 0 = Aberto, 1-20 = específico
 
   double get minAge => _minAge;
   double get maxAge => _maxAge;
   PrivacyType? get selectedPrivacyType => _selectedPrivacyType;
-  bool get isPeoplePickerExpanded => _isPeoplePickerExpanded;
-  int get maxParticipants => _maxParticipants;
   bool get canContinue => _selectedPrivacyType != null;
 
   void setAgeRange(double minAge, double maxAge) {
@@ -25,23 +21,6 @@ class ParticipantsDrawerController extends ChangeNotifier {
 
   void setPrivacyType(PrivacyType? type) {
     _selectedPrivacyType = type;
-    // Auto-expandir people picker quando Aberto for selecionado
-    if (type == PrivacyType.open) {
-      _isPeoplePickerExpanded = true;
-    } else {
-      _isPeoplePickerExpanded = false;
-      _maxParticipants = 0; // Resetar para Aberto
-    }
-    notifyListeners();
-  }
-
-  void togglePeoplePickerExpanded() {
-    _isPeoplePickerExpanded = !_isPeoplePickerExpanded;
-    notifyListeners();
-  }
-
-  void setMaxParticipants(int count) {
-    _maxParticipants = count;
     notifyListeners();
   }
 
@@ -51,7 +30,6 @@ class ParticipantsDrawerController extends ChangeNotifier {
       'minAge': _minAge.round(),
       'maxAge': _maxAge.round(),
       'privacyType': _selectedPrivacyType,
-      'maxParticipants': _maxParticipants,
     };
   }
 
@@ -59,8 +37,6 @@ class ParticipantsDrawerController extends ChangeNotifier {
     _minAge = MIN_AGE;
     _maxAge = DEFAULT_MAX_AGE_PARTICIPANTS;
     _selectedPrivacyType = null;
-    _isPeoplePickerExpanded = false;
-    _maxParticipants = 0;
     notifyListeners();
   }
 }
