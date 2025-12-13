@@ -160,6 +160,9 @@ class LocationQueryService {
       filteredUsers = _filterByInterests(filteredUsers, activeFilters.interests);
       debugPrint('📊 Após filtro de interesses: ${filteredUsers.length} usuários');
 
+      filteredUsers = _filterBySexualOrientation(filteredUsers, activeFilters.sexualOrientation);
+      debugPrint('📊 Após filtro de orientação sexual: ${filteredUsers.length} usuários');
+
       // 7. Filtrar com isolate (distância exata e cálculos pesados)
       final finalUsers = await _filterUsersByDistanceIsolate(
         users: filteredUsers,
@@ -408,6 +411,39 @@ class LocationQueryService {
     return filtered;
   }
 
+  List<UserLocation> _filterBySexualOrientation(List<UserLocation> users, String? orientation) {
+    if (orientation == null || orientation == 'all') {
+      debugPrint('🔍 _filterBySexualOrientation: Filtro desabilitado (orientation=$orientation)');
+      return users;
+    }
+    
+    debugPrint('🔍 _filterBySexualOrientation: Filtrando ${users.length} usuários por orientation=$orientation');
+    
+    final filtered = users.where((u) {
+      final userOrientation = u.userData['sexualOrientation'] as String?;
+      
+      if (userOrientation == null) {
+        debugPrint('   ❌ User ${u.userId}: sexualOrientation=null (campo ausente)');
+        return false;
+      }
+      
+      // Comparação exata (case sensitive ou insensitive dependendo da necessidade)
+      // Assumindo que os valores salvos são os mesmos das constantes
+      final matches = userOrientation == orientation;
+      
+      if (!matches) {
+        debugPrint('   ❌ User ${u.userId}: orientation=$userOrientation NÃO match com filtro $orientation');
+      } else {
+        debugPrint('   ✅ User ${u.userId}: orientation=$userOrientation MATCH!');
+      }
+      
+      return matches;
+    }).toList();
+    
+    debugPrint('🔍 _filterBySexualOrientation: ${filtered.length} usuários passaram no filtro');
+    return filtered;
+  }
+
   List<UserLocation> _filterByAge(List<UserLocation> users, int? min, int? max) {
     if (min == null && max == null) {
       debugPrint('🔍 _filterByAge: Filtro desabilitado (min=null, max=null)');
@@ -597,6 +633,7 @@ class UsersCache {
 /// Opções de filtro para usuários
 class UserFilterOptions {
   final String? gender;
+  final String? sexualOrientation;
   final int? minAge;
   final int? maxAge;
   final bool? isVerified;
@@ -605,6 +642,7 @@ class UserFilterOptions {
 
   UserFilterOptions({
     this.gender,
+    this.sexualOrientation,
     this.minAge,
     this.maxAge,
     this.isVerified,

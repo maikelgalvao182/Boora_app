@@ -7,6 +7,7 @@ import 'package:partiu/core/constants/constants.dart';
 /// Agora SEM sobrescrever radiusKm, SEM race condition e SEM perder dados.
 class AdvancedFiltersController extends ChangeNotifier {
   String? _gender = 'all';
+  String? _sexualOrientation = 'all';
   int _minAge = MIN_AGE.toInt();
   int _maxAge = MAX_AGE.toInt();
   bool _isVerified = false;
@@ -16,6 +17,7 @@ class AdvancedFiltersController extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   String? get gender => _gender;
+  String? get sexualOrientation => _sexualOrientation;
   int get minAge => _minAge;
   int get maxAge => _maxAge;
   bool get isVerified => _isVerified;
@@ -41,6 +43,7 @@ class AdvancedFiltersController extends ChangeNotifier {
 
       if (data != null) {
         _gender = data['gender'] as String? ?? 'all';
+        _sexualOrientation = data['sexualOrientation'] as String? ?? 'all';
         _minAge = data['minAge'] as int? ?? MIN_AGE.toInt();
         _maxAge = data['maxAge'] as int? ?? MAX_AGE.toInt();
         _isVerified = data['isVerified'] as bool? ?? false;
@@ -62,6 +65,12 @@ class AdvancedFiltersController extends ChangeNotifier {
   set gender(String? value) {
     debugPrint('⚠️ AdvancedFiltersController.gender SETTER chamado: $_gender -> $value');
     _gender = value;
+    notifyListeners();
+  }
+
+  set sexualOrientation(String? value) {
+    debugPrint('⚠️ AdvancedFiltersController.sexualOrientation SETTER chamado: $_sexualOrientation -> $value');
+    _sexualOrientation = value;
     notifyListeners();
   }
 
@@ -98,6 +107,7 @@ class AdvancedFiltersController extends ChangeNotifier {
       debugPrint('💾 AdvancedFiltersController.saveToFirestore INICIADO');
       debugPrint('   - userId: $userId');
       debugPrint('   - gender: $_gender (${_gender.runtimeType})');
+      debugPrint('   - sexualOrientation: $_sexualOrientation (${_sexualOrientation.runtimeType})');
       debugPrint('   - minAge: $_minAge (${_minAge.runtimeType})');
       debugPrint('   - maxAge: $_maxAge (${_maxAge.runtimeType})');
       debugPrint('   - isVerified: $_isVerified (${_isVerified.runtimeType})');
@@ -111,6 +121,7 @@ class AdvancedFiltersController extends ChangeNotifier {
       
       final updateData = {
         'advancedSettings.gender': _gender,
+        'advancedSettings.sexualOrientation': _sexualOrientation,
         'advancedSettings.minAge': _minAge,
         'advancedSettings.maxAge': _maxAge,
         'advancedSettings.isVerified': _isVerified,
@@ -137,6 +148,7 @@ class AdvancedFiltersController extends ChangeNotifier {
 
   void reset() {
     _gender = 'all';
+    _sexualOrientation = 'all';
     _minAge = MIN_AGE.toInt();
     _maxAge = MAX_AGE.toInt();
     _isVerified = false;
@@ -207,6 +219,7 @@ class AdvancedFiltersController extends ChangeNotifier {
 
       // Resetar valores locais
       _gender = 'all';
+      _sexualOrientation = 'all';
       _minAge = MIN_AGE.toInt();
       _maxAge = MAX_AGE.toInt();
       _isVerified = false;
@@ -219,6 +232,7 @@ class AdvancedFiltersController extends ChangeNotifier {
           .doc(userId)
           .update({
         'advancedSettings.gender': FieldValue.delete(),
+        'advancedSettings.sexualOrientation': FieldValue.delete(),
         'advancedSettings.minAge': FieldValue.delete(),
         'advancedSettings.maxAge': FieldValue.delete(),
         'advancedSettings.isVerified': FieldValue.delete(),

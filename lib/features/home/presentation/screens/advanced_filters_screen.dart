@@ -10,6 +10,7 @@ import 'package:partiu/shared/widgets/filters/age_range_filter_widget.dart';
 import 'package:partiu/shared/widgets/filters/gender_filter_widget.dart';
 import 'package:partiu/shared/widgets/filters/interests_filter_widget.dart';
 import 'package:partiu/shared/widgets/filters/verified_filter_widget.dart';
+import 'package:partiu/shared/widgets/filters/sexual_orientation_filter_widget.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/services/location/radius_controller.dart';
@@ -40,6 +41,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   
   // Filtros (agora sincronizados com o controller)
   String? _selectedGender;
+  String? _selectedSexualOrientation;
   RangeValues _ageRange = const RangeValues(MIN_AGE, MAX_AGE);
   bool _isVerified = false;
   Set<String> _selectedInterests = {};
@@ -62,6 +64,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
       if (mounted) {
         setState(() {
           _selectedGender = _filtersController.gender;
+          _selectedSexualOrientation = _filtersController.sexualOrientation;
           _ageRange = RangeValues(
             _filtersController.minAge.toDouble(),
             _filtersController.maxAge.toDouble(),
@@ -184,6 +187,12 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
             onChanged: (value) => setState(() => _selectedGender = value),
           ),
           const SizedBox(height: 20),
+
+          SexualOrientationFilterWidget(
+            selectedOrientation: _selectedSexualOrientation,
+            onChanged: (value) => setState(() => _selectedSexualOrientation = value),
+          ),
+          const SizedBox(height: 20),
           
           InterestsFilterWidget(
             selectedInterests: _selectedInterests,
@@ -262,6 +271,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     // Resetar UI
     setState(() {
       _selectedGender = 'all';
+      _selectedSexualOrientation = 'all';
       _ageRange = const RangeValues(MIN_AGE, MAX_AGE);
       _isVerified = false;
       _selectedInterests = {};
@@ -303,6 +313,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     
     // ✅ SEMPRE atualizar o controller com o valor selecionado (incluindo 'all')
     _filtersController.gender = _selectedGender ?? 'all';
+    _filtersController.sexualOrientation = _selectedSexualOrientation ?? 'all';
     _filtersController.setAgeRange(
       _ageRange.start.round(),
       _ageRange.end.round(),
@@ -321,6 +332,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     // 4. Criar objeto de filtros unificado (SEMPRE usar valor selecionado, incluindo 'all')
     final filters = UserFilterOptions(
       gender: _selectedGender ?? 'all', // ✅ Garantir que sempre passa o valor correto
+      sexualOrientation: _selectedSexualOrientation ?? 'all',
       minAge: _ageRange.start.round(),
       maxAge: _ageRange.end.round(),
       isVerified: _isVerified,
