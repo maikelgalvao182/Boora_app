@@ -5,6 +5,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/notifications/models/activity_notification_types.dart';
+import 'package:partiu/features/subscription/services/vip_access_service.dart';
 
 /// Helper para navegação baseada em notificações
 /// 
@@ -48,7 +49,14 @@ class AppNotifications {
       // Notificação de visitas ao perfil
       case 'profile_views_aggregated':
         if (context.mounted) {
-          context.push(AppRoutes.profileVisits);
+          // 🔒 Check VIP antes de navegar (UX apenas - Rules validam no Firestore)
+          final hasAccess = await VipAccessService.checkAccessOrShowDialog(
+            context,
+            source: 'profile_views_notification',
+          );
+          if (hasAccess && context.mounted) {
+            context.push(AppRoutes.profileVisits);
+          }
         }
         break;
       

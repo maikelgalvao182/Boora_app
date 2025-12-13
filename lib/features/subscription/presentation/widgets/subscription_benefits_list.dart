@@ -1,3 +1,5 @@
+import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -22,48 +24,39 @@ class SubscriptionBenefitsList extends StatelessWidget {
 
     return ColoredBox(
       color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: benefits
-            .map((benefit) => _BenefitItem(benefit: benefit))
-            .toList(),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: benefits
+              .map((benefit) => _BenefitItem(benefit: benefit))
+              .toList(),
+        ),
       ),
     );
   }
 
   List<_Benefit> _getBenefits(AppLocalizations i18n) {
     return [
-      // Passport
+      // Desbloqueie a lista completa de pessoas
       _Benefit(
-        icon: IconsaxPlusLinear.airplane,
-        title: i18n.translate('passport'),
-        subtitle: i18n.translate(
-            'travel_to_any_country_or_city_and_match_with_people_there'),
+        icon: IconsaxPlusLinear.people,
+        title: 'Desbloqueie a lista completa de pessoas',
+        subtitle: 'Veja quem está por perto e também quem estará nos seus próximos destinos.',
       ),
 
-      // Discover more people
+      // Mais visibilidade no app
       _Benefit(
-        icon: IconsaxPlusLinear.location,
-        title: i18n.translate('discover_more_people'),
-        subtitle: "${i18n.translate('get')} "
-            '100 km ' // Valor fixo, pode ser substituído por config
-            "${i18n.translate('radius_away')}",
+        icon: IconsaxPlusLinear.chart,
+        title: 'Mais visibilidade no app',
+        subtitle: 'Seu perfil aparece com prioridade no topo da lista de pessoas próximas.',
       ),
 
-      // See who visited you
+      // Veja quem visitou seu perfil
       _Benefit(
         icon: IconsaxPlusLinear.eye,
-        title: i18n.translate('see_people_who_visited_your_profile'),
-        subtitle: i18n.translate(
-            'unravel_the_mystery_and_find_out_who_visited_your_profile'),
-      ),
-
-      // Verified account badge
-      _Benefit(
-        icon: IconsaxPlusLinear.verify,
-        title: i18n.translate('verified_account_badge'),
-        subtitle: i18n.translate(
-            'get_verified_and_increase_your_credibility_on_the_platform'),
+        title: 'Veja quem visitou seu perfil',
+        subtitle: 'Descubra quem se interessou por você e acessou seu perfil recentemente.',
       ),
     ];
   }
@@ -95,7 +88,7 @@ class _BenefitItem extends StatelessWidget {
         ListTile(
           leading: CircleAvatar(
             radius: 24,
-            backgroundColor: Colors.black,
+            backgroundColor: GlimpseColors.primary,
             child: Icon(
               benefit.icon,
               color: Colors.white,
@@ -104,6 +97,7 @@ class _BenefitItem extends StatelessWidget {
           title: Text(
             benefit.title,
             style: const TextStyle(
+              fontFamily: FONT_PLUS_JAKARTA_SANS,
               fontSize: 14,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.2,

@@ -1,3 +1,4 @@
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 
@@ -18,9 +19,8 @@ import 'package:flutter/material.dart';
 class SubscriptionHeader extends StatelessWidget {
 
   const SubscriptionHeader({
-    required this.onClose, super.key,
+    super.key,
   });
-  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -28,76 +28,56 @@ class SubscriptionHeader extends StatelessWidget {
 
     return Stack(
       children: [
-        // Background image with overlay
+        // Container sem imagem de fundo
         Container(
-          height: 220,
+          height: 190,
           width: double.infinity,
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/images/header_dialog.jpg'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: ColoredBox(
-            color: Colors.black.withValues(alpha: 0.6),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Título principal
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    i18n.translate('wedconnex_pro'),
-                    style: const TextStyle(
-                      fontSize: 26,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-                
-                // Subtítulo
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    i18n.translate('take_advantage_of_the_benefits_of_being_a_pro'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        // Botão de fechar
-        Positioned(
-          right: 8,
-          top: 8,
-          child: GestureDetector(
-            onTap: onClose,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.close,
-                  color: Colors.white,
-                  size: 22,
+          color: Colors.white,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 80,
+                  width: 80,
                 ),
               ),
-            ),
+                            
+              // Título principal
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  i18n.translate('wedconnex_pro'),
+                  style: const TextStyle(
+                    fontFamily: FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 20,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              
+              const SizedBox(height: 0),
+              
+              // Subtítulo
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  i18n.translate('take_advantage_of_the_benefits_of_being_a_pro'),
+                  style: const TextStyle(
+                    fontFamily: FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ),
         ),
       ],

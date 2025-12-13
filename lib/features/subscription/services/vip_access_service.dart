@@ -1,3 +1,4 @@
+import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/dialogs/vip_dialog.dart';
 import 'package:partiu/features/subscription/services/simple_revenue_cat_service.dart';
 import 'package:partiu/features/subscription/services/subscription_monitoring_service.dart';
@@ -92,47 +93,45 @@ class VipAccessService {
   }
 
   /// Verifica o acesso ou mostra o diálogo VIP
-  /// IMPORTANTE: Força atualização do CustomerInfo antes de verificar (baseado no ViewTex)
+  /// IMPORTANTE: Verifica Firestore (User.hasActiveVip) E RevenueCat
   static Future<bool> checkAccessOrShowDialog(BuildContext context, {String? source}) async {
     _log('→ checkAccessOrShowDialog source=${source ?? 'unspecified'}');
     
     try {
-      // [OK] CRÍTICO: Força atualização do CustomerInfo antes de verificar
-      await SimpleRevenueCatService.awaitReady();
-      await SubscriptionMonitoringService.refresh();
+      // 1. Verifica Firestore (Fonte da Verdade)
+      final user = AppState.currentUser.value;
+      final firestoreAccess = user?.hasActiveVip ?? false;
       
-      // Verifica status atual após refresh
-      final hasAccess = SubscriptionMonitoringService.hasVipAccess;
-      
-      if (!hasAccess) {
-        _log('No access, showing VIP dialog');
-        if (!context.mounted) return false;
-        final result = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const VipDialog(),
-        );
-        
-        // Se o dialog retornou true, significa que o usuário completou a compra
-        final accessGranted = result ?? false;
-        _log('Dialog closed with result: $result, accessGranted: $accessGranted');
-        
-        return accessGranted;
+      if (firestoreAccess) {
+        _log('✅ Acesso VIP confirmado pelo Firestore');
+        return true;
       }
+
+      // 2. Se não tem no Firestore, BLOQUEIA.
+      // Motivo: Se liberarmos baseado apenas no RevenueCat (client-side),
+      // o Firestore (server-side) vai bloquear a leitura dos dados e dar erro de permissão.
+      // É melhor mostrar o dialog do que uma tela de erro.
       
-      _log('Has access, no dialog needed');
-      return true;
+      // 3. Sem acesso em lugar nenhum -> Mostra Dialog
+      _log('❌ Sem acesso VIP (Firestore), mostrando dialog');
+      if (!context.mounted) return false;
+      
+      final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => SizedBox(
+          height: MediaQuery.of(context).size.height * 0.90,
+          child: const VipBottomSheet(),
+        ),
+      );
+      
+      return result ?? false;
       
     } catch (e) {
       _log('Erro em checkAccessOrShowDialog: $e');
-      // Em caso de erro, mostra o dialog para segurança
       if (!context.mounted) return false;
-      final result = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const VipDialog(),
-      );
-      return result ?? false;
+      return false;
     }
   }
 }

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -20,9 +22,34 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.13564294004-3edvbujvrqv197n6ttpbus2gibprqsr6</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>13564294004-3edvbujvrqv197n6ttpbus2gibprqsr6.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>988152637100-ml129liekdajoaa85dtpsvj4opt3uudt.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Precisamos acessar sua câmera para verificação facial de segurança.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Precisamos da sua localização mesmo em segundo plano para melhorar sua experiência.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Precisamos da sua localização para encontrar atividades perto de você.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Precisamos acessar seu microfone para verificação de segurança.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -41,32 +68,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.13564294004-g1564itcvv0iho4s1hkki11vdkjg87pc</string>
-			</array>
-		</dict>
-	</array>
-	<key>GIDClientID</key>
-	<string>13564294004-g1564itcvv0iho4s1hkki11vdkjg87pc.apps.googleusercontent.com</string>
-	<key>GIDServerClientID</key>
-	<string>988152637100-ml129liekdajoaa85dtpsvj4opt3uudt.apps.googleusercontent.com</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Precisamos da sua localização para encontrar atividades perto de você.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Precisamos da sua localização mesmo em segundo plano para melhorar sua experiência.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Precisamos acessar sua câmera para verificação facial de segurança.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Precisamos acessar seu microfone para verificação de segurança.</string>
 </dict>
 </plist>

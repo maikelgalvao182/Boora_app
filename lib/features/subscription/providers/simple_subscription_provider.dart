@@ -32,6 +32,15 @@ class SimpleSubscriptionProvider extends ChangeNotifier {
     try {
       // Carrega oferta apenas 1x
       _offering = await SimpleRevenueCatService.getOffering();
+      
+      debugPrint('📦 SimpleSubscriptionProvider: Offering carregada');
+      debugPrint('  - Offering: ${_offering?.identifier}');
+      debugPrint('  - Packages: ${_offering?.availablePackages.length ?? 0}');
+      if (_offering != null) {
+        for (final pkg in _offering!.availablePackages) {
+          debugPrint('    * ${pkg.identifier} (${pkg.packageType})');
+        }
+      }
 
       // Escuta mudanças globais da assinatura (do MonitoringService)
       SubscriptionMonitoringService.addVipListener((_) {
@@ -40,7 +49,14 @@ class SimpleSubscriptionProvider extends ChangeNotifier {
 
       _isInitialized = true;
     } catch (e) {
-      _error = e.toString();
+      debugPrint('❌ Erro ao inicializar provider: $e');
+      
+      // Erro de configuração específico do RevenueCat
+      if (e.toString().contains('CONFIGURATION_ERROR')) {
+        _error = 'Erro de configuração: Produtos não encontrados no App Store Connect.\n\nPara desenvolvimento iOS, configure um StoreKit Configuration File.\n\nMais info: https://rev.cat/why-are-offerings-empty';
+      } else {
+        _error = e.toString();
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

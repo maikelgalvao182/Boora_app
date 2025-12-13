@@ -1,6 +1,7 @@
 // Imports dos módulos criados
+import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/subscription/domain/subscription_plan.dart';
-import 'package:partiu/features/subscription/presentation/animations/dialog_slide_animation.dart';
 import 'package:partiu/features/subscription/presentation/controllers/subscription_purchase_controller.dart';
 import 'package:partiu/features/subscription/presentation/widgets/subscription_active_badge.dart';
 import 'package:partiu/features/subscription/presentation/widgets/subscription_benefits_list.dart';
@@ -23,26 +24,32 @@ import 'package:provider/provider.dart';
 /// Responsabilidades:
 /// - Orquestrar widgets modulares
 /// - Gerenciar estado do dialog
-/// - Coordenar animações
 /// - Responder a mudanças de assinatura
-class VipDialog extends StatefulWidget {
-  const VipDialog({super.key});
+class VipBottomSheet extends StatefulWidget {
+  const VipBottomSheet({super.key});
 
   @override
-  State<VipDialog> createState() => _VipDialogState();
+  State<VipBottomSheet> createState() => _VipBottomSheetState();
 }
 
-class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMixin {
-  late final DialogSlideAnimation _animation;
+class _VipBottomSheetState extends State<VipBottomSheet> {
   late final SubscriptionPurchaseController _controller;
   bool _isInitialized = false;
   
   // Listener de acesso VIP (via SubscriptionMonitoringService)
   void _onVipAccessChanged(bool hasAccess) {
     if (!mounted) return;
-    if (hasAccess && !_animation.isClosing) {
-      // Fecha o diálogo assim que acesso VIP for concedido
-      _animation.close(context, returnSuccess: true);
+    // Não fecha mais automaticamente baseado apenas no RevenueCat
+    // Aguarda sincronização com Firestore (_onUserChanged)
+  }
+
+  // Listener para mudanças no usuário (Firestore)
+  void _onUserChanged() {
+    if (!mounted) return;
+    final user = AppState.currentUser.value;
+    // Só fecha se o Firestore confirmar o VIP (vipExpiresAt válido)
+    if (user != null && user.hasActiveVip) {
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -50,34 +57,32 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
   void initState() {
     super.initState();
 
-    // Inicializa animação
-    _animation = DialogSlideAnimation(vsync: this);
-    _animation.enter();
+    // Monitora mudanças no usuário (Firestore)
+    AppState.currentUser.addListener(_onUserChanged);
 
-    // Aguarda build completar para acessar context
+    // Inicializa controller (seguro usar read em initState)
+    final simpleProvider = context.read<SimpleSubscriptionProvider>();
+    _controller = SubscriptionPurchaseController(
+      provider: simpleProvider,
+      onSuccess: _handleSuccess,
+      onError: _handleError,
+    );
+
+    // Aguarda build completar para iniciar carregamento
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Observa mudanças de acesso VIP globalmente (sem Consumer)
       VipAccessService.addAccessListener(_onVipAccessChanged);
-
-      final simpleProvider = context.read<SimpleSubscriptionProvider>();
-
-      // Inicializa controller
-      _controller = SubscriptionPurchaseController(
-        provider: simpleProvider,
-        onSuccess: _handleSuccess,
-        onError: _handleError,
-      );
 
       // Garante que provider está inicializado
       if (!simpleProvider.isInitialized) {
         await simpleProvider.init();
       }
 
-      // Verifica se já tem acesso e fecha imediatamente
-      if (mounted && SimpleRevenueCatService.lastCustomerInfo != null) {
-        final hasAccess = SimpleRevenueCatService.hasAccess(SimpleRevenueCatService.lastCustomerInfo!);
-        if (hasAccess) {
-          _animation.close(context, returnSuccess: true);
+      // Verifica se já tem acesso via Firestore (Fonte da Verdade)
+      if (mounted) {
+        final user = AppState.currentUser.value;
+        if (user != null && user.hasActiveVip) {
+          Navigator.of(context).pop(true);
           return;
         }
       }
@@ -92,7 +97,7 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
-    _animation.dispose();
+    AppState.currentUser.removeListener(_onUserChanged);
     _controller.dispose();
   // Remove listener de acesso VIP
   VipAccessService.removeAccessListener(_onVipAccessChanged);
@@ -108,7 +113,11 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
       message: tm.vipSubscriptionRestored,
     );
 
-    _animation.close(context, returnSuccess: true);
+    // Não fecha imediatamente. Aguarda sincronização com Firestore.
+    // O listener _onUserChanged fechará o dialog quando o vipExpiresAt for atualizado.
+    ToastService.showInfo(
+      message: AppLocalizations.of(context).translate('syncing_subscription'),
+    );
   }
 
   /// Trata erro na compra/restore
@@ -148,18 +157,9 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
     final i18n = AppLocalizations.of(context);
 
     // Sem Consumer: animação e UI reagem ao controller/listeners locais
-    return AnimatedBuilder(
-      animation: _animation.controller,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _animation.fadeAnimation,
-          child: SlideTransition(
-            position: _animation.slideAnimation,
-            child: child,
-          ),
-        );
-      },
-      child: _buildDialogContent(i18n),
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) => _buildDialogContent(i18n),
     );
   }
 
@@ -167,49 +167,68 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
   Widget _buildDialogContent(AppLocalizations i18n) {
     final customerInfo = SimpleRevenueCatService.lastCustomerInfo;
     final hasVipAccess = customerInfo != null && SimpleRevenueCatService.hasAccess(customerInfo);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 5),
-      child: RepaintBoundary(
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-          ),
-          child: Column(
-            children: [
-              SubscriptionHeader(
-                onClose: () => _animation.close(context),
+    
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
               ),
-              ColoredBox(
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Column(
+            ),
+          ),
+          SubscriptionHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (hasVipAccess)
-                        SubscriptionActiveBadge(
-                          expirationDate: customerInfo.latestExpirationDate,
-                        ),
-                      if (!_isInitialized || _controller.isLoading)
-                        const SubscriptionLoadingState()
-                      else if (_controller.error != null)
-                        SubscriptionErrorState(
-                          error: _controller.error!,
-                          onRetry: () => _controller.retry(),
-                        )
-                      else if (!_controller.hasPlans)
-                        const SubscriptionEmptyState()
-                      else
-                        _buildPlansSection(i18n),
+                        if (hasVipAccess)
+                          SubscriptionActiveBadge(
+                            expirationDate: customerInfo.latestExpirationDate,
+                          ),
+                        if (!_isInitialized || _controller.isLoading)
+                          const SubscriptionLoadingState()
+                        else if (_controller.error != null)
+                          SubscriptionErrorState(
+                            error: _controller.error!,
+                            onRetry: () => _controller.retry(),
+                          )
+                        else if (!_controller.hasPlans)
+                          const SubscriptionEmptyState()
+                        else
+                          _buildPlansSection(i18n),
                     ],
                   ),
-                ),
+                  const SubscriptionBenefitsList(),
+                ],
               ),
-              const SubscriptionBenefitsList(),
+            ),
+          ),
+          
+          // Botão de compra e footer movidos para o final
+          Column(
+            children: [
+              _buildPurchaseButton(i18n),
+              SubscriptionFooter(
+                onRestore: _handleRestore,
+              ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -221,6 +240,16 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
       builder: (context, _) {
         return Column(
           children: [
+            // Card plano semanal (se disponível)
+            if (_controller.weeklyPackage != null)
+              SubscriptionPlanCard(
+                package: _controller.weeklyPackage!,
+                isSelected: _controller.selectedPlan == SubscriptionPlan.weekly,
+                onTap: () => _controller.selectPlan(SubscriptionPlan.weekly),
+              ),
+
+            const SizedBox(height: 0),
+
             // Card plano mensal (se disponível)
             if (_controller.monthlyPackage != null)
               SubscriptionPlanCard(
@@ -238,16 +267,6 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
                 isSelected: _controller.selectedPlan == SubscriptionPlan.annual,
                 onTap: () => _controller.selectPlan(SubscriptionPlan.annual),
               ),
-
-            // Botão de compra
-            _buildPurchaseButton(i18n),
-
-            // Footer com termos e restore
-            SubscriptionFooter(
-              onRestore: _handleRestore,
-            ),
-
-            const Divider(thickness: 1, height: 30),
           ],
         );
       },
@@ -262,15 +281,17 @@ class _VipDialogState extends State<VipDialog> with SingleTickerProviderStateMix
         final isPurchasing = _controller.isPurchasing;
         final selectedPlan = _controller.selectedPlan;
 
-        final buttonText = selectedPlan == SubscriptionPlan.annual
-            ? i18n.translate('subscribe_annual_plan')
-            : i18n.translate('subscribe_monthly_plan');
+        final buttonText = switch (selectedPlan) {
+          SubscriptionPlan.weekly => i18n.translate('subscribe_weekly_plan'),
+          SubscriptionPlan.monthly => i18n.translate('subscribe_monthly_plan'),
+          SubscriptionPlan.annual => i18n.translate('subscribe_annual_plan'),
+        };
 
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           child: GlimpseButton(
             text: buttonText,
-            backgroundColor: Colors.black,
+            backgroundColor: GlimpseColors.primary,
             isProcessing: isPurchasing,
             onPressed: isPurchasing ? null : _controller.purchaseSelected,
           ),

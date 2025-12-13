@@ -1,7 +1,9 @@
+import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconsax_plus/iconsax_plus.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 /// Card de plano de assinatura (mensal ou anual)
@@ -34,9 +36,7 @@ class SubscriptionPlanCard extends StatelessWidget {
     final product = package.storeProduct;
     
     // Cores dinâmicas baseadas no estado de seleção
-    final borderColor = isSelected ? Colors.black : Colors.grey.shade300;
-    final iconBg = isSelected ? Colors.black : Colors.white;
-    final iconBorder = isSelected ? Colors.black : Colors.grey.shade300;
+    final borderColor = isSelected ? GlimpseColors.primary : Colors.grey.shade300;
 
     return GestureDetector(
       onTap: () {
@@ -64,26 +64,6 @@ class SubscriptionPlanCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ícone de estrela
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: iconBorder, width: 2),
-              ),
-              padding: const EdgeInsets.all(10),
-              child: Icon(
-                IconsaxPlusBold.star_1,
-                color: isSelected ? Colors.white : Colors.black,
-                size: 28,
-              ),
-            ),
-            
-            const SizedBox(width: 12),
-            
             // Informações do plano
             Expanded(
               child: Column(
@@ -93,6 +73,7 @@ class SubscriptionPlanCard extends StatelessWidget {
                   Text(
                     product.title,
                     style: const TextStyle(
+                      fontFamily: FONT_PLUS_JAKARTA_SANS,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -105,6 +86,7 @@ class SubscriptionPlanCard extends StatelessWidget {
                   Text(
                     _getDescription(i18n, product),
                     style: const TextStyle(
+                      fontFamily: FONT_PLUS_JAKARTA_SANS,
                       fontSize: 13,
                       color: Colors.black87,
                     ),
@@ -119,6 +101,7 @@ class SubscriptionPlanCard extends StatelessWidget {
             Text(
               product.priceString,
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
@@ -137,8 +120,15 @@ class SubscriptionPlanCard extends StatelessWidget {
     }
 
     // Fallback baseado no tipo de pacote
-    return package.packageType == PackageType.annual
-        ? i18n.translate('auto_renews_annually')
-        : i18n.translate('auto_renews_monthly');
+    switch (package.packageType) {
+      case PackageType.weekly:
+        return i18n.translate('auto_renews_weekly');
+      case PackageType.monthly:
+        return i18n.translate('auto_renews_monthly');
+      case PackageType.annual:
+        return i18n.translate('auto_renews_annually');
+      default:
+        return product.description;
+    }
   }
 }

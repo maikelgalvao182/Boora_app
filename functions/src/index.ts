@@ -423,3 +423,4 @@ export * from "./users/deleteUserAccount";
 // Importa e exporta webhooks de integração
 export * from "./webhooks/faceio-webhook";
 export * from "./didit-webhook";
+export * from "./webhooks/revenuecat-webhook";

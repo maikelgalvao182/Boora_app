@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 /// APP SETINGS INFO CONSTANTS - SECTION ///
 ///
-const String APP_NAME = 'WedConnex';
+const String APP_NAME = 'Partiu?';
 const Color APP_PRIMARY_COLOR = GlimpseColors.primaryColorLight;
 const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
@@ -71,12 +71,13 @@ const String VIP_ACCOUNT_MAX_DISTANCE = 'vip_account_max_distance';
 // RevenueCat public API key field inside AppInfo (revenue_cat > public_api_key)
 const String REVENUE_CAT_PUBLIC_API_KEY = 'public_api_key';
 // Identifier for entitlement configured in RevenueCat Dashboard
-const String REVENUE_CAT_ENTITLEMENT_ID = 'Wedconnex Pro';
+const String REVENUE_CAT_ENTITLEMENT_ID = 'assinaturas';
 // Package identifiers for RevenueCat products
 const String REVENUE_CAT_MONTHLY_PACKAGE = r'$rc_monthly';
 const String REVENUE_CAT_ANNUAL_PACKAGE = r'$rc_annual';
+const String REVENUE_CAT_WEEKLY_PACKAGE = r'$rc_weekly';
 // Offerings identifier
-const String REVENUE_CAT_OFFERINGS_ID = 'Subscriptions';
+const String REVENUE_CAT_OFFERINGS_ID = 'Assinaturas';
 
 
 
@@ -238,7 +239,7 @@ const double FREE_ACCOUNT_MAX_EVENT_DISTANCE_KM = 30.0;
 /// - RadiusController (controla limites do slider)
 /// - Afeta busca de PESSOAS (via LocationQueryService)
 /// - NÃO afeta busca de eventos diretamente
-const bool ENABLE_RADIUS_LIMIT = false;
+const bool ENABLE_RADIUS_LIMIT = true;
 
 /// ========================================
 /// === 3. LIMITES DO SLIDER DE RAIO ===

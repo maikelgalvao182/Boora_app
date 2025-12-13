@@ -330,6 +330,33 @@ class FcmTokenService {
       print('     - User ID: $userId');
       print('     - Device ID: $deviceId');
       
+      // Verifica se o usuário ainda está autenticado
+      final currentUser = fire_auth.FirebaseAuth.instance.currentUser;
+      if (currentUser == null || currentUser.uid != userId) {
+        print('  ❌ [FCM Token] Usuário não autenticado ou UID não corresponde');
+        print('     - Current User: ${currentUser?.uid ?? "null"}');
+        print('     - Expected User: $userId');
+        return;
+      }
+      
+      // Aguarda o token de ID estar disponível (prova de autenticação válida)
+      print('  🔐 [FCM Token] Verificando token de autenticação...');
+      try {
+        final idToken = await currentUser.getIdToken();
+        if (idToken == null) {
+          print('  ❌ [FCM Token] Token de autenticação é null');
+          print('  ⏰ [FCM Token] Agendando retry em 3 segundos...');
+          await Future.delayed(const Duration(seconds: 3));
+          return _saveToken(userId: userId, token: token, deviceId: deviceId);
+        }
+        print('  ✅ [FCM Token] Token de autenticação válido');
+      } catch (e) {
+        print('  ⚠️ [FCM Token] Erro ao verificar token: $e');
+        print('  ⏰ [FCM Token] Agendando retry em 3 segundos...');
+        await Future.delayed(const Duration(seconds: 3));
+        return _saveToken(userId: userId, token: token, deviceId: deviceId);
+      }
+      
       final deviceName = await _getDeviceName();
       final platform = Platform.isAndroid ? 'android' : 'ios';
       

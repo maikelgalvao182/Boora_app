@@ -1,3 +1,4 @@
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -58,6 +59,7 @@ class SubscriptionActiveBadge extends StatelessWidget {
                 Text(
                   i18n.translate('wedconnex_pro_active'),
                   style: const TextStyle(
+                    fontFamily: FONT_PLUS_JAKARTA_SANS,
                     fontWeight: FontWeight.bold,
                     color: Colors.green,
                   ),
@@ -70,6 +72,7 @@ class SubscriptionActiveBadge extends StatelessWidget {
                     child: Text(
                       '${i18n.translate('expires_on')}: ${_formatExpirationDate(expirationDate)}',
                       style: TextStyle(
+                        fontFamily: FONT_PLUS_JAKARTA_SANS,
                         fontSize: 12,
                         color: Colors.green.shade700,
                       ),

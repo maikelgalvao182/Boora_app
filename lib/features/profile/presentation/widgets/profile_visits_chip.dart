@@ -2,7 +2,7 @@ import 'package:partiu/common/state/app_state.dart';
 // Firestore removido da UI: usar serviço
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/app/services/localization_service.dart';
-import 'package:partiu/features/profile/data/services/vip_access_service.dart';
+import 'package:partiu/features/subscription/services/vip_access_service.dart';
 import 'package:partiu/features/profile/data/services/visits_service.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';

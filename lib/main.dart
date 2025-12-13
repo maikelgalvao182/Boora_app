@@ -34,10 +34,16 @@ void main() async {
   timeago.setLocaleMessages('pt', timeago.PtBrMessages());
   timeago.setLocaleMessages('es', timeago.EsMessages());
   
-  // Inicializar Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Inicializar Firebase (protegido contra hot reload)
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    debugPrint('Firebase já inicializado: $e');
+  }
 
   // Inicializar Google Maps
   await GoogleMapsInitializer.initialize();

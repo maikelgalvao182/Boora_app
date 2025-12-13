@@ -2,4 +2,5 @@
 enum SubscriptionPlan {
   monthly,
   annual,
+  weekly,
 }

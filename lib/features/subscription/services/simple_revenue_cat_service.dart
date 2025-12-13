@@ -53,7 +53,12 @@ class SimpleRevenueCatService {
 
     // 2. Busca API key do Firestore
     final apiKey = await _getApiKey();
+    AppLogger.info('RevenueCat: API key resultado: ${apiKey != null ? "encontrada (${apiKey.length} chars)" : "NULL"}');
+    
     if (apiKey == null || apiKey.isEmpty) {
+      AppLogger.error('❌ RevenueCat API key não encontrada no Firestore!');
+      AppLogger.error('   Verifique se o documento AppInfo/revenue_cat existe');
+      AppLogger.error('   e possui o campo ios_public_api_key ou android_public_api_key');
       throw Exception('RevenueCat API key não encontrada no Firestore');
     }
 
@@ -106,18 +111,63 @@ class SimpleRevenueCatService {
   static Future<Offering?> getOffering() async {
     if (!_initialized) await initialize();
 
-    final offerings = await Purchases.getOfferings();
+    try {
+      final offerings = await Purchases.getOfferings();
+      
+      print('🔍 [RevenueCat] Buscando offerings...');
+      print('   Offerings disponíveis: ${offerings.all.keys.toList()}');
+      print('   Current offering: ${offerings.current?.identifier}');
+      print('   _offeringId configurado: $_offeringId');
+      
+      AppLogger.info('RevenueCat: Buscando offerings...');
+      AppLogger.info('  - Offerings disponíveis: ${offerings.all.keys.toList()}');
+      AppLogger.info('  - Current offering: ${offerings.current?.identifier}');
+      AppLogger.info('  - _offeringId configurado: $_offeringId');
 
-    // tenta offering atual
-    final current = offerings.current;
-    if (current != null) return current;
+      // tenta offering atual
+      final current = offerings.current;
+      if (current != null) {
+        print('   ✅ Usando current offering com ${current.availablePackages.length} packages');
+        AppLogger.info('  - Usando current offering com ${current.availablePackages.length} packages');
+        for (final pkg in current.availablePackages) {
+          print('      📦 ${pkg.identifier} | Type: ${pkg.packageType} | Product: ${pkg.storeProduct.identifier}');
+          AppLogger.info('    Package: ${pkg.identifier} | Type: ${pkg.packageType} | Product: ${pkg.storeProduct.identifier}');
+        }
+        return current;
+      }
 
-    // fallback: offering configurado no Firestore
-    if (_offeringId != null && offerings.all.containsKey(_offeringId)) {
-      return offerings.all[_offeringId];
+      // fallback: offering configurado no Firestore
+      if (_offeringId != null && offerings.all.containsKey(_offeringId)) {
+        final offering = offerings.all[_offeringId]!;
+        print('   ✅ Usando offering "$_offeringId" com ${offering.availablePackages.length} packages');
+        AppLogger.info('  - Usando offering "$_offeringId" com ${offering.availablePackages.length} packages');
+        for (final pkg in offering.availablePackages) {
+          print('      📦 ${pkg.identifier} | Type: ${pkg.packageType} | Product: ${pkg.storeProduct.identifier}');
+          AppLogger.info('    Package: ${pkg.identifier} | Type: ${pkg.packageType} | Product: ${pkg.storeProduct.identifier}');
+        }
+        return offering;
+      }
+
+      print('   ⚠️  Nenhuma offering encontrada!');
+      AppLogger.warning('RevenueCat: Nenhuma offering encontrada!');
+      return null;
+    } catch (e) {
+      print('   ❌ ERRO ao buscar offerings: $e');
+      AppLogger.error('Erro ao buscar offerings: $e');
+      
+      if (e.toString().contains('CONFIGURATION_ERROR')) {
+        print('   ');
+        print('   ⚠️  ERRO DE CONFIGURAÇÃO NO REVENUECAT:');
+        print('   - Verifique se os produtos estão configurados no RevenueCat Dashboard');
+        print('   - Verifique se os produtos existem no App Store Connect');
+        print('   - Verifique se o Bundle ID está correto');
+        print('   - Para desenvolvimento iOS, configure um StoreKit Configuration File');
+        print('   - Mais info: https://rev.cat/why-are-offerings-empty');
+        print('   ');
+      }
+      
+      rethrow;
     }
-
-    return null;
   }
 
   // --------------------------------------------------------------------------
@@ -206,28 +256,62 @@ class SimpleRevenueCatService {
   // --------------------------------------------------------------------------
   static Future<String?> _getApiKey() async {
     try {
+      print('🔍 [RevenueCat] Buscando API key do Firestore...');
+      print('   Collection: $C_APP_INFO');
+      print('   Document: revenue_cat');
+      print('   Platform: ${Platform.isIOS ? "iOS" : Platform.isAndroid ? "Android" : "Outro"}');
+      
+      AppLogger.info('RevenueCat: Buscando API key do Firestore...');
+      AppLogger.info('  - Collection: $C_APP_INFO');
+      AppLogger.info('  - Document: revenue_cat');
+      AppLogger.info('  - Platform: ${Platform.isIOS ? "iOS" : Platform.isAndroid ? "Android" : "Outro"}');
+      
       final snap = await FirebaseFirestore.instance
           .collection(C_APP_INFO)
           .doc('revenue_cat')
           .get();
 
+      print('   Document exists: ${snap.exists}');
+      AppLogger.info('  - Document exists: ${snap.exists}');
+      
       final data = snap.data();
-      if (data == null) return null;
-
-      if (Platform.isAndroid) {
-        return data['android_public_api_key'];
-      } else if (Platform.isIOS) {
-        return data['ios_public_api_key'];
+      if (data == null) {
+        print('   ❌ Data é null!');
+        AppLogger.warning('  - Data é null!');
+        return null;
       }
 
-      return data['public_api_key'];
-    } catch (_) {
+      print('   Keys disponíveis: ${data.keys.toList()}');
+      AppLogger.info('  - Keys disponíveis: ${data.keys.toList()}');
+
+      String? apiKey;
+      if (Platform.isAndroid) {
+        apiKey = data['android_public_api_key'];
+        print('   Buscando android_public_api_key: ${apiKey != null ? "✅ encontrada" : "❌ não encontrada"}');
+        AppLogger.info('  - Buscando android_public_api_key: ${apiKey != null ? "encontrada" : "não encontrada"}');
+      } else if (Platform.isIOS) {
+        apiKey = data['ios_public_api_key'];
+        print('   Buscando ios_public_api_key: ${apiKey != null ? "✅ encontrada" : "❌ não encontrada"}');
+        AppLogger.info('  - Buscando ios_public_api_key: ${apiKey != null ? "encontrada" : "não encontrada"}');
+      } else {
+        apiKey = data['public_api_key'];
+        print('   Buscando public_api_key: ${apiKey != null ? "✅ encontrada" : "❌ não encontrada"}');
+        AppLogger.info('  - Buscando public_api_key: ${apiKey != null ? "encontrada" : "não encontrada"}');
+      }
+
+      print('   🔑 API Key resultado: ${apiKey != null ? "encontrada (${apiKey.length} chars)" : "NULL"}');
+      return apiKey;
+    } catch (e) {
+      print('   ❌ ERRO ao buscar API key: $e');
+      AppLogger.error('Erro ao buscar API key: $e');
       return null;
     }
   }
 
   static Future<void> _loadConfiguration() async {
     try {
+      AppLogger.info('RevenueCat: Carregando configuração...');
+      
       final doc = await FirebaseFirestore.instance
           .collection(C_APP_INFO)
           .doc('revenue_cat')
@@ -235,6 +319,7 @@ class SimpleRevenueCatService {
 
       final data = doc.data();
       if (data == null) {
+        AppLogger.warning('  - Config data é null, usando defaults');
         _entitlementId = REVENUE_CAT_ENTITLEMENT_ID;
         return;
       }
@@ -250,7 +335,11 @@ class SimpleRevenueCatService {
           ? off
           : REVENUE_CAT_OFFERINGS_ID;
 
-    } catch (_) {
+      AppLogger.info('  - Entitlement ID: $_entitlementId');
+      AppLogger.info('  - Offering ID: $_offeringId');
+
+    } catch (e) {
+      AppLogger.error('Erro ao carregar configuração: $e');
       _entitlementId = REVENUE_CAT_ENTITLEMENT_ID;
     }
   }

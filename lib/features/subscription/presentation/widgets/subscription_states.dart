@@ -1,3 +1,4 @@
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +35,7 @@ class SubscriptionLoadingState extends StatelessWidget {
             Text(
               i18n.translate('loading_subscription_plans'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 14,
                 color: Colors.black54,
               ),
@@ -88,6 +90,7 @@ class SubscriptionErrorState extends StatelessWidget {
             Text(
               i18n.translate('error_loading_plans'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -97,6 +100,7 @@ class SubscriptionErrorState extends StatelessWidget {
             Text(
               error,
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 13,
                 color: Colors.black54,
               ),
@@ -152,6 +156,7 @@ class SubscriptionEmptyState extends StatelessWidget {
             Text(
               i18n.translate('no_plans_available'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -161,6 +166,7 @@ class SubscriptionEmptyState extends StatelessWidget {
             Text(
               i18n.translate('please_try_again_later'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 13,
                 color: Colors.black54,
               ),

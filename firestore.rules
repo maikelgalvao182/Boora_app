@@ -10,6 +10,13 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
+    
+    // 🔒 Verifica se usuário tem VIP ativo
+    function isVip(userId) {
+      let user = get(/databases/$(database)/documents/Users/$(userId));
+      return user.data.vipExpiresAt != null && 
+             user.data.vipExpiresAt > request.time;
+    }
 
 /// ⚙️ Coleção de configurações da aplicação
 /// Path usado no app:
@@ -18,7 +25,7 @@ service cloud.firestore {
 ///   - GoogleMapsApiKey/Api_key: string
 
 match /AppInfo/{configName} {
-  allow read: if isSignedIn();
+  allow read: if true; // Leitura pública necessária para inicialização do app
   allow write: if false; // Apenas leitura para usuários
 }
 /// 🎫 Coleção de aplicações para eventos
@@ -439,16 +446,21 @@ match /Notifications/{notificationId} {
 /// - visitCount: number (incrementa em visitas repetidas)
 /// - expireAt: timestamp (TTL - 7 dias)
 /// - source: string ('profile', 'event', etc)
+///
+/// 🔒 SEGURANÇA VIP:
+/// - Leitura: apenas VIPs podem ver quem visitou seu perfil
+/// - Escrita: qualquer um pode registrar visitas
 
 match /ProfileVisits/{visitId} {
-  // Qualquer usuário autenticado pode ler suas próprias visitas
+  // 🔒 LEITURA: apenas VIP pode ver visitas ao seu perfil
   allow read: if isSignedIn() && 
-                 request.auth.uid == resource.data.visitedUserId;
+                 request.auth.uid == resource.data.visitedUserId &&
+                 isVip(request.auth.uid);
   
-  // Qualquer usuário autenticado pode registrar visitas
+  // ✅ ESCRITA: qualquer um pode registrar visitas
   allow create, update: if isSignedIn();
   
-  // Apenas o dono pode deletar suas visitas
+  // 🗑️ DELETE: apenas o dono pode deletar
   allow delete: if isSignedIn() && 
                    request.auth.uid == resource.data.visitedUserId;
 }

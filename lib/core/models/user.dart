@@ -104,6 +104,9 @@ class User {
     this.commonInterests,
     this.overallRating,
     this.visitedAt,
+    this.vipExpiresAt,
+    this.vipProductId,
+    this.vipUpdatedAt,
   });
 
   /// Safe empty user to avoid LateInitializationError before auth finishes
@@ -136,6 +139,9 @@ class User {
       commonInterests: null,
       overallRating: null,
       visitedAt: null,
+      vipExpiresAt: null,
+      vipProductId: null,
+      vipUpdatedAt: null,
     );
   }
 
@@ -219,6 +225,9 @@ class User {
       commonInterests: (doc['commonInterests'] as List?)?.cast<String>(),
       overallRating: (doc['overallRating'] as num?)?.toDouble(),
       visitedAt: _parseDateTime(doc['visitedAt'], fallback: null),
+      vipExpiresAt: doc['vipExpiresAt'] != null ? _parseDateTime(doc['vipExpiresAt'], fallback: null) : null,
+      vipProductId: doc['vipProductId'] as String?,
+      vipUpdatedAt: doc['vipUpdatedAt'] != null ? _parseDateTime(doc['vipUpdatedAt'], fallback: null) : null,
     );
   }
   
@@ -255,9 +264,20 @@ class User {
   final List<String>? commonInterests; // Interesses em comum com o usuário logado
   final double? overallRating; // Rating geral do usuário
   final DateTime? visitedAt; // Data da visita (para ordenação)
+  
+  // 🔒 Campos VIP (gerenciados pelo webhook RevenueCat)
+  final DateTime? vipExpiresAt; // Data de expiração do VIP (null = sem VIP)
+  final String? vipProductId; // ID do produto RevenueCat (monthly/annual)
+  final DateTime? vipUpdatedAt; // Última atualização do status VIP
 
   /// Badge de verificação
   bool get isVerified => userIsVerified;
+  
+  /// Verifica se usuário tem VIP ativo
+  bool get hasActiveVip {
+    if (vipExpiresAt == null) return false;
+    return vipExpiresAt!.isAfter(DateTime.now());
+  }
 
   User copyWith({
     String? userId,
@@ -292,6 +312,9 @@ class User {
     List<String>? commonInterests,
     double? overallRating,
     DateTime? visitedAt,
+    DateTime? vipExpiresAt,
+    String? vipProductId,
+    DateTime? vipUpdatedAt,
   }) {
     return User(
       userId: userId ?? this.userId,
@@ -326,6 +349,9 @@ class User {
       commonInterests: commonInterests ?? this.commonInterests,
       overallRating: overallRating ?? this.overallRating,
       visitedAt: visitedAt ?? this.visitedAt,
+      vipExpiresAt: vipExpiresAt ?? this.vipExpiresAt,
+      vipProductId: vipProductId ?? this.vipProductId,
+      vipUpdatedAt: vipUpdatedAt ?? this.vipUpdatedAt,
     );
   }
 
@@ -402,6 +428,9 @@ class User {
       'commonInterests': commonInterests,
       'overallRating': overallRating,
       'visitedAt': visitedAt,
+      'vipExpiresAt': vipExpiresAt,
+      'vipProductId': vipProductId,
+      'vipUpdatedAt': vipUpdatedAt,
     };
   }
 }

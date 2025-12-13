@@ -1,0 +1,98 @@
+{
+  "appPolicies": {
+    "eula": "",
+    "policies": [
+      {
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
+      }
+    ]
+  },
+  "identifier": "CBB49124",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_billingIssuesEnabled": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "pt_BR",
+    "_storefront": "BRA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "761EDE8D",
+      "localizations": [],
+      "name": "assinaturas",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "79.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "3C23FB98",
+          "localizations": [
+            {
+              "description": "50% off",
+              "displayName": "Plano Anual",
+              "locale": "pt_BR"
+            }
+          ],
+          "productID": "anual_03",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Anual",
+          "subscriptionGroupID": "761EDE8D",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "9.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "10B436EB",
+          "localizations": [
+            {
+              "description": "30% off",
+              "displayName": "Plano Mensal",
+              "locale": "pt_BR"
+            }
+          ],
+          "productID": "mensal_02",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Mensal",
+          "subscriptionGroupID": "761EDE8D",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "3.99",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "B537E0F4",
+          "localizations": [
+            {
+              "description": "Perfeito para viagens rápidas",
+              "displayName": "Plano Semanal",
+              "locale": "pt_BR"
+            }
+          ],
+          "productID": "semanal_01",
+          "recurringSubscriptionPeriod": "P1W",
+          "referenceName": "Semanal",
+          "subscriptionGroupID": "761EDE8D",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

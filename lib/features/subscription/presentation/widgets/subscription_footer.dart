@@ -1,3 +1,4 @@
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -34,27 +35,26 @@ class SubscriptionFooter extends StatelessWidget {
     final i18n = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 16),
       child: Text.rich(
+        textAlign: TextAlign.center,
         TextSpan(
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          style: const TextStyle(
+            fontFamily: FONT_PLUS_JAKARTA_SANS,
+            fontSize: 12,
+            color: Colors.black87,
+          ),
           children: [
             // Texto sobre renovação automática
             TextSpan(
               text: i18n.translate('subscription_renews_automatically_at_the_same'),
-            ),
-            TextSpan(
-              text: i18n.translate('price_and_duration'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            TextSpan(
-              text: i18n.translate('cancel_anytime_in_your_app_store_settings'),
             ),
             
             // Link para termos
             TextSpan(
               text: i18n.translate('terms'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontWeight: FontWeight.w700,
                 decoration: TextDecoration.underline,
               ),
@@ -72,6 +72,7 @@ class SubscriptionFooter extends StatelessWidget {
             TextSpan(
               text: i18n.translate('privacy'),
               style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontWeight: FontWeight.w700,
                 decoration: TextDecoration.underline,
               ),
@@ -87,12 +88,14 @@ class SubscriptionFooter extends StatelessWidget {
             // Link para restaurar
             TextSpan(
               text: i18n.translate('restore_subscription_link'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontFamily: FONT_PLUS_JAKARTA_SANS,
+                fontWeight: FontWeight.w700,
+              ),
               recognizer: TapGestureRecognizer()..onTap = onRestore,
             ),
           ],
         ),
-        textAlign: TextAlign.start,
       ),
     );
   }
