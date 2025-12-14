@@ -8,7 +8,80 @@ import 'package:partiu/features/home/data/models/event_model.dart';
 class EventMapRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Busca eventos ativos próximos à localização do usuário
+  /// Stream de eventos ativos próximos à localização do usuário (TEMPO REAL)
+  /// 
+  /// NOTA: Este stream NÃO aplica filtro de raio.
+  /// Retorna TODOS os eventos ativos e NÃO cancelados em tempo real.
+  /// A distância/disponibilidade são calculadas posteriormente pelo MapViewModel.
+  /// 
+  /// ✅ Reage automaticamente a: criação, atualização e deleção de eventos
+  Stream<List<EventModel>> getEventsStream() {
+    return _firestore
+        .collection('events')
+        .where('isActive', isEqualTo: true)
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .map((snapshot) {
+      final events = <EventModel>[];
+      
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data();
+          
+          // Filtrar eventos cancelados (dupla checagem no cliente)
+          final isCanceled = data['isCanceled'] as bool? ?? false;
+          if (isCanceled) {
+            debugPrint('⏭️ Evento ${doc.id} está cancelado, pulando...');
+            continue;
+          }
+
+          final location = data['location'] as Map<String, dynamic>?;
+          if (location == null) continue;
+
+          final lat = (location['latitude'] as num?)?.toDouble();
+          final lng = (location['longitude'] as num?)?.toDouble();
+          if (lat == null || lng == null) continue;
+
+          // Extrair dados adicionais
+          final participantsData = data['participants'] as Map<String, dynamic>?;
+          final scheduleData = data['schedule'] as Map<String, dynamic>?;
+          final dateTimestamp = scheduleData?['date'] as Timestamp?;
+          
+          // Parse photoReferences
+          List<String>? photoReferences;
+          final photoRefs = location['photoReferences'] as List<dynamic>?;
+          if (photoRefs != null) {
+            photoReferences = photoRefs.map((e) => e.toString()).toList();
+          }
+
+          final event = EventModel(
+            id: doc.id,
+            emoji: data['emoji'] as String? ?? '🎉',
+            createdBy: data['createdBy'] as String? ?? '',
+            lat: lat,
+            lng: lng,
+            title: data['activityText'] as String? ?? '',
+            locationName: location['locationName'] as String?,
+            formattedAddress: location['formattedAddress'] as String?,
+            placeId: location['placeId'] as String?,
+            photoReferences: photoReferences,
+            scheduleDate: dateTimestamp?.toDate(),
+            privacyType: participantsData?['privacyType'] as String?,
+            minAge: participantsData?['minAge'] as int?,
+            maxAge: participantsData?['maxAge'] as int?,
+          );
+          events.add(event);
+        } catch (e) {
+          debugPrint('⚠️ Erro ao processar evento ${doc.id}: $e');
+        }
+      }
+      
+      debugPrint('🔄 [EventMapRepository] Stream emitiu ${events.length} eventos');
+      return events;
+    });
+  }
+
+  /// Busca eventos ativos próximos à localização do usuário (SNAPSHOT ÚNICO)
   /// 
   /// Parâmetros:
   /// - [userLocation]: Localização atual do usuário
@@ -16,6 +89,8 @@ class EventMapRepository {
   /// NOTA: Este método NÃO aplica filtro de raio.
   /// Retorna TODOS os eventos ativos e NÃO cancelados.
   /// A distância/disponibilidade são calculadas posteriormente pelo MapViewModel.
+  /// 
+  /// ⚠️ DEPRECATED: Use getEventsStream() para atualizações em tempo real
   Future<List<EventModel>> getEventsWithinRadius(
     LatLng userLocation,
   ) async {

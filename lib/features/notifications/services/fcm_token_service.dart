@@ -371,11 +371,16 @@ class FcmTokenService {
       
       print('  📄 [FCM Token] Document ID: $docId');
       print('  🔍 [FCM Token] Verificando se documento já existe...');
+      print('  📍 [FCM Token] Collection path: DeviceTokens');
+      print('  📄 [FCM Token] Full path: DeviceTokens/$docId');
       
       final now = FieldValue.serverTimestamp();
       
       // Verifica se já existe
-      final existingDoc = await docRef.get();
+      try {
+        print('  ⏳ [FCM Token] Executando docRef.get()...');
+        final existingDoc = await docRef.get();
+        print('  ✅ [FCM Token] docRef.get() executado - exists: ${existingDoc.exists}');
       
       if (existingDoc.exists) {
         print('  📋 [FCM Token] Documento existente encontrado');
@@ -417,6 +422,20 @@ class FcmTokenService {
         });
         
         print('  ✅ [FCM Token] Novo documento criado no Firestore com sucesso');
+      }
+      
+      } catch (e) {
+        print('  ❌ [FCM Token] Erro específico na operação: $e');
+        print('  🔍 [FCM Token] Tipo do erro: ${e.runtimeType}');
+        if (e.toString().contains('permission-denied')) {
+          print('  💡 [FCM Token] DIAGNÓSTICO DE PERMISSÃO:');
+          print('     - Collection: DeviceTokens');
+          print('     - Document ID: $docId');
+          print('     - User ID: $userId');
+          print('     - Auth UID: ${fire_auth.FirebaseAuth.instance.currentUser?.uid}');
+          print('     - Match? ${userId == fire_auth.FirebaseAuth.instance.currentUser?.uid}');
+        }
+        rethrow;
       }
       
     } catch (e) {

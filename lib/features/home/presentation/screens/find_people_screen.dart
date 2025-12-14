@@ -15,6 +15,8 @@ import 'package:partiu/features/home/presentation/screens/advanced_filters_scree
 import 'package:partiu/features/home/presentation/screens/find_people/find_people_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/user_card.dart';
 import 'package:partiu/features/home/presentation/widgets/user_card_shimmer.dart';
+import 'package:partiu/features/home/presentation/widgets/vip_locked_card.dart';
+import 'package:partiu/features/subscription/services/vip_access_service.dart';
 import 'package:partiu/features/home/domain/models/user_with_meta.dart';
 
 /// Tela para encontrar pessoas na região
@@ -30,12 +32,16 @@ class FindPeopleScreen extends StatefulWidget {
 
 class _FindPeopleScreenState extends State<FindPeopleScreen> {
   late final FindPeopleController _controller;
+  late final ScrollController _scrollController;
+  bool _vipDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
     // Obtém instância singleton (não cria nova)
     _controller = FindPeopleController();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     debugPrint('🎯 [FindPeopleScreen] Usando controller singleton');
   }
 
@@ -43,7 +49,29 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   void dispose() {
     // NÃO faz dispose do controller singleton
     // Ele deve persistir entre navegações para manter o estado
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (VipAccessService.isVip) return;
+
+    // Se chegou ao fim da lista (com margem de erro)
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent) {
+      if (!_vipDialogOpen) {
+        _vipDialogOpen = true;
+        _showVipDialog();
+      }
+    }
+  }
+
+  Future<void> _showVipDialog() async {
+    HapticFeedback.mediumImpact();
+    await VipAccessService.checkOrShowDialog(context);
+    // Delay para evitar múltiplos triggers
+    await Future.delayed(const Duration(seconds: 1));
+    _vipDialogOpen = false;
   }
 
   @override
@@ -193,6 +221,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                 // Success state - Lista de usuários com Pull to Refresh
                 return PlatformPullToRefresh(
                   onRefresh: _controller.refresh,
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(20),
                   itemCount: usersList.length,
                   itemBuilder: (context, index) {

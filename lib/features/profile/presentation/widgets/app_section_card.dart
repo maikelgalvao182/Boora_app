@@ -14,6 +14,7 @@ import 'package:partiu/core/helpers/app_helper.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +22,9 @@ import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/core/constants/push_types.dart';
+import 'package:partiu/core/services/push_preferences_service.dart';
+import 'package:partiu/core/managers/session_manager.dart';
 
 class AppSectionCard extends StatefulWidget {
   const AppSectionCard({super.key});
@@ -52,6 +56,28 @@ class _AppSectionCardState extends State<AppSectionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildSwitchItem(
+            context,
+            icon: Iconsax.notification,
+            title: i18n.translate('global_notifications') ?? 'Notificações gerais',
+            value: PushPreferencesService.isEnabled(
+              PushType.global,
+              SessionManager.instance.currentUser?.pushPreferences,
+            ),
+            onChanged: (v) => _updatePushPreference(PushType.global, v),
+          ),
+          Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
+          _buildSwitchItem(
+            context,
+            icon: Iconsax.message,
+            title: i18n.translate('event_messages') ?? 'Mensagens dos eventos',
+            value: PushPreferencesService.isEnabled(
+              PushType.chatEvent,
+              SessionManager.instance.currentUser?.pushPreferences,
+            ),
+            onChanged: (v) => _updatePushPreference(PushType.chatEvent, v),
+          ),
+          Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
           _buildListItem(
             context,
             icon: Iconsax.user_remove,
@@ -266,6 +292,72 @@ class _AppSectionCardState extends State<AppSectionCard> {
     }
   }
   
+  Future<void> _updatePushPreference(PushType type, bool enabled) async {
+    // 1. Update Firestore
+    await PushPreferencesService.setEnabled(type, enabled);
+
+    // 2. Update Local User (Optimistic)
+    final user = SessionManager.instance.currentUser;
+    if (user != null) {
+      final newPrefs = Map<String, dynamic>.from(user.pushPreferences ?? {});
+      newPrefs[PushPreferencesService.key(type)] = enabled;
+      
+      final newUser = user.copyWith(pushPreferences: newPrefs);
+      await SessionManager.instance.saveUser(newUser);
+      
+      if (mounted) setState(() {}); // Rebuild UI
+    }
+  }
+
+  Widget _buildSwitchItem(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: GlimpseColors.lightTextField,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
+          CupertinoSwitch(
+            value: value,
+            onChanged: (v) {
+              HapticFeedback.lightImpact();
+              onChanged(v);
+            },
+            activeColor: GlimpseColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildListItem(BuildContext context, {
     required IconData icon, 
     required String title, 

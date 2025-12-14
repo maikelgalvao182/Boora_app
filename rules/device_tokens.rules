@@ -17,12 +17,34 @@
 /// - Cloud Functions podem ler/escrever em qualquer token
 
 match /DeviceTokens/{tokenId} {
-  // Permite leitura apenas se for o dono do token
-  allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+  /// 📖 LEITURA:
+  /// - Permite ler se o documento não existe (para verificar antes de criar)
+  /// - Permite ler se é o dono do token
+  allow read: if isSignedIn() && 
+    (!exists(/databases/$(database)/documents/DeviceTokens/$(tokenId)) || 
+     resource.data.userId == request.auth.uid);
   
-  // Permite criação/atualização apenas se o userId no documento for o próprio usuário
-  allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  /// ✍️ CRIAR token:
+  /// - userId deve ser o usuário autenticado
+  /// - Validar campos obrigatórios (permite campos adicionais como timestamps)
+  /// - Validar plataforma
+  allow create: if isSignedIn() && 
+    request.resource.data.userId == request.auth.uid &&
+    request.resource.data.userId is string &&
+    request.resource.data.token is string &&
+    request.resource.data.deviceId is string &&
+    request.resource.data.deviceName is string &&
+    request.resource.data.platform is string &&
+    request.resource.data.platform in ['android', 'ios'];
   
-  // Permite exclusão apenas se for o dono do token
+  /// ✏️ ATUALIZAR token:
+  /// - Apenas o dono pode atualizar
+  /// - Não pode mudar userId
+  allow update: if isSignedIn() && 
+    resource.data.userId == request.auth.uid &&
+    request.resource.data.userId == resource.data.userId;
+  
+  /// 🗑️ DELETAR token:
+  /// - Apenas o dono pode deletar
   allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 }

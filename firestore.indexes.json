@@ -87,11 +87,11 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "revieweeId",
+          "fieldPath": "reviewee_id",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
+          "fieldPath": "created_at",
           "order": "DESCENDING"
         }
       ]

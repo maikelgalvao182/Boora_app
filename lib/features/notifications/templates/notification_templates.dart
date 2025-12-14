@@ -353,4 +353,28 @@ class NotificationTemplates {
       extra: extra,
     );
   }
+
+  // --------------------------------------------------
+  //  TEMPLATE 14: Nova avaliação recebida
+  // --------------------------------------------------
+  /// Texto: "{reviewerName} avaliou você!"
+  /// Título: "Nova avaliação ⭐️"
+  static NotificationMessage newReviewReceived({
+    required String reviewerName,
+    required double rating,
+    String? comment,
+  }) {
+    final body = comment != null && comment.isNotEmpty
+        ? "$reviewerName te avaliou: \"$comment\""
+        : "$reviewerName te avaliou com ${rating.toStringAsFixed(1)} estrelas!";
+
+    return NotificationMessage(
+      title: "Nova avaliação ⭐️",
+      body: body,
+      preview: "Você recebeu uma nova avaliação",
+      extra: {
+        'rating': rating,
+      },
+    );
+  }
 }

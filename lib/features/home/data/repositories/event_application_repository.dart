@@ -531,4 +531,47 @@ class EventApplicationRepository {
       rethrow;
     }
   }
+
+  /// Busca participantes aprovados de um evento
+  /// 
+  /// Retorna lista de mapas com userId, applicationId e appliedAt
+  /// Ordenado por data de aplicação (antigo -> recente)
+  Future<List<Map<String, dynamic>>> getParticipantsForEvent(String eventId) async {
+    try {
+      // Busca aplicações aprovadas do evento (approved + autoApproved)
+      final snapshot = await _firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .where('status', whereIn: ['approved', 'autoApproved'])
+          .get();
+
+      // Criar lista com dados de aplicação incluindo timestamp para ordenação
+      final participantsWithTimestamp = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final appliedAt = (data['appliedAt'] as Timestamp?)?.toDate();
+        
+        return {
+          'userId': data['userId'] as String,
+          'applicationId': doc.id,
+          'appliedAt': appliedAt,
+        };
+      }).toList();
+      
+      // Ordenar por data de aplicação (do mais antigo para o mais recente)
+      participantsWithTimestamp.sort((a, b) {
+        final aTime = a['appliedAt'] as DateTime? ?? DateTime.now();
+        final bTime = b['appliedAt'] as DateTime? ?? DateTime.now();
+        return aTime.compareTo(bTime);
+      });
+
+      // Retorna lista formatada
+      return participantsWithTimestamp.map((p) => {
+        'userId': p['userId'] as String,
+        'applicationId': p['applicationId'] as String,
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Erro ao buscar participantes do evento $eventId: $e');
+      rethrow;
+    }
+  }
 }

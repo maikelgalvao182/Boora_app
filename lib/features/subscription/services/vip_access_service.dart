@@ -4,6 +4,8 @@ import 'package:partiu/features/subscription/services/simple_revenue_cat_service
 import 'package:partiu/features/subscription/services/subscription_monitoring_service.dart';
 import 'package:flutter/material.dart';
 
+import 'package:partiu/core/constants/constants.dart';
+
 /// Serviço para verificar status VIP e controlar acesso a funcionalidades premium
 /// IMPORTANTE: Não usa cache próprio, confia 100% no SubscriptionMonitoringService
 class VipAccessService {
@@ -133,5 +135,34 @@ class VipAccessService {
       if (!context.mounted) return false;
       return false;
     }
+  }
+
+  /// Verifica se o usuário tem acesso VIP
+  static bool get isVip {
+    final user = AppState.currentUser.value;
+    return user?.hasActiveVip ?? false;
+  }
+
+  /// Limite de perfis gratuitos na lista de descoberta
+  static const int freePeopleLimit = FREE_PEOPLE_LIMIT;
+
+  /// Verifica se o índice atual pode ser acessado pelo usuário
+  static bool canAccessIndex(int index) {
+    if (isVip) return true;
+    return index < freePeopleLimit;
+  }
+
+  /// Verifica acesso ou mostra dialog VIP
+  static Future<bool> checkOrShowDialog(BuildContext context) async {
+    if (isVip) return true;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const VipBottomSheet(),
+    );
+
+    return result == true;
   }
 }

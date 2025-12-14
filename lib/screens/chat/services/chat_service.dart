@@ -36,18 +36,26 @@ class ChatService {
     return _viewModel.getMessages(userId);
   }
 
-  /// Stream do resumo da conversa (documento em C_CONNECTIONS/{currentUser}/C_CONVERSATIONS/{otherUser})
-  Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationSummary(String otherUserId) {
+  /// Stream do resumo da conversa pelo ID do documento
+  /// Para chat 1-1: usar otherUserId
+  /// Para chat de evento: usar "event_${eventId}"
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationSummaryById(String conversationId) {
     final currentUserId = AppState.currentUserId;
-    if (currentUserId == null || currentUserId.isEmpty || otherUserId.isEmpty) {
+    if (currentUserId == null || currentUserId.isEmpty || conversationId.isEmpty) {
       return const Stream.empty();
     }
     return FirebaseFirestore.instance
       .collection(C_CONNECTIONS)
       .doc(currentUserId)
       .collection(C_CONVERSATIONS)
-      .doc(otherUserId)
+      .doc(conversationId)
       .snapshots();
+  }
+
+  /// Stream do resumo da conversa (LEGACY - usar getConversationSummaryById)
+  /// Mantido para compatibilidade com código existente
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationSummary(String otherUserId) {
+    return getConversationSummaryById(otherUserId);
   }
 
   /// Get cached user updates stream with A2 optimizations  

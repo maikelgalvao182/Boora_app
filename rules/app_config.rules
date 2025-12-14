@@ -3,8 +3,19 @@
 /// - AppInfo/{configName}
 ///   - GoogleAndroidMaps/Api_key: string
 ///   - GoogleMapsApiKey/Api_key: string
+///
+/// 🔒 SEGURANÇA:
+/// - Leitura: permitida para usuários autenticados (necessário para inicialização)
+/// - Escrita: bloqueada (apenas via console/Admin SDK)
 
 match /AppInfo/{configName} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler configurações
+  /// - Necessário para inicialização do app (mapas, etc)
   allow read: if isSignedIn();
-  allow write: if false; // Apenas leitura para usuários
+  
+  /// ❌ ESCRITA:
+  /// - Bloqueada para usuários
+  /// - Apenas via Firebase Console ou Admin SDK
+  allow write: if false;
 }

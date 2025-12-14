@@ -108,6 +108,8 @@ class User {
     this.vipExpiresAt,
     this.vipProductId,
     this.vipUpdatedAt,
+    this.vipPriority = 2,
+    this.pushPreferences,
   });
 
   /// Safe empty user to avoid LateInitializationError before auth finishes
@@ -144,6 +146,8 @@ class User {
       vipExpiresAt: null,
       vipProductId: null,
       vipUpdatedAt: null,
+      vipPriority: 2,
+      pushPreferences: null,
     );
   }
 
@@ -231,6 +235,8 @@ class User {
       vipExpiresAt: doc['vipExpiresAt'] != null ? _parseDateTime(doc['vipExpiresAt'], fallback: null) : null,
       vipProductId: doc['vipProductId'] as String?,
       vipUpdatedAt: doc['vipUpdatedAt'] != null ? _parseDateTime(doc['vipUpdatedAt'], fallback: null) : null,
+      vipPriority: doc['vip_priority'] as int? ?? 2,
+      pushPreferences: normalizeToMap(doc['advancedSettings']?['push_preferences']),
     );
   }
   
@@ -271,8 +277,10 @@ class User {
   
   // 🔒 Campos VIP (gerenciados pelo webhook RevenueCat)
   final DateTime? vipExpiresAt; // Data de expiração do VIP (null = sem VIP)
-  final String? vipProductId; // ID do produto RevenueCat (monthly/annual)
+  final String? vipProductId; // ID do produto VIP (ex: 'vip_monthly', 'vip_yearly')
   final DateTime? vipUpdatedAt; // Última atualização do status VIP
+  final int vipPriority; // 1 = VIP, 2 = Free (para ordenação)
+  final Map<String, dynamic>? pushPreferences;
 
   /// Badge de verificação
   bool get isVerified => userIsVerified;
@@ -317,9 +325,9 @@ class User {
     List<String>? commonInterests,
     double? overallRating,
     DateTime? visitedAt,
-    DateTime? vipExpiresAt,
-    String? vipProductId,
     DateTime? vipUpdatedAt,
+    int? vipPriority,
+    Map<String, dynamic>? pushPreferences,
   }) {
     return User(
       userId: userId ?? this.userId,
@@ -358,8 +366,12 @@ class User {
       vipExpiresAt: vipExpiresAt ?? this.vipExpiresAt,
       vipProductId: vipProductId ?? this.vipProductId,
       vipUpdatedAt: vipUpdatedAt ?? this.vipUpdatedAt,
+      vipPriority: vipPriority ?? this.vipPriority,
+      pushPreferences: pushPreferences ?? this.pushPreferences,
     );
   }
+
+  // ==================== GETTERS MODERNOS ====================
 
   // ==================== GETTERS MODERNOS ====================
   
@@ -432,12 +444,12 @@ class User {
       'languages': languages,
       'from': from,
       'distance': distance,
-      'commonInterests': commonInterests,
-      'overallRating': overallRating,
-      'visitedAt': visitedAt,
-      'vipExpiresAt': vipExpiresAt,
       'vipProductId': vipProductId,
       'vipUpdatedAt': vipUpdatedAt,
+      'vip_priority': vipPriority,
+      'advancedSettings': {
+        'push_preferences': pushPreferences,
+      },
     };
   }
 }

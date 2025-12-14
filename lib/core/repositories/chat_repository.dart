@@ -93,9 +93,10 @@ class ChatRepository implements IChatRepository {
       print('🔍 [CHAT DEBUG] 🎯 Using EventChats architecture');
       print('🔍 [CHAT DEBUG] Event ID: $eventId');
       
-      final batch = _firestore.batch();
+      // Para mensagens de imagem, usar texto descritivo se textMsg estiver vazio
+      final displayText = textMsg.isEmpty && type == 'image' ? '📷 Imagem' : textMsg;
       
-      // 1. Adiciona mensagem no chat do evento
+      // ✅ APENAS cria a mensagem - Cloud Function atualiza as conversações
       final messageRef = _firestore
           .collection('EventChats')
           .doc(eventId)
@@ -104,10 +105,7 @@ class ChatRepository implements IChatRepository {
       
       print('🔍 [CHAT DEBUG] Message Path: EventChats/$eventId/Messages/${messageRef.id}');
       
-      // Para mensagens de imagem, usar texto descritivo se textMsg estiver vazio
-      final displayText = textMsg.isEmpty && type == 'image' ? '📷 Imagem' : textMsg;
-      
-      batch.set(messageRef, {
+      await messageRef.set({
         'sender_id': senderId,
         'receiver_id': null, // ✅ Event Chat: receiver_id must be null
         'user_id': senderId, // Compatibilidade com modelo Message
@@ -122,36 +120,7 @@ class ChatRepository implements IChatRepository {
         'readBy': [senderId], // Marca como lido pelo sender no array
       });
       
-      // 2. Atualiza conversa do sender em Connections (para lista de conversas)
-      final senderConvRef = _firestore
-          .collection(C_CONNECTIONS)
-          .doc(senderId)
-          .collection(C_CONVERSATIONS)
-          .doc(receiverId);
-      
-      print('🔍 [CHAT DEBUG] Sender Conversation Path: Connections/$senderId/conversations/$receiverId');
-      
-      batch.set(senderConvRef, {
-        USER_ID: receiverId,
-        fullname: userFullName,
-        USER_PROFILE_PHOTO: userPhotoLink,
-        MESSAGE_TYPE: type,
-        LAST_MESSAGE: displayText, // ✅ Usa displayText para EventChats também
-        MESSAGE_READ: true,
-        TIMESTAMP: timestamp,
-      }, SetOptions(merge: true));
-      
-      try {
-        print('🔍 [CHAT DEBUG] Committing batch write with 2 operations (EventChat)...');
-        await batch.commit();
-        print('✅ [CHAT DEBUG] EventChat batch commit successful!');
-      } catch (e) {
-        print('❌ [CHAT DEBUG] EventChat batch commit FAILED!');
-        print('❌ [CHAT DEBUG] Error Type: ${e.runtimeType}');
-        print('❌ [CHAT DEBUG] Error Message: $e');
-        print('❌ [CHAT DEBUG] ===== END ERROR DIAGNOSTIC =====');
-        rethrow;
-      }
+      print('✅ [CHAT DEBUG] EventChat message created - Cloud Function will update conversations');
       return;
     }
     
@@ -222,7 +191,7 @@ class ChatRepository implements IChatRepository {
       LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: true,
       TIMESTAMP: timestamp,
-    });
+    }, SetOptions(merge: true));
 
     // Atualiza conversa do receiver
     final receiverConvRef = _firestore
@@ -241,8 +210,9 @@ class ChatRepository implements IChatRepository {
       MESSAGE_TYPE: type,
       LAST_MESSAGE: displayText, // ✅ Usa displayText para mostrar "📷 Imagem" se for imagem
       MESSAGE_READ: isRead,
+      'unread_count': FieldValue.increment(1),
       TIMESTAMP: timestamp,
-    });
+    }, SetOptions(merge: true));
 
     try {
       print('🔍 [CHAT DEBUG] Committing batch write with 4 operations (1:1)...');

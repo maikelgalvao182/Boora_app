@@ -34,13 +34,17 @@ match /EventApplications/{applicationId} {
   /// - Usuário autenticado
   /// - userId deve ser o próprio usuário
   /// - Status deve ser "pending" ou "autoApproved" baseado no privacyType
+  /// - Não pode aplicar para o próprio evento (criador não precisa aplicar)
+  /// - Validar que o evento existe e está ativo
   /// 
   /// ⚠️ NOTA: Proteção contra duplicatas é feita no app (event_application_repository.dart)
   /// pois Firestore Rules não permite queries para verificar aplicações existentes.
   /// A validação acontece antes de chamar .add() no repositório.
   allow create: if isSignedIn() && 
     request.resource.data.userId == request.auth.uid &&
+    request.resource.data.userId != getEventFromRequest().createdBy &&
     request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&
+    getEventFromRequest().isActive == true &&
     (
       (getEventFromRequest().participants.privacyType == 'open' && 
        request.resource.data.status == 'autoApproved') ||
@@ -77,6 +81,11 @@ match /EventApplications/{applicationId} {
     (resource.data.status == 'approved' || resource.data.status == 'autoApproved') &&
     request.resource.data.presence in ['Vou', 'Talvez', 'Não vou'];
   
-  /// 🗑️ DELETE: não permitido
-  allow delete: if false;
+  /// 🗑️ DELETE:
+  /// - Criador do evento pode deletar aplicações ao deletar o evento
+  /// - Usuário pode deletar sua própria aplicação (sair do evento)
+  allow delete: if isSignedIn() && (
+    request.auth.uid == getEvent().createdBy ||
+    request.auth.uid == resource.data.userId
+  );
 }

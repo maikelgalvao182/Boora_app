@@ -207,6 +207,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       'from': '', // Será preenchido posteriormente
       'originSource': model.originSource ?? '',
       'agreeTerms': model.agreeTerms,
+      'vip_priority': 2,
     };
 
     // Loading já foi setado antes de chamar esta função

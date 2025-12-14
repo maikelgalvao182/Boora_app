@@ -77,6 +77,7 @@ class ConversationStreamWidget extends StatelessWidget {
           'emoji': item.userPhotoUrl, // For event emoji avatars
           LAST_MESSAGE: item.lastMessage ?? '',
           MESSAGE_READ: item.isRead,
+          'unread_count': item.unreadCount,
           TIMESTAMP: item.lastMessageAt?.millisecondsSinceEpoch,
           'is_event_chat': item.isEventChat,
           'event_id': item.eventId,

@@ -143,6 +143,11 @@ class SessionManager {
       // Timestamps como ISO strings
       'registrationDate': user.userRegDate.toIso8601String(),
       'lastLoginDate': user.userLastLogin.toIso8601String(),
+      
+      // Preferências de Push (dentro de advancedSettings para compatibilidade com fromDocument)
+      if (user.pushPreferences != null) 'advancedSettings': {
+        'push_preferences': user.pushPreferences,
+      },
     };
   }
 

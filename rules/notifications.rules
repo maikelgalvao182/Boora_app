@@ -12,16 +12,38 @@
 ///   - n_related_id: string
 ///   - n_read: bool
 ///   - timestamp: timestamp
+///
+/// 🔒 SEGURANÇA:
+/// - Apenas o sender pode criar notificações (validando n_sender_id)
+/// - Apenas o receiver pode atualizar (marcar como lida) e deletar
+/// - Cloud Functions podem criar notificações via Admin SDK
 
 match /Notifications/{notificationId} {
-  // Permitir leitura se o usuário é o destinatário (validar ambos os campos)
+  /// 📖 LEITURA:
+  /// - Apenas o destinatário pode ler suas notificações
   allow read: if isSignedIn() && 
     (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
   
-  // Permitir deletar apenas se for o destinatário
+  /// ✍️ CRIAR notificação:
+  /// - Usuário autenticado pode criar APENAS se for o sender
+  /// - n_sender_id deve corresponder ao usuário autenticado
+  /// - Validar campos obrigatórios
+  /// - userId/n_receiver_id não pode ser o próprio sender (evitar auto-notificação falsa)
+  allow create: if isSignedIn() && 
+    request.resource.data.n_sender_id == request.auth.uid &&
+    request.resource.data.keys().hasAll(['userId', 'n_type', 'n_sender_id', 'timestamp']) &&
+    request.resource.data.userId != request.auth.uid &&
+    request.resource.data.n_receiver_id != request.auth.uid;
+  
+  /// ✏️ ATUALIZAR notificação:
+  /// - Apenas o destinatário pode atualizar (ex: marcar como lida)
+  /// - Só pode mudar n_read (não pode alterar conteúdo ou sender)
+  allow update: if isSignedIn() && 
+    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid) &&
+    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['n_read']);
+  
+  /// 🗑️ DELETAR notificação:
+  /// - Apenas o destinatário pode deletar suas notificações
   allow delete: if isSignedIn() && 
     (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
-  
-  // Qualquer usuário logado pode criar/atualizar notificações
-  allow create, update: if isSignedIn();
 }

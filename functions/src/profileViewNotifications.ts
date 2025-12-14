@@ -22,6 +22,7 @@
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import {sendPush} from "./services/pushDispatcher";
 
 // Inicializa Firebase Admin (apenas uma vez)
 if (!admin.apps.length) {
@@ -117,11 +118,11 @@ export const processProfileViewNotifications = functions
       const batch = db.batch();
 
       for (const [userId, data] of Object.entries(aggregated)) {
-        // Mínimo de 3 visualizações para notificar (empilhamento)
-        if (data.count < 3) {
+        // Mínimo de 1 visualização para notificar (temporário para teste)
+        if (data.count < 1) {
           console.log(
             `⏭️ Pulando ${userId}: apenas ${data.count} ` +
-            "visualizações (mínimo: 3)"
+            "visualizações (mínimo: 1)"
           );
           continue;
         }
@@ -161,7 +162,31 @@ export const processProfileViewNotifications = functions
       // Commit em lote (atômico)
       await batch.commit();
 
-      console.log(`✅ ${notificationsSent} notificações enviadas`);
+      console.log(`✅ ${notificationsSent} notificações in-app criadas`);
+
+      // Disparar push notifications para cada usuário
+      const pushPromises = Object.entries(aggregated)
+        .filter(([, data]) => data.count >= 1)
+        .map(([userId, data]) => {
+          const body = data.count === 1 ?
+            "1 pessoa da região visualizou seu perfil" :
+            `${data.count} pessoas da região visualizaram seu perfil`;
+
+          return sendPush({
+            userId: userId,
+            type: "global",
+            title: "👀 Visitas ao perfil",
+            body: body,
+            data: {
+              sub_type: "profile_views_aggregated",
+              count: data.count.toString(),
+              viewerIds: data.viewerIds.join(","),
+            },
+          });
+        });
+
+      await Promise.all(pushPromises);
+      console.log(`✅ ${pushPromises.length} push notifications enviadas`);
 
       return {
         success: true,
@@ -249,11 +274,11 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
       const batch = db.batch();
 
       for (const [userId, data] of Object.entries(aggregated)) {
-        // Mínimo de 3 visualizações para notificar (empilhamento)
-        if (data.count < 3) {
+        // Mínimo de 1 visualização para notificar (temporário para teste)
+        if (data.count < 1) {
           console.log(
             `⏭️ Pulando ${userId}: apenas ${data.count} ` +
-            "visualizações (mínimo: 3)"
+            "visualizações (mínimo: 1)"
           );
           continue;
         }
@@ -289,7 +314,31 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
 
       await batch.commit();
 
-      console.log(`✅ ${notificationsSent} notificações enviadas`);
+      console.log(`✅ ${notificationsSent} notificações in-app criadas`);
+
+      // Disparar push notifications
+      const pushPromises = Object.entries(aggregated)
+        .filter(([, data]) => data.count >= 1)
+        .map(([userId, data]) => {
+          const body = data.count === 1 ?
+            "1 pessoa da região visualizou seu perfil" :
+            `${data.count} pessoas da região visualizaram seu perfil`;
+
+          return sendPush({
+            userId: userId,
+            type: "global",
+            title: "👀 Visitas ao perfil",
+            body: body,
+            data: {
+              sub_type: "profile_views_aggregated",
+              count: data.count.toString(),
+              viewerIds: data.viewerIds.join(","),
+            },
+          });
+        });
+
+      await Promise.all(pushPromises);
+      console.log(`✅ ${pushPromises.length} push notifications enviadas`);
 
       res.status(200).json({
         success: true,

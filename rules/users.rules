@@ -15,17 +15,44 @@
 ///   - updatedAt: timestamp
 ///   - status: string ("active" | "blocked" | ...)
 ///   - isBlocked: bool
+///   - overallRating: number (gerenciado por Cloud Function)
+///   - totalReviews: number (gerenciado por Cloud Function)
+///   - lastRatingUpdate: timestamp (gerenciado por Cloud Function)
+///   - isVerified: bool (gerenciado por Cloud Function)
+///   - verifiedAt: timestamp (gerenciado por Cloud Function)
+///   - facialId: string (gerenciado por Cloud Function)
+///   - verificationType: string (gerenciado por Cloud Function)
 
 match /Users/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler perfis públicos
   allow read: if isSignedIn();
   
-  // Permite que o próprio usuário atualize seus dados
-  allow create, update, delete: if isOwner(userId);
+  /// ✍️ CRIAR/ATUALIZAR perfil:
+  /// - Apenas o próprio usuário pode criar/atualizar seu perfil
+  /// - NÃO pode alterar campos protegidos (rating, verification, VIP)
+  allow create, update: if isOwner(userId) &&
+    !request.resource.data.diff(resource.data).affectedKeys()
+      .hasAny(['overallRating', 'totalReviews', 'lastRatingUpdate', 
+               'isVerified', 'verifiedAt', 'facialId', 'verificationType',
+               'vipExpiresAt', 'vipProductId', 'vipUpdatedAt', 
+               'user_is_vip', 'user_is_verified', 'user_level']);
   
-  // Permite que Cloud Functions atualizem campos específicos de rating
-  // (overallRating, totalReviews, lastRatingUpdate são gerenciados pela Cloud Function updateUserRating)
+  /// ✏️ ATUALIZAR campos protegidos (APENAS Cloud Functions):
+  /// - Campos de rating (updateUserRating Cloud Function)
+  /// - Campos de verificação Didit (após webhook)
+  /// - Campos VIP (após purchase/subscription)
   allow update: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']);
+    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['vipExpiresAt', 'vipProductId', 'vipUpdatedAt', 
+              'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// 🗑️ DELETAR perfil:
+  /// - Apenas o próprio usuário pode deletar seu perfil
+  allow delete: if isOwner(userId);
   
   /// 👁️ Subcoleção de visitas ao perfil (legacy - deprecada)
   /// Path: Users/{userId}/visits/{visitId}
@@ -42,14 +69,31 @@ match /Users/{userId} {
 ///   (espelho simplificado de Users/{userId} para o módulo de perfil/cache)
 
 match /users/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler perfis públicos
   allow read: if isSignedIn();
   
-  // Permite que o próprio usuário atualize seus dados
-  allow create, update, delete: if isOwner(userId);
+  /// ✍️ CRIAR/ATUALIZAR perfil:
+  /// - Apenas o próprio usuário pode criar/atualizar seu perfil
+  /// - NÃO pode alterar campos protegidos
+  allow create, update: if isOwner(userId) &&
+    !request.resource.data.diff(resource.data).affectedKeys()
+      .hasAny(['overallRating', 'totalReviews', 'lastRatingUpdate',
+               'isVerified', 'verifiedAt', 'facialId', 'verificationType',
+               'vipExpiresAt', 'vipProductId', 'vipUpdatedAt',
+               'user_is_vip', 'user_is_verified', 'user_level']);
   
-  // Permite que Cloud Functions atualizem campos específicos de rating
+  /// ✏️ ATUALIZAR campos protegidos (APENAS Cloud Functions):
   allow update: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']);
+    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['vipExpiresAt', 'vipProductId', 'vipUpdatedAt',
+              'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// 🗑️ DELETAR perfil:
+  allow delete: if isOwner(userId);
   
   /// 👁️ Subcoleção de visitas ao perfil (duplicada por compatibilidade)
   /// Path: users/{userId}/visits/{visitId}

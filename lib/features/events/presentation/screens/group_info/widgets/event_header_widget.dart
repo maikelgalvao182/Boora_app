@@ -102,7 +102,7 @@ class _EventNameRow extends StatelessWidget {
             eventName,
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               color: GlimpseColors.primaryColorLight,
             ),

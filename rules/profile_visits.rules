@@ -8,16 +8,38 @@
 /// - visitCount: number (incrementa em visitas repetidas)
 /// - expireAt: timestamp (TTL - 7 dias)
 /// - source: string ('profile', 'event', etc)
+///
+/// 🔒 SEGURANÇA VIP:
+/// - Leitura: apenas VIPs podem ver quem visitou seu perfil
+/// - Escrita: apenas o visitor pode registrar sua própria visita
 
 match /ProfileVisits/{visitId} {
-  // Qualquer usuário autenticado pode ler suas próprias visitas
+  /// 📖 LEITURA: 
+  /// - Apenas VIP pode ver visitas ao seu perfil
   allow read: if isSignedIn() && 
-                 request.auth.uid == resource.data.visitedUserId;
+                 request.auth.uid == resource.data.visitedUserId &&
+                 isVip(request.auth.uid);
   
-  // Qualquer usuário autenticado pode registrar visitas
-  allow create, update: if isSignedIn();
+  /// ✍️ CRIAR visita:
+  /// - Usuário autenticado
+  /// - visitorId DEVE ser o usuário autenticado (não pode falsificar visitas)
+  /// - Validar campos obrigatórios
+  /// - Não pode visitar o próprio perfil
+  allow create: if isSignedIn() &&
+                   request.resource.data.visitorId == request.auth.uid &&
+                   request.resource.data.visitedUserId != request.auth.uid &&
+                   request.resource.data.keys().hasAll(['visitedUserId', 'visitorId', 'visitedAt']);
   
-  // Apenas o dono pode deletar suas visitas
+  /// ✏️ ATUALIZAR visita:
+  /// - Apenas o visitor pode atualizar sua própria visita (incrementar visitCount)
+  /// - Não pode mudar visitedUserId ou visitorId
+  allow update: if isSignedIn() &&
+                   resource.data.visitorId == request.auth.uid &&
+                   request.resource.data.visitedUserId == resource.data.visitedUserId &&
+                   request.resource.data.visitorId == resource.data.visitorId;
+  
+  /// 🗑️ DELETE: 
+  /// - Apenas o dono do perfil pode deletar visitas recebidas
   allow delete: if isSignedIn() && 
                    request.auth.uid == resource.data.visitedUserId;
 }
@@ -25,10 +47,19 @@ match /ProfileVisits/{visitId} {
 /// 👁️ Coleção de views agregadas (para notificações)
 /// Path: ProfileViews/{viewId}
 match /ProfileViews/{viewId} {
-  // Qualquer usuário autenticado pode registrar views
-  allow create: if isSignedIn();
+  /// ✍️ CRIAR view:
+  /// - Usuário autenticado
+  /// - viewerId DEVE ser o usuário autenticado
+  /// - Validar campos obrigatórios
+  allow create: if isSignedIn() &&
+                   request.resource.data.viewerId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['viewedUserId', 'viewerId', 'viewedAt']);
   
-  // Apenas o dono do perfil visualizado pode ler
+  /// 📖 LEITURA:
+  /// - Apenas o dono do perfil visualizado pode ler
   allow read: if isSignedIn() && 
                  request.auth.uid == resource.data.viewedUserId;
+  
+  /// 🗑️ DELETE/UPDATE: não permitido
+  allow update, delete: if false;
 }

@@ -41,6 +41,9 @@ class ConversationsViewModel extends ChangeNotifier {
   String _searchQuery = '';
   int _wsUnreadCount = 0;
   
+  // ✅ Stream do Firestore para atualizações em tempo real
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _firestoreSubscription;
+  
   // ValueNotifier para badge de conversas não lidas (apenas visíveis)
   final ValueNotifier<int> visibleUnreadCount = ValueNotifier<int>(0);
   
@@ -48,6 +51,7 @@ class ConversationsViewModel extends ChangeNotifier {
   bool _isProcessingPayment = false;
   bool _isRefreshing = false;
   bool _initialized = false;
+  bool _firestoreStarted = false;
   bool _hasReceivedFirstSnapshot = false;
   final ScrollController _scrollController = ScrollController();
   
@@ -129,11 +133,29 @@ class ConversationsViewModel extends ChangeNotifier {
     _stateService = const ConversationStateService();
     
     _initBlockedUsersFiltering();
+    
+    // ✅ Iniciar stream do Firestore IMEDIATAMENTE (independente do WebSocket)
+    // 🔥 ESCUTAR AUTH para garantir que o stream só inicie quando o usuário estiver logado
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _log('✅ Auth detectado, iniciando Firestore stream');
+        _initFirestoreStreamSafely();
+      }
+    });
+    
     _initWebSocketListeners();
     
     // Listen to global removal bus for instant UI updates
     ConversationRemovalBus.instance.hiddenUserIds.addListener(_onRemovalBusChanged);
     _log('🟢 [ConversationsViewModel] _initialize concluído');
+  }
+
+  /// Inicializa o stream do Firestore de forma segura (apenas uma vez)
+  void _initFirestoreStreamSafely() {
+    if (_firestoreStarted) return;
+    _firestoreStarted = true;
+
+    _initFirestoreStream();
   }
 
   /// Inicializa listeners do WebSocket para conversas (paralelo ao Firestore)
@@ -148,6 +170,11 @@ class ConversationsViewModel extends ChangeNotifier {
           await _socket.connect();
         }
 
+        // ⚠️ WebSocket listeners desativados para evitar conflito com Firestore Stream
+        // O Firestore Stream (_initFirestoreStream) é a fonte da verdade para a lista de conversas.
+        // O WebSocket estava sobrescrevendo a lista com dados potencialmente desatualizados.
+        
+        /*
         // Carrega a primeira página das conversas antigas via Firestore
         // para evitar skeleton fixo enquanto o WebSocket não responde.
         await _loadInitialFromFirestore();
@@ -155,6 +182,8 @@ class ConversationsViewModel extends ChangeNotifier {
         _socket.subscribeToConversations();
         _socket.onConversationsSnapshot(_handleWsSnapshot);
         _socket.onConversationsUpdated(_handleWsUpdated);
+        */
+        
         _socket.onConversationsUnreadCount((unreadCount) {
           _wsUnreadCount = unreadCount;
           notifyListeners();
@@ -163,6 +192,128 @@ class ConversationsViewModel extends ChangeNotifier {
         // Falhas de WebSocket não devem afetar a UI atual baseada em Firestore
       }
     });
+  }
+  
+  /// ✅ Inicializa stream do Firestore para atualizações em tempo real
+  /// Funciona como fallback quando o WebSocket não emite eventos
+  void _initFirestoreStream() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      _log('⚠️ _initFirestoreStream: Usuário não autenticado');
+      return;
+    }
+    
+    _log('🔄 _initFirestoreStream: Iniciando stream para userId=$userId');
+    _log('🔄 _initFirestoreStream: Path = Connections/$userId/Conversations');
+    
+    _firestoreSubscription?.cancel();
+    _firestoreSubscription = FirebaseFirestore.instance
+        .collection('Connections')
+        .doc(userId)
+        .collection('Conversations')
+        .orderBy('timestamp', descending: true)
+        .limit(50)
+        .snapshots(includeMetadataChanges: false) // ✅ Remover metadata changes para evitar eventos duplicados
+        .listen(
+      (snapshot) {
+        _log('🔄 Firestore stream: ${snapshot.docs.length} conversas recebidas (source: ${snapshot.metadata.isFromCache ? "cache" : "server"})');
+        
+        // 🔥 Log de mudanças de documentos (added, modified, removed)
+        for (final change in snapshot.docChanges) {
+          _log('📝 Doc ${change.type.name}: ${change.doc.id}');
+        }
+        
+        _handleFirestoreSnapshot(snapshot);
+      },
+      onError: (error) {
+        _log('❌ Firestore stream error: $error');
+      },
+    );
+    
+    _log('✅ _initFirestoreStream: Stream listener configurado');
+  }
+  
+  /// ✅ Processa snapshot do Firestore e atualiza a lista de conversas
+  void _handleFirestoreSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    _log('📥 [Firestore Stream] Snapshot recebido com ${snapshot.docs.length} documentos');
+    _log('📥 [Firestore Stream] Metadata - hasPendingWrites: ${snapshot.metadata.hasPendingWrites}, isFromCache: ${snapshot.metadata.isFromCache}');
+    
+    // 🔥 Limpar cache para garantir dados em tempo real
+    _cacheService.clearAll();
+    _log('🗑️ Cache limpo para garantir dados em tempo real');
+    
+    final items = <ConversationItem>[];
+    
+    for (final doc in snapshot.docs) {
+      try {
+        final data = doc.data();
+        final otherUserId = (data[USER_ID] ?? doc.id).toString();
+        final rawName = (data['activityText'] ?? data[fullname] ?? data['other_user_name'] ?? data['otherUserName'] ?? '').toString();
+        final name = _sanitizeText(rawName);
+        final photo = _extractPhotoUrl(data);
+        final rawLastMessage = (data[LAST_MESSAGE] ?? '').toString();
+        final lastMessage = _sanitizeText(rawLastMessage);
+
+        DateTime? ts;
+        final rawTs = data[TIMESTAMP];
+        if (rawTs is Timestamp) {
+          ts = rawTs.toDate();
+        } else if (rawTs is int) {
+          ts = DateTime.fromMillisecondsSinceEpoch(rawTs);
+        }
+
+        final unreadFlag = data[MESSAGE_READ];
+        final isRead = unreadFlag == true || unreadFlag == 1;
+        final unreadCount = (data['unread_count'] as int?) ?? (isRead ? 0 : 1);
+        
+        final isEventChat = data['is_event_chat'] == true;
+        final eventId = data['event_id'] as String?;
+        
+        _log('   📄 Doc ${doc.id}: isEventChat=$isEventChat, eventId=$eventId, name=$name');
+
+        items.add(ConversationItem(
+          id: doc.id,
+          userId: otherUserId,
+          userFullname: name,
+          userPhotoUrl: photo,
+          lastMessage: lastMessage,
+          lastMessageAt: ts,
+          isRead: isRead,
+          unreadCount: unreadCount,
+          isEventChat: isEventChat,
+          eventId: eventId,
+        ));
+      } catch (e) {
+        _log('⚠️ Erro ao processar conversa ${doc.id}: $e');
+      }
+    }
+    
+    // 🚫 Filtrar conversas de usuários bloqueados
+    final currentUserId = AppState.currentUserId;
+    if (currentUserId != null) {
+      final filteredItems = items.where((conv) {
+        final isBlocked = BlockService().isBlockedCached(currentUserId, conv.userId);
+        if (isBlocked) {
+          _log('   🚫 Conversa ${conv.id} bloqueada (userId: ${conv.userId})');
+        }
+        return !isBlocked;
+      }).toList();
+      
+      _log('📊 [Firestore Stream] Total: ${items.length}, Bloqueados: ${items.length - filteredItems.length}, Visíveis: ${filteredItems.length}');
+      _log('📊 [Firestore Stream] Chats de evento: ${filteredItems.where((c) => c.isEventChat).length}');
+      _log('📊 [Firestore Stream] Chats 1-1: ${filteredItems.where((c) => !c.isEventChat).length}');
+      
+      _wsConversations = filteredItems;
+    } else {
+      _log('⚠️ [Firestore Stream] currentUserId é null, não filtrando bloqueados');
+      _wsConversations = items;
+    }
+    
+    _hasReceivedFirstSnapshot = true;
+    _updateVisibleUnreadCount();
+    notifyListeners();
+    
+    _log('✅ Firestore stream processado: ${_wsConversations.length} conversas');
   }
 
   void _handleWsSnapshot(Map<String, dynamic> data) {
@@ -747,6 +898,7 @@ class ConversationsViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _firestoreSubscription?.cancel(); // ✅ Cancelar stream do Firestore
     BlockService.instance.removeListener(_onBlockedUsersChanged);
     _paginationService.removeListener(_onPaginationChanged);
     _paginationService.dispose();

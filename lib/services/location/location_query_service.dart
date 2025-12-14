@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/features/subscription/services/vip_access_service.dart';
+import 'package:partiu/services/location/advanced_filters_controller.dart';
 import 'package:partiu/services/location/geo_utils.dart';
 import 'package:partiu/services/location/distance_isolate.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
@@ -164,7 +166,7 @@ class LocationQueryService {
       debugPrint('📊 Após filtro de orientação sexual: ${filteredUsers.length} usuários');
 
       // 7. Filtrar com isolate (distância exata e cálculos pesados)
-      final finalUsers = await _filterUsersByDistanceIsolate(
+      var finalUsers = await _filterUsersByDistanceIsolate(
         users: filteredUsers,
         centerLat: userLocation.latitude,
         centerLng: userLocation.longitude,
@@ -172,7 +174,33 @@ class LocationQueryService {
       );
       debugPrint('📊 Após filtro de distância (Isolate): ${finalUsers.length} usuários');
 
-      // 8. Atualizar cache
+      // 7.5 Ordenar por VIP Priority e Score (Client-side enforcement of Server Logic)
+      // Garante que VIPs apareçam no topo e ordenados por score
+      finalUsers.sort((a, b) {
+        // 1. VIP Priority (ASC: 1 vem antes de 2)
+        final vipA = (a.userData['vip_priority'] as int?) ?? 2;
+        final vipB = (b.userData['vip_priority'] as int?) ?? 2;
+        final vipComparison = vipA.compareTo(vipB);
+        if (vipComparison != 0) return vipComparison;
+
+        // 2. Score / Rating (DESC: maior vem antes)
+        final ratingA = (a.userData['overallRating'] as num?)?.toDouble() ?? 0.0;
+        final ratingB = (b.userData['overallRating'] as num?)?.toDouble() ?? 0.0;
+        final ratingComparison = ratingB.compareTo(ratingA);
+        if (ratingComparison != 0) return ratingComparison;
+        
+        // 3. Distância (ASC: menor vem antes) - Tie breaker
+        return a.distanceKm.compareTo(b.distanceKm);
+      });
+
+      // 8. Aplicar limite VIP (Segurança Client-Side)
+      // O backend deve ter sua própria validação, mas aqui garantimos a UX
+      if (!VipAccessService.isVip && finalUsers.length > VipAccessService.freePeopleLimit) {
+        debugPrint('🔒 LocationQueryService: Limitando lista para ${VipAccessService.freePeopleLimit} (Usuário Free)');
+        finalUsers = finalUsers.take(VipAccessService.freePeopleLimit).toList();
+      }
+
+      // 9. Atualizar cache
       _usersCache = UsersCache(
         users: finalUsers,
         radiusKm: radiusKm,

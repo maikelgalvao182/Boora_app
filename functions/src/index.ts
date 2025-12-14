@@ -9,8 +9,11 @@
 
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import {sendPush} from "./services/pushDispatcher";
 
-admin.initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 /**
  * Quando um evento é criado, automaticamente:
@@ -225,13 +228,23 @@ export const onApplicationApproved = functions.firestore
         .where("status", "in", ["approved", "autoApproved"])
         .get();
 
-      const participantIds = applicationsSnapshot.docs.map(
+      const participantIdsFromQuery = applicationsSnapshot.docs.map(
         (doc) => doc.data().userId
       );
 
-      // 🆕 Buscar dados completos de todos os participantes
+      // Garantir que o novo usuário seja incluído (race condition fix)
+      const participantIds = participantIdsFromQuery.includes(userId) ?
+        participantIdsFromQuery :
+        [...participantIdsFromQuery, userId];
+
+      const participantsCountText =
+        `participantIds: ${participantIds.length}` +
+        ` (query: ${participantIdsFromQuery.length})`;
+      console.log(participantsCountText);
+
+      // Buscar dados completos de todos os participantes
       console.log(
-        `🔍 Buscando dados de ${participantIds.length} participantes...`
+        `Buscando dados de ${participantIds.length} participantes...`
       );
       const participantDocs = await Promise.all(
         participantIds.map((id) =>
@@ -324,11 +337,9 @@ export const onApplicationApproved = functions.firestore
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             message_read: participantId === userId,
             unread_count: participantId === userId ?
-              0 :
-              admin.firestore.FieldValue.increment(1),
+              0 : admin.firestore.FieldValue.increment(1),
             is_event_chat: true,
             participant_ids: participantIds,
-            // 🆕 Array completo com dados dos participantes
             participants: participants,
             schedule: schedule,
           },
@@ -352,34 +363,26 @@ export const onApplicationApproved = functions.firestore
       const existingParticipants = participantIds.filter((id) => id !== userId);
 
       if (existingParticipants.length > 0) {
-        const userDocs = await Promise.all(
-          existingParticipants.map((id) =>
-            admin.firestore().collection("Users").doc(id).get()
-          )
-        );
-
-        const tokens = userDocs
-          .map((doc) => doc.data()?.fcmToken)
-          .filter((token) => token);
-
-        if (tokens.length > 0) {
-          await admin.messaging().sendMulticast({
-            tokens: tokens,
-            notification: {
-              title: activityText,
-              body: systemMessage,
-            },
+        const promises = existingParticipants.map((participantId) =>
+          sendPush({
+            userId: participantId,
+            type: "chat_event",
+            title: activityText,
+            body: systemMessage,
             data: {
-              type: "event_chat",
+              sub_type: "event_join",
               eventId: eventId,
               chatId: `event_${eventId}`,
+              userName: userName,
             },
-          });
+          })
+        );
 
-          console.log(
-            `✅ Notificação enviada para ${tokens.length} participantes`
-          );
-        }
+        await Promise.all(promises);
+        console.log(
+          "✅ Push enviado via dispatcher para " +
+          `${existingParticipants.length} participantes`
+        );
       }
     } catch (error) {
       console.error("❌ Erro ao processar application aprovada:", error);
@@ -400,24 +403,28 @@ export * from "./profileViewNotifications";
 
 // ===== EVENT CHAT NOTIFICATIONS =====
 // Importa e exporta as Cloud Functions de notificações de EventChat
+// Inclui notificações in-app + push notifications para mensagens de grupo
 export * from "./eventChatNotifications";
 
 // ===== CHAT PUSH NOTIFICATIONS =====
-// Importa e exporta as Cloud Functions de push notifications de chat
+// Importa e exporta as Cloud Functions de push notifications de chat 1-1
 export * from "./chatPushNotifications";
 
 // ===== REVIEW FUNCTIONS =====
 // Importa e exporta as Cloud Functions de reviews
 export * from "./reviews/createPendingReviews";
 export * from "./reviews/onPresenceConfirmed";
+export * from "./reviews/reviewNotifications";
 export * from "./updateUserRating";
 
 // ===== DEBUG FUNCTIONS =====
 export * from "./debug";
+export * from "./testPush";
 
 // ===== USER MANAGEMENT =====
 // Importa e exporta as Cloud Functions de gerenciamento de usuários
 export * from "./users/deleteUserAccount";
+export * from "./get_people";
 
 // ===== WEBHOOKS =====
 // Importa e exporta webhooks de integração

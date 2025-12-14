@@ -12,6 +12,12 @@
 ///   - event_id: string (opcional, eventId para chats de eventos)
 
 match /Connections/{userId} {
+  // Helper para verificar se é criador do evento
+  function isEventCreator(eventId) {
+    let event = get(/databases/$(database)/documents/events/$(eventId));
+    return event.data.createdBy == request.auth.uid;
+  }
+  
   match /Conversations/{withUserId} {
     // Helper: verifica se é conversa de evento
     function isEventConversation() {
@@ -53,7 +59,11 @@ match /Connections/{userId} {
     );
     
     /// 🗑️ DELETAR:
-    /// - Apenas o dono pode deletar sua conversa
-    allow delete: if isSignedIn() && request.auth.uid == userId;
+    /// - Dono pode deletar sua própria conversa
+    /// - Criador do evento pode deletar conversas de evento ao deletar o evento
+    allow delete: if isSignedIn() && (
+      request.auth.uid == userId ||
+      (isEventConversation() && isEventCreator(getEventId()))
+    );
   }
 }

@@ -2,12 +2,14 @@
  * Cloud Functions: Notificações de EventChat
  *
  * Trigger que monitora mensagens criadas em EventChats/{eventId}/Messages
- * e cria notificações na coleção Users/{userId}/Notifications para
- * cada participante (exceto o remetente).
+ * e:
+ * 1. Cria notificações in-app na coleção Notifications
+ * 2. Dispara push notification via PushDispatcher
  */
 
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import {sendPush} from "./services/pushDispatcher";
 
 /**
  * Trigger: Quando uma mensagem é criada em EventChats/{eventId}/Messages
@@ -73,8 +75,54 @@ export const onEventChatMessageCreated = functions.firestore
         return;
       }
 
-      // Criar notificações para todos os participantes exceto o remetente
       const batch = admin.firestore().batch();
+      const timestamp =
+        messageData.timestamp ||
+        admin.firestore.FieldValue.serverTimestamp();
+
+      // Update all participant conversations (source of truth)
+      const participantsCount = participantIds.length;
+      console.log(
+        `Updating ${participantsCount} conversations...`
+      );
+
+      for (const userId of participantIds) {
+        const conversationRef = admin
+          .firestore()
+          .collection("Connections")
+          .doc(userId)
+          .collection("Conversations")
+          .doc(`event_${eventId}`);
+
+        const isSender = userId === senderId;
+        const unreadIncrement = isSender ?
+          0 :
+          admin.firestore.FieldValue.increment(1);
+
+        batch.set(
+          conversationRef,
+          {
+            event_id: eventId,
+            activityText: activityText,
+            emoji: emoji,
+            last_message: messageText || "",
+            last_message_type: messageType || "text",
+            timestamp: timestamp,
+            is_event_chat: true,
+            message_read: isSender,
+            unread_count: unreadIncrement,
+          },
+          {merge: true}
+        );
+
+        const unreadStatus = isSender ? "0" : "+1";
+        console.log(
+          `Conversation updated for ${userId} ` +
+          `(read: ${isSender}, unread: ${unreadStatus})`
+        );
+      }
+
+      // Criar notificações para todos os participantes exceto o remetente
       let notificationCount = 0;
 
       console.log(`   SenderId: ${senderId}`);
@@ -120,7 +168,34 @@ export const onEventChatMessageCreated = functions.firestore
       if (notificationCount > 0) {
         await batch.commit();
         console.log(
-          `✅ ${notificationCount} notificações criadas ` +
+          `✅ ${notificationCount} notificações in-app criadas ` +
+          `para evento ${eventId}`
+        );
+
+        // Disparar push notifications para cada participante
+        const pushPromises = participantIds
+          .filter((id: string) => senderId !== "system" && id !== senderId)
+          .map((participantId: string) =>
+            sendPush({
+              userId: participantId,
+              type: "chat_event",
+              title: `${activityText} ${emoji}`,
+              body: `${senderName}: ${messageText?.substring(0, 100) || ""}`,
+              data: {
+                sub_type: "event_chat_message",
+                eventId: eventId,
+                senderId: senderId,
+                senderName: senderName,
+                eventTitle: activityText,
+                eventEmoji: emoji,
+                messagePreview: messageText?.substring(0, 100) || "",
+              },
+            })
+          );
+
+        await Promise.all(pushPromises);
+        console.log(
+          `✅ ${pushPromises.length} push notifications enviadas ` +
           `para evento ${eventId}`
         );
       } else {

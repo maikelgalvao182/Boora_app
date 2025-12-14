@@ -17,9 +17,21 @@ import 'package:partiu/core/services/block_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 
+import 'package:partiu/core/services/global_cache_service.dart';
+
 /// Controller para a tela de informações do grupo/evento
 class GroupInfoController extends ChangeNotifier {
-  GroupInfoController({required this.eventId}) {
+  // Singleton/Multiton pattern
+  static final Map<String, GroupInfoController> _instances = {};
+
+  factory GroupInfoController({required String eventId}) {
+    if (!_instances.containsKey(eventId)) {
+      _instances[eventId] = GroupInfoController._internal(eventId: eventId);
+    }
+    return _instances[eventId]!;
+  }
+
+  GroupInfoController._internal({required this.eventId}) {
     _init();
     _initBlockListener();
   }
@@ -33,6 +45,9 @@ class GroupInfoController extends ChangeNotifier {
   Map<String, dynamic>? _eventData;
   List<Map<String, dynamic>> _participants = [];
   bool _isMuted = false;
+  
+  /// Notifier exclusivo para a lista de participantes (evita rebuilds desnecessários)
+  final ValueNotifier<List<String>> participantsNotifier = ValueNotifier([]);
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -57,24 +72,37 @@ class GroupInfoController extends ChangeNotifier {
   int get participantCount => _participants.length;
   List<Map<String, dynamic>> get participants => _participants;
   
-  /// Retorna lista de IDs de participantes, filtrando usuários bloqueados
-  /// Se for o criador, mostra todos. Se for participante, oculta bloqueados.
-  List<String> get participantUserIds {
+  /// Retorna lista de IDs de participantes (usa o valor cacheado no Notifier)
+  List<String> get participantUserIds => participantsNotifier.value;
+
+  /// Atualiza a lista filtrada de participantes e notifica listeners
+  void _updateParticipantsList() {
     final allUserIds = _participants
         .map((p) => p['userId'] as String)
         .toList();
     
+    List<String> filteredList;
+    
     // Criador vê todos os participantes
-    if (isCreator) return allUserIds;
-    
-    // Participantes não veem bloqueados
-    final currentUserId = AppState.currentUserId;
-    if (currentUserId == null) return allUserIds;
-    
-    return allUserIds
-        .where((userId) => !BlockService().isBlockedCached(currentUserId, userId))
-        .toList();
+    if (isCreator) {
+      filteredList = allUserIds;
+    } else {
+      // Participantes não veem bloqueados
+      final currentUserId = AppState.currentUserId;
+      if (currentUserId == null) {
+        filteredList = allUserIds;
+      } else {
+        filteredList = allUserIds
+            .where((userId) => !BlockService().isBlockedCached(currentUserId, userId))
+            .toList();
+      }
+    }
+
+    // Só atualiza se houver mudança real (ValueNotifier faz check de igualdade, 
+    // mas como é lista nova, sempre notificaria. Aqui poderíamos otimizar mais se necessário)
+    participantsNotifier.value = filteredList;
   }
+
   bool get isMuted => _isMuted;
   bool get isPrivate => _eventData?['privacyType'] == 'private';
   bool get isCreator => _eventData?['createdBy'] == AppState.currentUserId;
@@ -93,6 +121,46 @@ class GroupInfoController extends ChangeNotifier {
     return '$day/$month/$year às $hour:$minute';
   }
 
+  void _initBlockListener() {
+    BlockService.instance.addListener(_onBlockedUsersChanged);
+  }
+
+  void _onBlockedUsersChanged() {
+    _updateParticipantsList();
+  }
+
+  @override
+  void dispose() {
+    // Ignora dispose para manter o estado vivo (Singleton/Multiton)
+    debugPrint('⚠️ GroupInfoController dispose ignored to keep state alive for event $eventId');
+  }
+
+  /// Força o dispose do controller e remove da lista de instâncias
+  void forceDispose() {
+    _instances.remove(eventId);
+    super.dispose();
+  }
+
+  Future<void> openInMaps() async {
+    if (eventLocation == null) return;
+
+    final lat = _eventData?['latitude'] as double?;
+    final lng = _eventData?['longitude'] as double?;
+
+    if (lat == null || lng == null) return;
+
+    final url = 'https://maps.apple.com/?q=$lat,$lng';
+    final uri = Uri.parse(url);
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('❌ Error opening maps: $e');
+    }
+  }
+
   Future<void> _init() async {
     await _loadEventData();
     await _loadParticipants();
@@ -102,6 +170,16 @@ class GroupInfoController extends ChangeNotifier {
 
   Future<void> _loadEventData() async {
     try {
+      // Tenta carregar do cache primeiro
+      final cacheKey = 'event_data_$eventId';
+      final cachedData = GlobalCacheService.instance.get<Map<String, dynamic>>(cacheKey);
+      
+      if (cachedData != null) {
+        _eventData = cachedData;
+        debugPrint('✅ Event data loaded from cache for $eventId');
+        return;
+      }
+
       final doc = await FirebaseFirestore.instance
           .collection('events')
           .doc(eventId)
@@ -113,6 +191,11 @@ class GroupInfoController extends ChangeNotifier {
       }
 
       _eventData = doc.data();
+      
+      // Salva no cache (TTL 5 min)
+      if (_eventData != null) {
+        GlobalCacheService.instance.set(cacheKey, _eventData, ttl: const Duration(minutes: 5));
+      }
     } catch (e) {
       _error = 'Failed to load event: $e';
       debugPrint('❌ Error loading event: $e');
@@ -121,43 +204,27 @@ class GroupInfoController extends ChangeNotifier {
 
   Future<void> _loadParticipants() async {
     try {
+      // Tenta carregar do cache primeiro
+      final cacheKey = 'event_participants_$eventId';
+      final cachedParticipants = GlobalCacheService.instance.get<List<dynamic>>(cacheKey);
+      
+      if (cachedParticipants != null) {
+        _participants = List<Map<String, dynamic>>.from(cachedParticipants);
+        _updateParticipantsList(); // Garante que o notifier seja atualizado com dados do cache
+        debugPrint('✅ Participants loaded from cache for $eventId');
+        return;
+      }
+
       debugPrint('🔍 Buscando participantes para evento: $eventId');
       
-      // Busca aplicações aprovadas do evento (approved + autoApproved)
-      final snapshot = await FirebaseFirestore.instance
-          .collection('EventApplications')
-          .where('eventId', isEqualTo: eventId)
-          .where('status', whereIn: ['approved', 'autoApproved'])
-          .get();
-
-      debugPrint('📋 Encontradas ${snapshot.docs.length} aplicações aprovadas');
-
-      // Criar lista com dados de aplicação incluindo timestamp para ordenação
-      final participantsWithTimestamp = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final appliedAt = (data['appliedAt'] as Timestamp?)?.toDate();
-        
-        debugPrint('  - userId: ${data['userId']}, status: ${data['status']}, appliedAt: $appliedAt');
-        
-        return {
-          'userId': data['userId'] as String,
-          'applicationId': doc.id,
-          'appliedAt': appliedAt,
-        };
-      }).toList();
+      // Busca via repositório
+      _participants = await _applicationRepository.getParticipantsForEvent(eventId);
       
-      // Ordenar por data de aplicação (do mais antigo para o mais recente)
-      participantsWithTimestamp.sort((a, b) {
-        final aTime = a['appliedAt'] as DateTime? ?? DateTime.now();
-        final bTime = b['appliedAt'] as DateTime? ?? DateTime.now();
-        return aTime.compareTo(bTime);
-      });
-
-      // Remover timestamp da lista final
-      _participants = participantsWithTimestamp.map((p) => {
-        'userId': p['userId'] as String,
-        'applicationId': p['applicationId'] as String,
-      }).toList();
+      // Salva no cache (TTL 5 min)
+      GlobalCacheService.instance.set(cacheKey, _participants, ttl: const Duration(minutes: 5));
+      
+      // Atualiza lista filtrada
+      _updateParticipantsList();
       
       debugPrint('✅ ${_participants.length} participantes carregados para evento $eventId');
       debugPrint('📝 UserIds: ${_participants.map((p) => p['userId']).join(', ')}');
@@ -171,6 +238,11 @@ class GroupInfoController extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+    
+    // Invalida cache ao forçar refresh
+    GlobalCacheService.instance.remove('event_data_$eventId');
+    GlobalCacheService.instance.remove('event_participants_$eventId');
+    
     await _init();
   }
 
@@ -289,6 +361,7 @@ class GroupInfoController extends ChangeNotifier {
       onSuccess: () {
         // Atualiza lista local
         _participants.removeWhere((p) => p['userId'] == userId);
+        _updateParticipantsList();
         notifyListeners();
       },
     );
@@ -342,43 +415,5 @@ class GroupInfoController extends ChangeNotifier {
         }
       },
     );
-  }
-
-  /// Inicializa listener para mudanças no sistema de bloqueio
-  void _initBlockListener() {
-    // ⬅️ ESCUTA BlockService via ChangeNotifier (REATIVO INSTANTÂNEO)
-    BlockService.instance.addListener(_onBlockedUsersChanged);
-  }
-  
-  /// Callback quando BlockService muda (via ChangeNotifier)
-  void _onBlockedUsersChanged() {
-    debugPrint('🔄 Bloqueios mudaram - refiltrando participantes');
-    notifyListeners(); // Notifica UI para recomputar participantUserIds
-  }
-
-  @override
-  void dispose() {
-    BlockService.instance.removeListener(_onBlockedUsersChanged);
-    super.dispose();
-  }
-
-  Future<void> openInMaps() async {
-    if (eventLocation == null) return;
-
-    final lat = _eventData?['latitude'] as double?;
-    final lng = _eventData?['longitude'] as double?;
-
-    if (lat == null || lng == null) return;
-
-    final url = 'https://maps.apple.com/?q=$lat,$lng';
-    final uri = Uri.parse(url);
-
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('❌ Error opening maps: $e');
-    }
   }
 }

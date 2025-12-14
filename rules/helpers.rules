@@ -9,6 +9,12 @@ function isOwner(userId) {
   return isSignedIn() && request.auth.uid == userId;
 }
 
+function isVip(userId) {
+  let user = get(/databases/$(database)/documents/Users/$(userId));
+  return user.data.vipExpiresAt != null && 
+         user.data.vipExpiresAt > request.time;
+}
+
 function isEventCreator(eventId) {
   return isSignedIn() && 
     get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid;

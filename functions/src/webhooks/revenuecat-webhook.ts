@@ -1,5 +1,6 @@
-import * as functions from "firebase-functions/v2";
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import {sendPush} from "../services/pushDispatcher";
 // import * as crypto from "crypto";
 // Unused for now as we rely on Bearer token
 
@@ -76,11 +77,8 @@ function removeUndefinedFields(obj: Record<string, unknown>):
  * Secret no Firebase:
  * firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
  */
+
 export const revenueCatWebhook = functions.https.onRequest(
-  {
-    region: "us-central1",
-    secrets: ["REVENUECAT_WEBHOOK_SECRET"],
-  },
   async (req, res) => {
     // CORS headers for preflight requests
     res.set("Access-Control-Allow-Origin", "*");
@@ -462,67 +460,6 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
   // ✅ FIX: Consider active if event determines active AND has any entitlement
   const finalIsActive = isActive && hasAnyEntitlement;
 
-  // Prepare subscription status data for SubscriptionStatus collection
-  // Using Flutter model field names consistently
-  const subscriptionDataRaw = {
-    // Core status
-    isActive: finalIsActive,
-    entitlementId: primaryEntitlement,
-    productId: event.product_id,
-    periodType: event.period_type,
-    store: event.store?.toLowerCase() || null,
-    environment: event.environment?.toLowerCase() || null,
-
-    // Timestamps
-    originalPurchaseDate: event.purchased_at_ms ?
-      admin.firestore.Timestamp.fromMillis(event.purchased_at_ms) :
-      null,
-    expirationDate: event.expiration_at_ms ?
-      admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
-      null,
-    gracePeriodExpirationDate: event.grace_period_expiration_at_ms ?
-      admin.firestore.Timestamp.fromMillis(
-        event.grace_period_expiration_at_ms
-      ) :
-      null,
-
-    // Event metadata
-    lastEventType: eventType,
-    lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-    webhookReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-
-    // Transaction details
-    transaction_id: event.transaction_id,
-    original_transaction_id: event.original_transaction_id,
-    original_app_user_id: event.original_app_user_id,
-
-    // Revenue details
-    price_usd: event.price,
-    currency: event.currency,
-    country_code: event.country_code,
-
-    // Additional fields
-    entitlement_ids: event.entitlement_ids || [],
-    is_family_share: event.is_family_share,
-    is_trial_conversion: event.is_trial_conversion,
-    // Force null instead of undefined
-    cancel_reason: event.cancel_reason || null,
-    offer_code: event.offer_code || null, // Force null instead of undefined
-    willRenew: finalIsActive &&
-      !["CANCELLATION", "EXPIRATION"].includes(eventType),
-
-    // Platform info
-    platform: event.store === "APP_STORE" ? "ios" :
-      (event.store === "PLAY_STORE" ? "android" : "unknown"),
-    source: "webhook",
-
-    // User attributes (if any)
-    subscriber_attributes: event.subscriber_attributes || {},
-  };
-
-  // Remove undefined fields (Firestore doesn't accept undefined)
-  const subscriptionData = removeUndefinedFields(subscriptionDataRaw);
-
   console.log(
     `💾 [RevenueCat Webhook] Processing subscription with isActive: ${
       finalIsActive
@@ -550,6 +487,7 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
         // VIP status
         user_is_vip: finalIsActive,
         user_level: finalIsActive ? "vip" : "free",
+        vip_priority: finalIsActive ? 1 : 2,
 
         // Verified badge
         user_is_verified: finalIsActive,
@@ -580,70 +518,57 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
     throw error; // Fail the webhook if we can't update user
   }
 
-  // 📊 Update SubscriptionStatus collection with detailed subscription data
+  // 📊 Update SubscriptionStatus collection (SINGLE SOURCE OF TRUTH)
+  // Consolidates data from SubscriptionStatus, Subscriptions,
+  // and SubscriptionEvents
   try {
     const subscriptionStatusRef = firestore.collection("SubscriptionStatus")
       .doc(userId);
 
-    // Create/update subscription status document
+    // Create/update subscription status document with all relevant data
     await subscriptionStatusRef.set({
+      // Core identification
       user_id: userId,
+      userId: userId, // Compatibility
+
+      // Status
       status: finalIsActive ? "active" : "inactive",
-      product_id: event.product_id,
-      store: event.store?.toLowerCase() || null,
+      isActive: finalIsActive,
+
+      // Entitlements
       entitlement_id: primaryEntitlement,
+      entitlementId: primaryEntitlement,
+      entitlement_ids: event.entitlement_ids || [],
+
+      // Product info
+      product_id: event.product_id,
+      productId: event.product_id,
+      period_type: event.period_type,
+      periodType: event.period_type,
+
+      // Store/Platform
+      store: event.store?.toLowerCase() || null,
+      environment: event.environment?.toLowerCase() || null,
+      platform: event.store === "APP_STORE" ? "ios" :
+        (event.store === "PLAY_STORE" ? "android" : "unknown"),
+
+      // Timestamps
       expiration_at: event.expiration_at_ms ?
         admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
         null,
-      last_event_type: eventType,
-      last_updated: admin.firestore.FieldValue.serverTimestamp(),
-      // Additional metadata
-      period_type: event.period_type,
-      environment: event.environment?.toLowerCase() || null,
-      transaction_id: event.transaction_id,
-      original_transaction_id: event.original_transaction_id,
-      is_trial_conversion: event.is_trial_conversion,
-      cancel_reason: event.cancel_reason || null,
-    }, {merge: true});
-
-    console.log(
-      "✅ [RevenueCat Webhook] Updated SubscriptionStatus for " + userId
-    );
-    console.log("✅ [RevenueCat Webhook] SubscriptionStatus saved with:", {
-      user_id: userId,
-      status: finalIsActive ? "active" : "inactive",
-      product_id: event.product_id,
-      store: event.store?.toLowerCase(),
-      entitlement_id: primaryEntitlement,
-      has_expiration: event.expiration_at_ms !== null,
-    });
-  } catch (error) {
-    console.warn(
-      `⚠️ [RevenueCat Webhook] Could not update SubscriptionStatus: ${error}`
-    );
-    // Don't fail the webhook for this
-  }
-
-  // 📦 Create/Update Subscriptions collection (separate document per user)
-  try {
-    const subscriptionsRef = firestore.collection("Subscriptions").doc(userId);
-
-    await subscriptionsRef.set({
-      userId: userId,
-      isActive: finalIsActive,
-      entitlementId: primaryEntitlement,
-      entitlementIds: event.entitlement_ids || [],
-      productId: event.product_id,
-      periodType: event.period_type,
-      store: event.store?.toLowerCase() || null,
-      environment: event.environment?.toLowerCase() || null,
-
-      // Timestamps
+      expiresAt: event.expiration_at_ms ?
+        admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
+        null,
+      purchased_at: event.purchased_at_ms ?
+        admin.firestore.Timestamp.fromMillis(event.purchased_at_ms) :
+        null,
       purchasedAt: event.purchased_at_ms ?
         admin.firestore.Timestamp.fromMillis(event.purchased_at_ms) :
         null,
-      expiresAt: event.expiration_at_ms ?
-        admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
+      grace_period_expires_at: event.grace_period_expiration_at_ms ?
+        admin.firestore.Timestamp.fromMillis(
+          event.grace_period_expiration_at_ms
+        ) :
         null,
       gracePeriodExpiresAt: event.grace_period_expiration_at_ms ?
         admin.firestore.Timestamp.fromMillis(
@@ -651,84 +576,67 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
         ) :
         null,
 
+      // Event tracking
+      last_event_type: eventType,
+      lastEventType: eventType,
+      last_updated: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      last_processed_at: admin.firestore.FieldValue.serverTimestamp(),
+      webhook_received_count: admin.firestore.FieldValue.increment(1),
+
       // Transaction details
+      transaction_id: event.transaction_id,
       transactionId: event.transaction_id,
+      original_transaction_id: event.original_transaction_id,
       originalTransactionId: event.original_transaction_id,
+      original_app_user_id: event.original_app_user_id,
 
       // Revenue details
+      price_usd: event.price,
       priceUsd: event.price,
       currency: event.currency,
+      country_code: event.country_code,
       countryCode: event.country_code,
 
       // Status details
+      will_renew: finalIsActive &&
+        !["CANCELLATION", "EXPIRATION"].includes(eventType),
       willRenew: finalIsActive &&
         !["CANCELLATION", "EXPIRATION"].includes(eventType),
-      isFamilyShare: event.is_family_share,
+      is_trial_conversion: event.is_trial_conversion,
       isTrialConversion: event.is_trial_conversion,
+      is_family_share: event.is_family_share,
+      isFamilyShare: event.is_family_share,
+      cancel_reason: event.cancel_reason || null,
       cancelReason: event.cancel_reason || null,
+      offer_code: event.offer_code || null,
       offerCode: event.offer_code || null,
+      presented_offering_id: event.presented_offering_id,
 
-      // Event tracking
-      lastEventType: eventType,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-
-      // Platform
-      platform: event.store === "APP_STORE" ? "ios" :
-        (event.store === "PLAY_STORE" ? "android" : "unknown"),
+      // Source
       source: "webhook",
+
+      // Raw event (only in SANDBOX for debugging)
+      raw_event: event.environment === "SANDBOX" ? event : null,
     }, {merge: true});
 
     console.log(
-      "✅ [RevenueCat Webhook] Updated Subscriptions for " + userId
+      "✅ [RevenueCat Webhook] Updated SubscriptionStatus for " + userId
     );
-    console.log("✅ [RevenueCat Webhook] Subscriptions collection saved with:", {
-      userId: userId,
-      isActive: finalIsActive,
-      entitlementId: primaryEntitlement,
-      entitlementIds: event.entitlement_ids || [],
-      productId: event.product_id,
-      hasOffering: event.presented_offering_id !== null,
-      presented_offering_id: event.presented_offering_id,
+    console.log("✅ [RevenueCat Webhook] Subscription data saved:", {
+      user_id: userId,
+      status: finalIsActive ? "active" : "inactive",
+      product_id: event.product_id,
+      store: event.store?.toLowerCase(),
+      entitlement_id: primaryEntitlement,
+      has_expiration: event.expiration_at_ms !== null,
+      webhook_count: "incremented",
     });
   } catch (error) {
     console.warn(
-      `⚠️ [RevenueCat Webhook] Could not update Subscriptions: ${error}`
+      `⚠️ [RevenueCat Webhook] Could not update SubscriptionStatus: ${error}`
     );
     // Don't fail the webhook for this
-  }
-
-  // 📚 Store event in history for auditing
-  // 🔥 FIX: Sempre usar o MESMO documento, apenas atualizar
-  try {
-    // Usar userId como ID do documento - um registro por usuário
-    const eventHistoryRef = firestore
-      .collection("SubscriptionEvents")
-      .doc(userId); // ← 🔥 FIX: Sempre mesmo documento por usuário
-
-    const eventHistoryDataRaw = {
-      ...subscriptionData,
-      userId: userId,
-      // Only store raw_event in SANDBOX to save space
-      raw_event: event.environment === "SANDBOX" ? event : undefined,
-      last_processed_at: admin.firestore.FieldValue.serverTimestamp(),
-      webhook_received_count: admin.firestore.FieldValue.increment(1),
-    };
-
-    // Remove undefined fields before saving
-    const eventHistoryData = removeUndefinedFields(eventHistoryDataRaw);
-
-    // 🔥 SEMPRE fazer merge - atualiza o mesmo documento
-    await eventHistoryRef.set(eventHistoryData, {merge: true});
-
-    console.log(
-      "📚 [RevenueCat Webhook] Updated SubscriptionEvents " +
-      `for user ${userId} (merge mode)`
-    );
-  } catch (error) {
-    console.warn(
-      `⚠️ [RevenueCat Webhook] Could not store event history: ${error}`
-    );
-    // Don't fail the whole webhook for this
   }
 
   // Send notification to user (optional)
@@ -810,41 +718,6 @@ async function sendUserNotification(
   isActive: boolean
 ): Promise<void> {
   try {
-    // ✅ FIXED: Get user's FCM tokens from AppInfo/push
-    // (not from Users collection)
-    // Tokens are stored privately in ContactInfo and mapped in AppInfo/push
-    // for backend access
-    const pushDoc = await firestore.collection("AppInfo").doc("push").get();
-    const pairKeys = pushDoc.data()?.pair_keys || {};
-    const tokens = pairKeys[userId];
-
-    // Extract token(s) - support both array and single string
-    let fcmToken: string | null = null;
-    if (Array.isArray(tokens) && tokens.length > 0) {
-      fcmToken = tokens[0]; // Use first token for this notification
-    } else if (typeof tokens === "string" && tokens.trim()) {
-      fcmToken = tokens.trim();
-    }
-
-    if (!fcmToken) {
-      console.log(
-        `📱 [RevenueCat Webhook] No FCM token found in AppInfo/push for user ${
-          userId
-        }`
-      );
-      return;
-    }
-
-    console.log(
-      `📱 [RevenueCat Webhook] Found FCM token for user ${userId} (prefix: ${
-        fcmToken.substring(0, 16)
-      }...)`
-    );
-
-    // ✅ Get device type for platform-specific payload
-    const deviceTypes = pushDoc.data()?.device_types || {};
-    const deviceType = deviceTypes[userId] as "ios" | "android" | undefined;
-
     let title = "";
     let body = "";
 
@@ -880,54 +753,24 @@ async function sendUserNotification(
       return; // Don't send notification for other events
     }
 
-    // ✅ Build message with platform-specific payload (iOS vs Android)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const message: any = {
-      token: fcmToken,
+    await sendPush({
+      userId: userId,
+      type: "global",
+      title: title,
+      body: body,
       data: {
-        type: "subscription_event",
+        sub_type: "subscription_event",
         event_type: eventType,
         is_active: isActive.toString(),
-        user_id: userId,
       },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            // badge: 1, // Removed to avoid overwriting app badge
-          },
-        },
-      },
-    };
+    });
 
-    // ✅ iOS: Include 'notification' field
-    if (deviceType === "ios") {
-      message.notification = {title, body};
-      console.log(
-        "📱 [RevenueCat Webhook] Sending iOS notification (notification + data)"
-      );
-    } else {
-      // ✅ Android: Only 'data' with title/body inside
-      message.data.title = title;
-      message.data.body = body;
-      console.log(
-        "📱 [RevenueCat Webhook] Sending Android notification (data only)"
-      );
-    }
-
-    // Add Android priority
-    message.android = {
-      priority: "high",
-    };
-
-    await admin.messaging().send(message);
     console.log(
-      "📱 [RevenueCat Webhook] Notification sent to user " + userId
+      `✅ [RevenueCat Webhook] Push enviado via dispatcher para ${userId}`
     );
   } catch (error) {
     console.error(
-      `❌ [RevenueCat Webhook] Failed to send notification: ${error}`
+      `❌ [RevenueCat Webhook] Erro ao enviar push: ${error}`
     );
-    // Don't fail webhook for notification errors
   }
 }

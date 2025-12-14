@@ -1,0 +1,86 @@
+/// 🎭 Coleção de verificações faciais/ID com Didit
+/// Path usado no app:
+/// - FaceVerifications/{userId}
+///   - facialId: string (session_id do Didit)
+///   - verificationType: string ("didit")
+///   - verifiedAt: timestamp
+///   - userInfo: map (dados extraídos)
+
+match /FaceVerifications/{userId} {
+  // Usuário pode ler apenas sua própria verificação
+  allow read: if isOwner(userId);
+  
+  // Usuário pode criar/atualizar apenas sua própria verificação
+  allow create, update: if isOwner(userId);
+  
+  // Cloud Functions podem criar verificações (webhook do Didit)
+  allow create: if true;
+  
+  // Não permite deletar verificações (auditoria)
+  allow delete: if false;
+}
+
+/// 📋 Coleção de sessões de verificação Didit
+/// Path usado no app:
+/// - DiditSessions/{sessionId}
+///   - sessionId: string
+///   - userId: string
+///   - url: string
+///   - workflowId: string
+///   - status: string
+///   - createdAt: timestamp
+///   - vendorData: string
+
+match /DiditSessions/{sessionId} {
+  // Usuário pode criar suas próprias sessões
+  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  
+  // Usuário pode ler suas próprias sessões (verifica se existe primeiro)
+  allow read: if isSignedIn() && (
+    resource == null || // Documento não existe ainda
+    resource.data.userId == request.auth.uid // Ou pertence ao usuário
+  );
+  
+  // Cloud Functions podem atualizar campos específicos de status
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['status', 'completedAt', 'result', 'lastWebhookType', 'lastWebhookAt']);
+  
+  // Não permite deletar sessões (auditoria)
+  allow delete: if false;
+}
+
+/// 📨 Coleção de webhooks recebidos do Didit
+/// Path usado no app:
+/// - DiditWebhooks/{webhookId}
+///   - sessionId: string
+///   - webhookType: string
+///   - decision: map
+///   - idVerification: map
+///   - receivedAt: timestamp
+///
+/// 🔒 SEGURANÇA:
+/// - Create: permitido sem autenticação (vem do servidor Didit)
+/// - ⚠️ Validação de signature acontece no backend (Cloud Function)
+/// - Leitura: apenas via console/backend (Admin SDK)
+
+match /DiditWebhooks/{webhookId} {
+  /// 📖 LEITURA:
+  /// - Bloqueada para usuários normais (dados sensíveis)
+  /// - Apenas admins via console/backend
+  allow read: if false;
+  
+  /// ✍️ CRIAR webhook:
+  /// - Permitido sem auth (servidor Didit não tem token Firebase)
+  /// - Validação de signature acontece na Cloud Function
+  /// - Campos obrigatórios validados
+  allow create: if request.resource.data.keys().hasAll(['sessionId', 'webhookType', 'receivedAt']);
+  
+  /// ✏️ ATUALIZAR webhook:
+  /// - Cloud Functions podem marcar como processado
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['processed', 'processedAt']);
+  
+  /// 🗑️ DELETE:
+  /// - Não permitido (auditoria)
+  allow delete: if false;
+}

@@ -30,7 +30,7 @@ class CriteriaBars extends StatelessWidget {
 
   Map<String, String> _criteriaLabelsDetailed(BuildContext context) => {
     'conversation': AppLocalizations.of(context).translate('review_criteria_conversation'),
-    'energy': AppLocalizations.of(context).translate('review_criteria_energy'),
+    'energy': AppLocalizations.of(context).translate('review_criteria_energy_short'),
     'participation': AppLocalizations.of(context).translate('review_criteria_participation'),
     'coexistence': AppLocalizations.of(context).translate('review_criteria_coexistence'),
   };

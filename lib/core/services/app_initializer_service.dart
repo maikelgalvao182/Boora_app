@@ -8,6 +8,9 @@ import 'package:partiu/features/conversations/state/conversations_viewmodel.dart
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
+import 'package:partiu/core/services/global_cache_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Serviço responsável por inicializar dados globais antes do app abrir
 class AppInitializerService {
@@ -33,11 +36,12 @@ class AppInitializerService {
   /// 5. Pré-carrega PeopleRankingViewModel (ranking e cidades)
   /// 6. Pré-carrega LocationsRankingViewModel (ranking de locais)
   /// 7. Pré-carrega ConversationsViewModel (conversas)
-  /// 8. Pré-carrega pins (imagens dos markers)
-  /// 9. Obtém localização do usuário
-  /// 10. Carrega eventos próximos
-  /// 11. Enriquece eventos com distância/disponibilidade/restrições de idade
-  /// 12. PRÉ-CARREGA imagens dos markers (cache)
+  /// 8. Pré-carrega participantes dos eventos do usuário (GroupInfo)
+  /// 9. Pré-carrega pins (imagens dos markers)
+  /// 10. Obtém localização do usuário
+  /// 11. Carrega eventos próximos
+  /// 12. Enriquece eventos com distância/disponibilidade/restrições de idade
+  /// 13. PRÉ-CARREGA imagens dos markers (cache)
   /// 
   /// NOTA: Os markers pré-carregados servem apenas para popular o cache de imagens.
   /// O GoogleMapView regenerará os markers com os callbacks corretos.
@@ -116,7 +120,68 @@ class AppInitializerService {
       debugPrint('✅ [AppInitializer] ConversationsViewModel inicializado');
       debugPrint('   - Conversas: ${conversationsViewModel.wsConversations.length}');
       
-      // 8. Inicializa o ViewModel (preload de pins + carrega eventos)
+      // 8. Pré-carrega participantes dos eventos do usuário (GroupInfo)
+      if (currentUserId != null && currentUserId.isNotEmpty) {
+        debugPrint('👥 [AppInitializer] Pré-carregando participantes dos eventos...');
+        try {
+          final appRepo = EventApplicationRepository();
+          
+          // Busca eventos criados pelo usuário (limitado aos 5 mais recentes)
+          final myEventsSnapshot = await FirebaseFirestore.instance
+              .collection('events')
+              .where('createdBy', isEqualTo: currentUserId)
+              .orderBy('createdAt', descending: true)
+              .limit(5)
+              .get();
+              
+          // Busca eventos que o usuário participa (limitado aos 5 mais recentes)
+          final myApplicationsSnapshot = await FirebaseFirestore.instance
+              .collection('EventApplications')
+              .where('userId', isEqualTo: currentUserId)
+              .where('status', whereIn: ['approved', 'autoApproved'])
+              .orderBy('appliedAt', descending: true)
+              .limit(5)
+              .get();
+              
+          final eventIds = <String>{};
+          
+          // Adiciona IDs dos eventos criados
+          for (var doc in myEventsSnapshot.docs) {
+            eventIds.add(doc.id);
+          }
+          
+          // Adiciona IDs dos eventos que participa
+          for (var doc in myApplicationsSnapshot.docs) {
+            final data = doc.data();
+            if (data['eventId'] != null) {
+              eventIds.add(data['eventId'] as String);
+            }
+          }
+          
+          debugPrint('   - Encontrados ${eventIds.length} eventos relevantes para pré-load');
+          
+          // Carrega participantes para cada evento em paralelo
+          await Future.wait(eventIds.map((eventId) async {
+            try {
+              final participants = await appRepo.getParticipantsForEvent(eventId);
+              
+              // Salva no cache global (mesma chave usada pelo GroupInfoController)
+              final cacheKey = 'event_participants_$eventId';
+              GlobalCacheService.instance.set(cacheKey, participants, ttl: const Duration(minutes: 10));
+              
+              debugPrint('     - Evento $eventId: ${participants.length} participantes cacheados');
+            } catch (e) {
+              debugPrint('     ⚠️ Erro ao pré-carregar evento $eventId: $e');
+            }
+          }));
+          
+          debugPrint('✅ [AppInitializer] Participantes pré-carregados');
+        } catch (e) {
+          debugPrint('⚠️ [AppInitializer] Erro ao pré-carregar participantes: $e');
+        }
+      }
+
+      // 9. Inicializa o ViewModel (preload de pins + carrega eventos)
       // O initialize() do ViewModel já chama loadNearbyEvents() internamente
       // que também gera os markers (populando o cache de imagens)
       await mapViewModel.initialize();

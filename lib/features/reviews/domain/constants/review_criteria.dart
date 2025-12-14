@@ -19,7 +19,7 @@ class ReviewCriteria {
     {
       'key': energy,
       'icon': '⚡',
-      'title': AppLocalizations.of(context).translate('review_criteria_energy'),
+      'title': AppLocalizations.of(context).translate('review_criteria_energy_short'),
       'description': AppLocalizations.of(context).translate('review_criteria_energy_description'),
     },
     {

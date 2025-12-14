@@ -37,20 +37,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     super.initState();
     _controller = GroupInfoController(eventId: widget.eventId);
     _controller.addListener(_onControllerChanged);
-    BlockService.instance.addListener(_onBlockedUsersChanged);
   }
   
-  void _onBlockedUsersChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   @override
   void dispose() {
-    BlockService.instance.removeListener(_onBlockedUsersChanged);
     _controller.removeListener(_onControllerChanged);
-    _controller.dispose();
+    // _controller.dispose(); // REMOVIDO: Controller é singleton/multiton e deve persistir
     super.dispose();
   }
 
@@ -155,47 +147,81 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   Widget _buildMembersList(AppLocalizations i18n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${i18n.translate('members')} (${_controller.participantCount})',
-            style: GoogleFonts.getFont(
-              FONT_PLUS_JAKARTA_SANS,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: GlimpseColors.textSubTitle,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_controller.participantUserIds.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                i18n.translate('no_members_yet'),
+      child: ValueListenableBuilder<List<String>>(
+        valueListenable: _controller.participantsNotifier,
+        builder: (context, participantUserIds, child) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${i18n.translate('members')} (${participantUserIds.length})',
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
                   fontSize: 14,
+                  fontWeight: FontWeight.w600,
                   color: GlimpseColors.textSubTitle,
                 ),
               ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: _controller.participantUserIds.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final userId = _controller.participantUserIds[index];
-                
-                // Se for o owner, adiciona swipe-to-delete (exceto para si mesmo)
-                if (_controller.isCreator) {
-                  final isCurrentUser = userId == _controller.creatorId;
-                  
-                  // Owner não tem swipe no próprio card
-                  if (isCurrentUser) {
+              const SizedBox(height: 12),
+              if (participantUserIds.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    i18n.translate('no_members_yet'),
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 14,
+                      color: GlimpseColors.textSubTitle,
+                    ),
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  itemCount: participantUserIds.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final userId = participantUserIds[index];
+                    
+                    // Se for o owner, adiciona swipe-to-delete (exceto para si mesmo)
+                    if (_controller.isCreator) {
+                      final isCurrentUser = userId == _controller.creatorId;
+                      
+                      // Owner não tem swipe no próprio card
+                      if (isCurrentUser) {
+                        return Padding(
+                          padding: EdgeInsets.zero,
+                          child: UserCard(
+                            key: ValueKey(userId),
+                            userId: userId,
+                            index: index,
+                          ),
+                        );
+                      }
+                      
+                      // Outros membros têm swipe-to-delete
+                      return Padding(
+                        padding: EdgeInsets.zero,
+                        child: SwipeableMemberCard(
+                          key: ValueKey(userId),
+                          userId: userId,
+                          index: index,
+                          deleteLabel: i18n.translate('remove'),
+                          onDelete: () {
+                            // Exibe dialog de confirmação para remover
+                            _controller.showRemoveParticipantDialog(
+                              context,
+                              userId,
+                              'Participante', // TODO: Buscar nome real do usuário
+                            );
+                          },
+                        ),
+                      );
+                    }
+                    
+                    // Para membros normais, apenas exibe o card
                     return Padding(
                       padding: EdgeInsets.zero,
                       child: UserCard(
@@ -204,40 +230,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         index: index,
                       ),
                     );
-                  }
-                  
-                  // Outros membros têm swipe-to-delete
-                  return Padding(
-                    padding: EdgeInsets.zero,
-                    child: SwipeableMemberCard(
-                      key: ValueKey(userId),
-                      userId: userId,
-                      index: index,
-                      deleteLabel: i18n.translate('remove'),
-                      onDelete: () {
-                        // Exibe dialog de confirmação para remover
-                        _controller.showRemoveParticipantDialog(
-                          context,
-                          userId,
-                          'Participante', // TODO: Buscar nome real do usuário
-                        );
-                      },
-                    ),
-                  );
-                }
-                
-                // Para membros normais, apenas exibe o card
-                return Padding(
-                  padding: EdgeInsets.zero,
-                  child: UserCard(
-                    key: ValueKey(userId),
-                    userId: userId,
-                    index: index,
-                  ),
-                );
-              },
-            ),
-        ],
+                  },
+                ),
+            ],
+          );
+        },
       ),
     );
   }

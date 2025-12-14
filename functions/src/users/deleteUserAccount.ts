@@ -149,8 +149,8 @@ export const deleteUserAccount = functions.https.onCall(
       // 3. Deletar reviews (como reviewer)
       console.log("🗑️ [3/11] Deletando reviews como reviewer...");
       const reviewsAsReviewer = await batchDelete(
-        "reviews",
-        db.collection("reviews").where("reviewerId", "==", userId)
+        "Reviews",
+        db.collection("Reviews").where("reviewer_id", "==", userId)
       );
       deletionStats.reviews += reviewsAsReviewer;
       console.log(`✅ Deletadas ${reviewsAsReviewer} reviews como reviewer`);
@@ -158,8 +158,8 @@ export const deleteUserAccount = functions.https.onCall(
       // 4. Deletar reviews (como reviewed)
       console.log("🗑️ [4/11] Deletando reviews como reviewed...");
       const reviewsAsReviewed = await batchDelete(
-        "reviews",
-        db.collection("reviews").where("reviewedUserId", "==", userId)
+        "Reviews",
+        db.collection("Reviews").where("reviewee_id", "==", userId)
       );
       deletionStats.reviews += reviewsAsReviewed;
       console.log(`✅ Deletadas ${reviewsAsReviewed} reviews como reviewed`);
@@ -211,23 +211,38 @@ export const deleteUserAccount = functions.https.onCall(
       deletionStats.notifications = notificationsDeleted;
       console.log(`✅ Deletadas ${notificationsDeleted} notificações`);
 
-      // 8. Deletar visitas ao perfil (feitas)
-      console.log("🗑️ [8/11] Deletando profile_visits (feitas)...");
+      // 8. Deletar visitas ao perfil (feitas) - ProfileVisits
+      console.log("🗑️ [8/11] Deletando ProfileVisits (feitas)...");
       const visitsAsVisitor = await batchDelete(
-        "profile_visits",
-        db.collection("profile_visits").where("visitorId", "==", userId)
+        "ProfileVisits",
+        db.collection("ProfileVisits").where("visitorId", "==", userId)
       );
       deletionStats.profileVisits += visitsAsVisitor;
       console.log(`✅ Deletadas ${visitsAsVisitor} visitas feitas`);
 
-      // 9. Deletar visitas ao perfil (recebidas)
-      console.log("🗑️ [9/11] Deletando profile_visits (recebidas)...");
+      // 9. Deletar visitas ao perfil (recebidas) - ProfileVisits
+      console.log("🗑️ [9/11] Deletando ProfileVisits (recebidas)...");
       const visitsAsVisited = await batchDelete(
-        "profile_visits",
-        db.collection("profile_visits").where("visitedUserId", "==", userId)
+        "ProfileVisits",
+        db.collection("ProfileVisits").where("visitedUserId", "==", userId)
       );
       deletionStats.profileVisits += visitsAsVisited;
       console.log(`✅ Deletadas ${visitsAsVisited} visitas recebidas`);
+
+      // 9.5. Deletar visualizações para notificações - ProfileViews
+      console.log("🗑️ [9.5/11] Deletando ProfileViews (como viewer)...");
+      const viewsAsViewer = await batchDelete(
+        "ProfileViews",
+        db.collection("ProfileViews").where("viewerId", "==", userId)
+      );
+      console.log(`✅ Deletadas ${viewsAsViewer} views como viewer`);
+
+      console.log("🗑️ [9.6/11] Deletando ProfileViews (recebidas)...");
+      const viewsReceived = await batchDelete(
+        "ProfileViews",
+        db.collection("ProfileViews").where("viewedUserId", "==", userId)
+      );
+      console.log(`✅ Deletadas ${viewsReceived} views recebidas`);
 
       // 10. Deletar ranking
       console.log("🗑️ [10/11] Deletando ranking...");

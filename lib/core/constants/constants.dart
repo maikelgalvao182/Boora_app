@@ -11,7 +11,7 @@ const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 
 /// FONT FAMILY CONSTANTS
-const String FONT_PLUS_JAKARTA_SANS = 'Plus Jakarta Sans';
+const String FONT_PLUS_JAKARTA_SANS = 'Manrope';
 const String FONT_GLITZ = 'Glitz';
 
 /// GENDER CONSTANTS
@@ -321,3 +321,6 @@ const double MAX_AGE = 60.0;
 
 /// Default maximum age for participants drawer
 const double DEFAULT_MAX_AGE_PARTICIPANTS = 36.0;
+
+/// VIP / SUBSCRIPTION CONSTANTS
+const int FREE_PEOPLE_LIMIT = 13;

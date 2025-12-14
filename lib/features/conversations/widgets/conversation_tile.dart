@@ -9,7 +9,6 @@ import 'package:partiu/features/conversations/state/conversations_viewmodel.dart
 import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/event_emoji_avatar.dart';
-import 'package:partiu/features/home/presentation/widgets/auto_updating_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -36,29 +35,6 @@ class ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // [OK] Debug: Log raw data from Firestore
-    
-    // Log all photo-related fields
-    final photoFields = [
-      'profileImageURL',
-      'user_profile_photo',
-      'photo_url',
-      'user_photo_link',
-      'user_photo',
-      'profile_photo',
-      'profile_photo_url',
-      'avatar_url',
-      'avatar',
-      'photo',
-      'image_url',
-      'profile_image_url',
-    ];
-    
-    for (final field in photoFields) {
-      if (rawData.containsKey(field)) {
-      }
-    }
-    
     final i18n = AppLocalizations.of(context);
     final viewModel = context.read<ConversationsViewModel>();
 
@@ -72,62 +48,119 @@ class ConversationTile extends StatelessWidget {
     return ValueListenableBuilder<ConversationDisplayData>(
       valueListenable: notifier,
       builder: (context, displayData, _) {
-        return _buildTileContent(context, displayData, i18n);
+        // 🔥 UMA ÚNICA STREAM compartilhada por todo o tile
+        // ✅ FIX: Usar conversationId (não otherUserId) para escutar o documento correto
+        // - Chat 1-1: conversationId = otherUserId
+        // - Chat evento: conversationId = "event_${eventId}"
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: chatService.getConversationSummaryById(conversationId),
+          builder: (context, snap) {
+            // Extrair dados frescos do snapshot
+            final data = snap.data?.data();
+
+            // Calcular estado derivado UMA VEZ
+            final unreadCount = data?['unread_count'] as int? ?? 0;
+            final messageRead = data?['message_read'] as bool? ?? true;
+            final hasUnread = unreadCount > 0 || !messageRead;
+
+            final displayName = data?['activityText'] ?? 
+                               data?['fullname'] ?? 
+                               rawData['activityText'] ?? 
+                               rawData['fullname'] ?? 
+                               displayData.displayName;
+
+            final emoji = data?['emoji']?.toString() ?? 
+                         rawData['emoji']?.toString() ?? 
+                         EventEmojiAvatar.defaultEmoji;
+
+            final eventId = data?['event_id']?.toString() ?? 
+                           rawData['event_id']?.toString() ?? 
+                           '';
+
+            final timestampValue = data?['last_message_timestamp'] ??
+                                  data?['last_message_at'] ??
+                                  data?['lastMessageAt'] ??
+                                  data?[TIMESTAMP] ??
+                                  data?['timestamp'];
+
+            final messageType = data?[MESSAGE_TYPE]?.toString();
+
+            String lastMessageText;
+            if (messageType == 'image') {
+              lastMessageText = i18n.translate('you_received_an_image');
+            } else {
+              final rawMessage = (data?['last_message'] ??
+                                 data?['lastMessage'] ??
+                                 data?[LAST_MESSAGE] ??
+                                 '').toString();
+
+              if (rawMessage == 'welcome_bride_short' || rawMessage == 'welcome_vendor_short') {
+                final senderName = data?['sender_name']?.toString() ??
+                                  data?['senderName']?.toString() ??
+                                  displayName;
+                final translatedMessage = i18n.translate(rawMessage);
+                lastMessageText = translatedMessage.replaceAll('{name}', senderName);
+              } else {
+                lastMessageText = rawMessage.isEmpty ? displayData.lastMessage : rawMessage;
+              }
+            }
+
+            // Truncar mensagem se necessário
+            if (lastMessageText.length > 40) {
+              lastMessageText = '${lastMessageText.substring(0, 30)}...';
+            }
+
+            // Formatar timestamp
+            final timeAgoText = TimeAgoHelper.format(
+              context,
+              timestamp: timestampValue,
+            );
+
+            return _buildTileContent(
+              context,
+              displayData,
+              i18n,
+              hasUnread: hasUnread,
+              displayName: displayName,
+              lastMessage: lastMessageText,
+              timeAgo: timeAgoText,
+              emoji: emoji,
+              eventId: eventId,
+            );
+          },
+        );
       },
     );
   }
 
-  Widget _buildTileContent(BuildContext context, ConversationDisplayData displayData, AppLocalizations i18n) {
+  Widget _buildTileContent(
+    BuildContext context,
+    ConversationDisplayData displayData,
+    AppLocalizations i18n, {
+    required bool hasUnread,
+    required String displayName,
+    required String lastMessage,
+    required String timeAgo,
+    String? emoji,
+    String? eventId,
+  }) {
     // Verificar se é chat de evento
     final isEventChat = rawData['is_event_chat'] == true || rawData['event_id'] != null;
-    
-    // Leading: Avatar ou Emoji do evento
+
+    // Leading: Avatar ou Emoji do evento (SEM badge - será adicionado externamente)
     final Widget leading;
     if (isEventChat) {
-      // Buscar emoji da coleção Connections com fallback do rawData
-      final fallbackEmoji = rawData['emoji']?.toString() ?? EventEmojiAvatar.defaultEmoji;
-      final fallbackEventId = rawData['event_id']?.toString() ?? '';
-      
-      leading = AutoUpdatingBadge(
-        count: displayData.hasUnreadMessage ? 1 : 0,
-        badgeColor: GlimpseColors.actionColor,
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: chatService.getConversationSummary(displayData.otherUserId),
-          builder: (context, snap) {
-            // Usa dados do rawData imediatamente (evita flash)
-            String emoji = fallbackEmoji;
-            String eventId = fallbackEventId;
-            
-            // Atualiza apenas se stream tiver dados diferentes
-            if (snap.hasData && snap.data!.data() != null) {
-              final data = snap.data!.data()!;
-              emoji = data['emoji'] ?? fallbackEmoji;
-              eventId = data['event_id']?.toString() ?? fallbackEventId;
-            }
-            
-            return EventEmojiAvatar(
-              emoji: emoji,
-              eventId: eventId,
-              size: ConversationStyles.avatarSize,
-              emojiSize: ConversationStyles.eventEmojiFontSize,
-            );
-          },
-        ),
+      leading = EventEmojiAvatar(
+        emoji: emoji ?? EventEmojiAvatar.defaultEmoji,
+        eventId: eventId ?? '',
+        size: ConversationStyles.avatarSize,
+        emojiSize: ConversationStyles.eventEmojiFontSize,
       );
     } else {
-      // Avatar normal para conversas 1-1 com badge de não lido
-      leading = SizedBox(
-        width: ConversationStyles.avatarSize,
-        height: ConversationStyles.avatarSize,
-        child: AutoUpdatingBadge(
-          count: displayData.hasUnreadMessage ? 1 : 0,
-          badgeColor: GlimpseColors.actionColor,
-          child: StableAvatar(
-            key: ValueKey('conversation_avatar_${displayData.otherUserId}'),
-            userId: displayData.otherUserId,
-            size: ConversationStyles.avatarSize,
-          ),
-        ),
+      leading = StableAvatar(
+        key: ValueKey('conversation_avatar_${displayData.otherUserId}'),
+        userId: displayData.otherUserId,
+        size: ConversationStyles.avatarSize,
       );
     }
 
@@ -135,7 +168,7 @@ class ConversationTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       visualDensity: VisualDensity.standard,
       dense: false,
-      tileColor: displayData.hasUnreadMessage 
+      tileColor: hasUnread 
           ? GlimpseColors.lightTextField
           : null,
       leading: leading,
@@ -143,143 +176,39 @@ class ConversationTile extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: chatService.getConversationSummary(displayData.otherUserId),
-              builder: (context, snap) {
-                // ✅ FIX: Use rawData or displayData as initial value to prevent "Usuário" flash
-                String displayName = rawData['activityText'] ?? rawData['fullname'] ?? displayData.displayName;
-                
-                if (snap.hasData && snap.data!.data() != null) {
-                  final data = snap.data!.data()!;
-                  displayName = data['activityText'] ?? data['fullname'] ?? displayName;
-                }
-                return ConversationStyles.buildEventNameText(
-                  name: displayName,
-                );
-              },
+            child: ConversationStyles.buildEventNameText(
+              name: displayName,
             ),
           ),
           const SizedBox(width: 8),
-          // 🔥 Time-ago reativo usando StreamBuilder (igual ao chat_app_bar_widget.dart)
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: chatService.getConversationSummary(displayData.otherUserId),
-            builder: (context, snap) {
-              var timeAgoText = '';
-              if (snap.hasData && snap.data!.data() != null) {
-                final data = snap.data!.data()!;
-                // Use same timestamp selection as chat_app_bar_widget.dart
-                final timestampValue = data['last_message_timestamp']
-                    ?? data['last_message_at']
-                    ?? data['lastMessageAt']
-                    ?? data[TIMESTAMP]
-                    ?? data['timestamp'];
-                
-                // Formata usando TimeAgoHelper centralizado
-                timeAgoText = TimeAgoHelper.format(
-                  context,
-                  timestamp: timestampValue,
-                );
-              }
-              
-              if (timeAgoText.isEmpty) return const SizedBox.shrink();
-              
-              return Text(
-                timeAgoText,
-                style: ConversationStyles.timeLabel(),
-              );
-            },
-          ),
+          if (timeAgo.isNotEmpty)
+            Text(
+              timeAgo,
+              style: ConversationStyles.timeLabel(),
+            ),
         ],
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              // 🔥 Preview reativo usando StreamBuilder (igual ao time-ago)
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: chatService.getConversationSummary(displayData.otherUserId),
-                builder: (context, snap) {
-                  String lastMessageText = '';
-                  String? messageType;
-                  
-                  if (snap.hasData && snap.data!.data() != null) {
-                    final data = snap.data!.data()!;
-                    // Busca tipo da mensagem
-                    messageType = data[MESSAGE_TYPE]?.toString();
-                    
-                    // Se for imagem, mostra texto internacionalizado
-                    if (messageType == 'image') {
-                      lastMessageText = i18n.translate('you_received_an_image');
-                    } else {
-                      // Busca última mensagem com múltiplos fallbacks
-                      final rawMessage = (data['last_message']
-                          ?? data['lastMessage']
-                          ?? data[LAST_MESSAGE]
-                          ?? '').toString();
-                      
-                      // Verifica se é uma mensagem de welcome automática
-                      if (rawMessage == 'welcome_bride_short' || rawMessage == 'welcome_vendor_short') {
-                        // Busca o nome do remetente para usar na tradução
-                        final senderName = data['sender_name']?.toString() ?? 
-                                         data['senderName']?.toString() ?? 
-                                         displayData.displayName;
-                        // Traduz e substitui o placeholder {name}
-                        final translatedMessage = i18n.translate(rawMessage);
-                        lastMessageText = translatedMessage.replaceAll('{name}', senderName);
-                      } else {
-                        lastMessageText = rawMessage;
-                      }
-                    }
-                  }
-                  
-                  // Se não há dados do stream, usa fallback do displayData
-                  if (lastMessageText.isEmpty) {
-                    lastMessageText = displayData.lastMessage;
-                  }
-                  
-                  // Trunca a mensagem se exceder 30 caracteres
-                  if (lastMessageText.length > 40) {
-                    lastMessageText = '${lastMessageText.substring(0, 30)}...';
-                  }
-                  
-                  return MarkdownBody(
-                    data: lastMessageText,
-                    styleSheet: MarkdownStyleSheet(
-                      p: ConversationStyles.subtitle().copyWith(
-                        height: ConversationStyles.markdownLineHeight,
-                      ),
-                      strong: ConversationStyles.subtitle().copyWith(
-                        fontWeight: ConversationStyles.markdownBoldWeight,
-                        height: ConversationStyles.markdownLineHeight,
-                      ),
-                      em: ConversationStyles.subtitle().copyWith(
-                        fontStyle: FontStyle.italic,
-                        height: ConversationStyles.markdownLineHeight,
-                      ),
-                      // Remove espaçamento extra de parágrafos
-                      blockSpacing: ConversationStyles.markdownBlockSpacing,
-                      listIndent: ConversationStyles.markdownListIndent,
-                      pPadding: ConversationStyles.zeroPadding,
-                    ),
-                    extensionSet: md.ExtensionSet.gitHubFlavored,
-                  );
-                },
-              ),
+        child: MarkdownBody(
+          data: lastMessage,
+          styleSheet: MarkdownStyleSheet(
+            p: ConversationStyles.subtitle().copyWith(
+              height: ConversationStyles.markdownLineHeight,
             ),
-            if (displayData.hasUnreadMessage) ...[
-              const SizedBox(width: 8),
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: GlimpseColors.actionColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ],
+            strong: ConversationStyles.subtitle().copyWith(
+              fontWeight: ConversationStyles.markdownBoldWeight,
+              height: ConversationStyles.markdownLineHeight,
+            ),
+            em: ConversationStyles.subtitle().copyWith(
+              fontStyle: FontStyle.italic,
+              height: ConversationStyles.markdownLineHeight,
+            ),
+            blockSpacing: ConversationStyles.markdownBlockSpacing,
+            listIndent: ConversationStyles.markdownListIndent,
+            pPadding: ConversationStyles.zeroPadding,
+          ),
+          extensionSet: md.ExtensionSet.gitHubFlavored,
         ),
       ),
       trailing: null,
@@ -289,16 +218,50 @@ class ConversationTile extends StatelessWidget {
       },
     );
 
+    // 🔥 Stack externo para badge (evita clipping do ListTile.leading)
     return RepaintBoundary(
       child: Column(
         children: [
-          tile,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              tile,
+              // Badge posicionado absolutamente sobre o avatar
+              if (hasUnread)
+                Positioned(
+                  left: 16 + ConversationStyles.avatarSize - 8,
+                  top: 26,
+                  child: _UnreadBadge(),
+                ),
+            ],
+          ),
           if (!isLast)
             Divider(
               height: ConversationStyles.dividerHeight,
               color: ConversationStyles.dividerColor(),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Badge de mensagem não lida (ponto vermelho)
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: GlimpseColors.actionColor,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white,
+          width: 2,
+        ),
       ),
     );
   }

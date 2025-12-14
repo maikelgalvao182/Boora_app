@@ -102,8 +102,11 @@ class NotificationsCounterService {
     final currentUserId = AppState.currentUserId;
     
     if (currentUserId == null) {
+      debugPrint('⚠️ [NotificationsCounterService] _listenToUnreadConversations: currentUserId é null!');
       return;
     }
+    
+    debugPrint('🔔 [NotificationsCounterService] _listenToUnreadConversations: Iniciando listener para userId: $currentUserId');
 
     _conversationsSubscription = _firestore
         .collection('Connections')
@@ -112,6 +115,7 @@ class NotificationsCounterService {
         .snapshots()
         .listen(
       (snapshot) {
+        debugPrint('🔔 [NotificationsCounterService] Snapshot recebido: ${snapshot.docs.length} conversas');
         int unreadCount = 0;
         
         for (final doc in snapshot.docs) {
@@ -141,10 +145,13 @@ class NotificationsCounterService {
           }
         }
         
+        debugPrint('🔔 [NotificationsCounterService] unreadCount calculado: $unreadCount');
         unreadConversationsCount.value = unreadCount;
         AppState.unreadMessages.value = unreadCount; // Atualiza AppState também
+        debugPrint('🔔 [NotificationsCounterService] unreadConversationsCount.value atualizado para: ${unreadConversationsCount.value}');
       },
       onError: (error) {
+        debugPrint('❌ [NotificationsCounterService] Erro no listener de conversas: $error');
         unreadConversationsCount.value = 0;
       },
     );
@@ -155,8 +162,11 @@ class NotificationsCounterService {
     final currentUserId = AppState.currentUserId;
     
     if (currentUserId == null) {
+      debugPrint('⚠️ [NotificationsCounterService] _listenToUnreadNotifications: currentUserId é null!');
       return;
     }
+    
+    debugPrint('🔔 [NotificationsCounterService] _listenToUnreadNotifications: Iniciando listener para userId: $currentUserId');
     
     _notificationsSubscription = _firestore
         .collection('Notifications')
@@ -166,10 +176,12 @@ class NotificationsCounterService {
         .listen(
       (snapshot) {
         final count = snapshot.docs.length;
+        debugPrint('🔔 [NotificationsCounterService] Snapshot de notificações: $count não lidas');
         
         // Atualizar AppState diretamente (padrão Advanced-Dating)
         AppState.unreadNotifications.value = count;
         unreadNotificationsCount.value = count;
+        debugPrint('🔔 [NotificationsCounterService] AppState.unreadNotifications atualizado para: $count');
       },
       onError: (error) {
         AppState.unreadNotifications.value = 0;

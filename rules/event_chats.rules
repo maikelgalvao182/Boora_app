@@ -11,12 +11,21 @@
 ///   - participantCount: number
 
 match /EventChats/{eventId} {
+  // Helper para verificar se é o criador do evento
+  function isEventCreator() {
+    let event = get(/databases/$(database)/documents/events/$(eventId));
+    return event.data.createdBy == request.auth.uid;
+  }
+  
   // Qualquer participante aprovado pode ler o chat
   allow read: if isSignedIn() && 
     request.auth.uid in resource.data.participantIds;
   
   // Apenas Cloud Functions podem criar/atualizar o documento principal
-  allow write: if false;
+  allow create, update: if false;
+  
+  // ✅ O criador do evento pode deletar o chat
+  allow delete: if isSignedIn() && isEventCreator();
 
   /// 💬 Mensagens dentro do chat
   match /Messages/{messageId} {
@@ -25,31 +34,55 @@ match /EventChats/{eventId} {
       return request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
     }
     
-    // Qualquer participante pode ler mensagens
-    allow read: if isSignedIn() && isParticipant();
+    // Helper: verifica se é o criador do evento
+    function isEventCreator() {
+      let event = get(/databases/$(database)/documents/events/$(eventId));
+      return event.data.createdBy == request.auth.uid;
+    }
     
-    // Qualquer participante pode criar mensagens (validação forte de sender_id)
+    /// 📖 LEITURA:
+    /// - Qualquer participante pode ler mensagens
+    /// - Criador do evento pode ler (para deletar ao excluir evento)
+    allow read: if isSignedIn() && (isParticipant() || isEventCreator());
+    
+    /// ✍️ CRIAR mensagem:
+    /// - Participante autenticado
+    /// - sender_id deve ser o usuário autenticado
+    /// - Validar campos obrigatórios
+    /// - Validar tipo de mensagem permitido
+    /// - Limitar tamanho de mensagem (se aplicável)
     allow create: if isSignedIn() && 
       isParticipant() &&
       request.resource.data.sender_id == request.auth.uid &&
-      request.resource.data.keys().hasAll(['sender_id', 'message_type', 'timestamp']);
+      request.resource.data.keys().hasAll(['sender_id', 'message_type', 'timestamp']) &&
+      request.resource.data.message_type in ['text', 'image', 'location', 'audio'];
     
-    // Não pode editar/deletar mensagens
-    allow update, delete: if false;
+    /// ❌ UPDATE: Mensagens são imutáveis (não pode editar)
+    allow update: if false;
+    
+    /// ✅ DELETE: Apenas o criador do evento pode deletar mensagens (ao deletar o evento)
+    allow delete: if isSignedIn() && isEventCreator();
   }
 
   /// 👥 Participantes do chat
   match /Participants/{userId} {
-    // Cada participante pode ler todos os outros
+    /// 📖 LEITURA:
+    /// - Cada participante pode ler todos os outros
     allow read: if isSignedIn() && 
       request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
     
-    // Cada participante pode atualizar apenas seu próprio documento (lastReadAt, unreadCount)
+    /// ✏️ ATUALIZAR:
+    /// - Cada participante pode atualizar APENAS seu próprio documento
+    /// - Só pode mudar campos de leitura (lastReadAt, unreadCount)
+    /// - Não pode mudar identificadores ou status
     allow update: if isSignedIn() && 
       request.auth.uid == userId &&
-      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
+      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds &&
+      request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['lastReadAt', 'unreadCount']);
     
-    // Apenas Cloud Functions podem criar/deletar participantes
+    /// ❌ CREATE/DELETE:
+    /// - Apenas Cloud Functions podem criar/deletar participantes
     allow create, delete: if false;
   }
 }

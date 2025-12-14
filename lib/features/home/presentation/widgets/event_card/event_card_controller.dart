@@ -455,23 +455,178 @@ class EventCardController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> leaveEvent() async {
-    if (!hasApplied || _isLeaving) return;
+    debugPrint('🚪 EventCardController.leaveEvent iniciado');
+    debugPrint('📋 EventId: $eventId');
+    debugPrint('👤 Has Applied: $hasApplied');
+    debugPrint('🔄 Is Leaving: $_isLeaving');
+    
+    if (!hasApplied) {
+      debugPrint('❌ Usuário não aplicou para este evento');
+      return;
+    }
+    
+    if (_isLeaving) {
+      debugPrint('⚠️ Já está saindo do evento');
+      return;
+    }
 
     final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      debugPrint('❌ UID é nulo, usuário não autenticado');
+      return;
+    }
+    
+    debugPrint('👤 Current UID: $uid');
 
     _isLeaving = true;
     notifyListeners();
+    
+    debugPrint('🔄 Chamando removeUserApplication...');
 
     try {
       await _applicationRepo.removeUserApplication(
         eventId: eventId,
         userId: uid,
       );
+      debugPrint('✅ Aplicação removida com sucesso');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Erro ao remover aplicação: $e');
+      debugPrint('📚 StackTrace: $stackTrace');
+      rethrow;
     } finally {
       if (!_disposed) {
         _isLeaving = false;
         notifyListeners();
+        debugPrint('🔄 Estado de saída resetado');
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // DELETE
+  // ---------------------------------------------------------------------------
+
+  Future<void> deleteEvent() async {
+    debugPrint('🗑️ EventCardController.deleteEvent iniciado');
+    debugPrint('📋 EventId: $eventId');
+    debugPrint('👤 Is Creator: $isCreator');
+    debugPrint('🔄 Is Deleting: $_isDeleting');
+    
+    if (!isCreator) {
+      debugPrint('❌ Usuário não é o criador do evento');
+      return;
+    }
+    
+    if (_isDeleting) {
+      debugPrint('⚠️ Já está deletando o evento');
+      return;
+    }
+
+    _isDeleting = true;
+    notifyListeners();
+    
+    debugPrint('🔄 Iniciando deleção completa do evento...');
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+      
+      // 1. Buscar todos os participantes aprovados para remover suas conversas
+      debugPrint('🔍 Buscando participantes do evento...');
+      final applicationsSnapshot = await firestore
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: eventId)
+          .get();
+      
+      final participantIds = applicationsSnapshot.docs
+          .map((doc) => doc.data()['userId'] as String?)
+          .where((id) => id != null)
+          .cast<String>()
+          .toList();
+      
+      debugPrint('👥 ${participantIds.length} participantes encontrados');
+      
+      // 2. Deletar subcoleção Messages PRIMEIRO (antes de tudo)
+      // As regras de Messages precisam que events/{eventId} ainda exista
+      debugPrint('🔄 Deletando mensagens do chat...');
+      final messagesSnapshot = await firestore
+          .collection('EventChats')
+          .doc(eventId)
+          .collection('Messages')
+          .get();
+      
+      for (final messageDoc in messagesSnapshot.docs) {
+        await messageDoc.reference.delete();
+      }
+      debugPrint('✅ ${messagesSnapshot.docs.length} mensagens deletadas');
+      
+      // 3. Deletar documento principal do EventChats
+      // Agora pode deletar porque Messages já foram removidas
+      debugPrint('🔄 Tentando deletar EventChat document...');
+      final eventChatRef = firestore.collection('EventChats').doc(eventId);
+      await eventChatRef.delete();
+      debugPrint('✅ EventChat deletado');
+      
+      // 4. Deletar conversas de todos os participantes
+      debugPrint('🔄 Preparando deleção de ${participantIds.length} conversas no batch...');
+      for (final participantId in participantIds) {
+        final conversationRef = firestore
+            .collection('Connections')
+            .doc(participantId)
+            .collection('Conversations')
+            .doc('event_$eventId');
+        
+        // 🧪 Testar se pode ler antes de deletar
+        try {
+          final conversationDoc = await conversationRef.get();
+          if (conversationDoc.exists) {
+            debugPrint('   ✅ Conversa existe: Connections/$participantId/Conversations/event_$eventId');
+          } else {
+            debugPrint('   ⚠️ Conversa NÃO existe: Connections/$participantId/Conversations/event_$eventId');
+          }
+        } catch (e) {
+          debugPrint('   ❌ Erro ao verificar conversa de $participantId: $e');
+        }
+        
+        debugPrint('   📝 Adicionando ao batch: Connections/$participantId/Conversations/event_$eventId');
+        batch.delete(conversationRef);
+      }
+      debugPrint('✅ ${participantIds.length} conversas adicionadas ao batch');
+      
+      // 5. Deletar todas as aplicações do evento
+      debugPrint('🔄 Preparando deleção de ${applicationsSnapshot.docs.length} aplicações no batch...');
+      for (final doc in applicationsSnapshot.docs) {
+        debugPrint('   📝 Adicionando ao batch: EventApplications/${doc.id}');
+        batch.delete(doc.reference);
+      }
+      debugPrint('✅ ${applicationsSnapshot.docs.length} aplicações adicionadas ao batch');
+      
+      // 6. Deletar documento do evento
+      debugPrint('🔄 Preparando deleção do evento no batch...');
+      final eventRef = firestore.collection('events').doc(eventId);
+      debugPrint('   📝 Adicionando ao batch: events/$eventId');
+      batch.delete(eventRef);
+      debugPrint('✅ Evento adicionado ao batch');
+      
+      // Executar batch
+      debugPrint('🔥 Executando batch com ${participantIds.length + applicationsSnapshot.docs.length + 1} operações...');
+      debugPrint('   - ${participantIds.length} conversas');
+      debugPrint('   - ${applicationsSnapshot.docs.length} aplicações');
+      debugPrint('   - 1 evento');
+      await batch.commit();
+      debugPrint('✅ Batch executado com sucesso');
+      
+      debugPrint('✅ Evento e todos os dados relacionados deletados com sucesso');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Erro ao deletar evento: $e');
+      debugPrint('📚 StackTrace: $stackTrace');
+      _error = 'Erro ao deletar evento: $e';
+      rethrow;
+    } finally {
+      if (!_disposed) {
+        _isDeleting = false;
+        notifyListeners();
+        debugPrint('🔄 Estado de deleção resetado');
       }
     }
   }
@@ -482,32 +637,7 @@ class EventCardController extends ChangeNotifier {
 
   Future<void> refresh() async {
     _loaded = false;
-  Future<void> deleteEvent() async {
-    if (!isCreator || _isDeleting) return;
-
-    _isDeleting = true;
     notifyListeners();
-
-    try {
-      // Deletar documento do evento
-      await FirebaseFirestore.instance.collection('events').doc(eventId).delete();
-    } catch (e) {
-      _error = 'Erro ao deletar evento: $e';
-      rethrow;
-    } finally {
-      if (!_disposed) {
-        _isDeleting = false;
-        notifyListeners();
-      }
-    }
-  } try {
-      // Deletar documento do evento
-      await FirebaseFirestore.instance.collection('events').doc(eventId).delete();
-    } catch (e) {
-      _error = 'Erro ao deletar evento: $e';
-      notifyListeners();
-      rethrow;
-    }
   }
 
   // ---------------------------------------------------------------------------

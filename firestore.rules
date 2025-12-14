@@ -1,207 +1,251 @@
-rules_version = '2';
+/// 🧩 Firestore Security Rules - Arquitetura Modular
+/// 
+/// ⚠️ ARQUIVO GERADO AUTOMATICAMENTE
+/// NÃO EDITE DIRETAMENTE - Edite os arquivos em /rules/ e execute ./build-rules.sh
+/// 
+/// Estrutura:
+/// - rules/helpers.rules        → Funções auxiliares reutilizáveis
+/// - rules/users.rules          → Coleção Users/{userId}
+/// - rules/app_config.rules     → Coleção AppInfo/{configName}
+/// - rules/notifications.rules  → Subcoleção Users/{userId}/Notifications/{notificationId}
+/// - rules/device_tokens.rules  → Coleção DeviceTokens/{tokenId}
+/// - rules/reviews.rules        → Coleção Reviews/{reviewId}
+/// - rules/events.rules         → Coleção events/{eventId}
+/// - rules/applications.rules   → Coleção EventApplications/{applicationId} [CORRIGIDO: permite leitura de aprovados]
+/// - rules/event_chats.rules    → Coleção EventChats/{eventId} + subcoleções
+/// - rules/connections.rules    → Coleção Connections/{userId}/Conversations/{withUserId}
+/// - rules/messages.rules       → Coleção Messages/{userId}/{partnerId}/{messageId}
+/// - rules/ranking.rules        → Coleções userRanking/{userId} e locationRanking/{placeId}
+/// - rules/reports.rules        → Coleção reports/{reportId}
 
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    // 🔒 Verifica se usuário tem VIP ativo
-    function isVip(userId) {
-      let user = get(/databases/$(database)/documents/Users/$(userId));
-      return user.data.vipExpiresAt != null && 
-             user.data.vipExpiresAt > request.time;
-    }
 
+    // ======================================
+    // 🔧 Funções Auxiliares
+    // ======================================
+/// 🔐 Funções auxiliares de autenticação/autorização
+/// Usadas em todos os arquivos de rules
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function isOwner(userId) {
+  return isSignedIn() && request.auth.uid == userId;
+}
+
+function isVip(userId) {
+  let user = get(/databases/$(database)/documents/Users/$(userId));
+  return user.data.vipExpiresAt != null && 
+         user.data.vipExpiresAt > request.time;
+}
+
+function isEventCreator(eventId) {
+  return isSignedIn() && 
+    get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid;
+}
+
+function isEventParticipant(eventId) {
+  return isSignedIn() && 
+    request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.participants.participantIds;
+}
+
+function isParticipant(u1, u2) {
+  return isSignedIn() && (request.auth.uid == u1 || request.auth.uid == u2);
+}
+
+    // ======================================
+    // 👤 Usuários
+    // ======================================
+/// 👤 Coleção principal de usuários
+/// Path usado no app:
+/// - Users/{userId}
+///   - fullName: string
+///   - instagram: string
+///   - jobTitle: string
+///   - gender: string
+///   - bio: string
+///   - country: string
+///   - originSource: string
+///   - interests: array<string>
+///   - agreeTerms: bool
+///   - photoUrl: string
+///   - createdAt: timestamp
+///   - updatedAt: timestamp
+///   - status: string ("active" | "blocked" | ...)
+///   - isBlocked: bool
+///   - overallRating: number (gerenciado por Cloud Function)
+///   - totalReviews: number (gerenciado por Cloud Function)
+///   - lastRatingUpdate: timestamp (gerenciado por Cloud Function)
+///   - isVerified: bool (gerenciado por Cloud Function)
+///   - verifiedAt: timestamp (gerenciado por Cloud Function)
+///   - facialId: string (gerenciado por Cloud Function)
+///   - verificationType: string (gerenciado por Cloud Function)
+
+match /Users/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler perfis públicos
+  allow read: if isSignedIn();
+  
+  /// ✍️ CRIAR/ATUALIZAR perfil:
+  /// - Apenas o próprio usuário pode criar/atualizar seu perfil
+  /// - NÃO pode alterar campos protegidos (rating, verification, VIP)
+  allow create, update: if isOwner(userId) &&
+    !request.resource.data.diff(resource.data).affectedKeys()
+      .hasAny(['overallRating', 'totalReviews', 'lastRatingUpdate', 
+               'isVerified', 'verifiedAt', 'facialId', 'verificationType',
+               'vipExpiresAt', 'vipProductId', 'vipUpdatedAt', 
+               'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// ✏️ ATUALIZAR campos protegidos (APENAS Cloud Functions):
+  /// - Campos de rating (updateUserRating Cloud Function)
+  /// - Campos de verificação Didit (após webhook)
+  /// - Campos VIP (após purchase/subscription)
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['vipExpiresAt', 'vipProductId', 'vipUpdatedAt', 
+              'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// 🗑️ DELETAR perfil:
+  /// - Apenas o próprio usuário pode deletar seu perfil
+  allow delete: if isOwner(userId);
+  
+  /// 👁️ Subcoleção de visitas ao perfil (legacy - deprecada)
+  /// Path: Users/{userId}/visits/{visitId}
+  match /visits/{visitId} {
+    allow read: if isOwner(userId);
+    allow create, update: if isSignedIn();
+    allow delete: if isOwner(userId);
+  }
+}
+
+/// 👥 Coleção em minúsculo usada em algumas partes do app
+/// Path usado no app:
+/// - users/{userId}
+///   (espelho simplificado de Users/{userId} para o módulo de perfil/cache)
+
+match /users/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler perfis públicos
+  allow read: if isSignedIn();
+  
+  /// ✍️ CRIAR/ATUALIZAR perfil:
+  /// - Apenas o próprio usuário pode criar/atualizar seu perfil
+  /// - NÃO pode alterar campos protegidos
+  allow create, update: if isOwner(userId) &&
+    !request.resource.data.diff(resource.data).affectedKeys()
+      .hasAny(['overallRating', 'totalReviews', 'lastRatingUpdate',
+               'isVerified', 'verifiedAt', 'facialId', 'verificationType',
+               'vipExpiresAt', 'vipProductId', 'vipUpdatedAt',
+               'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// ✏️ ATUALIZAR campos protegidos (APENAS Cloud Functions):
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType']) ||
+    request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['vipExpiresAt', 'vipProductId', 'vipUpdatedAt',
+              'user_is_vip', 'user_is_verified', 'user_level']);
+  
+  /// 🗑️ DELETAR perfil:
+  allow delete: if isOwner(userId);
+  
+  /// 👁️ Subcoleção de visitas ao perfil (duplicada por compatibilidade)
+  /// Path: users/{userId}/visits/{visitId}
+  match /visits/{visitId} {
+    allow read: if isOwner(userId);
+    allow create, update: if isSignedIn();
+    allow delete: if isOwner(userId);
+  }
+}
+
+    // ======================================
+    // ⚙️ Configurações da Aplicação
+    // ======================================
 /// ⚙️ Coleção de configurações da aplicação
 /// Path usado no app:
 /// - AppInfo/{configName}
 ///   - GoogleAndroidMaps/Api_key: string
 ///   - GoogleMapsApiKey/Api_key: string
+///
+/// 🔒 SEGURANÇA:
+/// - Leitura: permitida para usuários autenticados (necessário para inicialização)
+/// - Escrita: bloqueada (apenas via console/Admin SDK)
 
 match /AppInfo/{configName} {
-  allow read: if true; // Leitura pública necessária para inicialização do app
-  allow write: if false; // Apenas leitura para usuários
-}
-
-/// 📱 Coleção de tokens FCM dos dispositivos
-/// Path usado no app:
-/// - DeviceTokens/{userId}_{deviceId}
-///   - userId: string
-///   - deviceId: string
-///   - token: string (FCM token)
-///   - deviceName: string
-///   - platform: string ("ios" | "android")
-///   - createdAt: timestamp
-///   - updatedAt: timestamp
-///   - lastUsedAt: timestamp
-
-match /DeviceTokens/{docId} {
   /// 📖 LEITURA:
-  /// - Apenas o próprio usuário pode ler seus tokens
-  /// - Backend pode ler via Admin SDK
-  allow read: if isSignedIn() && 
-    docId.matches('^' + request.auth.uid + '_.*');
+  /// - Qualquer usuário autenticado pode ler configurações
+  /// - Necessário para inicialização do app (mapas, etc)
+  allow read: if isSignedIn();
   
-  /// ✍️ CRIAR/ATUALIZAR token:
-  /// - Usuário autenticado
-  /// - Document ID deve começar com o UID do usuário
-  /// - userId deve corresponder ao usuário autenticado
-  allow create, update: if isSignedIn() && 
-    docId.matches('^' + request.auth.uid + '_.*') &&
-    request.resource.data.userId == request.auth.uid;
-  
-  /// 🗑️ DELETAR token:
-  /// - Apenas o próprio usuário pode deletar seus tokens
-  allow delete: if isSignedIn() && 
-    docId.matches('^' + request.auth.uid + '_.*');
+  /// ❌ ESCRITA:
+  /// - Bloqueada para usuários
+  /// - Apenas via Firebase Console ou Admin SDK
+  allow write: if false;
 }
-/// 🎫 Coleção de aplicações para eventos
-/// Path usado no app:
-/// - EventApplications/{applicationId}
-///   - eventId: string
-///   - userId: string
-///   - status: string ("pending" | "approved" | "rejected" | "autoApproved")
-///   - appliedAt: timestamp
-///   - decisionAt: timestamp (opcional)
 
-match /EventApplications/{applicationId} {
-  // Helper: buscar dados do evento relacionado
-  function getEvent() {
-    return get(/databases/$(database)/documents/events/$(resource.data.eventId)).data;
-  }
-  
-  function getEventFromRequest() {
-    return get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data;
-  }
-  
-  /// 📖 LEITURA:
-  /// - Criador do evento pode ver TODAS as aplicações do seu evento
-  /// - Usuário pode ver APENAS suas próprias aplicações
-  /// - ⭐ QUALQUER usuário autenticado pode ver aplicações APROVADAS (para visualizar participantes no EventCard)
-  allow read: if isSignedIn() && (
-    // Sou o criador do evento
-    request.auth.uid == getEvent().createdBy ||
-    // É minha própria aplicação
-    request.auth.uid == resource.data.userId ||
-    // É uma aplicação aprovada (qualquer um pode ver para visualizar participantes)
-    (resource.data.status == 'approved' || resource.data.status == 'autoApproved')
-  );
-  
-  /// ✍️ CRIAR aplicação:
-  /// - Usuário autenticado
-  /// - userId deve ser o próprio usuário
-  /// - Status deve ser "pending" ou "autoApproved" baseado no privacyType
-  /// 
-  /// ⚠️ NOTA: Proteção contra duplicatas é feita no app (event_application_repository.dart)
-  /// pois Firestore Rules não permite queries para verificar aplicações existentes.
-  /// A validação acontece antes de chamar .add() no repositório.
-  allow create: if isSignedIn() && 
-    request.resource.data.userId == request.auth.uid &&
-    request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&
-    (
-      (getEventFromRequest().participants.privacyType == 'open' && 
-       request.resource.data.status == 'autoApproved') ||
-      (getEventFromRequest().participants.privacyType == 'private' && 
-       request.resource.data.status == 'pending')
-    );
-  
-  /// ✏️ ATUALIZAR aplicação:
-  /// CASO 1: Criador do evento aprovando/rejeitando
-  /// - Apenas o criador do evento pode aprovar/rejeitar
-  /// - Não pode mudar eventId ou userId
-  /// - Só pode mudar de "pending" para "approved" ou "rejected"
-  /// - Deve incluir decisionAt
-  allow update: if isSignedIn() && 
-    request.auth.uid == getEvent().createdBy &&
-    request.resource.data.eventId == resource.data.eventId &&
-    request.resource.data.userId == resource.data.userId &&
-    resource.data.status == 'pending' &&
-    (request.resource.data.status == 'approved' || 
-     request.resource.data.status == 'rejected') &&
-    request.resource.data.decisionAt != null;
-  
-  /// ✏️ ATUALIZAR presença:
-  /// CASO 2: Usuário atualizando sua própria presença
-  /// - É a própria aplicação do usuário
-  /// - Só pode mudar o campo "presence"
-  /// - Não pode mudar status, eventId ou userId
-  /// - Aplicação deve estar aprovada
-  allow update: if isSignedIn() && 
-    request.auth.uid == resource.data.userId &&
-    request.resource.data.eventId == resource.data.eventId &&
-    request.resource.data.userId == resource.data.userId &&
-    request.resource.data.status == resource.data.status &&
-    (resource.data.status == 'approved' || resource.data.status == 'autoApproved') &&
-    request.resource.data.presence in ['Vou', 'Talvez', 'Não vou'];
-  
-  /// 🗑️ DELETE: não permitido
-  allow delete: if false;
-}
-/// 💬 Coleção de conexões/conversas entre usuários e eventos
+    // ======================================
+    // 🔔 Notificações
+    // ======================================
+/// 🔔 Coleção de notificações (root collection)
 /// Path usado no app:
-/// - Connections/{userId}/Conversations/{withUserId}
-///   - user_id: string (userId do outro usuário ou event_{eventId})
-///   - fullname: string
-///   - user_profile_photo: string
-///   - message_type: string
-///   - last_message: string
-///   - message_read: bool
+/// - Notifications/{notificationId}
+///   - userId: string (quem recebe - campo principal)
+///   - n_receiver_id: string (campo duplicado para compatibilidade - legacy)
+///   - n_type: string
+///   - n_sender_id: string
+///   - n_sender_fullname: string
+///   - n_sender_photo_url: string
+///   - n_params: map
+///   - n_metadata: map
+///   - n_related_id: string
+///   - n_read: bool
 ///   - timestamp: timestamp
-///   - is_event_chat: bool (opcional, true para chats de eventos)
-///   - event_id: string (opcional, eventId para chats de eventos)
+///
+/// 🔒 SEGURANÇA:
+/// - Apenas o sender pode criar notificações (validando n_sender_id)
+/// - Apenas o receiver pode atualizar (marcar como lida) e deletar
+/// - Cloud Functions podem criar notificações via Admin SDK
 
-match /Connections/{userId} {
-  match /Conversations/{withUserId} {
-    // Helper: verifica se é conversa de evento
-    function isEventConversation() {
-      return withUserId.matches('event_.*');
-    }
-    
-    // Helper: extrai eventId do withUserId (event_{eventId})
-    function getEventId() {
-      return withUserId.split('_')[1];
-    }
-    
-    // Helper: verifica se usuário é participante aprovado do evento
-    // Como EventApplications não usa padrão de ID previsível, verificamos via query
-    // Simplificação: assumimos que se o documento Connections/{userId}/Conversations/event_{eventId} existe,
-    // significa que o backend já validou e criou a conversa (via Cloud Function após aprovação)
-    function isApprovedParticipant() {
-      // Se chegou até aqui, o backend já criou a conversa
-      return isSignedIn();
-    }
-    
-    /// 📖 LEITURA:
-    /// - Conversa 1-1: usuário pode ler suas próprias conversas
-    /// - Conversa de evento: participante aprovado pode ler
-    allow read: if isSignedIn() && (
-      // Conversa 1-1: sou o dono
-      request.auth.uid == userId ||
-      // Conversa de evento: sou participante aprovado
-      (isEventConversation() && request.auth.uid == userId && isApprovedParticipant())
-    );
-    
-    /// ✍️ CRIAR/ATUALIZAR:
-    /// - Conversa 1-1: ambos participantes podem criar/atualizar
-    /// - Conversa de evento: participante aprovado pode criar/atualizar sua própria conversa
-    allow create, update: if isSignedIn() && (
-      // Conversa 1-1: sou participante
-      isParticipant(userId, withUserId) ||
-      // Conversa de evento: sou o dono e sou participante aprovado
-      (isEventConversation() && request.auth.uid == userId && isApprovedParticipant())
-    );
-    
-    /// 🗑️ DELETAR:
-    /// - Apenas o dono pode deletar sua conversa
-    allow delete: if isSignedIn() && request.auth.uid == userId;
-  }
+match /Notifications/{notificationId} {
+  /// 📖 LEITURA:
+  /// - Apenas o destinatário pode ler suas notificações
+  allow read: if isSignedIn() && 
+    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
+  
+  /// ✍️ CRIAR notificação:
+  /// - Usuário autenticado pode criar APENAS se for o sender
+  /// - n_sender_id deve corresponder ao usuário autenticado
+  /// - Validar campos obrigatórios
+  /// - userId/n_receiver_id não pode ser o próprio sender (evitar auto-notificação falsa)
+  allow create: if isSignedIn() && 
+    request.resource.data.n_sender_id == request.auth.uid &&
+    request.resource.data.keys().hasAll(['userId', 'n_type', 'n_sender_id', 'timestamp']) &&
+    request.resource.data.userId != request.auth.uid &&
+    request.resource.data.n_receiver_id != request.auth.uid;
+  
+  /// ✏️ ATUALIZAR notificação:
+  /// - Apenas o destinatário pode atualizar (ex: marcar como lida)
+  /// - Só pode mudar n_read (não pode alterar conteúdo ou sender)
+  allow update: if isSignedIn() && 
+    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid) &&
+    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['n_read']);
+  
+  /// 🗑️ DELETAR notificação:
+  /// - Apenas o destinatário pode deletar suas notificações
+  allow delete: if isSignedIn() && 
+    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
 }
+
+    // ======================================
+    // 🔑 Tokens FCM
+    // ======================================
 /// 🔑 Coleção de tokens FCM para push notifications
 /// Path usado no app:
 /// - DeviceTokens/{tokenId}
@@ -221,77 +265,110 @@ match /Connections/{userId} {
 /// - Cloud Functions podem ler/escrever em qualquer token
 
 match /DeviceTokens/{tokenId} {
-  // Permite leitura apenas se for o dono do token
-  allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+  /// 📖 LEITURA:
+  /// - Permite ler se o documento não existe (para verificar antes de criar)
+  /// - Permite ler se é o dono do token
+  allow read: if isSignedIn() && 
+    (!exists(/databases/$(database)/documents/DeviceTokens/$(tokenId)) || 
+     resource.data.userId == request.auth.uid);
   
-  // Permite criação apenas se o userId no documento for o próprio usuário
+  /// ✍️ CRIAR token:
+  /// - userId deve ser o usuário autenticado
+  /// - Validar campos obrigatórios (permite campos adicionais como timestamps)
+  /// - Validar plataforma
   allow create: if isSignedIn() && 
     request.resource.data.userId == request.auth.uid &&
-    request.resource.data.keys().hasAll(['userId', 'token', 'deviceId', 'platform']);
+    request.resource.data.userId is string &&
+    request.resource.data.token is string &&
+    request.resource.data.deviceId is string &&
+    request.resource.data.deviceName is string &&
+    request.resource.data.platform is string &&
+    request.resource.data.platform in ['android', 'ios'];
   
-  // Permite atualização apenas se for o dono do token
+  /// ✏️ ATUALIZAR token:
+  /// - Apenas o dono pode atualizar
+  /// - Não pode mudar userId
   allow update: if isSignedIn() && 
     resource.data.userId == request.auth.uid &&
-    request.resource.data.userId == request.auth.uid;
+    request.resource.data.userId == resource.data.userId;
   
-  // Permite exclusão apenas se for o dono do token
+  /// 🗑️ DELETAR token:
+  /// - Apenas o dono pode deletar
   allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 }
-/// 💬 Coleção de chats de eventos (multiusuário)
-/// Path usado no app:
-/// - EventChats/{eventId}
-///   - eventId: string
-///   - createdBy: string
-///   - createdAt: timestamp
-///   - lastMessage: string
-///   - lastMessageAt: timestamp
-///   - lastMessageSenderId: string
-///   - participantIds: array<string>
-///   - participantCount: number
 
-match /EventChats/{eventId} {
-  // Qualquer participante aprovado pode ler o chat
-  allow read: if isSignedIn() && 
-    request.auth.uid in resource.data.participantIds;
+    // ======================================
+    // ⭐ Reviews/Avaliações
+    // ======================================
+/// ⭐ Sistema completo de Reviews/Avaliações
+/// 
+/// Collections:
+/// - Reviews/{reviewId}           → Reviews finalizadas
+/// - PendingReviews/{pendingId}   → Reviews pendentes (aguardando resposta)
+/// 
+/// Nota: ReviewStats foi removido - estatísticas são calculadas dinamicamente dos Reviews
+
+// ============================================
+// Reviews finalizadas
+// ============================================
+match /Reviews/{reviewId} {
+  // Qualquer usuário logado pode ler reviews
+  allow read: if isSignedIn();
   
-  // Apenas Cloud Functions podem criar/atualizar o documento principal
-  allow write: if false;
-
-  /// 💬 Mensagens dentro do chat
-  match /Messages/{messageId} {
-    // Helper: verifica se usuário é participante do evento
-    function isParticipant() {
-      return request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
-    }
-    
-    // Qualquer participante pode ler mensagens
-    allow read: if isSignedIn() && isParticipant();
-    
-    // Qualquer participante pode criar mensagens (validação forte de sender_id)
-    allow create: if isSignedIn() && 
-      isParticipant() &&
-      request.resource.data.sender_id == request.auth.uid &&
-      request.resource.data.keys().hasAll(['sender_id', 'message_type', 'timestamp']);
-    
-    // Não pode editar/deletar mensagens
-    allow update, delete: if false;
-  }
-
-  /// 👥 Participantes do chat
-  match /Participants/{userId} {
-    // Cada participante pode ler todos os outros
-    allow read: if isSignedIn() && 
-      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
-    
-    // Cada participante pode atualizar apenas seu próprio documento (lastReadAt, unreadCount)
-    allow update: if isSignedIn() && 
-      request.auth.uid == userId &&
-      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
-    
-    // Apenas Cloud Functions podem criar/deletar participantes
-    allow create, delete: if false;
-  }
+  // Criar review: apenas quem está fazendo a review (reviewerId)
+  allow create: if isSignedIn() && 
+    request.auth.uid == request.resource.data.reviewer_id;
+  
+  // Atualizar/deletar: apenas o autor da review
+  allow update, delete: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id;
 }
+
+// ============================================
+// Reviews pendentes
+// ============================================
+match /PendingReviews/{pendingId} {
+  // Ler: apenas o reviewer (quem deve fazer a review)
+  allow read: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id;
+  
+  // Criar: Cloud Functions OU Owner do evento criando review reverso para participante
+  allow create: if isSignedIn() && (
+    // Caso 1: Owner criando review REVERSO para participante avaliar o owner
+    // O criador (request.auth.uid) deve ser o reviewee (quem será avaliado = owner)
+    // E o reviewer_role deve ser 'participant' (quem VAI fazer a review)
+    (request.auth.uid == request.resource.data.reviewee_id &&
+     request.resource.data.reviewer_role == 'participant') ||
+    
+    // Caso 2: Participante criando review para outro participante
+    // (futuro - permitir avaliação entre participantes)
+    (request.auth.uid == request.resource.data.reviewer_id &&
+     request.resource.data.reviewer_role == 'participant')
+  );
+  
+  // Atualizar: apenas o reviewer pode:
+  // 1. Marcar como dismissed
+  // 2. Confirmar presença (para owners)
+  allow update: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id &&
+    (
+      // Opção 1: dismissed
+      (request.resource.data.dismissed == true &&
+       request.resource.data.diff(resource.data).affectedKeys()
+         .hasOnly(['dismissed', 'dismissed_at'])) ||
+      // Opção 2: presence_confirmed (para owners)
+      (request.resource.data.diff(resource.data).affectedKeys()
+         .hasOnly(['presence_confirmed', 'confirmed_participant_ids']))
+    );
+  
+  // Deletar: Permitido se o usuário for o reviewer (ao completar a review)
+  allow delete: if isSignedIn() && 
+    request.auth.uid == resource.data.reviewer_id;
+}
+
+    // ======================================
+    // 🎉 Eventos
+    // ======================================
 /// 🎉 Coleção de eventos/atividades
 /// Path usado no app:
 /// - events/{eventId}
@@ -364,22 +441,270 @@ match /events/{eventId} {
       request.auth.uid == getEvent().createdBy;
   }
 }
-/// 🔐 Funções auxiliares de autenticação/autorização
-/// Usadas em todos os arquivos de rules
 
-function isEventCreator(eventId) {
-  return isSignedIn() && 
-    get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid;
+    // ======================================
+    // 🎫 Aplicações para Eventos
+    // ======================================
+/// 🎫 Coleção de aplicações para eventos
+/// Path usado no app:
+/// - EventApplications/{applicationId}
+///   - eventId: string
+///   - userId: string
+///   - status: string ("pending" | "approved" | "rejected" | "autoApproved")
+///   - appliedAt: timestamp
+///   - decisionAt: timestamp (opcional)
+
+match /EventApplications/{applicationId} {
+  // Helper: buscar dados do evento relacionado
+  function getEvent() {
+    return get(/databases/$(database)/documents/events/$(resource.data.eventId)).data;
+  }
+  
+  function getEventFromRequest() {
+    return get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data;
+  }
+  
+  /// 📖 LEITURA:
+  /// - Criador do evento pode ver TODAS as aplicações do seu evento
+  /// - Usuário pode ver APENAS suas próprias aplicações
+  /// - ⭐ QUALQUER usuário autenticado pode ver aplicações APROVADAS (para visualizar participantes no EventCard)
+  allow read: if isSignedIn() && (
+    // Sou o criador do evento
+    request.auth.uid == getEvent().createdBy ||
+    // É minha própria aplicação
+    request.auth.uid == resource.data.userId ||
+    // É uma aplicação aprovada (qualquer um pode ver para visualizar participantes)
+    (resource.data.status == 'approved' || resource.data.status == 'autoApproved')
+  );
+  
+  /// ✍️ CRIAR aplicação:
+  /// - Usuário autenticado
+  /// - userId deve ser o próprio usuário
+  /// - Status deve ser "pending" ou "autoApproved" baseado no privacyType
+  /// - Não pode aplicar para o próprio evento (criador não precisa aplicar)
+  /// - Validar que o evento existe e está ativo
+  /// 
+  /// ⚠️ NOTA: Proteção contra duplicatas é feita no app (event_application_repository.dart)
+  /// pois Firestore Rules não permite queries para verificar aplicações existentes.
+  /// A validação acontece antes de chamar .add() no repositório.
+  allow create: if isSignedIn() && 
+    request.resource.data.userId == request.auth.uid &&
+    request.resource.data.userId != getEventFromRequest().createdBy &&
+    request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&
+    getEventFromRequest().isActive == true &&
+    (
+      (getEventFromRequest().participants.privacyType == 'open' && 
+       request.resource.data.status == 'autoApproved') ||
+      (getEventFromRequest().participants.privacyType == 'private' && 
+       request.resource.data.status == 'pending')
+    );
+  
+  /// ✏️ ATUALIZAR aplicação:
+  /// CASO 1: Criador do evento aprovando/rejeitando
+  /// - Apenas o criador do evento pode aprovar/rejeitar
+  /// - Não pode mudar eventId ou userId
+  /// - Só pode mudar de "pending" para "approved" ou "rejected"
+  /// - Deve incluir decisionAt
+  allow update: if isSignedIn() && 
+    request.auth.uid == getEvent().createdBy &&
+    request.resource.data.eventId == resource.data.eventId &&
+    request.resource.data.userId == resource.data.userId &&
+    resource.data.status == 'pending' &&
+    (request.resource.data.status == 'approved' || 
+     request.resource.data.status == 'rejected') &&
+    request.resource.data.decisionAt != null;
+  
+  /// ✏️ ATUALIZAR presença:
+  /// CASO 2: Usuário atualizando sua própria presença
+  /// - É a própria aplicação do usuário
+  /// - Só pode mudar o campo "presence"
+  /// - Não pode mudar status, eventId ou userId
+  /// - Aplicação deve estar aprovada
+  allow update: if isSignedIn() && 
+    request.auth.uid == resource.data.userId &&
+    request.resource.data.eventId == resource.data.eventId &&
+    request.resource.data.userId == resource.data.userId &&
+    request.resource.data.status == resource.data.status &&
+    (resource.data.status == 'approved' || resource.data.status == 'autoApproved') &&
+    request.resource.data.presence in ['Vou', 'Talvez', 'Não vou'];
+  
+  /// 🗑️ DELETE:
+  /// - Criador do evento pode deletar aplicações ao deletar o evento
+  /// - Usuário pode deletar sua própria aplicação (sair do evento)
+  allow delete: if isSignedIn() && (
+    request.auth.uid == getEvent().createdBy ||
+    request.auth.uid == resource.data.userId
+  );
 }
 
-function isEventParticipant(eventId) {
-  return isSignedIn() && 
-    request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.participants.participantIds;
+    // ======================================
+    // 💬 Chats de Eventos
+    // ======================================
+/// 💬 Coleção de chats de eventos (multiusuário)
+/// Path usado no app:
+/// - EventChats/{eventId}
+///   - eventId: string
+///   - createdBy: string
+///   - createdAt: timestamp
+///   - lastMessage: string
+///   - lastMessageAt: timestamp
+///   - lastMessageSenderId: string
+///   - participantIds: array<string>
+///   - participantCount: number
+
+match /EventChats/{eventId} {
+  // Helper para verificar se é o criador do evento
+  function isEventCreator() {
+    let event = get(/databases/$(database)/documents/events/$(eventId));
+    return event.data.createdBy == request.auth.uid;
+  }
+  
+  // Qualquer participante aprovado pode ler o chat
+  allow read: if isSignedIn() && 
+    request.auth.uid in resource.data.participantIds;
+  
+  // Apenas Cloud Functions podem criar/atualizar o documento principal
+  allow create, update: if false;
+  
+  // ✅ O criador do evento pode deletar o chat
+  allow delete: if isSignedIn() && isEventCreator();
+
+  /// 💬 Mensagens dentro do chat
+  match /Messages/{messageId} {
+    // Helper: verifica se usuário é participante do evento
+    function isParticipant() {
+      return request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
+    }
+    
+    // Helper: verifica se é o criador do evento
+    function isEventCreator() {
+      let event = get(/databases/$(database)/documents/events/$(eventId));
+      return event.data.createdBy == request.auth.uid;
+    }
+    
+    /// 📖 LEITURA:
+    /// - Qualquer participante pode ler mensagens
+    /// - Criador do evento pode ler (para deletar ao excluir evento)
+    allow read: if isSignedIn() && (isParticipant() || isEventCreator());
+    
+    /// ✍️ CRIAR mensagem:
+    /// - Participante autenticado
+    /// - sender_id deve ser o usuário autenticado
+    /// - Validar campos obrigatórios
+    /// - Validar tipo de mensagem permitido
+    /// - Limitar tamanho de mensagem (se aplicável)
+    allow create: if isSignedIn() && 
+      isParticipant() &&
+      request.resource.data.sender_id == request.auth.uid &&
+      request.resource.data.keys().hasAll(['sender_id', 'message_type', 'timestamp']) &&
+      request.resource.data.message_type in ['text', 'image', 'location', 'audio'];
+    
+    /// ❌ UPDATE: Mensagens são imutáveis (não pode editar)
+    allow update: if false;
+    
+    /// ✅ DELETE: Apenas o criador do evento pode deletar mensagens (ao deletar o evento)
+    allow delete: if isSignedIn() && isEventCreator();
+  }
+
+  /// 👥 Participantes do chat
+  match /Participants/{userId} {
+    /// 📖 LEITURA:
+    /// - Cada participante pode ler todos os outros
+    allow read: if isSignedIn() && 
+      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds;
+    
+    /// ✏️ ATUALIZAR:
+    /// - Cada participante pode atualizar APENAS seu próprio documento
+    /// - Só pode mudar campos de leitura (lastReadAt, unreadCount)
+    /// - Não pode mudar identificadores ou status
+    allow update: if isSignedIn() && 
+      request.auth.uid == userId &&
+      request.auth.uid in get(/databases/$(database)/documents/EventChats/$(eventId)).data.participantIds &&
+      request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['lastReadAt', 'unreadCount']);
+    
+    /// ❌ CREATE/DELETE:
+    /// - Apenas Cloud Functions podem criar/deletar participantes
+    allow create, delete: if false;
+  }
 }
 
-function isParticipant(u1, u2) {
-  return isSignedIn() && (request.auth.uid == u1 || request.auth.uid == u2);
+    // ======================================
+    // 💬 Connections (Conversas 1-1)
+    // ======================================
+/// 💬 Coleção de conexões/conversas entre usuários e eventos
+/// Path usado no app:
+/// - Connections/{userId}/Conversations/{withUserId}
+///   - user_id: string (userId do outro usuário ou event_{eventId})
+///   - fullname: string
+///   - user_profile_photo: string
+///   - message_type: string
+///   - last_message: string
+///   - message_read: bool
+///   - timestamp: timestamp
+///   - is_event_chat: bool (opcional, true para chats de eventos)
+///   - event_id: string (opcional, eventId para chats de eventos)
+
+match /Connections/{userId} {
+  // Helper para verificar se é criador do evento
+  function isEventCreator(eventId) {
+    let event = get(/databases/$(database)/documents/events/$(eventId));
+    return event.data.createdBy == request.auth.uid;
+  }
+  
+  match /Conversations/{withUserId} {
+    // Helper: verifica se é conversa de evento
+    function isEventConversation() {
+      return withUserId.matches('event_.*');
+    }
+    
+    // Helper: extrai eventId do withUserId (event_{eventId})
+    function getEventId() {
+      return withUserId.split('_')[1];
+    }
+    
+    // Helper: verifica se usuário é participante aprovado do evento
+    // Como EventApplications não usa padrão de ID previsível, verificamos via query
+    // Simplificação: assumimos que se o documento Connections/{userId}/Conversations/event_{eventId} existe,
+    // significa que o backend já validou e criou a conversa (via Cloud Function após aprovação)
+    function isApprovedParticipant() {
+      // Se chegou até aqui, o backend já criou a conversa
+      return isSignedIn();
+    }
+    
+    /// 📖 LEITURA:
+    /// - Conversa 1-1: usuário pode ler suas próprias conversas
+    /// - Conversa de evento: participante aprovado pode ler
+    allow read: if isSignedIn() && (
+      // Conversa 1-1: sou o dono
+      request.auth.uid == userId ||
+      // Conversa de evento: sou participante aprovado
+      (isEventConversation() && request.auth.uid == userId && isApprovedParticipant())
+    );
+    
+    /// ✍️ CRIAR/ATUALIZAR:
+    /// - Conversa 1-1: ambos participantes podem criar/atualizar
+    /// - Conversa de evento: participante aprovado pode criar/atualizar sua própria conversa
+    allow create, update: if isSignedIn() && (
+      // Conversa 1-1: sou participante
+      isParticipant(userId, withUserId) ||
+      // Conversa de evento: sou o dono e sou participante aprovado
+      (isEventConversation() && request.auth.uid == userId && isApprovedParticipant())
+    );
+    
+    /// 🗑️ DELETAR:
+    /// - Dono pode deletar sua própria conversa
+    /// - Criador do evento pode deletar conversas de evento ao deletar o evento
+    allow delete: if isSignedIn() && (
+      request.auth.uid == userId ||
+      (isEventConversation() && isEventCreator(getEventId()))
+    );
+  }
 }
+
+    // ======================================
+    // 💬 Messages (Mensagens 1-1)
+    // ======================================
 /// 💬 Coleção de mensagens entre usuários e chats de eventos
 /// Path usado no app:
 /// - Messages/{userId}/{partnerId}/{messageId}
@@ -449,33 +774,10 @@ match /Messages/{userId} {
     allow update, delete: if isSignedIn() && request.auth.uid == userId;
   }
 }
-/// 🔔 Coleção de notificações (root collection)
-/// Path usado no app:
-/// - Notifications/{notificationId}
-///   - userId: string (quem recebe - campo principal)
-///   - n_receiver_id: string (campo duplicado para compatibilidade - legacy)
-///   - n_type: string
-///   - n_sender_id: string
-///   - n_sender_fullname: string
-///   - n_sender_photo_url: string
-///   - n_params: map
-///   - n_metadata: map
-///   - n_related_id: string
-///   - n_read: bool
-///   - timestamp: timestamp
 
-match /Notifications/{notificationId} {
-  // Permitir leitura se o usuário é o destinatário (validar ambos os campos)
-  allow read: if isSignedIn() && 
-    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
-  
-  // Permitir deletar apenas se for o destinatário
-  allow delete: if isSignedIn() && 
-    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
-  
-  // Qualquer usuário logado pode criar/atualizar notificações
-  allow create, update: if isSignedIn();
-}
+    // ======================================
+    // 👁️ Visitas ao Perfil
+    // ======================================
 /// 👁️ Coleção de visitas ao perfil (root level para suporte TTL)
 /// Path: ProfileVisits/{visitId}
 /// 
@@ -489,18 +791,35 @@ match /Notifications/{notificationId} {
 ///
 /// 🔒 SEGURANÇA VIP:
 /// - Leitura: apenas VIPs podem ver quem visitou seu perfil
-/// - Escrita: qualquer um pode registrar visitas
+/// - Escrita: apenas o visitor pode registrar sua própria visita
 
 match /ProfileVisits/{visitId} {
-  // 🔒 LEITURA: apenas VIP pode ver visitas ao seu perfil
+  /// 📖 LEITURA: 
+  /// - Apenas VIP pode ver visitas ao seu perfil
   allow read: if isSignedIn() && 
                  request.auth.uid == resource.data.visitedUserId &&
                  isVip(request.auth.uid);
   
-  // ✅ ESCRITA: qualquer um pode registrar visitas
-  allow create, update: if isSignedIn();
+  /// ✍️ CRIAR visita:
+  /// - Usuário autenticado
+  /// - visitorId DEVE ser o usuário autenticado (não pode falsificar visitas)
+  /// - Validar campos obrigatórios
+  /// - Não pode visitar o próprio perfil
+  allow create: if isSignedIn() &&
+                   request.resource.data.visitorId == request.auth.uid &&
+                   request.resource.data.visitedUserId != request.auth.uid &&
+                   request.resource.data.keys().hasAll(['visitedUserId', 'visitorId', 'visitedAt']);
   
-  // 🗑️ DELETE: apenas o dono pode deletar
+  /// ✏️ ATUALIZAR visita:
+  /// - Apenas o visitor pode atualizar sua própria visita (incrementar visitCount)
+  /// - Não pode mudar visitedUserId ou visitorId
+  allow update: if isSignedIn() &&
+                   resource.data.visitorId == request.auth.uid &&
+                   request.resource.data.visitedUserId == resource.data.visitedUserId &&
+                   request.resource.data.visitorId == resource.data.visitorId;
+  
+  /// 🗑️ DELETE: 
+  /// - Apenas o dono do perfil pode deletar visitas recebidas
   allow delete: if isSignedIn() && 
                    request.auth.uid == resource.data.visitedUserId;
 }
@@ -508,13 +827,26 @@ match /ProfileVisits/{visitId} {
 /// 👁️ Coleção de views agregadas (para notificações)
 /// Path: ProfileViews/{viewId}
 match /ProfileViews/{viewId} {
-  // Qualquer usuário autenticado pode registrar views
-  allow create: if isSignedIn();
+  /// ✍️ CRIAR view:
+  /// - Usuário autenticado
+  /// - viewerId DEVE ser o usuário autenticado
+  /// - Validar campos obrigatórios
+  allow create: if isSignedIn() &&
+                   request.resource.data.viewerId == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['viewedUserId', 'viewerId', 'viewedAt']);
   
-  // Apenas o dono do perfil visualizado pode ler
+  /// 📖 LEITURA:
+  /// - Apenas o dono do perfil visualizado pode ler
   allow read: if isSignedIn() && 
                  request.auth.uid == resource.data.viewedUserId;
+  
+  /// 🗑️ DELETE/UPDATE: não permitido
+  allow update, delete: if false;
 }
+
+    // ======================================
+    // 🏆 Rankings
+    // ======================================
 /// 🏆 Coleção de ranking de usuários
 /// Path usado no app:
 /// - userRanking/{userId}
@@ -554,6 +886,10 @@ match /locationRanking/{placeId} {
   // Apenas Cloud Functions podem criar/atualizar rankings
   allow write: if false;
 }
+
+    // ======================================
+    // 🚩 Reports/Denúncias
+    // ======================================
 /// 🚩 Regras de Segurança para Reports
 /// 
 /// Coleção: reports/{reportId}
@@ -583,195 +919,10 @@ match /reports/{reportId} {
   // ❌ Ninguém pode atualizar ou deletar reports
   allow update, delete: if false;
 }
-/// ⭐ Sistema completo de Reviews/Avaliações
-/// 
-/// Collections:
-/// - Reviews/{reviewId}           → Reviews finalizadas
-/// - PendingReviews/{pendingId}   → Reviews pendentes (aguardando resposta)
-/// 
-/// Nota: ReviewStats foi removido - estatísticas são calculadas dinamicamente dos Reviews
 
-// ============================================
-// Reviews finalizadas
-// ============================================
-match /Reviews/{reviewId} {
-  // Qualquer usuário logado pode ler reviews
-  allow read: if isSignedIn();
-  
-  // Criar review: apenas quem está fazendo a review (reviewerId)
-  allow create: if isSignedIn() && 
-    request.auth.uid == request.resource.data.reviewer_id;
-  
-  // Atualizar/deletar: apenas o autor da review
-  allow update, delete: if isSignedIn() && 
-    request.auth.uid == resource.data.reviewer_id;
-}
-
-// ============================================
-// Reviews pendentes
-// ============================================
-match /PendingReviews/{pendingId} {
-  // Ler: apenas o reviewer (quem deve fazer a review)
-  allow read: if isSignedIn() && 
-    request.auth.uid == resource.data.reviewer_id;
-  
-  // Criar: Cloud Functions OU Owner do evento criando review reverso para participante
-  allow create: if isSignedIn() && (
-    // Caso 1: Owner criando review REVERSO para participante avaliar o owner
-    // O criador (request.auth.uid) deve ser o reviewee (quem será avaliado = owner)
-    // E o reviewer_role deve ser 'participant' (quem VAI fazer a review)
-    (request.auth.uid == request.resource.data.reviewee_id &&
-     request.resource.data.reviewer_role == 'participant') ||
-    
-    // Caso 2: Participante criando review para outro participante
-    // (futuro - permitir avaliação entre participantes)
-    (request.auth.uid == request.resource.data.reviewer_id &&
-     request.resource.data.reviewer_role == 'participant')
-  );
-  
-  // Atualizar: apenas o reviewer pode:
-  // 1. Marcar como dismissed
-  // 2. Confirmar presença (para owners) - atualiza participant_profiles
-  allow update: if isSignedIn() && 
-    request.auth.uid == resource.data.reviewer_id &&
-    (
-      // Opção 1: dismissed
-      (request.resource.data.dismissed == true &&
-       request.resource.data.diff(resource.data).affectedKeys()
-         .hasOnly(['dismissed', 'dismissed_at'])) ||
-      // Opção 2: confirmar presença (para owners)
-      // Permite atualizar confirmed_participant_ids e participant_profiles
-      (resource.data.reviewer_role == 'owner' &&
-       request.resource.data.diff(resource.data).affectedKeys()
-         .hasOnly(['confirmed_participant_ids', 'participant_profiles']))
-    );
-  
-  // Deletar: Permitido se o usuário for o reviewer (ao completar a review)
-  allow delete: if isSignedIn() && 
-    request.auth.uid == resource.data.reviewer_id;
-}
-/// 👤 Coleção principal de usuários
-/// Path usado no app:
-/// - Users/{userId}
-///   - fullName: string
-///   - instagram: string
-///   - jobTitle: string
-///   - gender: string
-///   - bio: string
-///   - country: string
-///   - originSource: string
-///   - interests: array<string>
-///   - agreeTerms: bool
-///   - photoUrl: string
-///   - createdAt: timestamp
-///   - updatedAt: timestamp
-///   - status: string ("active" | "blocked" | ...)
-///   - isBlocked: bool
-
-match /Users/{userId} {
-  allow read: if isSignedIn();
-  
-  // Permite que o próprio usuário atualize seus dados
-  allow create, update, delete: if isOwner(userId);
-  
-  // Permite que Cloud Functions atualizem campos específicos de rating
-  // (overallRating, totalReviews, lastRatingUpdate são gerenciados
-  // pela Cloud Function updateUserRating)
-  // Permite write (create/update) mesmo que o documento não exista
-  allow write: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate'])
-    || (resource == null && request.resource.data.keys()
-    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']));
-  
-  // Permite que Cloud Functions atualizem campos de verificação Didit
-  allow write: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType'])
-    || (resource == null && request.resource.data.keys()
-    .hasOnly(['isVerified', 'verifiedAt', 'facialId', 'verificationType']));
-  
-  /// 👁️ Subcoleção de visitas ao perfil (legacy - deprecada)
-  /// Path: Users/{userId}/visits/{visitId}
-  match /visits/{visitId} {
-    allow read: if isOwner(userId);
-    allow create, update: if isSignedIn();
-    allow delete: if isOwner(userId);
-  }
-}
-
-/// 👥 Coleção principal de usuários (com U maiúsculo)
-/// Path usado no app:
-/// - Users/{userId}
-///   - fullname: string
-///   - latitude: number
-///   - longitude: number
-///   - createdAt: timestamp
-///   - user_is_vip: bool
-///   - user_is_verified: bool
-///   - vipExpiresAt: timestamp
-///   - etc...
-
-match /Users/{userId} {
-  /// 📖 LEITURA:
-  /// - Qualquer usuário autenticado pode ler perfis públicos
-  /// - Necessário para descoberta de pessoas próximas, ranking, etc.
-  allow read: if isSignedIn();
-  
-  /// ✍️ CRIAR/ATUALIZAR:
-  /// - Apenas o próprio usuário pode criar/atualizar seu perfil
-  allow create, update: if isOwner(userId);
-  
-  /// ✏️ ATUALIZAR campos específicos:
-  /// - Cloud Functions podem atualizar campos de VIP e rating
-  allow update: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly([
-      'user_is_vip', 
-      'user_is_verified', 
-      'user_level',
-      'vipExpiresAt', 
-      'vipProductId', 
-      'vipUpdatedAt',
-      'overallRating', 
-      'totalReviews', 
-      'lastRatingUpdate'
-    ]);
-  
-  /// 🗑️ DELETAR:
-  /// - Apenas o próprio usuário pode deletar seu perfil
-  allow delete: if isOwner(userId);
-  
-  /// 👁️ Subcoleção de visitas ao perfil
-  /// Path: Users/{userId}/visits/{visitId}
-  match /visits/{visitId} {
-    allow read: if isOwner(userId);
-    allow create, update: if isSignedIn();
-    allow delete: if isOwner(userId);
-  }
-}
-
-/// 👥 Coleção em minúsculo usada em algumas partes do app
-/// Path usado no app:
-/// - users/{userId}
-///   (espelho simplificado de Users/{userId} para o módulo de perfil/cache)
-
-match /users/{userId} {
-  allow read: if isSignedIn();
-  
-  // Permite que o próprio usuário atualize seus dados
-  allow create, update, delete: if isOwner(userId);
-  
-  // Permite que Cloud Functions atualizem campos específicos de rating
-  allow update: if request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly(['overallRating', 'totalReviews', 'lastRatingUpdate']);
-  
-  /// 👁️ Subcoleção de visitas ao perfil (duplicada por compatibilidade)
-  /// Path: users/{userId}/visits/{visitId}
-  match /visits/{visitId} {
-    allow read: if isOwner(userId);
-    allow create, update: if isSignedIn();
-    allow delete: if isOwner(userId);
-  }
-}
-
+    // ======================================
+    // 🎭 Verificações Didit
+    // ======================================
 /// 🎭 Coleção de verificações faciais/ID com Didit
 /// Path usado no app:
 /// - FaceVerifications/{userId}
@@ -779,12 +930,19 @@ match /users/{userId} {
 ///   - verificationType: string ("didit")
 ///   - verifiedAt: timestamp
 ///   - userInfo: map (dados extraídos)
+
 match /FaceVerifications/{userId} {
+  // Usuário pode ler apenas sua própria verificação
   allow read: if isOwner(userId);
+  
+  // Usuário pode criar/atualizar apenas sua própria verificação
   allow create, update: if isOwner(userId);
+  
   // Cloud Functions podem criar verificações (webhook do Didit)
   allow create: if true;
-  allow delete: if false; // Não permite deletar verificações
+  
+  // Não permite deletar verificações (auditoria)
+  allow delete: if false;
 }
 
 /// 📋 Coleção de sessões de verificação Didit
@@ -797,6 +955,7 @@ match /FaceVerifications/{userId} {
 ///   - status: string
 ///   - createdAt: timestamp
 ///   - vendorData: string
+
 match /DiditSessions/{sessionId} {
   // Usuário pode criar suas próprias sessões
   allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -807,10 +966,11 @@ match /DiditSessions/{sessionId} {
     resource.data.userId == request.auth.uid // Ou pertence ao usuário
   );
   
-  // Cloud Functions podem atualizar campos específicos
+  // Cloud Functions podem atualizar campos específicos de status
   allow update: if request.resource.data.diff(resource.data).affectedKeys()
     .hasOnly(['status', 'completedAt', 'result', 'lastWebhookType', 'lastWebhookAt']);
   
+  // Não permite deletar sessões (auditoria)
   allow delete: if false;
 }
 
@@ -822,14 +982,39 @@ match /DiditSessions/{sessionId} {
 ///   - decision: map
 ///   - idVerification: map
 ///   - receivedAt: timestamp
+///
+/// 🔒 SEGURANÇA:
+/// - Create: permitido sem autenticação (vem do servidor Didit)
+/// - ⚠️ Validação de signature acontece no backend (Cloud Function)
+/// - Leitura: apenas via console/backend (Admin SDK)
+
 match /DiditWebhooks/{webhookId} {
-  // Apenas leitura para o usuário da sessão
-  allow read: if isSignedIn();
-  // Cloud Functions podem criar webhooks
-  allow create: if true; // Vem de servidor externo (Didit)
-  allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['processed']);
+  /// 📖 LEITURA:
+  /// - Bloqueada para usuários normais (dados sensíveis)
+  /// - Apenas admins via console/backend
+  allow read: if false;
+  
+  /// ✍️ CRIAR webhook:
+  /// - Permitido sem auth (servidor Didit não tem token Firebase)
+  /// - Validação de signature acontece na Cloud Function
+  /// - Campos obrigatórios validados
+  allow create: if request.resource.data.keys().hasAll(['sessionId', 'webhookType', 'receivedAt']);
+  
+  /// ✏️ ATUALIZAR webhook:
+  /// - Cloud Functions podem marcar como processado
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['processed', 'processedAt']);
+  
+  /// 🗑️ DELETE:
+  /// - Não permitido (auditoria)
   allow delete: if false;
 }
 
-  } // match /databases/{database}/documents
-} // service cloud.firestore
+    // ======================================
+    // 🚫 Bloquear outras coleções
+    // ======================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

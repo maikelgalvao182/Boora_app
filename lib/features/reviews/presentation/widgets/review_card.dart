@@ -107,7 +107,7 @@ class ReviewCard extends StatelessWidget {
               text: displayName,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-            const TextSpan(text: ' precisa ser avaliado no evento '),
+            const TextSpan(text: ' precisa ser avaliado(a) no evento '),
             TextSpan(
               text: '${pendingReview.eventEmoji} ${pendingReview.eventTitle}',
               style: const TextStyle(fontWeight: FontWeight.w700),
@@ -141,7 +141,7 @@ class ReviewCard extends StatelessWidget {
           text: displayName,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        const TextSpan(text: ' precisa ser avaliado no evento '),
+        const TextSpan(text: ' precisa ser avaliado(a) no evento '),
         TextSpan(
           text: '${pendingReview.eventEmoji} ${pendingReview.eventTitle}',
           style: const TextStyle(fontWeight: FontWeight.w700),

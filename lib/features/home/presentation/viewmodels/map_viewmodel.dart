@@ -63,6 +63,9 @@ class MapViewModel extends ChangeNotifier {
   
   /// Subscription para mudanças de filtros/reload
   StreamSubscription<void>? _reloadSubscription;
+  
+  /// Subscription para stream de eventos em tempo real
+  StreamSubscription<List<EventModel>>? _eventsSubscription;
 
   MapViewModel({
     EventMapRepository? eventRepository,
@@ -98,6 +101,55 @@ class MapViewModel extends ChangeNotifier {
     
     // ⬅️ LISTENER REATIVO PARA BLOQUEIOS
     BlockService.instance.addListener(_onBlockedUsersChanged);
+    
+    // ⬅️ STREAM DE EVENTOS EM TEMPO REAL
+    _initializeEventsStream();
+  }
+  
+  /// Inicializa stream de eventos em tempo real (reage a create/update/delete)
+  void _initializeEventsStream() {
+    debugPrint('🔄 MapViewModel: Iniciando stream de eventos em tempo real...');
+    
+    _eventsSubscription = _eventRepository.getEventsStream().listen(
+      (events) async {
+        debugPrint('🔄 MapViewModel: Stream recebeu ${events.length} eventos');
+        
+        // Obter localização atual
+        if (_lastLocation == null) {
+          final locationResult = await _locationService.getUserLocation();
+          _lastLocation = locationResult.location;
+        }
+        
+        // Filtrar eventos de usuários bloqueados
+        final currentUserId = AppState.currentUserId;
+        if (currentUserId != null && currentUserId.isNotEmpty) {
+          _events = BlockService().filterBlocked<EventModel>(
+            currentUserId,
+            events,
+            (event) => event.createdBy,
+          );
+          
+          final filteredCount = events.length - _events.length;
+          if (filteredCount > 0) {
+            debugPrint('🚫 MapViewModel: $filteredCount eventos filtrados (bloqueados)');
+          }
+        } else {
+          _events = events;
+        }
+        
+        // Enriquecer com distância e disponibilidade
+        await _enrichEvents();
+        
+        // Gerar markers
+        await _generateGoogleMarkers();
+        
+        debugPrint('✅ MapViewModel: Stream processado - ${_events.length} eventos, ${_googleMarkers.length} markers');
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('❌ MapViewModel: Erro no stream de eventos: $error');
+      },
+    );
   }
   
   /// Callback quando BlockService muda (via ChangeNotifier)
@@ -417,6 +469,7 @@ class MapViewModel extends ChangeNotifier {
     BlockService.instance.removeListener(_onBlockedUsersChanged);
     _radiusSubscription?.cancel();
     _reloadSubscription?.cancel();
+    _eventsSubscription?.cancel();
     _googleMarkerService.clearCache();
     super.dispose();
   }

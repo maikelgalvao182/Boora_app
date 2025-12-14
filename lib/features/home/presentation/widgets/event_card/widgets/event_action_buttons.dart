@@ -59,7 +59,10 @@ class EventActionButtons extends StatelessWidget {
             child: SizedBox(
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: onChatPressed,
+                onPressed: () {
+                  debugPrint('🔘 Chat button pressed (creator)');
+                  onChatPressed();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: GlimpseColors.primary,
                   foregroundColor: Colors.white,
@@ -87,7 +90,10 @@ class EventActionButtons extends StatelessWidget {
               icon: Iconsax.trash,
               backgroundColor: Colors.red,
               textColor: Colors.white,
-              onPressed: onDeletePressed,
+              onPressed: () {
+                debugPrint('🗑️ Delete button pressed');
+                onDeletePressed();
+              },
               noPadding: true,
               fontSize: 14,
               isProcessing: isDeleting,
@@ -105,7 +111,10 @@ class EventActionButtons extends StatelessWidget {
             child: SizedBox(
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: onChatPressed,
+                onPressed: () {
+                  debugPrint('🔘 Chat button pressed (participant)');
+                  onChatPressed();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: GlimpseColors.primary,
                   foregroundColor: Colors.white,
@@ -133,7 +142,10 @@ class EventActionButtons extends StatelessWidget {
               icon: Iconsax.logout_1,
               backgroundColor: Colors.red,
               textColor: Colors.white,
-              onPressed: onLeavePressed,
+              onPressed: () {
+                debugPrint('🚪 Leave button pressed');
+                onLeavePressed();
+              },
               noPadding: true,
               fontSize: 14,
               isProcessing: isLeaving,

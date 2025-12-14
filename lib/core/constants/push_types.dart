@@ -1,0 +1,4 @@
+enum PushType {
+  global,
+  chatEvent,
+}
