@@ -22,6 +22,7 @@ import 'package:partiu/screens/chat/widgets/user_presence_status_widget.dart';
 import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:flutter/material.dart';
+import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 
 class ChatScreenRefactored extends StatefulWidget {
 
@@ -132,8 +133,16 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
   }
   
     @override
+  @override
   void initState() {
     super.initState();
+
+    // 🔔 Define conversa atual para o PushNotificationManager
+    // Isso evita notificações duplicadas enquanto está nesta tela
+    // Para conversas 1-1, o conversationId é o userId do outro usuário
+    final conversationId = widget.user.userId;
+    PushNotificationManager.instance.setCurrentConversation(conversationId);
+    debugPrint('🔔 PushManager: Conversa atual definida: $conversationId');
 
     // 🔍 DEBUG: Log completo do user object
     debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -260,6 +269,10 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
 
   @override
   void dispose() {
+    // 🔔 Limpa conversa atual do PushNotificationManager
+    PushNotificationManager.instance.setCurrentConversation(null);
+    debugPrint('🔔 PushManager: Conversa atual limpa');
+    
     BlockService.instance.removeListener(_onBlockedUsersChanged);
     _textController.dispose();
     _messagesController.dispose();

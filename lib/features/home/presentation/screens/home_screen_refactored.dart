@@ -47,6 +47,17 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
     });
   }
 
+  @override
+  void didUpdateWidget(HomeScreenRefactored oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialIndex != oldWidget.initialIndex) {
+      setState(() {
+        _selectedIndex = widget.initialIndex;
+        _ensurePage(_selectedIndex);
+      });
+    }
+  }
+
   Future<void> _initializeData() async {
     if (_initialized) return;
     

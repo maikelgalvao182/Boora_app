@@ -366,14 +366,16 @@ export const onApplicationApproved = functions.firestore
         const promises = existingParticipants.map((participantId) =>
           sendPush({
             userId: participantId,
-            type: "chat_event",
-            title: activityText,
-            body: systemMessage,
+            event: "event_join",
             data: {
+              n_type: "event_join",
               sub_type: "event_join",
               eventId: eventId,
               chatId: `event_${eventId}`,
+              n_sender_name: userName,
               userName: userName,
+              activityText: activityText,
+              eventTitle: activityText,
             },
           })
         );
@@ -409,6 +411,10 @@ export * from "./eventChatNotifications";
 // ===== CHAT PUSH NOTIFICATIONS =====
 // Importa e exporta as Cloud Functions de push notifications de chat 1-1
 export * from "./chatPushNotifications";
+
+// ===== ACTIVITY PUSH NOTIFICATIONS =====
+// Monitora coleção Notifications e dispara push para 8 tipos de atividades
+export * from "./activityPushNotifications";
 
 // ===== REVIEW FUNCTIONS =====
 // Importa e exporta as Cloud Functions de reviews

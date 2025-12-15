@@ -21,6 +21,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
+import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,10 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase já inicializado: $e');
   }
+
+  // 🔔 Inicializar Push Notification Manager (ANTES do runApp)
+  await PushNotificationManager.instance.initialize();
+  debugPrint('✅ PushNotificationManager iniciado');
 
   // Inicializar Google Maps
   await GoogleMapsInitializer.initialize();
@@ -108,6 +113,10 @@ void main() async {
       ),
     ),
   );
+  
+  // 🔔 Processar mensagem inicial (se app foi aberto via notificação)
+  // Deve ser APÓS runApp para ter contexto de navegação disponível
+  PushNotificationManager.instance.handleInitialMessageAfterRunApp();
 }
 
 class AppRoot extends StatelessWidget {

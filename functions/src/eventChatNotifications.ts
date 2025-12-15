@@ -178,17 +178,28 @@ export const onEventChatMessageCreated = functions.firestore
           .map((participantId: string) =>
             sendPush({
               userId: participantId,
-              type: "chat_event",
-              title: `${activityText} ${emoji}`,
-              body: `${senderName}: ${messageText?.substring(0, 100) || ""}`,
+              event: "event_chat_message",
+              notification: {
+                title: activityText,
+                body: `${senderName}: ${messageText?.substring(0, 100) || ""}`,
+              },
               data: {
+                n_type: "event_chat_message",
                 sub_type: "event_chat_message",
                 eventId: eventId,
                 senderId: senderId,
+                n_sender_name: senderName,
                 senderName: senderName,
                 eventTitle: activityText,
+                eventName: activityText,
+                activityText: activityText,
+                emoji: emoji,
                 eventEmoji: emoji,
+                n_message: messageText?.substring(0, 100) || "",
                 messagePreview: messageText?.substring(0, 100) || "",
+              },
+              context: {
+                groupId: eventId,
               },
             })
           );

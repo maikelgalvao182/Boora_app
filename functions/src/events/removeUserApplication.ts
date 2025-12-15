@@ -2,6 +2,84 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 /**
+ * FIRESTORE COLLECTION NAMING CONVENTION
+ *
+ * This project currently uses a mix of casing styles:
+ * - camelCase: 'events'
+ * - PascalCase: 'EventChats', 'EventApplications', 'Connections',
+ *   'Conversations'
+ *
+ * Please maintain this consistency when adding new references until a full
+ * migration is performed.
+ */
+
+/**
+ * Helper function to execute the batch removal logic.
+ * Handles:
+ * 1. Application deletion (if doc provided)
+ * 2. EventChat update (safe decrement)
+ * 3. Conversation deletion
+ *
+ * @param {admin.firestore.Firestore} firestore - Firestore instance
+ * @param {string} eventId - ID of the event
+ * @param {string} userId - ID of the user
+ * @param {admin.firestore.QueryDocumentSnapshot} [applicationDoc] - Optional
+ * application document to delete
+ */
+async function executeRemovalBatch(
+  firestore: admin.firestore.Firestore,
+  eventId: string,
+  userId: string,
+  applicationDoc?: admin.firestore.QueryDocumentSnapshot
+) {
+  const batch = firestore.batch();
+
+  // 1. Remove application if it exists
+  if (applicationDoc) {
+    batch.delete(applicationDoc.ref);
+  }
+
+  // 2. Update EventChat
+  const eventChatRef = firestore.collection("EventChats").doc(eventId);
+
+  // Fetch EventChat to ensure safe decrement
+  const eventChatDoc = await eventChatRef.get();
+
+  if (!eventChatDoc.exists) {
+    console.warn(
+      `⚠️ EventChat not found for event ${eventId}, skipping chat cleanup`
+    );
+  } else {
+    const eventChatData = eventChatDoc.data();
+    const participants = eventChatData?.participants || [];
+    const currentCount = eventChatData?.participantCount || 0;
+
+    if (participants.includes(userId)) {
+      const newCount = Math.max(0, currentCount - 1);
+      batch.update(eventChatRef, {
+        participants: admin.firestore.FieldValue.arrayRemove(userId),
+        participantCount: newCount,
+      });
+    } else {
+      console.log(
+        "⚠️ User not in participants list, skipping EventChat update."
+      );
+    }
+  }
+
+  // 3. Remove conversation
+  const eventUserId = `event_${eventId}`;
+  const conversationRef = firestore
+    .collection("Connections")
+    .doc(userId)
+    .collection("Conversations")
+    .doc(eventUserId);
+  batch.delete(conversationRef);
+
+  await batch.commit();
+}
+
+/**
  * Cloud Function para remover a aplicação de um usuário em um evento
  *
  * Operações realizadas:
@@ -68,7 +146,7 @@ export const removeUserApplication = functions
 
       console.log(`🚪 Removing application: event=${eventId}, user=${userId}`);
 
-      // 1. Busca a aplicação do usuário
+      // Busca a aplicação do usuário
       const applicationSnapshot = await firestore
         .collection("EventApplications")
         .where("eventId", "==", eventId)
@@ -77,6 +155,29 @@ export const removeUserApplication = functions
         .get();
 
       if (applicationSnapshot.empty) {
+        // Se não encontrou aplicação, verifica se o usuário está no chat
+        // Isso permite corrigir inconsistências onde o usuário está no chat
+        // mas sem aplicação
+        const eventChatDoc = await firestore
+          .collection("EventChats")
+          .doc(eventId)
+          .get();
+        const participants = eventChatDoc.data()?.participants || [];
+
+        if (participants.includes(userId)) {
+          console.log(
+            "⚠️ Application not found, but user is in EventChat. " +
+            "Removing from chat only."
+          );
+
+          await executeRemovalBatch(firestore, eventId, userId);
+
+          return {
+            success: true,
+            message: "User removed from chat (application was missing)",
+          };
+        }
+
         throw new functions.https.HttpsError(
           "not-found",
           "Application not found"
@@ -85,32 +186,9 @@ export const removeUserApplication = functions
 
       const applicationDoc = applicationSnapshot.docs[0];
 
-      // 2. Inicia batch operation
-      const batch = firestore.batch();
+      await executeRemovalBatch(firestore, eventId, userId, applicationDoc);
 
-      // Remove aplicação
-      batch.delete(applicationDoc.ref);
-
-      // Atualiza EventChat (remove do array de participants e decrementa)
-      const eventChatRef = firestore.collection("EventChats").doc(eventId);
-      batch.update(eventChatRef, {
-        participants: admin.firestore.FieldValue.arrayRemove(userId),
-        participantCount: admin.firestore.FieldValue.increment(-1),
-      });
-
-      // Remove conversa do usuário
-      const eventUserId = `event_${eventId}`;
-      const conversationRef = firestore
-        .collection("Connections")
-        .doc(userId)
-        .collection("conversations")
-        .doc(eventUserId);
-      batch.delete(conversationRef);
-
-      // 3. Executa batch
-      await batch.commit();
-
-      console.log("✅ Application removed successfully");
+      console.log(`✅ Application removed: event=${eventId}, user=${userId}`);
 
       return {
         success: true,
@@ -210,32 +288,9 @@ export const removeParticipant = functions
 
       const applicationDoc = applicationSnapshot.docs[0];
 
-      // Inicia batch operation
-      const batch = firestore.batch();
+      await executeRemovalBatch(firestore, eventId, userId, applicationDoc);
 
-      // Remove aplicação
-      batch.delete(applicationDoc.ref);
-
-      // Atualiza EventChat
-      const eventChatRef = firestore.collection("EventChats").doc(eventId);
-      batch.update(eventChatRef, {
-        participants: admin.firestore.FieldValue.arrayRemove(userId),
-        participantCount: admin.firestore.FieldValue.increment(-1),
-      });
-
-      // Remove conversa do usuário
-      const eventUserId = `event_${eventId}`;
-      const conversationRef = firestore
-        .collection("Connections")
-        .doc(userId)
-        .collection("conversations")
-        .doc(eventUserId);
-      batch.delete(conversationRef);
-
-      // Executa batch
-      await batch.commit();
-
-      console.log("✅ Participant removed successfully");
+      console.log(`✅ Participant removed: event=${eventId}, user=${userId}`);
 
       return {
         success: true,

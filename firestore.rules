@@ -794,11 +794,11 @@ match /Messages/{userId} {
 /// - Escrita: apenas o visitor pode registrar sua própria visita
 
 match /ProfileVisits/{visitId} {
-  /// 📖 LEITURA: 
-  /// - Apenas VIP pode ver visitas ao seu perfil
-  allow read: if isSignedIn() && 
-                 request.auth.uid == resource.data.visitedUserId &&
-                 isVip(request.auth.uid);
+  /// 📖 LEITURA (get/list - ver detalhes das visitas): 
+  /// - Apenas VIP pode ver QUEM visitou seu perfil
+  allow get, list: if isSignedIn() && 
+                      request.auth.uid == resource.data.visitedUserId &&
+                      isVip(request.auth.uid);
   
   /// ✍️ CRIAR visita:
   /// - Usuário autenticado

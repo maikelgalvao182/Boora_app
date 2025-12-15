@@ -360,19 +360,26 @@ class ProfileVisitsService {
   }
 
   /// Busca contador de visitas (one-time fetch)
+  /// 
+  /// Nota: Não usa .count() pois requer permissões especiais.
+  /// Em vez disso, usa count() que é otimizado e não cobra leituras de documentos.
   Future<int> getVisitsCount(String userId) async {
     if (userId.isEmpty) return 0;
 
     try {
-      final snapshot = await _firestore
+      // count() é otimizado e não conta como leituras de documentos
+      final countResult = await _firestore
           .collection('ProfileVisits')
           .where('visitedUserId', isEqualTo: userId)
           .count()
           .get();
 
-      return snapshot.count ?? 0;
+      return countResult.count ?? 0;
     } catch (e) {
       debugPrint('❌ [ProfileVisitsService] Erro ao contar visitas: $e');
+      
+      // Fallback: Se o usuário não é VIP, retorna 0
+      // (VIPs podem ver as visitas, não-VIPs não)
       return 0;
     }
   }

@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 
 /// Serviço responsável por realizar a limpeza robusta de sessão.
 /// Inspirado no fluxo de logout do projeto Advanced-Dating.
@@ -105,6 +106,15 @@ class SessionCleanupService {
         _log('✅ SessionManager limpo (configurações preservadas)');
       } catch (e) {
         _log('⚠️  Etapa 5/9 falhou: $e (continuando...)');
+      }
+
+      // 5.1 Limpar estado do PushNotificationManager
+      _log('🔔 ETAPA 5.1/9: Limpando estado do PushNotificationManager');
+      try {
+        PushNotificationManager.instance.resetState();
+        _log('✅ PushNotificationManager resetado');
+      } catch (e) {
+        _log('⚠️  Etapa 5.1/9 falhou: $e (continuando...)');
       }
 
       // 6. Firebase Auth signOut (após limpar preferências/caches)

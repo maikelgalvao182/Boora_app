@@ -201,7 +201,7 @@ class EventDeletionService {
           _firestore
               .collection('Connections')
               .doc(currentUserId)
-              .collection('conversations')
+              .collection('Conversations')
               .doc(eventUserId),
         );
       }
@@ -214,7 +214,7 @@ class EventDeletionService {
             _firestore
                 .collection('Connections')
                 .doc(userId)
-                .collection('conversations')
+                .collection('Conversations')
                 .doc(eventUserId),
           );
         }

@@ -164,8 +164,35 @@ class GroupInfoController extends ChangeNotifier {
   Future<void> _init() async {
     await _loadEventData();
     await _loadParticipants();
+    await _loadUserPreferences();
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _loadUserPreferences() async {
+    final userId = AppState.currentUserId;
+    if (userId == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data();
+        final advancedSettings = data?['advancedSettings'] as Map<String, dynamic>?;
+        final pushPrefs = advancedSettings?['push_preferences'] as Map<String, dynamic>?;
+        final groups = pushPrefs?['groups'] as Map<String, dynamic>?;
+        final groupPrefs = groups?[eventId] as Map<String, dynamic>?;
+
+        if (groupPrefs != null) {
+          _isMuted = groupPrefs['muted'] == true;
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading user preferences: $e');
+    }
   }
 
   Future<void> _loadEventData() async {
@@ -246,10 +273,34 @@ class GroupInfoController extends ChangeNotifier {
     await _init();
   }
 
-  void toggleMute(bool value) {
+  Future<void> toggleMute(bool value) async {
     _isMuted = value;
     notifyListeners();
-    // TODO: Salvar preferência no Firestore
+    
+    final userId = AppState.currentUserId;
+    if (userId == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .set({
+            'advancedSettings': {
+              'push_preferences': {
+                'groups': {
+                  eventId: {
+                    'muted': value
+                  }
+                }
+              }
+            }
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('❌ Error saving mute preference: $e');
+      // Revert on error
+      _isMuted = !value;
+      notifyListeners();
+    }
   }
 
   Future<void> togglePrivacy(bool value) async {
@@ -384,7 +435,8 @@ class GroupInfoController extends ChangeNotifier {
         if (context.mounted) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) {
-              context.go(AppRoutes.home);
+              // Força a navegação para a tab 0 (Discover)
+              context.go(Uri(path: AppRoutes.home, queryParameters: {'tab': '0'}).toString());
             }
           });
         }
@@ -409,7 +461,8 @@ class GroupInfoController extends ChangeNotifier {
         if (context.mounted) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) {
-              context.go(AppRoutes.home);
+              // Força a navegação para a tab 0 (Discover)
+              context.go(Uri(path: AppRoutes.home, queryParameters: {'tab': '0'}).toString());
             }
           });
         }

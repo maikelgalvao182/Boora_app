@@ -98,6 +98,7 @@ class NotificationOrchestrator {
       final params = buildParams(receiverId);
       
       final notificationData = {
+        'userId': receiverId, // Campo obrigatório para Firestore Rules
         if (senderId != null) N_SENDER_ID: senderId,
         if (senderName != null) N_SENDER_FULLNAME: senderName,
         if (senderPhoto != null) N_SENDER_PHOTO_LINK: senderPhoto,

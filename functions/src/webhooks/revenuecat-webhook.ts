@@ -718,48 +718,23 @@ async function sendUserNotification(
   isActive: boolean
 ): Promise<void> {
   try {
-    let title = "";
-    let body = "";
+    // Only send notifications for specific events
+    const notifiableEvents = [
+      "INITIAL_PURCHASE",
+      "RENEWAL",
+      "BILLING_ISSUE",
+      "EXPIRATION",
+      "CANCELLATION",
+    ];
 
-    switch (eventType) {
-    case "INITIAL_PURCHASE":
-      title = "Welcome to VIP! 🎉";
-      body =
-        "Your premium subscription is now active. Enjoy all VIP features!";
-      break;
-    case "RENEWAL":
-      title = "Subscription Renewed ✅";
-      body = "Your VIP subscription has been automatically renewed.";
-      break;
-    case "BILLING_ISSUE":
-      title = "Payment Issue ⚠️";
-      body =
-        "There was an issue with your payment. " +
-        "Please update your payment method.";
-      break;
-    case "EXPIRATION":
-      title = "Subscription Expired";
-      body =
-        "Your VIP subscription has expired. " +
-        "Renew to continue enjoying premium features.";
-      break;
-    case "CANCELLATION":
-      title = "Subscription Cancelled";
-      body =
-        "Your subscription has been cancelled. " +
-        "You can still use VIP features until it expires.";
-      break;
-    default:
-      return; // Don't send notification for other events
+    if (!notifiableEvents.includes(eventType)) {
+      return;
     }
 
     await sendPush({
       userId: userId,
-      type: "global",
-      title: title,
-      body: body,
+      event: "system_alert",
       data: {
-        sub_type: "subscription_event",
         event_type: eventType,
         is_active: isActive.toString(),
       },

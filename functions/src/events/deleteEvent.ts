@@ -137,7 +137,7 @@ export const deleteEvent = functions
         const conversationRef = firestore
           .collection("Connections")
           .doc(participantId)
-          .collection("conversations")
+          .collection("Conversations")
           .doc(eventUserId);
 
         addToBatch((batch) => batch.delete(conversationRef));

@@ -69,7 +69,7 @@ class NotificationTemplates {
 
     return NotificationMessage(
       title: "$activityName $emoji",
-      body: "$creatorName quer $activityName, partiu?",
+      body: "$creatorName quer $activityName, bora?",
       preview: "$creatorName criou uma nova atividade",
       extra: {
         'commonInterests': commonInterests,

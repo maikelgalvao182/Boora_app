@@ -279,7 +279,7 @@ class EventApplicationRemovalService {
         _firestore
             .collection('Connections')
             .doc(currentUserId)
-            .collection('conversations')
+            .collection('Conversations')
             .doc(eventUserId),
       );
 

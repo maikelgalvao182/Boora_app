@@ -168,17 +168,10 @@ export const processProfileViewNotifications = functions
       const pushPromises = Object.entries(aggregated)
         .filter(([, data]) => data.count >= 1)
         .map(([userId, data]) => {
-          const body = data.count === 1 ?
-            "1 pessoa da região visualizou seu perfil" :
-            `${data.count} pessoas da região visualizaram seu perfil`;
-
           return sendPush({
             userId: userId,
-            type: "global",
-            title: "👀 Visitas ao perfil",
-            body: body,
+            event: "profile_views_aggregated",
             data: {
-              sub_type: "profile_views_aggregated",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
             },
@@ -320,17 +313,10 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
       const pushPromises = Object.entries(aggregated)
         .filter(([, data]) => data.count >= 1)
         .map(([userId, data]) => {
-          const body = data.count === 1 ?
-            "1 pessoa da região visualizou seu perfil" :
-            `${data.count} pessoas da região visualizaram seu perfil`;
-
           return sendPush({
             userId: userId,
-            type: "global",
-            title: "👀 Visitas ao perfil",
-            body: body,
+            event: "profile_views_aggregated",
             data: {
-              sub_type: "profile_views_aggregated",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
             },
