@@ -21,14 +21,21 @@ import 'package:partiu/screens/chat/chat_screen_refactored.dart';
 /// Responsabilidades:
 /// - Renderizar o Google Map
 /// - Exibir localização do usuário
-/// - Exibir markers (delegado ao ViewModel)
+/// - Exibir markers com clustering inteligente baseado em zoom
 /// - Controlar câmera
+/// 
+/// Clustering:
+/// - Zoom alto (>= 16): Markers individuais (emoji + avatar)
+/// - Zoom médio (12-15): Clustering moderado
+/// - Zoom baixo (< 12): Clustering agressivo
+/// - Ao tocar em cluster: zoom in para expandir
 /// 
 /// Toda lógica de negócio foi extraída para:
 /// - MapViewModel (orquestração)
-/// - EventMarkerService (markers)
+/// - EventMarkerService (markers + clustering)
 /// - UserLocationService (localização)
 /// - AvatarService (avatares)
+/// - MarkerClusterService (algoritmo de clustering)
 class GoogleMapView extends StatefulWidget {
   final MapViewModel viewModel;
 
@@ -45,17 +52,23 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Controller do mapa Google Maps
   GoogleMapController? _mapController;
   
-  /// Serviço para gerar markers customizados
+  /// Serviço para gerar markers customizados (com clustering)
   final GoogleEventMarkerService _markerService = GoogleEventMarkerService();
   
   /// Serviço para descoberta de eventos por bounding box
   final MapDiscoveryService _discoveryService = MapDiscoveryService();
   
-  /// Markers atuais do mapa
+  /// Markers atuais do mapa (clusterizados)
   Set<Marker> _markers = {};
   
   /// Estilo customizado do mapa carregado de assets
   String? _mapStyle;
+  
+  /// Zoom atual do mapa (usado para clustering)
+  double _currentZoom = 12.0;
+  
+  /// Flag para evitar rebuilds durante animação de câmera
+  bool _isAnimating = false;
 
   /// Método público para centralizar no usuário
   void centerOnUser() {
@@ -117,56 +130,38 @@ class GoogleMapViewState extends State<GoogleMapView> {
   }
   
   /// Callback quando eventos mudarem
+  /// 
+  /// Recalcula clusters baseado no zoom atual
   void _onEventsChanged() async {
-    if (!mounted) return;
+    if (!mounted || _isAnimating) return;
+    
+    await _rebuildClusteredMarkers();
+  }
+
+  /// Reconstrói markers com clustering baseado no zoom atual
+  /// 
+  /// Este método é chamado:
+  /// - Quando eventos mudam (listener do ViewModel)
+  /// - Quando zoom muda (onCameraIdle)
+  Future<void> _rebuildClusteredMarkers() async {
+    if (!mounted || widget.viewModel.events.isEmpty) return;
     
     final stopwatch = Stopwatch()..start();
     
-    // Usar markers pré-carregados do ViewModel SE existirem
-    if (widget.viewModel.googleMarkers.isNotEmpty) {
-      debugPrint('⚡ GoogleMapView: Usando ${widget.viewModel.googleMarkers.length} markers PRÉ-CARREGADOS (cache)');
-      
-      // RECONSTRUIR markers com callback correto
-      final Set<Marker> markersWithCallback = {};
-      
-      for (final marker in widget.viewModel.googleMarkers) {
-        // Extrair eventId do markerId (formato: 'event_emoji_ID' ou 'event_avatar_ID')
-        final markerId = marker.markerId.value;
-        final eventId = markerId.replaceAll('event_emoji_', '').replaceAll('event_avatar_', '');
-        
-        // Recriar marker com callback
-        markersWithCallback.add(
-          marker.copyWith(
-            onTapParam: () {
-              debugPrint('🎯 Marker callback acionado para eventId: $eventId');
-              final event = widget.viewModel.events.firstWhere((e) => e.id == eventId);
-              debugPrint('🎯 Evento encontrado: ${event.title}');
-              _onMarkerTap(event);
-            },
-          ),
-        );
-      }
-      
-      if (mounted) {
-        setState(() {
-          _markers = markersWithCallback;
-        });
-        stopwatch.stop();
-        debugPrint('✅ GoogleMapView: ${_markers.length} markers atualizados com callback em ${stopwatch.elapsedMilliseconds}ms');
-      }
-      return;
-    }
+    debugPrint('🔲 GoogleMapView: Reconstruindo markers com clustering (zoom: ${_currentZoom.toStringAsFixed(1)})');
     
-    // Fallback: gerar markers do zero (só acontece se AppInitializer falhou)
-    debugPrint('⚠️ GoogleMapView: Gerando ${widget.viewModel.events.length} markers do ZERO (fallback)');
-    
-    final markers = await _markerService.buildEventMarkers(
+    // Gerar markers clusterizados
+    final markers = await _markerService.buildClusteredMarkers(
       widget.viewModel.events,
-      onTap: (eventId) {
-        debugPrint('🎯 Marker callback acionado para eventId: $eventId');
+      zoom: _currentZoom,
+      onSingleTap: (eventId) {
+        debugPrint('🎯 Marker individual tocado: $eventId');
         final event = widget.viewModel.events.firstWhere((e) => e.id == eventId);
-        debugPrint('🎯 Evento encontrado: ${event.title}');
         _onMarkerTap(event);
+      },
+      onClusterTap: (eventsInCluster) {
+        debugPrint('🔴 Cluster tocado: ${eventsInCluster.length} eventos');
+        _onClusterTap(eventsInCluster);
       },
     );
     
@@ -175,8 +170,59 @@ class GoogleMapViewState extends State<GoogleMapView> {
         _markers = markers;
       });
       stopwatch.stop();
-      debugPrint('✅ GoogleMapView: ${_markers.length} markers gerados em ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('✅ GoogleMapView: ${_markers.length} markers clusterizados em ${stopwatch.elapsedMilliseconds}ms');
     }
+  }
+
+  /// Callback quando cluster é tocado
+  /// 
+  /// Comportamento:
+  /// - Zoom in para expandir o cluster
+  /// - Se zoom já alto, mostra lista de eventos
+  void _onClusterTap(List<EventModel> eventsInCluster) async {
+    if (_mapController == null || eventsInCluster.isEmpty) return;
+    
+    // Se zoom já está alto (>= 16), não faz sentido dar mais zoom
+    // Mostrar lista de eventos ou o primeiro evento
+    if (_currentZoom >= 16) {
+      debugPrint('📍 Cluster tocado em zoom alto - mostrando primeiro evento');
+      _onMarkerTap(eventsInCluster.first);
+      return;
+    }
+    
+    // Calcular centro do cluster
+    double avgLat = 0;
+    double avgLng = 0;
+    for (final event in eventsInCluster) {
+      avgLat += event.lat;
+      avgLng += event.lng;
+    }
+    avgLat /= eventsInCluster.length;
+    avgLng /= eventsInCluster.length;
+    
+    // Calcular novo zoom (aumenta em 2 níveis)
+    final newZoom = (_currentZoom + 2).clamp(3.0, 20.0);
+    
+    debugPrint('🔍 Expandindo cluster: zoom ${_currentZoom.toStringAsFixed(1)} → ${newZoom.toStringAsFixed(1)}');
+    
+    // Marcar que está animando para evitar rebuilds intermediários
+    _isAnimating = true;
+    
+    try {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(avgLat, avgLng),
+          newZoom,
+        ),
+      );
+    } finally {
+      // Aguardar um pouco para animação completar
+      await Future.delayed(const Duration(milliseconds: 300));
+      _isAnimating = false;
+    }
+    
+    // Nota: O recálculo dos clusters acontecerá automaticamente
+    // no onCameraIdle quando a animação terminar
   }
 
   /// Callback quando o mapa é criado
@@ -206,16 +252,31 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
   /// Callback quando a câmera para de se mover
   /// 
-  /// Captura o bounding box visível e busca eventos na região.
+  /// Responsável por:
+  /// 1. Capturar bounding box visível
+  /// 2. Buscar eventos na região
+  /// 3. Recalcular clusters se zoom mudou
   Future<void> _onCameraIdle() async {
-    if (_mapController == null) return;
+    if (_mapController == null || _isAnimating) return;
 
     try {
-      final visibleRegion = await _mapController!.getVisibleRegion();
+      // Obter zoom atual
+      final newZoom = await _mapController!.getZoomLevel();
+      final zoomChanged = (newZoom - _currentZoom).abs() > 0.5;
       
+      // Atualizar zoom atual
+      _currentZoom = newZoom;
+
+      final visibleRegion = await _mapController!.getVisibleRegion();
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
       
-      debugPrint('📍 GoogleMapView: Câmera parou em $bounds');
+      debugPrint('📍 GoogleMapView: Câmera parou (zoom: ${newZoom.toStringAsFixed(1)}, mudou: $zoomChanged)');
+      
+      // Recalcular clusters se zoom mudou significativamente
+      if (zoomChanged && widget.viewModel.events.isNotEmpty) {
+        debugPrint('🔄 GoogleMapView: Zoom mudou - recalculando clusters');
+        await _rebuildClusteredMarkers();
+      }
       
       // Disparar busca de eventos no bounding box
       await _discoveryService.loadEventsInBounds(bounds);
@@ -228,12 +289,17 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// 
   /// Chamado logo após o mapa ser criado para garantir
   /// que o drawer tenha dados ao abrir pela primeira vez.
+  /// Também inicializa o zoom para clustering.
   Future<void> _triggerInitialEventSearch() async {
     if (_mapController == null) return;
 
     try {
       // Pequeno delay para garantir que o mapa terminou de carregar
       await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Obter zoom inicial para clustering
+      _currentZoom = await _mapController!.getZoomLevel();
+      debugPrint('🔲 GoogleMapView: Zoom inicial: ${_currentZoom.toStringAsFixed(1)}');
       
       final visibleRegion = await _mapController!.getVisibleRegion();
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
@@ -242,6 +308,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
       
       // Forçar busca imediata (ignora debounce)
       await _discoveryService.forceRefresh(bounds);
+      
+      // Gerar markers iniciais com clustering
+      if (widget.viewModel.events.isNotEmpty) {
+        await _rebuildClusteredMarkers();
+      }
     } catch (error) {
       debugPrint('⚠️ GoogleMapView: Erro na busca inicial: $error');
     }
@@ -481,6 +552,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
     widget.viewModel.removeListener(_onEventsChanged);
     MapNavigationService.instance.unregisterMapHandler();
     debugPrint('🗺️ GoogleMapView: Handler de navegação removido');
+    _markerService.clearCache(); // Limpar cache de markers e clusters
     _mapController?.dispose();
     _mapController = null;
     super.dispose();
