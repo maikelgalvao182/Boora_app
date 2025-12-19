@@ -160,7 +160,10 @@ class VipAccessService {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const VipBottomSheet(),
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: const VipBottomSheet(),
+      ),
     );
 
     return result == true;

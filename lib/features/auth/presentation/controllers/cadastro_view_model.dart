@@ -222,6 +222,9 @@ class CadastroViewModel extends ChangeNotifier {
         // Terms
         'agreeTerms': onboardingData['agreeTerms'],
         
+        // VIP Priority (2 = Free, 1 = VIP) - usado para ordenação
+        'vip_priority': onboardingData['vip_priority'] ?? 2,
+        
         // Metadata
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),

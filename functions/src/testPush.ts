@@ -136,7 +136,7 @@ export const testPushWithToken = functions.https.onRequest(
                 body,
               },
               "sound": "default",
-              "badge": 1,
+              // badge: NÃO ENVIAR - Flutter controla via BadgeService
               "content-available": 1,
             },
           },

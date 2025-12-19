@@ -21,7 +21,13 @@ class AppNotifications {
     String? deepLink,
     String? screen,
   }) async {
-    debugPrint('🔔 [AppNotifications] Handling click: type=$nType, relatedId=$nRelatedId');
+    debugPrint('🔔 [AppNotifications] Handling click: type=$nType, relatedId=$nRelatedId, deepLink=$deepLink');
+    
+    // 🚀 PRIORIDADE: Se tem deepLink, usa ele diretamente
+    if (deepLink != null && deepLink.isNotEmpty) {
+      await _handleDeepLink(context, deepLink);
+      return;
+    }
     
     /// Control notification type
     switch (nType) {
@@ -122,12 +128,118 @@ class AppNotifications {
   }
 
   /// Handle deepLink navigation
-  void _handleDeepLink(BuildContext context, String deepLink) {
-    // Parse deep link e navegar
-    // Exemplo: app://profile/userId -> ProfileScreen
-    // Exemplo: app://event/eventId -> EventScreen
+  Future<void> _handleDeepLink(BuildContext context, String deepLink) async {
+    debugPrint('🔗 [AppNotifications] Processing deepLink: $deepLink');
     
-    // TODO: Implementar lógica de deep linking conforme necessário
+    // Parse deep link: partiu://path/to/screen?param=value
+    final uri = Uri.tryParse(deepLink);
+    if (uri == null) {
+      debugPrint('⚠️ [AppNotifications] Invalid deepLink format');
+      return;
+    }
+    
+    final scheme = uri.scheme; // partiu
+    final host = uri.host; // path (primeira parte)
+    final path = uri.path; // /to/screen
+    final queryParams = uri.queryParameters;
+    
+    // Combina host + path para rota completa
+    final fullPath = host + path;
+    debugPrint('🔗 [AppNotifications] scheme=$scheme, fullPath=$fullPath, params=$queryParams');
+    
+    if (!context.mounted) return;
+    
+    switch (fullPath) {
+      // Chat 1-1: partiu://chat/{userId}
+      case String p when p.startsWith('chat/'):
+        final chatUserId = p.replaceFirst('chat/', '');
+        debugPrint('💬 [AppNotifications] Opening chat with: $chatUserId');
+        // TODO: Navegar para conversa específica
+        _goToConversationsTab(context);
+        break;
+      
+      // Event Chat: partiu://event-chat/{eventId}
+      case String p when p.startsWith('event-chat/'):
+        final eventId = p.replaceFirst('event-chat/', '');
+        debugPrint('💬 [AppNotifications] Opening event chat: $eventId');
+        await _handleActivityNotification(context, eventId);
+        break;
+      
+      // Group Info: partiu://group-info/{eventId}?tab=requests
+      case String p when p.startsWith('group-info/'):
+        final eventId = p.replaceFirst('group-info/', '');
+        final tab = queryParams['tab'];
+        debugPrint('ℹ️ [AppNotifications] Opening group info: $eventId, tab=$tab');
+        if (context.mounted) {
+          context.push('${AppRoutes.groupInfo}/$eventId');
+        }
+        break;
+      
+      // Home com evento: partiu://home?event={eventId}
+      case 'home':
+        final eventId = queryParams['event'];
+        final tab = queryParams['tab'];
+        if (eventId != null && eventId.isNotEmpty) {
+          debugPrint('🗺️ [AppNotifications] Opening home with event: $eventId');
+          await _handleActivityNotification(context, eventId);
+        } else if (tab != null) {
+          debugPrint('🏠 [AppNotifications] Opening home tab: $tab');
+          if (context.mounted) {
+            context.go('${AppRoutes.home}?tab=$tab');
+          }
+        } else {
+          if (context.mounted) {
+            context.go(AppRoutes.home);
+          }
+        }
+        break;
+      
+      // Profile Visits: partiu://profile-visits
+      case 'profile-visits':
+        debugPrint('👀 [AppNotifications] Opening profile visits');
+        if (context.mounted) {
+          // 🔒 Check VIP antes de navegar
+          final hasAccess = await VipAccessService.checkAccessOrShowDialog(
+            context,
+            source: 'deeplink_profile_visits',
+          );
+          if (hasAccess && context.mounted) {
+            context.push(AppRoutes.profileVisits);
+          }
+        }
+        break;
+      
+      // Reviews: partiu://reviews/{userId}
+      case String p when p.startsWith('reviews/'):
+        final userId = p.replaceFirst('reviews/', '');
+        debugPrint('⭐ [AppNotifications] Opening reviews for: $userId');
+        // TODO: Navegar para tela de reviews quando implementada
+        if (context.mounted) {
+          context.go(AppRoutes.home);
+        }
+        break;
+      
+      // Activity/Event: partiu://activity/{activityId}
+      case String p when p.startsWith('activity/'):
+        final activityId = p.replaceFirst('activity/', '');
+        debugPrint('🎯 [AppNotifications] Opening activity: $activityId');
+        await _handleActivityNotification(context, activityId);
+        break;
+      
+      // Profile: partiu://profile/{userId}
+      case String p when p.startsWith('profile/'):
+        final userId = p.replaceFirst('profile/', '');
+        debugPrint('👤 [AppNotifications] Opening profile: $userId');
+        // TODO: Implementar navegação para perfil
+        if (context.mounted) {
+          context.go(AppRoutes.home);
+        }
+        break;
+      
+      default:
+        debugPrint('⚠️ [AppNotifications] Unknown deepLink path: $fullPath');
+        break;
+    }
   }
 
   /// Handle screen navigation by name

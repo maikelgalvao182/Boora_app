@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 /// APP SETINGS INFO CONSTANTS - SECTION ///
 ///
-const String APP_NAME = 'Partiu?';
+const String APP_NAME = 'Boora';
 const Color APP_PRIMARY_COLOR = GlimpseColors.primaryColorLight;
 const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
@@ -324,3 +324,14 @@ const double DEFAULT_MAX_AGE_PARTICIPANTS = 36.0;
 
 /// VIP / SUBSCRIPTION CONSTANTS
 const int FREE_PEOPLE_LIMIT = 13;
+
+/// EXTERNAL LINKS / SOCIAL MEDIA
+const String TIKTOK_URL = 'https://www.tiktok.com/@booraapp';
+const String INSTAGRAM_URL = 'https://www.instagram.com/booraapp';
+
+/// BOORA.SPACE WEBSITE LINKS
+const String BOORA_WEBSITE_URL = 'https://www.boora.space/';
+const String BOORA_PRIVACY_POLICY_URL = 'https://www.boora.space/politica-de-privacidade';
+const String BOORA_TERMS_OF_SERVICE_URL = 'https://www.boora.space/termos-de-servico';
+const String BOORA_SAFETY_ETIQUETTE_URL = 'https://www.boora.space/seguranca-etiqueta';
+const String BOORA_COMMUNITY_GUIDELINES_URL = 'https://www.boora.space/diretrizes-da-comunidade';

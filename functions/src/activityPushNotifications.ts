@@ -214,6 +214,27 @@ export const onActivityNotificationCreated = functions.firestore
         break;
       }
 
+      // Montar deepLink baseado no tipo de notificação
+      const activityId = pushData.activityId as string;
+      let deepLink = `partiu://activity/${activityId}`;
+
+      // Casos especiais de navegação
+      switch (nType) {
+      case "activity_join_request":
+        // Redireciona para a tela de gerenciamento do evento
+        deepLink = `partiu://group-info/${activityId}?tab=requests`;
+        break;
+      case "activity_join_approved":
+      case "activity_join_rejected":
+        // Redireciona para o mapa focando no evento
+        deepLink = `partiu://home?event=${activityId}`;
+        break;
+      default:
+        // Todos os outros casos vão para o evento no mapa
+        deepLink = `partiu://home?event=${activityId}`;
+        break;
+      }
+
       // Disparar push via gateway único (type guard garante segurança)
       await sendPush({
         userId: receiverId,
@@ -222,9 +243,12 @@ export const onActivityNotificationCreated = functions.firestore
           title: notificationTitle,
           body: notificationBody,
         },
-        data: pushData,
+        data: {
+          ...pushData,
+          deepLink: deepLink,
+        },
         context: {
-          groupId: pushData.activityId as string,
+          groupId: activityId,
         },
       });
 

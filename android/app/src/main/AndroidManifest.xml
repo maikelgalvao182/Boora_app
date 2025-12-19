@@ -32,7 +32,7 @@
         <!-- Firebase Cloud Messaging -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="partiu_high_importance" />
+            android:value="boora_high_importance" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />

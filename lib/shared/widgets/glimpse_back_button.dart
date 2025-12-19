@@ -19,7 +19,7 @@ class GlimpseBackButton extends StatelessWidget {
   final Color? color;
 
   /// Factory para criar um IconButton compatível com AppBar
-  static IconButton iconButton({
+  static Widget iconButton({
     required VoidCallback onPressed,
     double? width = 24,
     double? height = 24,
@@ -27,18 +27,21 @@ class GlimpseBackButton extends StatelessWidget {
     EdgeInsetsGeometry? padding,
     BoxConstraints? constraints,
   }) {
-    return IconButton(
-      padding: padding ?? EdgeInsets.zero,
-      constraints: constraints,
-      icon: Icon(
-        IconsaxPlusLinear.arrow_left,
-        size: width ?? 24,
-        color: color ?? GlimpseColors.primaryColorLight,
+    return SizedBox(
+      width: 28,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        icon: Icon(
+          IconsaxPlusLinear.arrow_left,
+          size: 24,
+          color: color ?? GlimpseColors.primaryColorLight,
+        ),
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          onPressed();
+        },
       ),
-      onPressed: () {
-        HapticFeedback.lightImpact();
-        onPressed();
-      },
     );
   }
 

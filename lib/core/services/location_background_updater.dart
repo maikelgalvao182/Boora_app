@@ -79,10 +79,11 @@ class LocationSyncScheduler {
     debugPrint('🔄 LocationSyncScheduler iniciado (intervalo: ${config.updateInterval})');
     debugPrint('📍 Configuração: distância mínima=${config.minimumDistanceMeters}m, cache=${config.cacheMaxAgeMinutes}min');
 
-    // Não executa imediatamente - aguarda primeiro ciclo do timer
-    // Isso evita erro de permissão caso usuário ainda não esteja logado
+    // ⚡ Executa imediatamente para atualizar localização após login
+    // Importante: sem await para não bloquear a inicialização do app
+    _updateLocationIfNeeded(locationService);
     
-    // Configura timer periódico
+    // Configura timer periódico para próximas atualizações
     _timer = Timer.periodic(config.updateInterval, (_) {
       _updateLocationIfNeeded(locationService);
     });
@@ -103,10 +104,38 @@ class LocationSyncScheduler {
     LocationService locationService,
   ) async {
     try {
-      // 1. Verifica se usuário está autenticado
+      // 1. Verifica se usuário está autenticado E tem token válido
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         debugPrint('⚠️ Usuário não autenticado - pulando atualização de localização');
+        return;
+      }
+      
+      // 1.1 Verifica se o token está pronto (evita race condition no login)
+      try {
+        final token = await user.getIdToken();
+        if (token == null || token.isEmpty) {
+          debugPrint('⚠️ Token de autenticação não disponível - pulando atualização de localização');
+          return;
+        }
+      } catch (tokenError) {
+        debugPrint('⚠️ Erro ao obter token - pulando atualização de localização: $tokenError');
+        return;
+      }
+      
+      // 1.2 Verifica se o documento do usuário existe no Firestore (validação completa)
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(user.uid)
+            .get();
+        
+        if (!userDoc.exists) {
+          debugPrint('⚠️ Documento do usuário não existe no Firestore - pulando atualização de localização');
+          return;
+        }
+      } catch (firestoreError) {
+        debugPrint('⚠️ Erro ao verificar documento do usuário - pulando atualização de localização: $firestoreError');
         return;
       }
 

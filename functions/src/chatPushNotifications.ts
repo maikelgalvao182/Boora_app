@@ -113,6 +113,9 @@ export const onPrivateMessageCreated = functions.firestore
         messagePreview = messageText.substring(0, 100);
       }
 
+      // DeepLink: abre conversa específica
+      const deepLink = `partiu://chat/${msgSenderId}`;
+
       await sendPush({
         userId: ownerId, // Notifica o dono da caixa (Destinatário)
         event: "chat_message",
@@ -130,6 +133,7 @@ export const onPrivateMessageCreated = functions.firestore
           messagePreview: messagePreview,
           messageType: messageType,
           timestamp: timestamp.toString(),
+          deepLink: deepLink,
         },
       });
 

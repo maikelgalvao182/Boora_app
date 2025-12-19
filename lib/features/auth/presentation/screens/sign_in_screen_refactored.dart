@@ -122,7 +122,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                         style: const TextStyle(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
                           color: Colors.white,
-                          fontSize: 30,
+                          fontSize: 26,
                           fontWeight: FontWeight.w700,
                           height: 1.1,
                           letterSpacing: 0.0,
@@ -188,19 +188,20 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                   message: ToastMessages.appleSignInNotAvailable,
                                 );
                               },
-                              onError: (error) {
-                                // Handle specific Apple Sign-In errors
-                                if (error.message?.contains('canceled') == true || 
-                                    error.message?.contains('cancelled') == true ||
-                                    error.code == 'sign_in_canceled') {
-                                  // User canceled sign-in
-                                  ToastService.showError(
-                                    message: ToastMessages.signInCanceledMessage,
-                                  );
+                            onError: (error) {
+                              // Handle specific Apple Sign-In errors
+                              if (error.message?.contains('canceled') == true || 
+                                  error.message?.contains('cancelled') == true ||
+                                  error.code == 'sign_in_canceled') {
+                                // User canceled sign-in
+                                final i18n = AppLocalizations.of(context)!;
+                                ToastService.showError(
+                                  message: i18n.translate('sign_in_canceled_message'),
+                                );
                                 } else {
                                   // Other Apple Sign-In errors
                                   ToastService.showError(
-                                    message: (error.message as String?) ?? ToastMessages.anErrorOccurred,
+                                    message: ToastMessages.signInWithAppleFailed,
                                   );
                                 }
                                 // Debug
@@ -290,13 +291,14 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                   error.code == 'sign_in_canceled' ||
                                   error.code == 'network_error') {
                                 // User canceled sign-in or network issues
+                                final i18n = AppLocalizations.of(context)!;
                                 ToastService.showError(
-                                  message: ToastMessages.signInCanceledMessage,
+                                  message: i18n.translate('sign_in_canceled_message'),
                                 );
                               } else {
                                 // Other Google Sign-In errors
                                 ToastService.showError(
-                                  message: (error.message as String?) ?? ToastMessages.anErrorOccurred,
+                                  message: ToastMessages.signInWithGoogleFailed,
                                 );
                               }
                             },

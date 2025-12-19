@@ -34,6 +34,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   late final FindPeopleController _controller;
   late final ScrollController _scrollController;
   bool _vipDialogOpen = false;
+  double _lastScrollPosition = 0.0;
 
   @override
   void initState() {
@@ -42,7 +43,13 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     _controller = FindPeopleController();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+    
+    final isVip = VipAccessService.isVip;
     debugPrint('🎯 [FindPeopleScreen] Usando controller singleton');
+    debugPrint('👤 [FindPeopleScreen] Status VIP: ${isVip ? "✅ VIP ATIVO" : "❌ NÃO-VIP (bloqueio será aplicado)"}');
+    
+    // 🚀 Garante inicialização do controller (padrão lazy initialization)
+    _controller.ensureInitialized();
   }
 
   @override
@@ -55,23 +62,54 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   }
 
   void _onScroll() {
-    if (VipAccessService.isVip) return;
+    final isVip = VipAccessService.isVip;
+    
+    if (isVip) {
+      return;
+    }
 
-    // Se chegou ao fim da lista (com margem de erro)
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent) {
-      if (!_vipDialogOpen) {
-        _vipDialogOpen = true;
-        _showVipDialog();
-      }
+    final scrollPosition = _scrollController.position.pixels;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    
+    // 🔒 Detecta apenas quando está scrollando PARA BAIXO
+    final isScrollingDown = scrollPosition > _lastScrollPosition;
+    _lastScrollPosition = scrollPosition;
+    
+    if (!isScrollingDown) {
+      return; // Ignorar scroll para cima
+    }
+    
+    // Cada card tem ~80px de altura + 12px de separador = ~92px
+    // Considerando padding de 20px no topo
+    const cardHeight = 92.0;
+    const topPadding = 20.0;
+    
+    // Calcular posição do 12º card (índice 11)
+    // 11 cards anteriores * 92px + 20px padding = 1032px
+    const card12Position = (11 * cardHeight) + topPadding;
+    
+    // O card 12 se torna visível quando: scrollPosition + viewportHeight >= posição do card
+    final card12Visible = (scrollPosition + viewportHeight) >= card12Position;
+    
+    debugPrint('📜 [Scroll] Position: ${scrollPosition.toStringAsFixed(0)}px, Card12 visível: $card12Visible');
+    
+    // Se o card 12 está visível scrollando para baixo e não está VIP
+    if (card12Visible && !_vipDialogOpen) {
+      debugPrint('🔒 [Scroll] BLOQUEIO ATIVADO! Card 12 (VIP Lock) está visível');
+      _vipDialogOpen = true;
+      _showVipDialog();
     }
   }
 
   Future<void> _showVipDialog() async {
+    debugPrint('🔒 [VipDialog] Abrindo dialog...');
     HapticFeedback.mediumImpact();
     await VipAccessService.checkOrShowDialog(context);
+    debugPrint('🔒 [VipDialog] Dialog fechado');
     // Delay para evitar múltiplos triggers
     await Future.delayed(const Duration(seconds: 1));
     _vipDialogOpen = false;
+    debugPrint('🔒 [VipDialog] Flag resetada');
   }
 
   @override
@@ -223,8 +261,27 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                   onRefresh: _controller.refresh,
                   controller: _scrollController,
                   padding: const EdgeInsets.all(20),
-                  itemCount: usersList.length,
+                  // 🔒 Limitar a 13 itens para não-VIP (12 cards + 1 VipLockedCard)
+                  itemCount: VipAccessService.isVip 
+                    ? usersList.length 
+                    : (usersList.length > 12 ? 13 : usersList.length),
                   itemBuilder: (context, index) {
+                    debugPrint('🎨 [ItemBuilder] Building index $index, isVip: ${VipAccessService.isVip}');
+                    
+                    // 🔒 Se não é VIP e chegou no 13º item (índice 12), mostra VipLockedCard
+                    if (!VipAccessService.isVip && index == 12) {
+                      debugPrint('🔒 [ItemBuilder] Renderizando VipLockedCard no índice 12');
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: VipLockedCard(
+                          onTap: () {
+                            debugPrint('🔒 [VipLockedCard] Tap detectado!');
+                            _showVipDialog();
+                          },
+                        ),
+                      );
+                    }
+                    
                     final user = usersList[index];
                     
                     // Adiciona separador entre itens

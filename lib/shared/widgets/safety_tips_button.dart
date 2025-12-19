@@ -150,7 +150,7 @@ class _SafetyDialogContent extends StatelessWidget {
 
           // Link para mais informações
           GestureDetector(
-            onTap: () => _launchUrl('https://www.boora.space/seguranca-etiqueta'),
+            onTap: () => _launchUrl(BOORA_SAFETY_ETIQUETTE_URL),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

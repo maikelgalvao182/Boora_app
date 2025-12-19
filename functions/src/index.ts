@@ -15,6 +15,9 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// 🔒 Export getPeople Cloud Function (server-side security)
+// export {getPeople} from "./get_people";
+
 /**
  * Quando um evento é criado, automaticamente:
  * 1. Cria application para o criador com status autoApproved
@@ -364,6 +367,9 @@ export const onApplicationApproved = functions.firestore
       const emoji = eventData.emoji || "🎉";
 
       if (existingParticipants.length > 0) {
+        // DeepLink: abre o evento no mapa
+        const deepLink = `partiu://home?event=${eventId}`;
+
         const promises = existingParticipants.map((participantId) =>
           sendPush({
             userId: participantId,
@@ -383,6 +389,7 @@ export const onApplicationApproved = functions.firestore
               activityText: activityText,
               eventTitle: activityText,
               emoji: emoji,
+              deepLink: deepLink,
             },
           })
         );

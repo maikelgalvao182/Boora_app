@@ -4,6 +4,8 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/common/services/notifications_counter_service.dart';
+import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -115,6 +117,25 @@ class SessionCleanupService {
         _log('✅ PushNotificationManager resetado');
       } catch (e) {
         _log('⚠️  Etapa 5.1/9 falhou: $e (continuando...)');
+      }
+
+      // 5.2 Cancelar listeners de Firestore (NotificationsCounterService)
+      // IMPORTANTE: Fazer ANTES do signOut para evitar permission-denied
+      _log('🔌 ETAPA 5.2/9: Cancelando listeners do NotificationsCounterService');
+      try {
+        await NotificationsCounterService.instance.reset();
+        _log('✅ NotificationsCounterService resetado (listeners cancelados)');
+      } catch (e) {
+        _log('⚠️  Etapa 5.2/9 falhou: $e (continuando...)');
+      }
+
+      // 5.3 Cancelar streams do MapViewModel (evita permission-denied)
+      _log('🗺️  ETAPA 5.3/9: Cancelando streams do MapViewModel');
+      try {
+        MapViewModel.instance?.cancelAllStreams();
+        _log('✅ MapViewModel streams cancelados');
+      } catch (e) {
+        _log('⚠️  Etapa 5.3/9 falhou: $e (continuando...)');
       }
 
       // 6. Firebase Auth signOut (após limpar preferências/caches)

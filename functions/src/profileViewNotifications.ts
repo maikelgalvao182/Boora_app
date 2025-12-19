@@ -187,6 +187,9 @@ export const processProfileViewNotifications = functions
             "1 pessoa da região visualizou seu perfil" :
             `${count} pessoas da região visualizaram seu perfil`;
 
+          // DeepLink: abre tela de visitas ao perfil
+          const deepLink = "partiu://profile-visits";
+
           return sendPush({
             userId: userId,
             event: "profile_views_aggregated",
@@ -195,8 +198,10 @@ export const processProfileViewNotifications = functions
               body: body,
             },
             data: {
+              n_type: "profile_views_aggregated",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
+              deepLink: deepLink,
             },
           });
         });
@@ -355,6 +360,9 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
             "1 pessoa da região visualizou seu perfil" :
             `${count} pessoas da região visualizaram seu perfil`;
 
+          // DeepLink: abre tela de visitas ao perfil
+          const deepLink = "partiu://profile-visits";
+
           return sendPush({
             userId: userId,
             event: "profile_views_aggregated",
@@ -363,8 +371,10 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
               body: body,
             },
             data: {
+              n_type: "profile_views_aggregated",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
+              deepLink: deepLink,
             },
           });
         });

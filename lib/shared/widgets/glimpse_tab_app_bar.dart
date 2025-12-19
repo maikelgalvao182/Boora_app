@@ -10,17 +10,23 @@ class GlimpseTabAppBar extends StatelessWidget {
     required this.title,
     super.key,
     this.actions,
+    this.leading,
   });
 
   final String title;
   final List<Widget>? actions;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 8),
       child: Row(
         children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Text(
               title,
@@ -55,6 +61,7 @@ class GlimpseTabActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 28,
+      height: 28,
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),

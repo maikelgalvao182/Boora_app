@@ -10,6 +10,7 @@ import 'package:partiu/features/profile/presentation/viewmodels/edit_profile_vie
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/shared/repositories/auth_repository.dart';
 import 'package:partiu/shared/widgets/image_source_bottom_sheet.dart';
+import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/features/auth/presentation/widgets/specialty_selector_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -486,11 +487,12 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
       builder: (context, viewModel, _) {
         return Scaffold(
           backgroundColor: Colors.white,
-          appBar: EditProfileAppBar(
+          appBar: GlimpseAppBar(
             title: i18n.translate('edit_profile'),
             onBack: () => Navigator.pop(context),
-            onSave: _handleSave,
-            isSaving: viewModel.state is EditProfileStateSaving,
+            onAction: _handleSave,
+            actionText: i18n.translate('save'),
+            isActionLoading: viewModel.state is EditProfileStateSaving,
           ),
           body: switch (viewModel.state) {
             EditProfileStateInitial() => const Center(

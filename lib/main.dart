@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/core/services/cache/cache_manager.dart';
@@ -135,7 +136,7 @@ class AppRoot extends StatelessWidget {
     
     debugPrint('📊 [AppRoot] Construindo MaterialApp.router...');
     return MaterialApp.router(
-      title: 'Boora',
+      title: APP_NAME,
       debugShowCheckedModeBanner: false,
       
       // Configuração de rotas com go_router protegido por AuthSyncService

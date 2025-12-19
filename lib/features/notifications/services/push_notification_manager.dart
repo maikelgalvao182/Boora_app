@@ -203,7 +203,7 @@ Future<RemoteMessage> _translateMessage(RemoteMessage message) async {
       case 'alert':
       case 'system_alert':
         final alertMessage = data['message'] ?? data['body'] ?? 'Alerta';
-        final alertTitle = data['title'] ?? 'Partiu';
+        final alertTitle = data['title'] ?? APP_NAME;
         template = NotificationTemplates.systemAlert(
           message: alertMessage,
           title: alertTitle,
@@ -211,7 +211,7 @@ Future<RemoteMessage> _translateMessage(RemoteMessage message) async {
         break;
 
       case 'custom':
-        final customTitle = data['title'] ?? 'Partiu';
+        final customTitle = data['title'] ?? APP_NAME;
         final customBody = data['body'] ?? '';
         template = NotificationTemplates.custom(
           title: customTitle,
@@ -233,7 +233,7 @@ Future<RemoteMessage> _translateMessage(RemoteMessage message) async {
       default:
         print('⚠️ [Translator] Tipo desconhecido: $nType');
         // Fallback para mensagem genérica
-        final fallbackTitle = data['title'] ?? message.notification?.title ?? 'Partiu';
+        final fallbackTitle = data['title'] ?? message.notification?.title ?? APP_NAME;
         final fallbackBody = data['body'] ?? message.notification?.body ?? 'Nova notificação';
         template = NotificationTemplates.custom(
           title: fallbackTitle,
@@ -297,8 +297,8 @@ class PushNotificationManager {
 
   // Channel Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'partiu_high_importance',
-    'Notificações do Boora',
+    'boora_high_importance',
+    'Notificações do $APP_NAME',
     description: 'Notificações de mensagens, rolês e atividades',
     importance: Importance.high,
     enableVibration: true,
@@ -362,10 +362,12 @@ class PushNotificationManager {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       // iOS: apresentação em foreground
+      // ⚠️ badge: false aqui porque o app controla via BadgeService
+      // (evita que push sobrescreva o contador correto)
       if (Platform.isIOS) {
         await _messaging.setForegroundNotificationPresentationOptions(
           alert: true,
-          badge: false,
+          badge: false,  // App controla via BadgeService
           sound: true,
         );
       }
@@ -575,7 +577,7 @@ class PushNotificationManager {
     if (Platform.isIOS) {
       final settings = await _messaging.requestPermission(
         alert: true,
-        badge: false,
+        badge: true,  // ✅ Habilitado para controle via BadgeService
         sound: true,
         provisional: false,
       );
@@ -650,7 +652,7 @@ class PushNotificationManager {
     try {
       await _localNotifications.show(
         DateTime.now().millisecondsSinceEpoch % 100000,
-        notification.title ?? 'Partiu',
+        notification.title ?? APP_NAME,
         notification.body ?? '',
         notificationDetails,
         payload: json.encode(data),
@@ -720,7 +722,7 @@ class PushNotificationManager {
 
       await plugin.show(
         DateTime.now().millisecondsSinceEpoch % 100000,
-        notification.title ?? 'Partiu',
+        notification.title ?? APP_NAME,
         notification.body ?? '',
         NotificationDetails(
           android: androidDetails,

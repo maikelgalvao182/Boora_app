@@ -131,18 +131,17 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
       // 5. Trata o resultado baseado no estado
       if (_viewModel.saveState == LocationSaveState.success) {
         final message = '${_i18n.translate("location_updated_successfully")}\n${_viewModel.savedLocation}';
-        _showSuccessDialog(message);
-
-        if (widget.isSignUpProcess) {
-          Future.delayed(const Duration(seconds: 6), () {
-            if (mounted) context.go(AppRoutes.home);
-          });
-        } else {
-          // Se veio do edit profile, volta para a tela anterior
-          Future.delayed(const Duration(seconds: 6), () {
-            if (mounted) Navigator.of(context).pop(true);
-          });
-        }
+        _showSuccessDialog(
+          message,
+          onConfirm: () {
+            if (widget.isSignUpProcess) {
+              context.go(AppRoutes.home);
+            } else {
+              // Se veio do edit profile, volta para a tela anterior
+              Navigator.of(context).pop(true);
+            }
+          },
+        );
       } else if (_viewModel.saveState == LocationSaveState.error) {
         _showErrorDialog(_viewModel.saveError ?? 'Unknown error');
       }
@@ -185,11 +184,12 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
     );
   }
   
-  void _showSuccessDialog(String message) {
+  void _showSuccessDialog(String message, {required VoidCallback onConfirm}) {
     showDialog(
       context: context,
+      barrierDismissible: false, // Impede fechar tocando fora
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (context) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: DialogStyles.containerBorderRadius),
         child: Padding(
@@ -206,7 +206,10 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pop(dialogContext); // Fecha o dialog
+                    onConfirm(); // Navega imediatamente
+                  },
                   style: DialogStyles.successButtonStyle,
                   child: Text('OK', style: DialogStyles.successButtonTextStyle),
                 ),

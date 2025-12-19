@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
@@ -67,7 +68,7 @@ class AppHelper {
   /// Compartilha o app
   Future<void> shareApp({BuildContext? context}) async {
     const String appUrl = 'https://apps.apple.com/br/app/boora/id6755944656';
-    const String message = 'Conheça o Partiu! O app para encontros e relacionamentos.';
+    final String message = 'Conheça o $APP_NAME! O app para encontros e relacionamentos.';
     
     try {
       await SharePlus.instance.share(ShareParams(text: '$message $appUrl'));
@@ -97,7 +98,7 @@ class AppHelper {
   /// Abre política de privacidade
   Future<void> openPrivacyPage() async {
     try {
-      final url = Uri.parse('https://www.boora.space/politica-de-privacidade');
+      final url = Uri.parse(BOORA_PRIVACY_POLICY_URL);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }
@@ -109,7 +110,7 @@ class AppHelper {
   /// Abre termos de serviço
   Future<void> openTermsPage() async {
     try {
-      final url = Uri.parse('https://www.boora.space/termos-de-servico');
+      final url = Uri.parse(BOORA_TERMS_OF_SERVICE_URL);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }
@@ -121,7 +122,7 @@ class AppHelper {
   /// Abre página de segurança e etiqueta
   Future<void> openSafetyPage() async {
     try {
-      final url = Uri.parse('https://www.boora.space/seguranca-etiqueta');
+      final url = Uri.parse(BOORA_SAFETY_ETIQUETTE_URL);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }
@@ -133,7 +134,7 @@ class AppHelper {
   /// Abre diretrizes da comunidade
   Future<void> openGuidelinesPage() async {
     try {
-      final url = Uri.parse('https://www.boora.space/diretrizes-da-comunidade');
+      final url = Uri.parse(BOORA_COMMUNITY_GUIDELINES_URL);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }
@@ -145,7 +146,7 @@ class AppHelper {
   /// Abre página sobre nós
   Future<void> openAboutPage() async {
     try {
-      final url = Uri.parse('https://www.boora.space/');
+      final url = Uri.parse(BOORA_WEBSITE_URL);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }

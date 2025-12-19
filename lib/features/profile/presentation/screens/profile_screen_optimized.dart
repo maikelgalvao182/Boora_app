@@ -7,7 +7,7 @@ import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/profile/presentation/controllers/profile_controller.dart';
 import 'package:partiu/features/profile/presentation/components/profile_content_builder_v2.dart';
-import 'package:partiu/shared/widgets/glimpse_back_button.dart';
+import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/report_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -101,55 +101,27 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        centerTitle: true,
-        title: Text(
-          myProfile ? _i18n.translate('my_profile') : _i18n.translate('profile'),
-          style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
-        ),
-        leading: GlimpseBackButton.iconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
-          onPressed: () => Navigator.of(context).pop(),
-          color: Colors.black87,
-        ),
-        actions: myProfile ? [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: IconButton(
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              icon: const Icon(Iconsax.edit, size: 22),
-              color: Colors.black87,
-              onPressed: () {
-                context.push(AppRoutes.editProfile);
-              },
-            ),
-          ),
-        ] : [
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
-            child: ReportWidget(
+      appBar: myProfile 
+        ? GlimpseAppBar(
+            title: _i18n.translate('my_profile'),
+            onBack: () => Navigator.of(context).pop(),
+            onAction: () => context.push(AppRoutes.editProfile),
+            actionText: _i18n.translate('edit'),
+          )
+        : GlimpseAppBar(
+            title: _i18n.translate('profile'),
+            onBack: () => Navigator.of(context).pop(),
+            actionWidget: ReportWidget(
               userId: widget.user.userId,
-              iconSize: 22,
+              iconSize: 24,
               iconColor: Colors.black87,
               onBlockSuccess: () {
-                // Redireciona para discover (home) após bloqueio
                 if (mounted) {
                   context.go(AppRoutes.home);
                 }
               },
             ),
           ),
-        ],
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
       body: ValueListenableBuilder<bool>(
         valueListenable: _controller.isLoading,
         builder: (context, isLoading, child) {

@@ -1,5 +1,7 @@
 // lib/features/notifications/templates/notification_templates.dart
 
+import 'package:partiu/core/constants/constants.dart';
+
 /// Mensagem estruturada de notificação com title, body, preview e extras
 class NotificationMessage {
   /// Título da notificação (geralmente o nome da atividade + emoji)
@@ -329,7 +331,7 @@ class NotificationTemplates {
     String? title,
   }) {
     return NotificationMessage(
-      title: title ?? "Partiu",
+      title: title ?? APP_NAME,
       body: message,
       preview: message.length > 50 ? "${message.substring(0, 47)}..." : message,
       extra: {},

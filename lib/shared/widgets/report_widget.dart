@@ -20,14 +20,19 @@ class ReportWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(
-        Iconsax.flag,
-        size: iconSize,
-        color: iconColor ?? Theme.of(context).iconTheme.color,
+    return SizedBox(
+      width: 28,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        icon: Icon(
+          Iconsax.flag,
+          size: iconSize,
+          color: iconColor ?? Theme.of(context).iconTheme.color,
+        ),
+        onPressed: () => _showReportDialog(context),
+        tooltip: 'Denunciar ou Bloquear',
       ),
-      onPressed: () => _showReportDialog(context),
-      tooltip: 'Denunciar ou Bloquear',
     );
   }
 

@@ -294,6 +294,10 @@ class User {
   bool get isVerified => userIsVerified;
   
   /// Verifica se usuário tem VIP ativo
+  /// 
+  /// ✅ Validação baseada em vipExpiresAt (mantido consistente pelo webhook)
+  /// O webhook do RevenueCat garante que vipExpiresAt só tem valor quando
+  /// user_is_vip=true e user_level="vip"
   bool get hasActiveVip {
     if (vipExpiresAt == null) return false;
     return vipExpiresAt!.isAfter(DateTime.now());

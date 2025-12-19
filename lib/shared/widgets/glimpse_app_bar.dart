@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/typing_indicator.dart';
 
 /// AppBar compartilhada para telas com título e botão de voltar
@@ -13,6 +14,7 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.onAction,
     this.actionText,
+    this.actionWidget,
     this.isBackEnabled = true,
     this.isActionLoading = false,
   });
@@ -21,6 +23,7 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final VoidCallback? onAction;
   final String? actionText;
+  final Widget? actionWidget;
   final bool isBackEnabled;
   final bool isActionLoading;
 
@@ -28,7 +31,7 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.only(right: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: AppBar(
           automaticallyImplyLeading: false,
           centerTitle: true,
@@ -42,19 +45,35 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
               color: GlimpseColors.primaryColorLight,
             ),
           ),
-          leading: GlimpseBackButton.iconButton(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: isBackEnabled
-                ? (onBack ?? () => Navigator.of(context).pop())
-                : () {},
-            color: isBackEnabled
-                ? GlimpseColors.primaryColorLight
-                : GlimpseColors.primaryColorLight.withValues(alpha: 0.3),
+          leading: SizedBox(
+            width: 28,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: Icon(
+                IconsaxPlusLinear.arrow_left,
+                size: 24,
+                color: isBackEnabled
+                    ? GlimpseColors.primaryColorLight
+                    : GlimpseColors.primaryColorLight.withValues(alpha: 0.3),
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                if (isBackEnabled) {
+                  if (onBack != null) {
+                    onBack!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                }
+              },
+            ),
           ),
-          leadingWidth: 56,
+          leadingWidth: 28,
           actions: [
-            if (onAction != null)
+            if (actionWidget != null)
+              actionWidget!
+            else if (onAction != null)
               isActionLoading
                   ? const Center(
                       child: Padding(

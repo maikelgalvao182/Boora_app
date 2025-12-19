@@ -183,13 +183,10 @@ class _ProfileTabState extends State<ProfileTab> {
                         onPressed: () => _handleViewProfileTap(context),
                       ),
                       const SizedBox(width: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: GlimpseTabActionButton(
-                          icon: Iconsax.edit,
-                          tooltip: LocalizationService.of(context).translate('edit_profile') ?? 'Editar Perfil',
-                          onPressed: () => _handleEditProfileTap(context),
-                        ),
+                      GlimpseTabActionButton(
+                        icon: Iconsax.edit,
+                        tooltip: LocalizationService.of(context).translate('edit_profile') ?? 'Editar Perfil',
+                        onPressed: () => _handleEditProfileTap(context),
                       ),
                     ],
                   ),

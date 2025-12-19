@@ -172,6 +172,9 @@ export const onEventChatMessageCreated = functions.firestore
           `para evento ${eventId}`
         );
 
+        // DeepLink: abre o chat do evento
+        const deepLink = `partiu://event-chat/${eventId}`;
+
         // Disparar push notifications para cada participante
         const pushPromises = participantIds
           .filter((id: string) => senderId !== "system" && id !== senderId)
@@ -197,6 +200,7 @@ export const onEventChatMessageCreated = functions.firestore
                 eventEmoji: emoji,
                 n_message: messageText?.substring(0, 100) || "",
                 messagePreview: messageText?.substring(0, 100) || "",
+                deepLink: deepLink,
               },
               context: {
                 groupId: eventId,

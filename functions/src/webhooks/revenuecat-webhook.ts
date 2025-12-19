@@ -483,6 +483,12 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
     const userDoc = await userRef.get();
 
     if (userDoc.exists) {
+      // ✅ FIX: Manter consistência entre campos VIP
+      // Se não está ativo, vipExpiresAt deve ser null
+      const vipExpiresAtValue = finalIsActive && event.expiration_at_ms ?
+        admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
+        null;
+
       await userRef.update({
         // VIP status
         user_is_vip: finalIsActive,
@@ -493,10 +499,9 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
         user_is_verified: finalIsActive,
 
         // Legacy fields for compatibility
-        vipExpiresAt: event.expiration_at_ms ?
-          admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
-          null,
-        vipProductId: event.product_id || null,
+        // ✅ FIX: vipExpiresAt só é setado se finalIsActive = true
+        vipExpiresAt: vipExpiresAtValue,
+        vipProductId: finalIsActive ? (event.product_id || null) : null,
         vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       console.log(
@@ -504,6 +509,7 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
           user_is_vip: finalIsActive,
           user_is_verified: finalIsActive,
           user_level: finalIsActive ? "vip" : "free",
+          vipExpiresAt: vipExpiresAtValue ? "set" : "null",
         }
       );
     } else {
@@ -525,13 +531,18 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
     const subscriptionStatusRef = firestore.collection("SubscriptionStatus")
       .doc(userId);
 
+    // ✅ Calcular expiração consistente com Users collection
+    const expirationTimestamp = finalIsActive && event.expiration_at_ms ?
+      admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
+      null;
+
     // Create/update subscription status document with all relevant data
     await subscriptionStatusRef.set({
       // Core identification
       user_id: userId,
       userId: userId, // Compatibility
 
-      // Status
+      // Status - CONSISTENTE com Users collection
       status: finalIsActive ? "active" : "inactive",
       isActive: finalIsActive,
 
@@ -541,8 +552,8 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
       entitlement_ids: event.entitlement_ids || [],
 
       // Product info
-      product_id: event.product_id,
-      productId: event.product_id,
+      product_id: finalIsActive ? event.product_id : null,
+      productId: finalIsActive ? event.product_id : null,
       period_type: event.period_type,
       periodType: event.period_type,
 
@@ -552,13 +563,9 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
       platform: event.store === "APP_STORE" ? "ios" :
         (event.store === "PLAY_STORE" ? "android" : "unknown"),
 
-      // Timestamps
-      expiration_at: event.expiration_at_ms ?
-        admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
-        null,
-      expiresAt: event.expiration_at_ms ?
-        admin.firestore.Timestamp.fromMillis(event.expiration_at_ms) :
-        null,
+      // Timestamps - CONSISTENTE: null quando inativo
+      expiration_at: expirationTimestamp,
+      expiresAt: expirationTimestamp,
       purchased_at: event.purchased_at_ms ?
         admin.firestore.Timestamp.fromMillis(event.purchased_at_ms) :
         null,
@@ -732,7 +739,8 @@ async function sendUserNotification(
     }
 
     // Template: systemAlert - mapear eventos RevenueCat para mensagens
-    let alertTitle = "Boora";
+    const APP_NAME = "Boora";
+    let alertTitle = APP_NAME;
     let alertBody = "Você tem uma nova atualização";
 
     switch (eventType) {
@@ -780,3 +788,4 @@ async function sendUserNotification(
     );
   }
 }
+

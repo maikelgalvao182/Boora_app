@@ -32,6 +32,9 @@ export const onReviewCreated = functions.firestore
       const ratingStr = overallRating.toFixed(1);
       const body = `${reviewerName} te avaliou com ${ratingStr} estrelas!`;
 
+      // DeepLink: abre a review específica ou tela de reviews
+      const deepLink = `partiu://reviews/${revieweeId}`;
+
       await sendPush({
         userId: revieweeId,
         event: "new_review_received",
@@ -40,9 +43,11 @@ export const onReviewCreated = functions.firestore
           body: body,
         },
         data: {
+          n_type: "new_review_received",
           reviewId: reviewId,
           reviewerName: reviewerName,
           rating: overallRating.toString(),
+          deepLink: deepLink,
         },
       });
     } catch (error) {

@@ -331,6 +331,9 @@ export async function sendPush({
         },
       },
       // 🍎 iOS (APNs)
+      // ⚠️ BADGE: NÃO definido aqui!
+      // O app Flutter controla o badge via flutter_app_badger
+      // Isso evita que toda notificação resete para 1
       apns: {
         payload: {
           aps: {
@@ -339,7 +342,7 @@ export async function sendPush({
               body: notification.body,
             },
             ...(shouldPlaySound ? {sound: "default"} : {}),
-            badge: 1,
+            // badge: NÃO ENVIAR - Flutter controla via BadgeService
           },
         },
         headers: {

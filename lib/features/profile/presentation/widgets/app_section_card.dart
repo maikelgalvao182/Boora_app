@@ -196,7 +196,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
                 imagePath: 'assets/svg/tiktok2.svg',
                 title: i18n.translate('follow_us_on_tiktok') ?? 'Seguir no TikTok',
                 onTap: () async {
-                  _appHelper.openUrl('https://www.tiktok.com/@booraapp');
+                  _appHelper.openUrl(TIKTOK_URL);
                 },
               ),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
@@ -205,7 +205,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
                 icon: IconsaxPlusLinear.instagram,
                 title: i18n.translate('follow_us_on_instagram') ?? 'Seguir no Instagram',
                 onTap: () async {
-                  _appHelper.openUrl('https://www.instagram.com/booraapp');
+                  _appHelper.openUrl(INSTAGRAM_URL);
                 },
               ),
             ],

@@ -312,28 +312,15 @@ class GlimpseChatBubble extends StatelessWidget {
                   ),
                 ),
                 
-                // Horário e status de leitura (não exibido para system)
+                // Horário (não exibido para system)
                 if (!isSystem)
                   Padding(
                     padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isUserSender && isRead) ...[
-                          const Icon(
-                            Icons.done_all,
-                            size: 16,
-                            color: Colors.blue,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          time,
-                          style: GlimpseStyles.smallTextStyle(
-                            color: GlimpseColors.textSubTitle,
-                          ).copyWith(fontSize: 12),
-                        ),
-                      ],
+                    child: Text(
+                      time,
+                      style: GlimpseStyles.smallTextStyle(
+                        color: GlimpseColors.textSubTitle,
+                      ).copyWith(fontSize: 12),
                     ),
                   ),
               ],

@@ -60,7 +60,7 @@ class SubscriptionFooter extends StatelessWidget {
               ),
               recognizer: TapGestureRecognizer()
                 ..onTap = () => _launchUrl(
-                    'https://www.boora.space/termos-de-servico'),
+                    BOORA_TERMS_OF_SERVICE_URL),
             ),
             
             // Separador "e"
@@ -77,7 +77,7 @@ class SubscriptionFooter extends StatelessWidget {
                 decoration: TextDecoration.underline,
               ),
               recognizer: TapGestureRecognizer()
-                ..onTap = () => _launchUrl('https://www.boora.space/politica-de-privacidade'),
+                ..onTap = () => _launchUrl(BOORA_PRIVACY_POLICY_URL),
             ),
             
             // Texto antes do restore

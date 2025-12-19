@@ -77,30 +77,22 @@ class _PrivacyTypeCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
               ? GlimpseColors.primaryLight
               : GlimpseColors.lightTextField,
           borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(
+                  color: GlimpseColors.primary,
+                  width: 2,
+                )
+              : null,
         ),
-        child: Container(
-          margin: isSelected ? const EdgeInsets.all(1.5) : EdgeInsets.zero,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? GlimpseColors.primaryLight
-                : GlimpseColors.lightTextField,
-            borderRadius: BorderRadius.circular(10.5),
-            border: isSelected
-                ? Border.all(
-                    color: GlimpseColors.primary,
-                    width: 1.5,
-                  )
-                : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
               // Ícone
               Icon(
                 icon,
@@ -136,8 +128,6 @@ class _PrivacyTypeCard extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                ],
-              ),
             ],
           ),
         ),

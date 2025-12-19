@@ -9,9 +9,11 @@ if (!admin.apps.length) {
 /**
  * Cloud Function para buscar pessoas próximas com limite baseado em VIP.
  *
- * Esta função deve ser usada em substituição à query direta no client
- * para garantir que usuários não-VIP nunca recebam mais dados do que o
- * permitido.
+ * 🔒 SEGURANÇA SERVER-SIDE:
+ * - Verifica status VIP no Firestore (fonte da verdade)
+ * - Limita quantidade de resultados (Free: 17, VIP: ilimitado)
+ * - Ordenação garantida: vip_priority → overallRating → distância
+ * - Firestore Rules bloqueiam acesso direto
  *
  * Deploy: firebase deploy --only functions:getPeople
  */
@@ -26,75 +28,144 @@ export const getPeople = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    // 2. Verificar Status VIP (Fonte da Verdade: Firestore)
-    // Não confiamos no client enviando "isVip: true"
+    // 2. Parâmetros recebidos do client
+    const {
+      boundingBox, // { minLat, maxLat, minLng, maxLng }
+      filters,
+    } = data;
+
+    if (!boundingBox) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "boundingBox é obrigatório"
+      );
+    }
+
+    // 3. Verificar Status VIP (Fonte da Verdade: Firestore)
     const userDoc = await admin.firestore()
       .collection("Users")
       .doc(userId)
       .get();
     const userData = userDoc.data();
 
+    if (!userData) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Usuário não encontrado"
+      );
+    }
+
     // Verifica flag de VIP e expiração
-    const isVip = userData?.hasActiveVip === true ||
-      (userData?.vipExpiresAt &&
-        userData.vipExpiresAt.toDate() > new Date());
+    const now = admin.firestore.Timestamp.now();
+    const isVip = userData.user_is_vip === true ||
+      (userData.vipExpiresAt && userData.vipExpiresAt > now);
 
-    // 3. Definir Limite
-    // Free: 13 pessoas
-    // VIP: 50 pessoas (ou mais, dependendo da regra de negócio)
-    const limit = isVip ? 50 : 13;
+    // 4. Definir Limite (Free: 17 para mostrar 12 + VipLockedCard)
+    const limit = isVip ? 100 : 17;
 
-    console.log(`🔍 getPeople: User ${userId} isVip=${isVip}, limit=${limit}`);
+    console.log(`🔍 [getPeople] User ${userId} - VIP:${isVip}, Limit:${limit}`);
 
-    // 4. Parâmetros de Busca (recebidos do client)
-    // Nota: Geoqueries complexas no Firestore nativo são limitadas.
-    // Idealmente usar Geofire ou apenas filtrar por bounding box simples aqui.
-    // Para este exemplo, vamos assumir uma busca simples por usuários ativos.
-
-    // TODO: Implementar lógica de geohash ou bounding box se necessário
-    // no server-side.
-    // Por enquanto, retornamos os usuários mais recentes/ativos até o limite.
-
-    const usersSnap = await admin.firestore()
+    // 5. Query Firestore com bounding box (primeira filtragem)
+    const query = admin.firestore()
       .collection("Users")
-      .where("is_active", "==", true)
-      // Ordenação VIP (1) -> Free (2)
-      .orderBy("vip_priority", "asc")
-      // Ordenação secundária por score (se existir) ou data de registro
-      // .orderBy("ranking_score", "desc")
-      // Excluir o próprio usuário (requer índice composto ou filtro em
-      // memória se a lista for pequena)
-      // .where(admin.firestore.FieldPath.documentId(), "!=", userId)
-      .limit(limit)
-      .get();
+      .where("latitude", ">=", boundingBox.minLat)
+      .where("latitude", "<=", boundingBox.maxLat);
 
-    // 5. Retornar Dados Sanitizados
-    // Retornamos apenas os dados públicos necessários para o card
-    const users = usersSnap.docs
-      .filter((doc) => doc.id !== userId) // Filtro de segurança extra
-      .map((doc) => {
+    const usersSnap = await query.get();
+
+    console.log(`📦 [getPeople] Firestore: ${usersSnap.docs.length} users`);
+
+    // 6. Filtrar em memória (longitude, próprio usuário, filtros avançados)
+    const candidates = usersSnap.docs
+      .filter((doc) => {
+        if (doc.id === userId) return false; // Excluir próprio usuário
+
         const d = doc.data();
-        return {
-          userId: doc.id,
-          fullName: d.fullName,
-          photoUrl: d.photoUrl,
-          age: d.age,
-          gender: d.gender,
-          // Não retornar dados sensíveis!
-          // location: d.location (se for preciso calcular distância no client)
-        };
-      });
+        const lng = d.longitude;
 
+        // Filtro de longitude (Firestore só permite 1 range query)
+        if (!lng || lng < boundingBox.minLng || lng > boundingBox.maxLng) {
+          return false;
+        }
+
+        // Aplicar filtros avançados se fornecidos
+        if (filters) {
+          // Gender
+          if (filters.gender && filters.gender !== "all") {
+            if (d.gender !== filters.gender) return false;
+          }
+
+          // Age
+          if (filters.minAge || filters.maxAge) {
+            const age = d.age;
+            if (age) {
+              if (filters.minAge && age < filters.minAge) return false;
+              if (filters.maxAge && age > filters.maxAge) return false;
+            }
+          }
+
+          // Verified
+          if (filters.isVerified === true && !d.user_is_verified) {
+            return false;
+          }
+
+          // Sexual Orientation
+          if (filters.sexualOrientation &&
+              filters.sexualOrientation !== "all") {
+            if (d.sexualOrientation !== filters.sexualOrientation) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      })
+      .map((doc) => ({
+        userId: doc.id,
+        ...doc.data(),
+      }));
+
+    console.log(`🔍 [getPeople] Após filtros: ${candidates.length} candidatos`);
+
+    // 7. Ordenar por VIP Priority → Rating → (distância calculada no client)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    candidates.sort((a: any, b: any) => {
+      // 1. VIP Priority (ASC: 1 vem antes de 2)
+      const vipA = a.vip_priority ?? 2;
+      const vipB = b.vip_priority ?? 2;
+      if (vipA !== vipB) return vipA - vipB;
+
+      // 2. Overall Rating (DESC: maior vem antes)
+      const ratingA = a.overallRating ?? 0;
+      const ratingB = b.overallRating ?? 0;
+      if (ratingA !== ratingB) return ratingB - ratingA;
+
+      // 3. Sem distância aqui, será calculada no client
+      return 0;
+    });
+
+    // 8. Aplicar limite server-side (SEGURANÇA)
+    const limitedUsers = candidates.slice(0, limit);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const top3 = limitedUsers.slice(0, 3).map((u: any) =>
+      `${u.fullName} (VIP:${u.vip_priority ?? 2}, ` +
+      `⭐${u.overallRating?.toFixed(1) ?? "N/A"})`
+    ).join(", ");
+    console.log(`🏆 [getPeople] Top 3: ${top3}`);
+
+    // 9. Retornar dados completos (client precisa para UI)
     return {
-      users: users,
+      users: limitedUsers,
       isVip: isVip,
       limitApplied: limit,
+      totalCandidates: candidates.length,
     };
   } catch (error) {
     console.error("❌ Erro em getPeople:", error);
     throw new functions.https.HttpsError(
       "internal",
-      "Erro ao buscar pessoas."
+      "Erro ao buscar pessoas: " + (error as Error).message
     );
   }
 });

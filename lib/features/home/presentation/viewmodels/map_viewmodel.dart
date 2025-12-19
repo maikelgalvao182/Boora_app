@@ -28,6 +28,10 @@ import 'package:partiu/common/state/app_state.dart';
 /// NOTA: Este ViewModel usa EventMapRepository diretamente.
 /// Para descoberta de PESSOAS, use LocationQueryService (refatorado para usuários).
 class MapViewModel extends ChangeNotifier {
+  /// Instância global para permitir reset durante logout
+  static MapViewModel? _instance;
+  static MapViewModel? get instance => _instance;
+  
   final EventMapRepository _eventRepository;
   final UserLocationService _locationService;
   final GoogleEventMarkerService _googleMarkerService;
@@ -81,7 +85,22 @@ class MapViewModel extends ChangeNotifier {
         _streamController = streamController ?? LocationStreamController(),
         _userRepository = userRepository ?? UserRepository(),
         _applicationRepository = applicationRepository ?? EventApplicationRepository() {
+    _instance = this; // Registra instância global
     _initializeRadiusListener();
+  }
+
+  /// Cancela todos os streams Firestore (usar no logout)
+  /// Isso evita erros de permission-denied quando o usuário é deslogado
+  void cancelAllStreams() {
+    debugPrint('🔌 MapViewModel: Cancelando todos os streams...');
+    _eventsSubscription?.cancel();
+    _eventsSubscription = null;
+    _radiusSubscription?.cancel();
+    _radiusSubscription = null;
+    _reloadSubscription?.cancel();
+    _reloadSubscription = null;
+    BlockService.instance.removeListener(_onBlockedUsersChanged);
+    debugPrint('✅ MapViewModel: Streams cancelados');
   }
 
   /// Inicializa listener para mudanças de raio
@@ -500,11 +519,9 @@ class MapViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    BlockService.instance.removeListener(_onBlockedUsersChanged);
-    _radiusSubscription?.cancel();
-    _reloadSubscription?.cancel();
-    _eventsSubscription?.cancel();
+    cancelAllStreams(); // Cancela streams primeiro
     _googleMarkerService.clearCache();
+    _instance = null; // Limpa referência global
     super.dispose();
   }
 }

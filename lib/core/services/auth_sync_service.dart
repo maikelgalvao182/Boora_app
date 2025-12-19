@@ -101,8 +101,8 @@ class AuthSyncService extends ChangeNotifier {
 
         await SessionManager.instance.logout();
         
-        // Resetar contadores de notificações
-        NotificationsCounterService.instance.reset();
+        // Resetar contadores de notificações e badge do ícone
+        await NotificationsCounterService.instance.reset();
         
         // Resetar flag para permitir reinicialização no próximo login
         _notificationServiceInitialized = false;
@@ -189,7 +189,7 @@ class AuthSyncService extends ChangeNotifier {
             _log('🔔 AppState.currentUserId: ${AppState.currentUserId}');
             
             _log('📊 [INIT] Etapa 1/3: Inicializando NotificationsCounterService...');
-            NotificationsCounterService.instance.initialize();
+            await NotificationsCounterService.instance.initialize();
             _log('✅ [INIT] Etapa 1/3: NotificationsCounterService inicializado');
             
             // Inicializar FCM Token Service
@@ -208,7 +208,7 @@ class AuthSyncService extends ChangeNotifier {
               _log('🔔 Listeners ainda ativos, não precisa reinicializar');
             } else {
               _log('🔔 Listeners inativos, reinicializando...');
-              NotificationsCounterService.instance.initialize();
+              await NotificationsCounterService.instance.initialize();
             }
           }
           

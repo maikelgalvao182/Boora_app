@@ -127,7 +127,7 @@ class UserStore {
   ValueNotifier<String?> get avatarInvalidationNotifier => _avatarInvalidationNotifier;
 
   // Placeholder (empty real) e placeholder de loading (transparente)
-  static const _emptyAvatar = AssetImage('assets/images/avatar/default_avatar.png');
+  static const _emptyAvatar = AssetImage('assets/images/empty_avatar.jpg');
   static const List<int> _kTransparentImage = <int>[
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
     0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,

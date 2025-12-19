@@ -44,6 +44,7 @@
   "messages": "Mensagens",
   "conversations": "Conversas",
   "no_conversations_yet": "Nenhuma conversa ainda",
+  "no_people_found_nearby": "Ainda não encontramos ninguém por perto",
   "chat": "Chat",
   "enter_chat": "Entrar no chat",
   "event_group_chat": "Grupo do Evento",
@@ -67,6 +68,7 @@
   "sign_in_with_google_failed": "Falha ao entrar com Google",
   "sign_in_with_email": "Entrar com E-mail",
   "sign_in_canceled": "Login cancelado",
+  "sign_in_canceled_message": "Login cancelado pelo usuário",
   "network_error": "Erro de rede. Verifique sua conexão.",
   "account_blocked": "Sua conta foi bloqueada",
   "account_not_found": "Conta não encontrada",
@@ -118,8 +120,10 @@
   "age_years": "{age} anos",
   "instagram_username": "Qual seu Instagram?",
   "instagram_label": "Instagram",
-  "instagram_placeholder": "Digite seu @usuário",
+  "instagram_username_label": "Nome de usuário",
+  "instagram_placeholder": "Ex: danielamarques",
   "instagram_helper": "Insira seu nome de usuário sem o @",
+  "instagram_subtitle": "Conecte-se com mais pessoas",
   "job_title": "O que você faz?",
   "job_title_label": "Profissão",
   "job_title_placeholder": "Ex: Designer, Engenheiro, Professor...",
@@ -692,5 +696,4 @@
   "follow_us_on_instagram": "Seguir no Instagram"
 
 }
-
 

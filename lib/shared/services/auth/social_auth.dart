@@ -75,7 +75,6 @@ class SocialAuth {
       if (appleCredential.identityToken == null) {
         throw FirebaseAuthException(
           code: 'invalid-credential',
-          message: 'Token de identidade da Apple não disponível.',
         );
       }
 
@@ -160,12 +159,10 @@ class SocialAuth {
           errorString.contains('user_canceled')) {
         onError(FirebaseAuthException(
           code: 'sign_in_canceled',
-          message: 'Login cancelado pelo usuário',
         ));
       } else {
         onError(FirebaseAuthException(
           code: 'unknown',
-          message: 'Erro inesperado: $e',
         ));
       }
     }
@@ -243,12 +240,10 @@ class SocialAuth {
             errorMsg.contains('cancel')) {
           onError(FirebaseAuthException(
             code: 'sign_in_canceled',
-            message: 'Login cancelado pelo usuário',
           ));
         } else {
           onError(FirebaseAuthException(
             code: 'authentication-failed',
-            message: 'Falha na autenticação: $e',
           ));
         }
         return;
@@ -261,7 +256,6 @@ class SocialAuth {
       if (googleAuth.idToken == null) {
         throw FirebaseAuthException(
           code: 'invalid-credential',
-          message: 'Token de ID do Google não disponível',
         );
       }
 
@@ -342,12 +336,10 @@ class SocialAuth {
           errorString.contains('cancel')) {
         onError(FirebaseAuthException(
           code: 'sign_in_canceled',
-          message: 'Login cancelado pelo usuário',
         ));
       } else {
         onError(FirebaseAuthException(
           code: 'unknown',
-          message: 'Erro inesperado: $e',
         ));
       }
     }
@@ -386,7 +378,6 @@ class SocialAuth {
     } catch (e) {
       onError(FirebaseAuthException(
         code: 'unknown',
-        message: 'Erro inesperado: $e',
       ));
     }
   }
@@ -420,7 +411,6 @@ class SocialAuth {
     } catch (e) {
       onError(FirebaseAuthException(
         code: 'unknown',
-        message: 'Erro inesperado: $e',
       ));
     }
   }

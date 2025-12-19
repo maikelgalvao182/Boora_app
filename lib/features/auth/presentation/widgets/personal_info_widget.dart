@@ -42,7 +42,9 @@ class _PersonalInfoWidgetState extends State<PersonalInfoWidget> {
   void _initializeName() async {
     // Se o initialName já veio preenchido (do SignupWizard), usa ele
     if (widget.initialName.isNotEmpty) {
-      _nameController.text = widget.initialName;
+      final capitalized = _capitalizeWords(widget.initialName);
+      _nameController.text = capitalized;
+      widget.onNameChanged(capitalized);
       return;
     }
     
@@ -59,8 +61,9 @@ class _PersonalInfoWidgetState extends State<PersonalInfoWidget> {
     }
 
     if (prefillName.isNotEmpty) {
-      _nameController.text = prefillName;
-      widget.onNameChanged(prefillName);
+      final capitalized = _capitalizeWords(prefillName);
+      _nameController.text = capitalized;
+      widget.onNameChanged(capitalized);
     }
   }
 
@@ -76,6 +79,28 @@ class _PersonalInfoWidgetState extends State<PersonalInfoWidget> {
     super.dispose();
   }
 
+  /// Capitaliza a primeira letra de cada palavra
+  String _capitalizeWords(String text) {
+    if (text.isEmpty) return text;
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  void _onNameChanged(String value) {
+    final capitalized = _capitalizeWords(value);
+    if (capitalized != value) {
+      // Preserva a posição do cursor
+      final cursorPosition = _nameController.selection.baseOffset;
+      _nameController.text = capitalized;
+      // Restaura cursor na mesma posição (ou no final se necessário)
+      final newPosition = cursorPosition.clamp(0, capitalized.length);
+      _nameController.selection = TextSelection.collapsed(offset: newPosition);
+    }
+    widget.onNameChanged(capitalized);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -87,7 +112,7 @@ class _PersonalInfoWidgetState extends State<PersonalInfoWidget> {
           hintText: _i18n.translate('enter_your_full_name'),
           controller: _nameController,
           textCapitalization: TextCapitalization.words,
-          onChanged: widget.onNameChanged,
+          onChanged: _onNameChanged,
         ),
       ],
     );

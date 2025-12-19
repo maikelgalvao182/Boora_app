@@ -3,6 +3,7 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/helpers/app_localizations.dart' as helpers;
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/screens/chat/models/message.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
 import 'package:partiu/screens/chat/widgets/glimpse_chat_bubble.dart';
@@ -10,7 +11,6 @@ import 'package:partiu/shared/widgets/my_circular_progress.dart';
 import 'package:partiu/shared/widgets/auto_scroll_list_handler.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:flutter/material.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
 // Model para cache de mensagem processada
 class _ProcessedMessage {
@@ -240,20 +240,10 @@ class _MessageListWidgetState extends State<MessageListWidget> {
         continue;
       }
       
-      // Formatar tempo uma única vez
+      // Formatar tempo uma única vez usando TimeAgoHelper com i18n
       var messageTime = '';
-      try {
-        if (message.timestamp != null) {
-          // Use current locale from AppLocalizations for time formatting
-          final localeCode = helpers.AppLocalizations.currentLocale ?? 'en';
-          final locale = localeCode == 'pt' ? 'pt_BR' : localeCode;
-          messageTime = timeago.format(message.timestamp!, locale: locale);
-        }
-      } catch (e) {
-        // Fallback to default locale if error
-        if (message.timestamp != null) {
-          messageTime = timeago.format(message.timestamp!);
-        }
+      if (message.timestamp != null) {
+        messageTime = TimeAgoHelper.format(context, timestamp: message.timestamp!);
       }
       
       // Debug logs temporários

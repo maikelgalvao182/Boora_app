@@ -4,7 +4,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/controllers/simplified_notification_controller.dart';
 import 'package:partiu/features/notifications/widgets/notification_item_widget.dart';
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
-import 'package:partiu/shared/widgets/glimpse_back_button.dart';
+import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/infinite_list_view.dart';
 import 'package:partiu/widgets/skeletons/notification_list_skeleton.dart';
@@ -15,10 +15,6 @@ import 'package:google_fonts/google_fonts.dart';
 /// [MVVM] Constantes da View - evita magic numbers
 class _NotificationScreenConstants {
   static const int filterCount = 5; // All, Activities, Event Chat, Profile Views, Reviews
-  static const double titleFontSize = 20;
-  static const double clearFontSize = 14;
-  static const double backButtonSize = 24;
-  static const double horizontalPadding = 20;
   static const double loadingIndicatorPadding = 16;
 }
 
@@ -60,36 +56,14 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
     growable: false,
   );
 
-  // [PERF] Cache de TextStyles - criados uma vez no didChangeDependencies
-  late final TextStyle _titleStyle;
-  late final TextStyle _clearStyle;
-  bool _isInitialized = false;
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     
-    if (!_isInitialized) {
-      _isInitialized = true;
-
-      _titleStyle = GoogleFonts.getFont(
-        FONT_PLUS_JAKARTA_SANS,
-        fontSize: _NotificationScreenConstants.titleFontSize,
-        fontWeight: FontWeight.w700,
-        color: GlimpseColors.primaryColorLight,
-      );
-      _clearStyle = GoogleFonts.getFont(
-        FONT_PLUS_JAKARTA_SANS,
-        fontSize: _NotificationScreenConstants.clearFontSize,
-        fontWeight: FontWeight.w600,
-        color: Colors.red,
-      );
-      
-      // Inicializa controller (sem VIP check)
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        widget.controller.initialize(true); // isVip sempre true no Partiu
-      });
-    }
+    // Inicializa controller (sem VIP check)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.initialize(true); // isVip sempre true no Partiu
+    });
   }
 
   @override
@@ -99,18 +73,14 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
 
     return Scaffold(
       backgroundColor: bgColor,
+      appBar: GlimpseAppBar(
+        title: i18n.translate('notifications'),
+        onBack: widget.onBackPressed ?? () => Navigator.pop(context),
+        onAction: () => _showDeleteConfirmation(context, i18n),
+        actionText: i18n.translate('clear'),
+      ),
       body: Column(
         children: [
-          // AppBar
-          _NotificationAppBar(
-            titleStyle: _titleStyle,
-            clearStyle: _clearStyle,
-            bgColor: bgColor,
-            i18n: i18n,
-            onBack: widget.onBackPressed ?? () => Navigator.pop(context),
-            onClear: () => _showDeleteConfirmation(context, i18n),
-          ),
-          
           // Filtros horizontais
           _FilterSection(
             controller: widget.controller,
@@ -292,57 +262,6 @@ class _NotificationFilterPageState extends State<_NotificationFilterPage>
           ),
         );
       },
-    );
-  }
-}
-
-/// AppBar
-class _NotificationAppBar extends StatelessWidget {
-  const _NotificationAppBar({
-    required this.titleStyle,
-    required this.clearStyle,
-    required this.bgColor,
-    required this.i18n,
-    required this.onBack,
-    required this.onClear,
-  });
-  
-  final TextStyle titleStyle;
-  final TextStyle clearStyle;
-  final Color bgColor;
-  final AppLocalizations i18n;
-  final VoidCallback onBack;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final notificationsText = i18n.translate('notifications');
-    final clearText = i18n.translate('clear');
-    
-    return AppBar(
-      backgroundColor: bgColor,
-      automaticallyImplyLeading: false,
-      centerTitle: true,
-      leading: GlimpseBackButton.iconButton(
-        onPressed: onBack,
-        width: _NotificationScreenConstants.backButtonSize,
-        height: _NotificationScreenConstants.backButtonSize,
-      ),
-      title: Text(notificationsText, style: titleStyle),
-      actions: [
-        Center(
-          child: GestureDetector(
-            onTap: onClear,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: _NotificationScreenConstants.horizontalPadding,
-              ),
-              child: Text(clearText, style: clearStyle),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

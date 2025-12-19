@@ -42,7 +42,7 @@ import 'package:partiu/shared/stores/user_store.dart';
 /// ✅ Performance: ~650ms → ~80ms com cache quente
 /// ✅ UX: Sensação de velocidade instantânea
 /// 
-/// 🔒 SINGLETON: Uma única instância compartilhada para manter estado entre navegações
+/// 🔒 SINGLETON com inicialização LAZY (padrão apps grandes)
 class FindPeopleController {
   // Singleton pattern
   static final FindPeopleController _instance = FindPeopleController._internal();
@@ -50,8 +50,8 @@ class FindPeopleController {
   factory FindPeopleController() => _instance;
   
   FindPeopleController._internal() {
-    debugPrint('🎯 [FindPeopleController] Criando instância singleton');
-    _initializeStream();
+    debugPrint('🎯 [FindPeopleController] Instância singleton criada');
+    // NÃO inicializa automaticamente - usa lazy initialization
   }
 
   // Serviço de localização
@@ -99,12 +99,16 @@ class FindPeopleController {
   /// Use para evitar shimmer/skeleton nos cards
   final ValueNotifier<bool> avatarsReady = ValueNotifier(false);
   
-  // Flag para evitar reload desnecessário
+  // Flag de inicialização
   bool _isInitialized = false;
+  
+  // Completer para aguardar inicialização
+  Completer<void>? _initCompleter;
 
   // Getters
   List<String> get userIds => users.value.map((u) => u.userId).toList();
   bool get isEmpty => users.value.isEmpty && !isLoading.value;
+  bool get isInitialized => _isInitialized;
   
   /// Getter para acesso rápido à lista de usuários (usado pelo AppInitializer)
   List<User> get usersList => users.value;
@@ -112,17 +116,65 @@ class FindPeopleController {
   /// Getter para contagem de usuários (usado pelo AppInitializer)
   int get count => users.value.length;
   
+  /// 🚀 INICIALIZAÇÃO LAZY - Deve ser chamado antes de usar o controller
+  /// 
+  /// Este método é idempotente: pode ser chamado múltiplas vezes.
+  /// Retorna imediatamente se já inicializado.
+  Future<void> ensureInitialized() async {
+    // Já inicializado? Retorna imediatamente
+    if (_isInitialized) {
+      debugPrint('✅ [FindPeopleController] Já inicializado');
+      return;
+    }
+    
+    // Inicialização em andamento? Aguarda conclusão
+    if (_initCompleter != null) {
+      debugPrint('⏳ [FindPeopleController] Aguardando inicialização em andamento...');
+      return _initCompleter!.future;
+    }
+    
+    // Iniciar nova inicialização
+    _initCompleter = Completer<void>();
+    
+    try {
+      debugPrint('🔍 [FindPeopleController] Iniciando inicialização...');
+      await _initialize();
+      _isInitialized = true;
+      _initCompleter!.complete();
+      debugPrint('✅ [FindPeopleController] Inicialização concluída');
+    } catch (e, stack) {
+      debugPrint('❌ [FindPeopleController] Erro na inicialização: $e');
+      _initCompleter!.completeError(e, stack);
+      _initCompleter = null; // Permite retry
+      rethrow;
+    }
+  }
+  
+  /// Inicialização interna - configura streams e carrega dados
+  Future<void> _initialize() async {
+    debugPrint('🔍 [FindPeopleController] Configurando stream de usuários...');
+    
+    // Escutar stream de atualizações automáticas
+    _usersSubscription = _locationService.usersStream.listen(
+      _onUsersChanged,
+      onError: _onUsersError,
+    );
+    
+    debugPrint('🔍 [FindPeopleController] Stream configurado, carregando usuários...');
+    
+    // Carregar usuários inicialmente
+    await _loadInitialUsers();
+  }
+
   /// Pré-carrega dados da lista de pessoas (usado pelo AppInitializer)
   /// 
   /// 🚀 Aguarda carregamento inicial e pré-carrega avatares no UserStore
   /// para eliminar flash ao abrir a tela FindPeopleScreen
-  /// 
-  /// Retorna quando:
-  /// - Dados já estão carregados (cache hit)
-  /// - Dados foram carregados do Firestore
-  /// - Timeout de 5 segundos
   Future<void> preload() async {
     debugPrint('🙋 [FindPeopleController] Preload iniciado...');
+    
+    // Garantir inicialização primeiro
+    await ensureInitialized();
     
     // Se já tem dados, só pré-carregar avatares
     if (!isLoading.value && users.value.isNotEmpty) {
@@ -213,7 +265,6 @@ class FindPeopleController {
           debugPrint('✅ [FindPeopleController] ${secondary.length} avatares secundários prontos');
         }),
       );
-      });
     }
   }
   
@@ -222,7 +273,7 @@ class FindPeopleController {
   /// 🔒 Características de segurança:
   /// - Evita download duplicado (Set _downloading)
   /// - Remove listener em TODOS os cenários (finally)
-  /// - Timeout de 5 segundos por imagem
+  /// - Timeout de 10 segundos por imagem (redes lentas)
   /// - Erros silenciosos (preload não quebra UX)
   Future<void> _downloadImage(String url) async {
     // 🔒 Evita download duplicado
@@ -238,7 +289,8 @@ class FindPeopleController {
       (_, __) {
         if (!completer.isCompleted) completer.complete();
       },
-      onError: (_, __) {
+      onError: (error, __) {
+        // Erro silencioso - preload não é crítico
         if (!completer.isCompleted) completer.complete();
       },
     );
@@ -246,10 +298,11 @@ class FindPeopleController {
     stream.addListener(listener);
     
     try {
-      await completer.future.timeout(const Duration(seconds: 5));
+      // 🕐 10 segundos de timeout (redes móveis podem ser lentas)
+      await completer.future.timeout(const Duration(seconds: 10));
     } catch (e) {
-      // Timeout ou erro - silencioso
-      debugPrint('⚠️ [Preload] Timeout/erro ao baixar: $url');
+      // Timeout silencioso - avatar será carregado sob demanda depois
+      // Não logar cada falha para evitar poluir console
     } finally {
       // 🔒 CRÍTICO: sempre remove listener (evita leak)
       stream.removeListener(listener);
@@ -257,27 +310,7 @@ class FindPeopleController {
     }
   }
 
-  /// Inicializa stream de usuários próximos
-  void _initializeStream() {
-    // Evita reinicialização se já foi inicializado
-    if (_isInitialized) {
-      debugPrint('✅ [FindPeopleController] Já inicializado, pulando setup');
-      return;
-    }
-    
-    debugPrint('🔍 [FindPeopleController] Inicializando stream de usuários');
-    
-    // Escutar stream de atualizações automáticas
-    _usersSubscription = _locationService.usersStream.listen(
-      _onUsersChanged,
-      onError: _onUsersError,
-    );
-    
-    // Carregar usuários inicialmente (após setup do stream)
-    _loadInitialUsers();
-    
-    _isInitialized = true;
-  }
+
 
   /// Busca usuários dentro do raio com debounce (reduz queries redundantes)
   /// 
@@ -672,8 +705,22 @@ class FindPeopleController {
       }
     }
     
-    // Ordenar por distância (mais próximos primeiro)
+    // 🏆 Ordenar por VIP Priority → Rating → Distância
+    // Mantém a mesma lógica do LocationQueryService para consistência
     loadedUsers.sort((a, b) {
+      // 1. VIP Priority (ASC: 1 vem antes de 2)
+      final vipA = a.vipPriority;
+      final vipB = b.vipPriority;
+      final vipComparison = vipA.compareTo(vipB);
+      if (vipComparison != 0) return vipComparison;
+
+      // 2. Score / Rating (DESC: maior vem antes)
+      final ratingA = a.overallRating ?? 0.0;
+      final ratingB = b.overallRating ?? 0.0;
+      final ratingComparison = ratingB.compareTo(ratingA);
+      if (ratingComparison != 0) return ratingComparison;
+      
+      // 3. Distância (ASC: menor vem antes) - Tie breaker
       final distA = a.distance ?? double.infinity;
       final distB = b.distance ?? double.infinity;
       return distA.compareTo(distB);
@@ -683,6 +730,15 @@ class FindPeopleController {
     final elapsed = DateTime.now().difference(startTime).inMilliseconds;
     final mode = heavyProcessing ? 'completo' : 'rápido';
     debugPrint('⚡ [Performance] _buildUserList ($mode): ${loadedUsers.length} users em ${elapsed}ms');
+    
+    // 🏆 Log da ordenação VIP (primeiros 5)
+    if (loadedUsers.isNotEmpty) {
+      debugPrint('🏆 [VIP Order] Primeiros ${loadedUsers.length > 5 ? 5 : loadedUsers.length} usuários:');
+      for (var i = 0; i < loadedUsers.length && i < 5; i++) {
+        final user = loadedUsers[i];
+        debugPrint('   ${i + 1}. ${user.userFullname} - VIP:${user.vipPriority} ⭐${user.overallRating?.toStringAsFixed(1) ?? 'N/A'} 📍${user.distance?.toStringAsFixed(1) ?? 'N/A'}km');
+      }
+    }
     
     return loadedUsers;
   }

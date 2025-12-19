@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/common/services/badge_service.dart';
 import 'package:partiu/features/home/data/repositories/pending_applications_repository.dart';
 import 'package:partiu/features/reviews/data/repositories/review_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,7 @@ import 'dart:async';
 /// - Contar reviews pendentes (Actions Tab)
 /// - Contar mensagens não lidas (Conversations Tab)
 /// - Expor streams reativos para badges
+/// - Atualizar badge do ícone do app via BadgeService
 class NotificationsCounterService {
   NotificationsCounterService._();
   
@@ -20,6 +22,7 @@ class NotificationsCounterService {
   final _pendingApplicationsRepo = PendingApplicationsRepository();
   final _reviewRepository = ReviewRepository();
   final _firestore = FirebaseFirestore.instance;
+  final _badgeService = BadgeService.instance;
 
   // ValueNotifiers para badges reativos
   final pendingActionsCount = ValueNotifier<int>(0);
@@ -40,9 +43,12 @@ class NotificationsCounterService {
   bool get isActive => _notificationsSubscription != null;
 
   /// Inicializa os listeners de contadores
-  void initialize() {
+  Future<void> initialize() async {
     // Cancelar listeners anteriores se existirem
     _cancelAllSubscriptions();
+    
+    // Inicializar BadgeService
+    await _badgeService.initialize();
     
     _listenToPendingApplications();
     _listenToPendingReviews();
@@ -63,10 +69,20 @@ class NotificationsCounterService {
     _notificationsSubscription = null;
   }
 
+  /// Atualiza o badge do ícone do app com todos os contadores
+  void _updateAppIconBadge() {
+    _badgeService.updateBadgeFromCounters(
+      unreadNotifications: unreadNotificationsCount.value,
+      unreadMessages: unreadConversationsCount.value,
+      pendingActions: pendingActionsCount.value,
+    );
+  }
+
   /// Atualiza o contador total de ações (applications + reviews)
   void _updateActionsCount() {
     final total = _applicationsCount + _reviewsCount;
     pendingActionsCount.value = total;
+    _updateAppIconBadge();
   }
 
   /// Escuta aplicações pendentes (Actions Tab)
@@ -149,10 +165,12 @@ class NotificationsCounterService {
         unreadConversationsCount.value = unreadCount;
         AppState.unreadMessages.value = unreadCount; // Atualiza AppState também
         debugPrint('🔔 [NotificationsCounterService] unreadConversationsCount.value atualizado para: ${unreadConversationsCount.value}');
+        _updateAppIconBadge();
       },
       onError: (error) {
         debugPrint('❌ [NotificationsCounterService] Erro no listener de conversas: $error');
         unreadConversationsCount.value = 0;
+        _updateAppIconBadge();
       },
     );
   }
@@ -182,16 +200,18 @@ class NotificationsCounterService {
         AppState.unreadNotifications.value = count;
         unreadNotificationsCount.value = count;
         debugPrint('🔔 [NotificationsCounterService] AppState.unreadNotifications atualizado para: $count');
+        _updateAppIconBadge();
       },
       onError: (error) {
         AppState.unreadNotifications.value = 0;
         unreadNotificationsCount.value = 0;
+        _updateAppIconBadge();
       },
     );
   }
 
   /// Limpa os contadores (usar no logout)
-  void reset() {
+  Future<void> reset() async {
     // Cancelar todas as subscriptions
     _cancelAllSubscriptions();
     
@@ -204,6 +224,9 @@ class NotificationsCounterService {
     pendingActionsCount.value = 0;
     unreadConversationsCount.value = 0;
     unreadNotificationsCount.value = 0;
+    
+    // Remover badge do ícone do app
+    await _badgeService.removeBadge();
   }
 
   /// Dispose dos listeners

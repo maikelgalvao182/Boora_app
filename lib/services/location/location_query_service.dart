@@ -7,18 +7,24 @@ import 'package:partiu/services/location/advanced_filters_controller.dart';
 import 'package:partiu/services/location/geo_utils.dart';
 import 'package:partiu/services/location/distance_isolate.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
+import 'package:partiu/services/location/people_cloud_service.dart';
 
 /// Serviço principal para queries de localização com filtro de raio
 /// 
-/// ATENÇÃO: Este serviço foi REFATORADO para buscar USUÁRIOS (pessoas) ao invés de eventos.
+/// 🔒 REFATORADO para usar Cloud Function (server-side security)
 /// 
 /// Responsabilidades:
-/// - Carregar USUÁRIOS dentro do raio do usuário atual
+/// - Chamar Cloud Function getPeople (server-side limit + ordering)
 /// - Cache com TTL (30 segundos)
 /// - Bounding box para queries otimizadas
-/// - Isolate para cálculo de distâncias sem jank
+/// - Cálculo de distâncias no client (melhor performance)
 /// - Stream de atualizações automáticas
 /// - Filtros sociais (gênero, idade, verificado, interesses)
+/// 
+/// SEGURANÇA:
+/// - ✅ Limite de resultados aplicado no servidor (impossível burlar)
+/// - ✅ Ordenação VIP garantida pelo backend
+/// - ✅ Status VIP verificado no Firestore (não confia no client)
 /// 
 /// USO:
 /// - find_people_screen.dart: Descoberta de pessoas próximas
@@ -34,6 +40,9 @@ class LocationQueryService {
   LocationQueryService._internal() {
     _initializeListeners();
   }
+
+  /// Serviço de Cloud Function
+  final _cloudService = PeopleCloudService();
 
   /// Cache de localização do usuário
   UserLocationCache? _userLocationCache;
@@ -105,7 +114,16 @@ class LocationQueryService {
 
   /// Busca usuários dentro do raio - versão única (sem stream)
   /// 
-  /// Uso: Quando precisa de uma consulta pontual de pessoas próximas
+  /// 🔒 USA CLOUD FUNCTION (server-side security)
+  /// 
+  /// Fluxo:
+  /// 1. Carrega localização do usuário
+  /// 2. Calcula bounding box
+  /// 3. Chama Cloud Function getPeople (limite + ordenação VIP no servidor)
+  /// 4. Calcula distâncias no client (melhor performance)
+  /// 5. Retorna lista já ordenada e limitada
+  /// 
+  /// ⚠️ LIMITE APLICADO NO SERVIDOR (impossível burlar)
   Future<List<UserWithDistance>> getUsersWithinRadiusOnce({
     double? customRadiusKm,
     UserFilterOptions? filters,
@@ -143,62 +161,50 @@ class LocationQueryService {
         radiusKm: radiusKm,
       );
 
-      // 5. Query Firestore na coleção Users (primeira filtragem rápida - Bounding Box)
-      final candidateUsers = await _filterUsersByBoundingBox(boundingBox, currentUserId);
-      debugPrint('📊 LocationQueryService: ${candidateUsers.length} usuários ANTES dos filtros avançados');
-
-      // 6. Filtros em memória (Gender, Age, Verified, Interests)
-      debugPrint('🔍 Filtros ativos: gender=${activeFilters.gender}, age=${activeFilters.minAge}-${activeFilters.maxAge}, verified=${activeFilters.isVerified}, interests=${activeFilters.interests}');
+      // 5. Chamar Cloud Function (server-side security)
+      debugPrint('☁️ LocationQueryService: Chamando Cloud Function getPeople...');
       
-      var filteredUsers = _filterByGender(candidateUsers, activeFilters.gender);
-      debugPrint('📊 Após filtro de gênero: ${filteredUsers.length} usuários');
-      
-      filteredUsers = _filterByAge(filteredUsers, activeFilters.minAge, activeFilters.maxAge);
-      debugPrint('📊 Após filtro de idade: ${filteredUsers.length} usuários');
-      
-      filteredUsers = _filterByVerified(filteredUsers, activeFilters.isVerified);
-      debugPrint('📊 Após filtro verified: ${filteredUsers.length} usuários');
-      
-      filteredUsers = _filterByInterests(filteredUsers, activeFilters.interests);
-      debugPrint('📊 Após filtro de interesses: ${filteredUsers.length} usuários');
-
-      filteredUsers = _filterBySexualOrientation(filteredUsers, activeFilters.sexualOrientation);
-      debugPrint('📊 Após filtro de orientação sexual: ${filteredUsers.length} usuários');
-
-      // 7. Filtrar com isolate (distância exata e cálculos pesados)
-      var finalUsers = await _filterUsersByDistanceIsolate(
-        users: filteredUsers,
-        centerLat: userLocation.latitude,
-        centerLng: userLocation.longitude,
+      final result = await _cloudService.getPeopleNearby(
+        userLatitude: userLocation.latitude,
+        userLongitude: userLocation.longitude,
         radiusKm: radiusKm,
+        boundingBox: boundingBox,
+        filters: UserCloudFilters(
+          gender: activeFilters.gender,
+          minAge: activeFilters.minAge,
+          maxAge: activeFilters.maxAge,
+          isVerified: activeFilters.isVerified,
+          interests: activeFilters.interests,
+          sexualOrientation: activeFilters.sexualOrientation,
+        ),
       );
-      debugPrint('📊 Após filtro de distância (Isolate): ${finalUsers.length} usuários');
 
-      // 7.5 Ordenar por VIP Priority e Score (Client-side enforcement of Server Logic)
-      // Garante que VIPs apareçam no topo e ordenados por score
+      debugPrint('📊 LocationQueryService: ${result.users.length} usuários retornados (limite: ${result.limitApplied})');
+      
+      final finalUsers = result.users;
+
+      // 6. Ordenar por distância como tie-breaker
       finalUsers.sort((a, b) {
-        // 1. VIP Priority (ASC: 1 vem antes de 2)
-        final vipA = (a.userData['vip_priority'] as int?) ?? 2;
-        final vipB = (b.userData['vip_priority'] as int?) ?? 2;
-        final vipComparison = vipA.compareTo(vipB);
-        if (vipComparison != 0) return vipComparison;
-
-        // 2. Score / Rating (DESC: maior vem antes)
-        final ratingA = (a.userData['overallRating'] as num?)?.toDouble() ?? 0.0;
-        final ratingB = (b.userData['overallRating'] as num?)?.toDouble() ?? 0.0;
-        final ratingComparison = ratingB.compareTo(ratingA);
-        if (ratingComparison != 0) return ratingComparison;
-        
-        // 3. Distância (ASC: menor vem antes) - Tie breaker
+        // Cloud Function já ordenou por VIP e Rating
+        // Apenas usar distância como desempate
         return a.distanceKm.compareTo(b.distanceKm);
       });
 
-      // 8. Aplicar limite VIP (Segurança Client-Side)
-      // O backend deve ter sua própria validação, mas aqui garantimos a UX
-      if (!VipAccessService.isVip && finalUsers.length > VipAccessService.freePeopleLimit) {
-        debugPrint('🔒 LocationQueryService: Limitando lista para ${VipAccessService.freePeopleLimit} (Usuário Free)');
-        finalUsers = finalUsers.take(VipAccessService.freePeopleLimit).toList();
+      // 7. Log da ordenação VIP (primeiros 5)
+      if (finalUsers.isNotEmpty) {
+        debugPrint('🏆 [LocationQueryService] Ordenação VIP - Primeiros ${finalUsers.length > 5 ? 5 : finalUsers.length}:');
+        for (var i = 0; i < finalUsers.length && i < 5; i++) {
+          final user = finalUsers[i];
+          final vip = (user.userData['vip_priority'] as int?) ?? 2;
+          final rating = (user.userData['overallRating'] as num?)?.toDouble() ?? 0.0;
+          final name = user.userData['fullName'] ?? 'N/A';
+          debugPrint('   ${i + 1}. $name - VIP:$vip ⭐${rating.toStringAsFixed(1)} 📍${user.distanceKm.toStringAsFixed(1)}km');
+        }
       }
+
+      // 8. ⚠️ REMOÇÃO DO LIMITE CLIENT-SIDE
+      // O limite é aplicado no servidor, então não limitamos aqui
+      // Isso garante que apenas o servidor controla o acesso
 
       // 9. Atualizar cache
       _usersCache = UsersCache(
@@ -211,9 +217,10 @@ class LocationQueryService {
           '✅ LocationQueryService: ${finalUsers.length} usuários retornados após todos os filtros');
 
       return finalUsers;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ LocationQueryService: Erro ao buscar usuários: $e');
-      return [];
+      debugPrint('❌ LocationQueryService: StackTrace: $stackTrace');
+      rethrow; // Propaga o erro para o controller tratar
     }
   }
 
@@ -342,252 +349,17 @@ class LocationQueryService {
     }
   }
 
-  /// Query Firestore com bounding box (primeira filtragem) na coleção Users
-  Future<List<UserLocation>> _filterUsersByBoundingBox(
-    Map<String, double> boundingBox,
-    String currentUserId,
-  ) async {
-    debugPrint('📦 LocationQueryService: Bounding Box: $boundingBox');
-
-    final usersQuery = await FirebaseFirestore.instance
-        .collection('Users')
-        .where('latitude', isGreaterThanOrEqualTo: boundingBox['minLat'])
-        .where('latitude', isLessThanOrEqualTo: boundingBox['maxLat'])
-        .get();
-
-    debugPrint('📦 LocationQueryService: Firestore returned ${usersQuery.docs.length} users based on latitude');
-
-    final users = <UserLocation>[];
-
-    for (final doc in usersQuery.docs) {
-      // Pular o próprio usuário
-      if (doc.id == currentUserId) {
-        debugPrint('⏭️  LocationQueryService: Pulando próprio usuário ${doc.id}');
-        continue;
-      }
-
-      final data = doc.data();
-      final latitude = data['latitude'] as double?;
-      final longitude = data['longitude'] as double?;
-
-      if (latitude == null || longitude == null) {
-         debugPrint('⚠️ LocationQueryService: User ${doc.id} missing lat/lng');
-         continue;
-      }
-
-      // Filtro adicional de longitude (Firestore só permite 1 range query)
-      if (longitude >= boundingBox['minLng']! &&
-          longitude <= boundingBox['maxLng']!) {
-        users.add(
-          UserLocation(
-            userId: doc.id,
-            latitude: latitude,
-            longitude: longitude,
-            userData: data,
-          ),
-        );
-      } else {
-         debugPrint('⚠️ LocationQueryService: User ${doc.id} excluded by longitude. User Lng: $longitude, Range: ${boundingBox['minLng']} - ${boundingBox['maxLng']}');
-      }
-    }
-
-    debugPrint(
-        '📦 LocationQueryService: ${users.length} usuários candidatos do Firestore (Bounding Box)');
-
-    return users;
-  }
-
   // --- FILTROS EM MEMÓRIA (Baseados nos dados do usuário) ---
 
-  List<UserLocation> _filterByGender(List<UserLocation> users, String? gender) {
-    if (gender == null || gender == 'all') {
-      debugPrint('🔍 _filterByGender: Filtro desabilitado (gender=$gender)');
-      return users;
-    }
-    
-    debugPrint('🔍 _filterByGender: Filtrando ${users.length} usuários por gender=$gender');
-    
-    // Mapeamento: valores do filtro (EN) → valores salvos no Firestore (PT)
-    final Map<String, List<String>> genderMap = {
-      'male': ['Masculino', 'male', 'M'],
-      'female': ['Feminino', 'female', 'F'],
-      'non_binary': ['Não-binário', 'non_binary', 'Non-binary', 'NB'],
-    };
-    
-    final acceptedValues = genderMap[gender] ?? [];
-    
-    final filtered = users.where((u) {
-      final userGender = u.userData['gender'] as String?;
-      
-      if (userGender == null) {
-        debugPrint('   ❌ User ${u.userId}: gender=null (campo ausente)');
-        return false;
-      }
-      
-      final matches = acceptedValues.contains(userGender);
-      
-      if (!matches) {
-        debugPrint('   ❌ User ${u.userId}: gender=$userGender NÃO match com filtro $gender (aceita: $acceptedValues)');
-      } else {
-        debugPrint('   ✅ User ${u.userId}: gender=$userGender MATCH!');
-      }
-      
-      return matches;
-    }).toList();
-    
-    debugPrint('🔍 _filterByGender: ${filtered.length} usuários passaram no filtro');
-    return filtered;
-  }
 
-  List<UserLocation> _filterBySexualOrientation(List<UserLocation> users, String? orientation) {
-    if (orientation == null || orientation == 'all') {
-      debugPrint('🔍 _filterBySexualOrientation: Filtro desabilitado (orientation=$orientation)');
-      return users;
-    }
-    
-    debugPrint('🔍 _filterBySexualOrientation: Filtrando ${users.length} usuários por orientation=$orientation');
-    
-    final filtered = users.where((u) {
-      final userOrientation = u.userData['sexualOrientation'] as String?;
-      
-      if (userOrientation == null) {
-        debugPrint('   ❌ User ${u.userId}: sexualOrientation=null (campo ausente)');
-        return false;
-      }
-      
-      // Comparação exata (case sensitive ou insensitive dependendo da necessidade)
-      // Assumindo que os valores salvos são os mesmos das constantes
-      final matches = userOrientation == orientation;
-      
-      if (!matches) {
-        debugPrint('   ❌ User ${u.userId}: orientation=$userOrientation NÃO match com filtro $orientation');
-      } else {
-        debugPrint('   ✅ User ${u.userId}: orientation=$userOrientation MATCH!');
-      }
-      
-      return matches;
-    }).toList();
-    
-    debugPrint('🔍 _filterBySexualOrientation: ${filtered.length} usuários passaram no filtro');
-    return filtered;
-  }
 
-  List<UserLocation> _filterByAge(List<UserLocation> users, int? min, int? max) {
-    if (min == null && max == null) {
-      debugPrint('🔍 _filterByAge: Filtro desabilitado (min=null, max=null)');
-      return users;
-    }
-    
-    debugPrint('🔍 _filterByAge: Filtrando ${users.length} usuários com faixa ${min ?? 0}-${max ?? 100}');
-    
-    final filtered = users.where((u) {
-      // Tentar múltiplas formas de obter idade
-      dynamic ageValue = u.userData['age'];
-      
-      // Se age não existir, tentar calcular de birthYear
-      if (ageValue == null) {
-        final birthYear = u.userData['birthYear'];
-        if (birthYear != null) {
-          final currentYear = DateTime.now().year;
-          final parsedYear = birthYear is int ? birthYear : int.tryParse(birthYear.toString());
-          if (parsedYear != null) {
-            ageValue = currentYear - parsedYear;
-            debugPrint('🔍 User ${u.userId}: age calculada de birthYear: $ageValue');
-          }
-        }
-      }
-      
-      if (ageValue == null) {
-        debugPrint('❌ User ${u.userId}: age e birthYear são NULL');
-        return false;
-      }
-      
-      // Converter para int
-      final age = ageValue is int ? ageValue : int.tryParse(ageValue.toString());
-      
-      if (age == null) {
-        debugPrint('❌ User ${u.userId}: Não foi possível converter age para int (valor: $ageValue)');
-        return false;
-      }
-      
-      final userMin = min ?? 0;
-      final userMax = max ?? 100;
-      
-      final isInRange = age >= userMin && age <= userMax;
-      
-      if (!isInRange) {
-        debugPrint('❌ User ${u.userId}: age=$age FORA da faixa $userMin-$userMax');
-      } else {
-        debugPrint('✅ User ${u.userId}: age=$age DENTRO da faixa $userMin-$userMax');
-      }
-      
-      return isInRange;
-    }).toList();
-    
-    debugPrint('🔍 _filterByAge: ${filtered.length} usuários passaram no filtro');
-    return filtered;
-  }
 
-  List<UserLocation> _filterByVerified(List<UserLocation> users, bool? isVerified) {
-    if (isVerified == null || !isVerified) {
-      debugPrint('🔍 _filterByVerified: Filtro desabilitado (isVerified=$isVerified)');
-      return users;
-    }
-    
-    debugPrint('🔍 _filterByVerified: Filtrando ${users.length} usuários por user_is_verified=true');
-    
-    final filtered = users.where((u) {
-      // Verificar ambos os campos (prioridade para user_is_verified)
-      final userIsVerified = u.userData['user_is_verified'] == true || 
-                            u.userData['isVerified'] == true;
-      
-      if (!userIsVerified) {
-        debugPrint('   ❌ User ${u.userId}: user_is_verified=false (NÃO verificado)');
-      } else {
-        debugPrint('   ✅ User ${u.userId}: user_is_verified=true (VERIFICADO)');
-      }
-      
-      return userIsVerified;
-    }).toList();
-    
-    debugPrint('🔍 _filterByVerified: ${filtered.length} usuários passaram no filtro');
-    return filtered;
-  }
 
-  List<UserLocation> _filterByInterests(List<UserLocation> users, List<String>? interests) {
-    if (interests == null || interests.isEmpty) return users;
-    
-    return users.where((u) {
-      final userInterests = List<String>.from(u.userData['interests'] ?? []);
-      // Retorna true se tiver pelo menos um interesse em comum
-      return userInterests.any((i) => interests.contains(i));
-    }).toList();
-  }
 
-  /// Filtra usuários com isolate (segunda filtragem precisa)
-  Future<List<UserWithDistance>> _filterUsersByDistanceIsolate({
-    required List<UserLocation> users,
-    required double centerLat,
-    required double centerLng,
-    required double radiusKm,
-  }) async {
-    if (users.isEmpty) return [];
 
-    final request = UserDistanceFilterRequest(
-      users: users,
-      centerLat: centerLat,
-      centerLng: centerLng,
-      radiusKm: radiusKm,
-    );
 
-    // Usar compute() para executar em isolate
-    final filteredUsers = await compute(filterUsersByDistance, request);
 
-    debugPrint(
-        '🎯 LocationQueryService: ${filteredUsers.length} usuários filtrados por distância (Isolate)');
 
-    return filteredUsers;
-  }
 
   /// Invalida cache de localização
   void _invalidateLocationCache() {
