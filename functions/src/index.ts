@@ -444,3 +444,7 @@ export * from "./get_people";
 export * from "./webhooks/faceio-webhook";
 export * from "./didit-webhook";
 export * from "./webhooks/revenuecat-webhook";
+
+// ===== MIGRATIONS =====
+// Funções de migração de dados
+export * from "./migrations/fixWebMercatorCoordinates";

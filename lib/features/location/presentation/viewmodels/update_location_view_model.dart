@@ -165,6 +165,27 @@ class UpdateLocationViewModel extends ChangeNotifier {
         throw Exception('Estado está vazio. Não é possível salvar localização sem estado.');
       }
       
+      // 🚨 VALIDAÇÃO PRÉ-OFFSET: Garantir que valores são lat/lng válidos
+      if (latitude < -90 || latitude > 90) {
+        throw Exception(
+          'Latitude inválida: $latitude. '
+          'Deve estar entre -90 e +90. '
+          'Possível bug: coordenada projetada sendo usada como latitude.'
+        );
+      }
+      
+      if (longitude < -180 || longitude > 180) {
+        throw Exception(
+          'Longitude inválida: $longitude. '
+          'Deve estar entre -180 e +180. '
+          'Possível bug: coordenada projetada sendo usada como longitude.'
+        );
+      }
+      
+      AppLogger.info('✅ Validação de coordenadas passou:', tag: 'UpdateLocationVM');
+      AppLogger.info('   Latitude: $latitude (válida)', tag: 'UpdateLocationVM');
+      AppLogger.info('   Longitude: $longitude (válida)', tag: 'UpdateLocationVM');
+      
       // 🔒 Gerar coordenadas display com offset determinístico
       final displayCoords = LocationOffsetHelper.generateDisplayLocation(
         realLat: latitude,

@@ -9,3 +9,4 @@ export {
   removeUserApplication,
   removeParticipant,
 } from "./removeUserApplication";
+export {deactivateExpiredEvents} from "./deactivateExpiredEvents";

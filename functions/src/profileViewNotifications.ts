@@ -127,6 +127,19 @@ export const processProfileViewNotifications = functions
           continue;
         }
 
+        // ✅ NOVO: Deletar notificações anteriores do mesmo tipo
+        // Garante UMA notificação com o count agregado
+        const existingNotifs = await db
+          .collection("Notifications")
+          .where("n_receiver_id", "==", userId)
+          .where("n_type", "==", "profile_views_aggregated")
+          .get();
+
+        for (const existingDoc of existingNotifs.docs) {
+          batch.delete(existingDoc.ref);
+          console.log(`🗑️ Deletando notif: ${existingDoc.id}`);
+        }
+
         // Cria notificação agregada
         const notificationRef = db
           .collection("Notifications")
@@ -284,6 +297,19 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
             "visualizações (mínimo: 1)"
           );
           continue;
+        }
+
+        // ✅ NOVO: Deletar notificações anteriores do mesmo tipo
+        // Garante UMA notificação com o count agregado
+        const existingNotifs = await db
+          .collection("Notifications")
+          .where("n_receiver_id", "==", userId)
+          .where("n_type", "==", "profile_views_aggregated")
+          .get();
+
+        for (const existingDoc of existingNotifs.docs) {
+          batch.delete(existingDoc.ref);
+          console.log(`🗑️ Deletando notif: ${existingDoc.id}`);
         }
 
         const notificationRef = db

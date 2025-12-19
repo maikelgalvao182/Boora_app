@@ -350,23 +350,86 @@ class UserStore {
   void preloadAvatar(String userId, String avatarUrl) {
     if (userId.isEmpty || avatarUrl.isEmpty) return;
     
-    final entry = _users[userId];
-    if (entry != null && entry.avatarUrl != avatarUrl) {
-      // Atualiza URL do avatar se mudou
-      final newProvider = NetworkImage(avatarUrl);
-      entry.avatarUrl = avatarUrl;
-      entry.avatarProvider = newProvider;
-      
-      // Notifica mudança
-      _avatarNotifiers[userId]?.value = newProvider;
-      _avatarEntryNotifiers[userId]?.value = AvatarEntry(
-        AvatarState.loaded,
-        newProvider,
+    final provider = NetworkImage(avatarUrl);
+
+    // Garantir que entry existe (com valores mínimos)
+    if (!_users.containsKey(userId)) {
+      _users[userId] = UserEntry(
+        avatarUrl: avatarUrl,
+        avatarProvider: provider,
+        lastUpdated: DateTime.now(),
       );
-      
-      // ✅ CRÍTICO: Notificar invalidação de avatar para listeners externos
-      // (ex: GoogleMapView para regenerar markers)
-      _avatarInvalidationNotifier.value = userId;
+    } else {
+      final entry = _users[userId]!;
+      if (entry.avatarUrl != avatarUrl) {
+        entry.avatarUrl = avatarUrl;
+        entry.avatarProvider = provider;
+      }
+    }
+    
+    // ✅ CRÍTICO: Garantir que o notifier existe E está com estado correto
+    // Isso evita que _ensureListening sobrescreva com loading
+    final avatarEntry = AvatarEntry(AvatarState.loaded, provider);
+    
+    if (_avatarEntryNotifiers.containsKey(userId)) {
+      // Atualiza notifier existente
+      _avatarEntryNotifiers[userId]!.value = avatarEntry;
+    } else {
+      // Cria notifier já com estado loaded
+      _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(avatarEntry);
+    }
+    
+    // Atualiza também o notifier de ImageProvider
+    if (_avatarNotifiers.containsKey(userId)) {
+      _avatarNotifiers[userId]!.value = provider;
+    } else {
+      _avatarNotifiers[userId] = ValueNotifier<ImageProvider>(provider);
+    }
+    
+    // ✅ CRÍTICO: Notificar invalidação de avatar para listeners externos
+    // (ex: GoogleMapView para regenerar markers)
+    _avatarInvalidationNotifier.value = userId;
+  }
+
+  /// Preload nome do usuário (útil para otimização)
+  void preloadName(String userId, String fullName) {
+    if (userId.isEmpty || fullName.isEmpty) return;
+    
+    // Garantir que entry existe (com valores mínimos)
+    if (!_users.containsKey(userId)) {
+      _users[userId] = UserEntry(
+        avatarUrl: '',
+        avatarProvider: const AssetImage('assets/images/empty_avatar.jpg'),
+        lastUpdated: DateTime.now(),
+        name: fullName,
+      );
+    }
+    
+    final entry = _users[userId]!;
+    if (entry.name != fullName) {
+      entry.name = fullName;
+      _nameNotifiers[userId]?.value = fullName;
+    }
+  }
+
+  /// Preload status de verificado (útil para otimização)
+  void preloadVerified(String userId, bool verified) {
+    if (userId.isEmpty) return;
+    
+    // Garantir que entry existe (com valores mínimos)
+    if (!_users.containsKey(userId)) {
+      _users[userId] = UserEntry(
+        avatarUrl: '',
+        avatarProvider: const AssetImage('assets/images/empty_avatar.jpg'),
+        lastUpdated: DateTime.now(),
+        isVerified: verified,
+      );
+    }
+    
+    final entry = _users[userId]!;
+    if (entry.isVerified != verified) {
+      entry.isVerified = verified;
+      _verifiedNotifiers[userId]?.value = verified;
     }
   }
 
@@ -384,16 +447,32 @@ class UserStore {
     }
     
     // Cria entry inicial se não existir
+    // ✅ Se já existe (preloadAvatar chamado antes), mantém os dados existentes
     _users.putIfAbsent(userId, () => UserEntry(
       avatarUrl: '',
       // Inicializa como loading (não empty)
       avatarProvider: _loadingPlaceholder,
       lastUpdated: DateTime.now(),
     ));
-    // Garante entry notifier inicial
-    _avatarEntryNotifiers.putIfAbsent(userId, () => ValueNotifier<AvatarEntry>(
-      AvatarEntry(AvatarState.loading, _loadingPlaceholder),
-    ));
+    
+    // ✅ CRÍTICO: Só cria notifier se não existir
+    // Se preloadAvatar já foi chamado, o notifier já existe com estado loaded
+    // Não devemos sobrescrever com loading
+    if (!_avatarEntryNotifiers.containsKey(userId)) {
+      // Verifica se já temos dados carregados (preloadAvatar pode ter sido chamado)
+      final existingUser = _users[userId];
+      if (existingUser != null && existingUser.avatarUrl.isNotEmpty) {
+        // Já temos avatar, cria com estado loaded
+        _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(
+          AvatarEntry(AvatarState.loaded, existingUser.avatarProvider),
+        );
+      } else {
+        // Não temos avatar ainda, cria com estado loading
+        _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(
+          AvatarEntry(AvatarState.loading, _loadingPlaceholder),
+        );
+      }
+    }
 
     _startFirestoreListener(userId);
   }

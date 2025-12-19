@@ -172,6 +172,8 @@ class EventApplicationRepository {
   }
 
   /// Conta participantes aprovados de um evento
+  /// 
+  /// IMPORTANTE: Inclui o criador do evento (+1) que não tem EventApplication
   Future<int> _getApprovedParticipantsCount(String eventId) async {
     try {
       final querySnapshot = await _firestore
@@ -180,7 +182,10 @@ class EventApplicationRepository {
           .where('status', whereIn: ['approved', 'autoApproved'])
           .get();
       
-      return querySnapshot.docs.length;
+      // +1 para incluir o criador do evento (que não tem EventApplication)
+      final count = querySnapshot.docs.length + 1;
+      debugPrint('📊 [_getApprovedParticipantsCount] Evento $eventId: ${querySnapshot.docs.length} aplicações + 1 criador = $count total');
+      return count;
     } catch (e) {
       debugPrint('❌ Erro ao contar participantes: $e');
       return 0;

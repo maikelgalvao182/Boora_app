@@ -116,9 +116,12 @@ class MapDiscoveryService {
   /// 
   /// Firestore suporta apenas 1 range query por vez,
   /// então fazemos a query por latitude e filtramos longitude em código.
+  /// 
+  /// Filtra eventos com isActive = false (desativados pela Cloud Function)
   Future<List<EventLocation>> _queryFirestore(MapBounds bounds) async {
     final query = await _firestore
         .collection('events')
+        .where('isActive', isEqualTo: true) // ⭐ Filtrar apenas eventos ativos
         .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
         .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
         .limit(maxEventsPerQuery)

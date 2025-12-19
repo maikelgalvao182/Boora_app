@@ -242,19 +242,33 @@ class ActivityNotificationService {
     required int currentCount,
   }) async {
     try {
+      print('🔥 [ActivityNotificationService.notifyActivityHeatingUp] CHAMADO');
+      print('🔥 [ActivityNotificationService.notifyActivityHeatingUp] Activity: ${activity.id} - ${activity.name}');
+      print('🔥 [ActivityNotificationService.notifyActivityHeatingUp] CurrentCount: $currentCount');
+      print('🔥 [ActivityNotificationService.notifyActivityHeatingUp] Thresholds: ${ActivityNotificationTypes.heatingUpThresholds}');
+      
       // Verifica se atingiu um threshold
       if (!ActivityNotificationTypes.heatingUpThresholds.contains(currentCount)) {
+        print('⏭️ [ActivityNotificationService.notifyActivityHeatingUp] Count $currentCount NÃO é threshold, ignorando');
         return;
       }
+      
+      print('✅ [ActivityNotificationService.notifyActivityHeatingUp] Count $currentCount É THRESHOLD! Disparando trigger...');
 
       final trigger = _triggers[ActivityNotificationTypes.activityHeatingUp];
-      if (trigger == null) return;
+      if (trigger == null) {
+        print('❌ [ActivityNotificationService.notifyActivityHeatingUp] Trigger não encontrado!');
+        return;
+      }
 
       await trigger.execute(activity, {
         'currentCount': currentCount,
       });
-    } catch (e) {
-      print('[ActivityNotificationService] Erro ao notificar heating up: $e');
+      
+      print('✅ [ActivityNotificationService.notifyActivityHeatingUp] Trigger executado com sucesso');
+    } catch (e, stackTrace) {
+      print('❌ [ActivityNotificationService.notifyActivityHeatingUp] ERRO: $e');
+      print('❌ [ActivityNotificationService.notifyActivityHeatingUp] StackTrace: $stackTrace');
     }
   }
 

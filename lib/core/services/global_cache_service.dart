@@ -217,4 +217,7 @@ class CacheKeys {
   // Atividades
   static const String myActivities = 'my_activities';
   static String activityDetails(String activityId) => 'activity_$activityId';
+  
+  // Galeria
+  static String userGallery(String identifier) => 'gallery_$identifier';
 }

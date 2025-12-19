@@ -14,7 +14,7 @@ import 'package:partiu/features/notifications/triggers/base_activity_trigger.dar
 /// REGRAS DE NEGÓCIO:
 /// 1. ✅ Notifica apenas usuários que NÃO estão no evento (não têm EventApplication)
 /// 2. ✅ Aplica filtro geográfico (30km de raio usando GeoIndexService)
-/// 3. ✅ Aplica filtro de afinidade (interesses em comum com criador usando UserAffinityService)
+/// 3. ❌ NÃO aplica filtro de afinidade - é notificação de FOMO/buzz para alcançar mais pessoas
 /// 
 /// Formato da notificação:
 /// Linha 1 (activityText): Nome da atividade + emoji (ex: "Correr no parque 🏃")
@@ -26,11 +26,14 @@ class ActivityHeatingUpTrigger extends BaseActivityTrigger {
     required super.notificationRepository,
     required super.firestore,
     required GeoIndexService geoIndexService,
+    // ignore: unused_field - Mantido para compatibilidade da interface
     required UserAffinityService affinityService,
   })  : _geoIndexService = geoIndexService,
+        // ignore: unused_field
         _affinityService = affinityService;
 
   final GeoIndexService _geoIndexService;
+  // ignore: unused_field - Não usado desde remoção do filtro de afinidade
   final UserAffinityService _affinityService;
 
   @override
@@ -78,19 +81,11 @@ class ActivityHeatingUpTrigger extends BaseActivityTrigger {
         return;
       }
 
-      // PASSO 3: Aplicar filtro de afinidade (interesses em comum)
-      print('🔥 [ActivityHeatingUpTrigger.execute] Aplicando filtro de afinidade...');
-      final affinityMap = await _affinityService.calculateAffinityMap(
-        creatorId: activity.createdBy,
-        candidateUserIds: usersInRadius,
-      );
-      final targetUsers = affinityMap.keys.toList();
-      print('🔥 [ActivityHeatingUpTrigger.execute] Usuários com afinidade: ${targetUsers.length}');
-
-      if (targetUsers.isEmpty) {
-        print('⚠️ [ActivityHeatingUpTrigger.execute] Nenhum usuário com afinidade encontrado');
-        return;
-      }
+      // PASSO 3: Para "heating up", NÃO aplicamos filtro de afinidade
+      // Diferente de "activity_created", este trigger é para gerar FOMO/buzz
+      // e deve alcançar mais pessoas no raio, não apenas quem tem interesses em comum
+      final targetUsers = usersInRadius;
+      print('🔥 [ActivityHeatingUpTrigger.execute] Usuários alvo (todos no raio): ${targetUsers.length}');
 
       // PASSO 4: Buscar dados do criador
       print('🔥 [ActivityHeatingUpTrigger.execute] Buscando dados do criador: ${activity.createdBy}');
@@ -134,7 +129,6 @@ class ActivityHeatingUpTrigger extends BaseActivityTrigger {
       print('📊 [ActivityHeatingUpTrigger.execute] Resumo:');
       print('   • Participantes no evento: ${eventParticipants.length}');
       print('   • Usuários no raio (30km): ${usersInRadius.length}');
-      print('   • Usuários com afinidade: ${targetUsers.length}');
       print('   • Notificações enviadas: $sent');
     } catch (e, stackTrace) {
       print('❌ [ActivityHeatingUpTrigger.execute] ERRO: $e');

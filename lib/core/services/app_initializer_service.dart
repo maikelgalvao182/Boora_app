@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/list_drawer/list_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/people_button_controller.dart';
+import 'package:partiu/features/home/presentation/screens/find_people/find_people_controller.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/common/state/app_state.dart';
@@ -34,6 +36,7 @@ class AppInitializerService {
   /// 2. Inicializa ListDrawerController (eventos do usuário)
   /// 3. Pré-carrega avatar do usuário (HomeAppBar)
   /// 4. Pré-carrega PeopleButton (usuário recente + contagem)
+  /// 4.5 Pré-carrega FindPeopleController (lista de pessoas + avatares)
   /// 5. Pré-carrega PeopleRankingViewModel (ranking e cidades)
   /// 6. Pré-carrega LocationsRankingViewModel (ranking de locais)
   /// 7. Pré-carrega ConversationsViewModel (conversas)
@@ -50,10 +53,20 @@ class AppInitializerService {
   /// ✅ RESTRIÇÕES DE IDADE: Pré-calculadas no _enrichEvents do MapViewModel
   /// para eliminar flash no botão do EventCard
   /// 
+  /// ✅ FIND PEOPLE: Lista pré-carregada com avatares no UserStore
+  /// para eliminar shimmer ao abrir a tela FindPeopleScreen
+  /// 
   /// Quando este método terminar, o mapa já estará pronto para exibir
   Future<void> initialize() async {
     try {
       debugPrint('🚀 [AppInitializer] Iniciando bootstrap do app...');
+      
+      // 🔒 Configura limite global do ImageCache (evita memory leak com preload)
+      // Máximo 200 imagens ou 50MB em memória
+      PaintingBinding.instance.imageCache
+        ..maximumSize = 200
+        ..maximumSizeBytes = 50 << 20; // 50MB
+      debugPrint('🖼️ [AppInitializer] ImageCache configurado: max 200 imagens / 50MB');
       
       // 0. Aguarda autenticação estar completa antes de fazer qualquer query
       final auth = FirebaseAuth.instance;
@@ -111,6 +124,18 @@ class AppInitializerService {
         debugPrint('   - Pessoas próximas: ${peopleButtonController.nearbyCount}');
       } catch (e) {
         debugPrint('⚠️ [AppInitializer] Erro ao pré-carregar PeopleButton: $e');
+      }
+      
+      // 4.5 Pré-carrega FindPeopleController (lista de pessoas + avatares)
+      debugPrint('🔍 [AppInitializer] Pré-carregando FindPeopleController...');
+      try {
+        final findPeopleController = FindPeopleController();
+        await findPeopleController.preload();
+        debugPrint('✅ [AppInitializer] FindPeopleController pré-carregado');
+        debugPrint('   - Pessoas na região: ${findPeopleController.count}');
+        debugPrint('   - Avatares pré-carregados no UserStore');
+      } catch (e) {
+        debugPrint('⚠️ [AppInitializer] Erro ao pré-carregar FindPeopleController: $e');
       }
       
       // 5. Pré-carrega PeopleRankingViewModel (ranking e cidades para filtro)

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:developer' show unawaited;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:partiu/services/location/geo_utils.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/utils/interests_helper.dart';
@@ -11,6 +13,7 @@ import 'package:partiu/services/location/interests_isolate.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/shared/services/user_data_service.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Controller para gerenciar a lista de pessoas próximas
 /// 
@@ -83,11 +86,18 @@ class FindPeopleController {
   // 🚀 OTIMIZAÇÃO 3: CacheById para updates granulares (VendorDiscovery style)
   final Map<String, User> _cacheById = {};
   final List<String> _visibleIds = [];
+  
+  // 🔒 Controle de downloads em andamento (evita duplicação)
+  final Set<String> _downloading = {};
 
   // Estado usando ValueNotifiers para rebuild granular
   final ValueNotifier<bool> isLoading = ValueNotifier(true);
   final ValueNotifier<String?> error = ValueNotifier(null);
   final ValueNotifier<List<User>> users = ValueNotifier([]);
+  
+  /// 🖼️ Flag indicando que avatares primários estão prontos no ImageCache
+  /// Use para evitar shimmer/skeleton nos cards
+  final ValueNotifier<bool> avatarsReady = ValueNotifier(false);
   
   // Flag para evitar reload desnecessário
   bool _isInitialized = false;
@@ -95,6 +105,157 @@ class FindPeopleController {
   // Getters
   List<String> get userIds => users.value.map((u) => u.userId).toList();
   bool get isEmpty => users.value.isEmpty && !isLoading.value;
+  
+  /// Getter para acesso rápido à lista de usuários (usado pelo AppInitializer)
+  List<User> get usersList => users.value;
+  
+  /// Getter para contagem de usuários (usado pelo AppInitializer)
+  int get count => users.value.length;
+  
+  /// Pré-carrega dados da lista de pessoas (usado pelo AppInitializer)
+  /// 
+  /// 🚀 Aguarda carregamento inicial e pré-carrega avatares no UserStore
+  /// para eliminar flash ao abrir a tela FindPeopleScreen
+  /// 
+  /// Retorna quando:
+  /// - Dados já estão carregados (cache hit)
+  /// - Dados foram carregados do Firestore
+  /// - Timeout de 5 segundos
+  Future<void> preload() async {
+    debugPrint('🙋 [FindPeopleController] Preload iniciado...');
+    
+    // Se já tem dados, só pré-carregar avatares
+    if (!isLoading.value && users.value.isNotEmpty) {
+      debugPrint('🙋 [FindPeopleController] Dados já carregados, pré-carregando avatares...');
+      await _preloadAvatars();
+      return;
+    }
+    
+    // Aguardar carregamento inicial (max 5 segundos)
+    int attempts = 0;
+    const maxAttempts = 50; // 50 * 100ms = 5s
+    
+    while (isLoading.value && attempts < maxAttempts) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+    
+    if (attempts >= maxAttempts) {
+      debugPrint('⚠️ [FindPeopleController] Timeout no preload (5s)');
+      return;
+    }
+    
+    // Pré-carregar avatares após dados carregados
+    await _preloadAvatars();
+    
+    debugPrint('✅ [FindPeopleController] Preload concluído');
+  }
+  
+  /// Pré-carrega avatares dos usuários no UserStore
+  /// 
+  /// 🚀 DOWNLOAD REAL das imagens (não apenas URL no cache)
+  /// 
+  /// Usa ImageProvider.resolve para forçar o download dos bytes
+  /// antes da tela abrir, eliminando completamente o shimmer.
+  /// 
+  /// Estratégia de prioridade:
+  /// - Primeiros 10: download imediato (visíveis na tela)
+  /// - Próximos 10: download em background (scroll provável)
+  /// 
+  /// Atualiza `avatarsReady` para true após primários carregados
+  Future<void> _preloadAvatars() async {
+    final userStore = UserStore.instance;
+    final urlsToPreload = <String>[];
+    
+    // 🔒 Guard: evita edge case em listas vazias/pequenas
+    final userCount = users.value.length;
+    if (userCount == 0) {
+      debugPrint('🖼️ [FindPeopleController] Lista vazia, nada para pré-carregar');
+      avatarsReady.value = true;
+      return;
+    }
+    
+    final limit = userCount > 20 ? 20 : userCount;
+    
+    // Coletar URLs (máximo 20, priorizando os primeiros)
+    for (final user in users.value.take(limit)) {
+      if (user.photoUrl.isNotEmpty) {
+        // 1. Registra no UserStore (metadata)
+        userStore.preloadAvatar(user.userId, user.photoUrl);
+        urlsToPreload.add(user.photoUrl);
+      }
+    }
+    
+    if (urlsToPreload.isEmpty) {
+      debugPrint('🖼️ [FindPeopleController] Nenhum avatar para pré-carregar');
+      avatarsReady.value = true;
+      return;
+    }
+    
+    debugPrint('🖼️ [FindPeopleController] Iniciando download de ${urlsToPreload.length} avatares...');
+    
+    // 2. Prioridade: primeiros 10 (visíveis imediatamente)
+    final primary = urlsToPreload.take(10).toList();
+    final secondary = urlsToPreload.skip(10).toList();
+    
+    // Download dos primeiros 10 em paralelo (crítico para UX)
+    await Future.wait(primary.map((url) => _downloadImage(url)));
+    
+    // ✅ Marcar avatares primários como prontos
+    avatarsReady.value = true;
+    debugPrint('✅ [FindPeopleController] ${primary.length} avatares primários prontos (avatarsReady=true)');
+    
+    // Download dos próximos 10 em background (não bloqueia)
+    // 🔒 unawaited: deixa claro que secundários não são críticos
+    if (secondary.isNotEmpty) {
+      unawaited(
+        Future.wait(secondary.map((url) => _downloadImage(url))).then((_) {
+          debugPrint('✅ [FindPeopleController] ${secondary.length} avatares secundários prontos');
+        }),
+      );
+      });
+    }
+  }
+  
+  /// Força o download de uma imagem para o ImageCache
+  /// 
+  /// 🔒 Características de segurança:
+  /// - Evita download duplicado (Set _downloading)
+  /// - Remove listener em TODOS os cenários (finally)
+  /// - Timeout de 5 segundos por imagem
+  /// - Erros silenciosos (preload não quebra UX)
+  Future<void> _downloadImage(String url) async {
+    // 🔒 Evita download duplicado
+    if (_downloading.contains(url)) return;
+    _downloading.add(url);
+    
+    final imageProvider = NetworkImage(url);
+    final stream = imageProvider.resolve(ImageConfiguration.empty);
+    late ImageStreamListener listener;
+    final completer = Completer<void>();
+    
+    listener = ImageStreamListener(
+      (_, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onError: (_, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+    
+    stream.addListener(listener);
+    
+    try {
+      await completer.future.timeout(const Duration(seconds: 5));
+    } catch (e) {
+      // Timeout ou erro - silencioso
+      debugPrint('⚠️ [Preload] Timeout/erro ao baixar: $url');
+    } finally {
+      // 🔒 CRÍTICO: sempre remove listener (evita leak)
+      stream.removeListener(listener);
+      _downloading.remove(url);
+    }
+  }
 
   /// Inicializa stream de usuários próximos
   void _initializeStream() {

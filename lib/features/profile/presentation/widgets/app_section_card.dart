@@ -7,6 +7,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
 import 'package:partiu/features/profile/presentation/viewmodels/app_section_view_model.dart';
 import 'package:partiu/features/profile/presentation/widgets/dialogs/delete_account_confirm_dialog.dart';
+import 'package:partiu/features/auth/presentation/widgets/app_evaluation_widget.dart';
 import 'package:partiu/app/services/locale_service.dart';
 import 'package:partiu/shared/widgets/dialogs/language_selector_dialog.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
@@ -19,12 +20,14 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/constants/push_types.dart';
 import 'package:partiu/core/services/push_preferences_service.dart';
 import 'package:partiu/core/managers/session_manager.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class AppSectionCard extends StatefulWidget {
   const AppSectionCard({super.key});
@@ -185,14 +188,12 @@ class _AppSectionCardState extends State<AppSectionCard> {
                 title: Platform.isAndroid
                     ? (i18n.translate('rate_on_play_store') ?? 'Avaliar na Play Store')
                     : (i18n.translate('rate_on_app_store') ?? 'Avaliar na App Store'),
-                onTap: () async {
-                  _appHelper.reviewApp();
-                },
+                onTap: () => _showReviewDialog(context),
               ),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
-              _buildListItem(
+              _buildListItemWithImage(
                 context,
-                icon: Iconsax.video_play,
+                imagePath: 'assets/svg/tiktok2.svg',
                 title: i18n.translate('follow_us_on_tiktok') ?? 'Seguir no TikTok',
                 onTap: () async {
                   _appHelper.openUrl('https://www.tiktok.com/@booraapp');
@@ -201,7 +202,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
               _buildListItem(
                 context,
-                icon: Iconsax.camera,
+                icon: IconsaxPlusLinear.instagram,
                 title: i18n.translate('follow_us_on_instagram') ?? 'Seguir no Instagram',
                 onTap: () async {
                   _appHelper.openUrl('https://www.instagram.com/booraapp');
@@ -413,6 +414,28 @@ class _AppSectionCardState extends State<AppSectionCard> {
     }
   }
   
+  /// Mostra dialog de avaliação do app
+  void _showReviewDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 600),
+          child: const SingleChildScrollView(
+            padding: EdgeInsets.all(20),
+            child: AppEvaluationWidget(
+              isBride: false, // Vendor/Creator flow
+              shouldAutoRequestReview: true,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
   Future<void> _updatePushPreference(PushType type, bool enabled) async {
     // 1. Update Firestore
     await PushPreferencesService.setEnabled(type, enabled);
@@ -527,6 +550,66 @@ class _AppSectionCardState extends State<AppSectionCard> {
                     size: 20,
                     color: iconColor ?? Colors.black,
                   ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: textColor ?? Colors.black,
+                  ),
+                ),
+              ],
+            ),
+            Icon(Iconsax.arrow_right_3, size: 20, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildListItemWithImage(BuildContext context, {
+    required String imagePath, 
+    required String title, 
+    required VoidCallback? onTap,
+    Color? textColor,
+  }) {
+    final isSvg = imagePath.endsWith('.svg');
+    
+    return InkWell(
+      onTap: onTap != null
+          ? () {
+              HapticFeedback.lightImpact();
+              onTap();
+            }
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: GlimpseColors.lightTextField,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: isSvg
+                      ? SvgPicture.asset(
+                          imagePath,
+                          width: 20,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        )
+                      : Image.asset(
+                          imagePath,
+                          width: 20,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Text(

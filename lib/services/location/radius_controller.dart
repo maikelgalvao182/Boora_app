@@ -48,7 +48,8 @@ class RadiusController extends ChangeNotifier {
 
       final savedRadius = settings?['radiusKm'] as num?;
       if (savedRadius != null) {
-        _radiusKm = savedRadius.toDouble();
+        // Garante que o valor carregado respeite os limites atuais
+        _radiusKm = savedRadius.toDouble().clamp(minRadius, maxRadius);
         notifyListeners();
         _radiusStreamController.add(_radiusKm);
       }

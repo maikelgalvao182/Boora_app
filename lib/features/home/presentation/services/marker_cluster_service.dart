@@ -60,6 +60,11 @@ class MarkerClusterService {
   /// Aproximadamente 10 metros no equador
   static const double _baseOffsetDegrees = 0.0001;
 
+  /// Zoom máximo para ativar clustering
+  /// Acima deste zoom (visão mais próxima), mostra apenas markers individuais
+  /// Abaixo ou igual (visão ampla), ativa o clustering
+  static const double _maxClusterZoom = 12.0;
+
   /// Retorna tamanho do grid baseado no zoom atual
   /// 
   /// Quanto maior o zoom, menor o grid (menos clustering)
@@ -197,6 +202,22 @@ class MarkerClusterService {
     bool useCache = true,
   }) {
     if (events.isEmpty) return [];
+
+    // ⭐ Se zoom > 10, não fazer clustering (apenas markers individuais em visão próxima)
+    if (zoom > _maxClusterZoom) {
+      debugPrint('📍 [ClusterService] Zoom ${zoom.toStringAsFixed(1)} > $_maxClusterZoom - Sem clustering (${events.length} markers individuais)');
+      
+      return events.map((event) {
+        return MarkerCluster(
+          center: LatLng(event.lat, event.lng),
+          events: [event],
+          gridKey: 'single_${event.id}',
+        );
+      }).toList();
+    }
+
+    // 🔲 Zoom <= 10: Ativar clustering (visão ampla do mapa)
+    debugPrint('🔲 [ClusterService] Zoom ${zoom.toStringAsFixed(1)} <= $_maxClusterZoom - Clustering ativado');
 
     // Gerar chave de cache baseada no zoom (arredondado)
     final cacheKey = 'z${zoom.round()}_${events.length}';

@@ -31,6 +31,8 @@ class InterestsHelper {
   /// Requer dados completos de ambos os usuários (displayLatitude e displayLongitude)
   /// 
   /// Fallback: se displayLatitude/displayLongitude não existirem, usa latitude/longitude
+  /// 
+  /// 🚨 PROTEÇÃO: Valida se coordenadas são graus válidos (não Web Mercator)
   static double? calculateDistance(
     Map<String, dynamic> userData1,
     Map<String, dynamic> userData2,
@@ -46,6 +48,18 @@ class InterestsHelper {
                  (userData2['longitude'] as num?)?.toDouble();
 
     if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
+      return null;
+    }
+
+    // 🚨 VALIDAÇÃO: Detectar coordenadas Web Mercator (bug comum em dados legados)
+    // Lat/Lng válidos: lat entre -90 e +90, lng entre -180 e +180
+    if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90 ||
+        lng1 < -180 || lng1 > 180 || lng2 < -180 || lng2 > 180) {
+      // Log para diagnóstico, mas NÃO crashar o app
+      // ignore: avoid_print
+      print('⚠️ [InterestsHelper] Coordenadas inválidas detectadas:');
+      // ignore: avoid_print
+      print('   lat1=$lat1, lng1=$lng1, lat2=$lat2, lng2=$lng2');
       return null;
     }
 

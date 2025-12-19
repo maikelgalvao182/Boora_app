@@ -2,10 +2,13 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
+import 'package:partiu/core/services/state_abbreviation_service.dart';
+import 'package:partiu/core/utils/location_offset_helper.dart';
 
 /// Configuração para o LocationSyncScheduler
 /// 
@@ -174,20 +177,78 @@ class LocationSyncScheduler {
   }
 
   /// Salva localização no documento do usuário no Firestore
+  /// 
+  /// ✅ Atualiza TODAS as coordenadas e dados de localização:
+  /// - latitude/longitude: coordenadas reais (para cálculos de distância)
+  /// - displayLatitude/displayLongitude: coordenadas com offset (privacidade no mapa)
+  /// - locality: cidade do usuário (via geocoding reverso)
+  /// - state: estado abreviado (via geocoding reverso)
   static Future<void> _saveLocationToFirestore({
     required String userId,
     required double latitude,
     required double longitude,
   }) async {
     try {
+      // 🔒 Gerar coordenadas display com offset determinístico (mesmo userId = mesmo offset)
+      final displayCoords = LocationOffsetHelper.generateDisplayLocation(
+        realLat: latitude,
+        realLng: longitude,
+        userId: userId,
+      );
+      final displayLatitude = displayCoords['displayLatitude']!;
+      final displayLongitude = displayCoords['displayLongitude']!;
+      
+      debugPrint('📍 Background update: real=($latitude, $longitude), display=($displayLatitude, $displayLongitude)');
+      
+      // 🌍 Geocoding reverso para obter locality e state
+      String? locality;
+      String? state;
+      
+      try {
+        final placemarks = await placemarkFromCoordinates(latitude, longitude);
+        
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          
+          // Locality: preferir locality, senão usar administrativeArea
+          locality = (place.locality?.isNotEmpty == true)
+              ? place.locality
+              : place.administrativeArea;
+          
+          // State: usar administrativeArea e abreviar
+          final rawState = place.administrativeArea ?? '';
+          state = StateAbbreviationService.getAbbreviation(rawState);
+          
+          debugPrint('🌍 Geocoding: locality=$locality, state=$state');
+        }
+      } catch (geoError) {
+        // Geocoding falhou, mas ainda salva coordenadas
+        debugPrint('⚠️ Geocoding falhou (apenas coordenadas serão atualizadas): $geoError');
+      }
+      
+      // Montar dados para update
+      final updateData = <String, dynamic>{
+        'latitude': latitude,
+        'longitude': longitude,
+        'displayLatitude': displayLatitude,
+        'displayLongitude': displayLongitude,
+        'locationUpdatedAt': FieldValue.serverTimestamp(),
+      };
+      
+      // Adicionar locality e state apenas se obtidos com sucesso
+      if (locality != null && locality.isNotEmpty) {
+        updateData['locality'] = locality;
+      }
+      if (state != null && state.isNotEmpty) {
+        updateData['state'] = state;
+      }
+      
       await FirebaseFirestore.instance
           .collection('Users')
           .doc(userId)
-          .update({
-        'latitude': latitude,
-        'longitude': longitude,
-        'locationUpdatedAt': FieldValue.serverTimestamp(),
-      });
+          .update(updateData);
+          
+      debugPrint('✅ Background update salvo: ${updateData.keys.join(', ')}');
     } catch (e) {
       debugPrint('❌ Erro ao salvar localização no Firestore: $e');
       rethrow;

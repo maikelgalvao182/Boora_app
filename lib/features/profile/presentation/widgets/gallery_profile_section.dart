@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
+import 'package:partiu/core/services/global_cache_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/screens/media_viewer_screen.dart';
 
@@ -44,8 +45,8 @@ class GalleryProfileSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
     
-    // Extrai URLs das imagens
-    final imageUrls = _extractImageUrls(galleryMap!);
+    // Extrai URLs das imagens (com cache de 10 min para galerias)
+    final imageUrls = _getImageUrlsCached(galleryMap!);
     if (imageUrls.isEmpty) return const SizedBox.shrink();
     
     final maxItems = columns * maxRows;
@@ -95,6 +96,26 @@ class GalleryProfileSection extends StatelessWidget {
     );
   }
   
+  /// Obtém URLs da galeria com cache (TTL: 10 min)
+  /// Galerias mudam raramente, então cache mais longo é apropriado
+  List<String> _getImageUrlsCached(Map<String, dynamic> gallery) {
+    final cacheKey = 'gallery_${gallery.hashCode}';
+    
+    // Tenta obter do cache
+    final cached = GlobalCacheService.instance.get<List<String>>(cacheKey);
+    if (cached != null) return cached;
+    
+    // Extrai e cacheia
+    final urls = _extractImageUrls(gallery);
+    GlobalCacheService.instance.set(
+      cacheKey, 
+      urls, 
+      ttl: const Duration(minutes: 10),
+    );
+    
+    return urls;
+  }
+  
   List<String> _extractImageUrls(Map<String, dynamic> gallery) {
     final urls = <String>[];
     
@@ -119,7 +140,7 @@ class GalleryProfileSection extends StatelessWidget {
     return urls;
   }
   
-  /// Abre o visualizador de imagens em tela cheia
+  /// Abre o visualizador de imagens em tela cheia com transição fade
   void _openGalleryViewer(BuildContext context, List<String> urls, int initialIndex) {
     final items = urls.map((url) => MediaViewerItem(
       url: url,
@@ -127,11 +148,20 @@ class GalleryProfileSection extends StatelessWidget {
     )).toList();
     
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => MediaViewerScreen(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) => MediaViewerScreen(
           items: items,
           initialIndex: initialIndex,
+          disableHero: true, // Desabilita Hero, usa fade puro
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 150),
       ),
     );
   }
@@ -154,33 +184,30 @@ class _ImageThumb extends StatelessWidget {
         onTap: onTap,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Hero(
-            tag: 'gallery_$imageUrl',
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                color: GlimpseColors.lightTextField,
-                child: const Center(
-                  child: CupertinoActivityIndicator(
-                    radius: 14,
-                    color: GlimpseColors.primaryColorLight,
-                  ),
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              color: GlimpseColors.lightTextField,
+              child: const Center(
+                child: CupertinoActivityIndicator(
+                  radius: 14,
+                  color: GlimpseColors.primaryColorLight,
                 ),
               ),
-              errorWidget: (context, url, error) => Container(
-                color: GlimpseColors.lightTextField,
-                child: const Center(
-                  child: Icon(
-                    Icons.photo_outlined,
-                    color: Colors.white70,
-                    size: 28,
-                  ),
-                ),
-              ),
-              fadeInDuration: const Duration(milliseconds: 200),
-              fadeOutDuration: const Duration(milliseconds: 100),
             ),
+            errorWidget: (context, url, error) => Container(
+              color: GlimpseColors.lightTextField,
+              child: const Center(
+                child: Icon(
+                  Icons.photo_outlined,
+                  color: Colors.white70,
+                  size: 28,
+                ),
+              ),
+            ),
+            fadeInDuration: const Duration(milliseconds: 200),
+            fadeOutDuration: const Duration(milliseconds: 100),
           ),
         ),
       ),

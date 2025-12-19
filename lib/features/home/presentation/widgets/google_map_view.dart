@@ -26,9 +26,8 @@ import 'package:partiu/shared/stores/user_store.dart';
 /// - Controlar câmera
 /// 
 /// Clustering:
-/// - Zoom alto (>= 16): Markers individuais (emoji + avatar)
-/// - Zoom médio (12-15): Clustering moderado
-/// - Zoom baixo (< 12): Clustering agressivo
+/// - Zoom > 10: Apenas markers individuais (SEM clustering)
+/// - Zoom <= 10: Clustering ativado (agrupa eventos próximos)
 /// - Ao tocar em cluster: zoom in para expandir
 /// 
 /// Toda lógica de negócio foi extraída para:

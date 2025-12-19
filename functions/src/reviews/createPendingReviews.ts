@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 /**
  * Cria PendingReviews automaticamente após evento iniciar
  *
- * Trigger: Scheduled function (executa a cada 5 minutos)
+ * Trigger: Scheduled function (executa a cada 1 hora)
  * Busca eventos que iniciaram há mais de 6 horas
  *
  * Garante idempotência com flag: pendingReviewsCreated
@@ -18,7 +18,7 @@ export const createPendingReviewsScheduled = functions
   .region("us-central1")
   .runWith({timeoutSeconds: 540, memory: "512MB"})
   .pubsub
-  .schedule("every 5 minutes")
+  .schedule("every 1 hours")
   .timeZone("America/Sao_Paulo")
   .onRun(async () => {
     const now = admin.firestore.Timestamp.now();

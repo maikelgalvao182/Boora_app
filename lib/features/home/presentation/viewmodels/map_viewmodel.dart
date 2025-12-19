@@ -271,12 +271,32 @@ class MapViewModel extends ChangeNotifier {
 
     // Enriquecer cada evento (agora assíncrono para buscar nomes faltantes)
     final enrichedEvents = await Future.wait(_events.map((event) async {
+      // 🚨 VALIDAÇÃO: Verificar se coordenadas são válidas (detectar bug Web Mercator)
+      final userLat = _lastLocation!.latitude;
+      final userLng = _lastLocation!.longitude;
+      final eventLat = event.lat;
+      final eventLng = event.lng;
+      
+      // Validar coordenadas do usuário
+      if (userLat < -90 || userLat > 90 || userLng < -180 || userLng > 180) {
+        debugPrint('🚨 [MapViewModel] COORDENADAS INVÁLIDAS DO USUÁRIO:');
+        debugPrint('   userLat: $userLat, userLng: $userLng');
+        debugPrint('   Parece ser Web Mercator em vez de lat/lng em graus!');
+      }
+      
+      // Validar coordenadas do evento
+      if (eventLat < -90 || eventLat > 90 || eventLng < -180 || eventLng > 180) {
+        debugPrint('🚨 [MapViewModel] COORDENADAS INVÁLIDAS DO EVENTO ${event.id}:');
+        debugPrint('   eventLat: $eventLat, eventLng: $eventLng');
+        debugPrint('   Parece ser Web Mercator em vez de lat/lng em graus!');
+      }
+      
       // 1. Calcular distância do evento para o usuário (Haversine - ~2ms por evento)
       final distance = GeoDistanceHelper.distanceInKm(
-        _lastLocation!.latitude,
-        _lastLocation!.longitude,
-        event.lat,
-        event.lng,
+        userLat,
+        userLng,
+        eventLat,
+        eventLng,
       );
 
       // 2. Verificar disponibilidade usando regra de negócio
@@ -284,6 +304,16 @@ class MapViewModel extends ChangeNotifier {
         isPremium: isPremium,
         distanceKm: distance,
       );
+      
+      // 🔍 LOG DE DIAGNÓSTICO: Quando evento NÃO está disponível
+      if (!isAvailable) {
+        debugPrint('🔒 [MapViewModel] Evento "${event.title}" (${event.id}) FORA DA ÁREA:');
+        debugPrint('   📍 Usuário: ($userLat, $userLng)');
+        debugPrint('   📍 Evento: ($eventLat, $eventLng)');
+        debugPrint('   📏 Distância calculada: ${distance.toStringAsFixed(2)} km');
+        debugPrint('   👑 isPremium: $isPremium');
+        debugPrint('   🎯 Limite FREE: $FREE_ACCOUNT_MAX_EVENT_DISTANCE_KM km');
+      }
 
       // 3. Garantir que creatorFullName esteja presente
       // Se não vier desnormalizado, buscar sob demanda
