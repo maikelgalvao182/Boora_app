@@ -7,7 +7,7 @@ import 'package:partiu/features/conversations/models/conversation_item.dart';
 import 'package:partiu/features/conversations/services/conversation_state_service.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/conversations/widgets/conversations_list.dart';
-import 'package:partiu/features/conversations/widgets/conversation_tile.dart';
+import 'package:partiu/features/conversations/widgets/swipeable_conversation_tile.dart';
 // REMOVIDO: import 'package:partiu/widgets/platform_pull_to_refresh.dart'; - pull-to-refresh removido
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/skeletons/conversation_list_skeleton.dart';
@@ -83,7 +83,7 @@ class ConversationStreamWidget extends StatelessWidget {
           'event_id': item.eventId,
         };
 
-        return ConversationTile(
+        return SwipeableConversationTile(
           key: ValueKey(item.id),
           conversationId: item.id,
           rawData: data,
@@ -92,6 +92,9 @@ class ConversationStreamWidget extends StatelessWidget {
           chatService: _chatService,
           onTap: () {
             onTap(null, data, item.id);
+          },
+          onDeleted: () {
+            // Lista atualiza automaticamente via Firestore stream
           },
         );
       },

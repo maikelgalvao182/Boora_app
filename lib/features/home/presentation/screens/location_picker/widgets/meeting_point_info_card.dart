@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -34,10 +33,10 @@ class MeetingPointInfoCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Iconsax.location5,
-                color: GlimpseColors.primary,
-                size: 20,
+              Image.asset(
+                'assets/images/pim.png',
+                width: 20,
+                height: 20,
               ),
               const SizedBox(width: 8),
               Text(

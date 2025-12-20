@@ -93,43 +93,44 @@ class _TimeTypeCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-              // Ícone
-              Icon(
-                icon,
-                color: isSelected
-                    ? GlimpseColors.primary
-                    : GlimpseColors.textSubTitle,
-                size: 24,
-              ),
+            // Ícone
+            Icon(
+              icon,
+              color: isSelected
+                  ? GlimpseColors.primary
+                  : GlimpseColors.textSubTitle,
+              size: 24,
+            ),
 
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-              // Textos
-              Column(
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.getFont(
-                      FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: GlimpseColors.primaryColorLight,
-                    ),
-                    textAlign: TextAlign.center,
+            // Textos
+            Column(
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: GlimpseColors.primaryColorLight,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.getFont(
-                      FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: GlimpseColors.textSubTitle,
-                    ),
-                    textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: GlimpseColors.textSubTitle,
                   ),
-            ],
-          ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
