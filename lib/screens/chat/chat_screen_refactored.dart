@@ -10,6 +10,9 @@ import 'package:partiu/core/models/user.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/screens/chat/components/glimpse_chat_input.dart';
+import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
+import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/shared/widgets/image_source_bottom_sheet.dart';
 import 'package:partiu/screens/chat/services/application_removal_service.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
@@ -22,6 +25,7 @@ import 'package:partiu/screens/chat/widgets/user_presence_status_widget.dart';
 import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 
 class ChatScreenRefactored extends StatefulWidget {
@@ -55,6 +59,10 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
   late Stream<DocumentSnapshot<Map<String, dynamic>>> _conversationDoc;
   String? _applicationId;
   bool _showRealPresenceWidget = false; // Controla quando mostrar o widget real
+  
+  // 🆕 Estado de reply
+  ReplySnapshot? _replySnapshot;
+  void Function(String messageId)? _scrollToMessageFunc;
   
   // B1.3: Conversa é ouvida via StreamSubscriptionMixin (sem leaks)
   
@@ -107,6 +115,51 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
     }
   }
 
+  // 🆕 Método para iniciar reply após long press
+  Future<void> _handleReplyMessage(Message message) async {
+    // Mostrar dialog de confirmação usando GlimpseCupertinoDialog
+    final confirmed = await GlimpseCupertinoDialog.show(
+      context: context,
+      title: _i18n.translate('reply_message'),
+      message: _i18n.translate('do_you_want_to_reply_to_this_message'),
+      confirmText: _i18n.translate('reply'),
+      cancelText: _i18n.translate('cancel'),
+    );
+    
+    if (confirmed == true && mounted) {
+      // Criar snapshot com nome do sender
+      final senderName = message.senderId == AppState.currentUserId
+          ? _i18n.translate('you')
+          : (widget.user.fullName ?? 'Usuário');
+      
+      setState(() {
+        _replySnapshot = ReplySnapshot(
+          messageId: message.id,
+          senderId: message.senderId ?? '',
+          senderName: senderName,
+          text: message.text,
+          imageUrl: message.imageUrl,
+          type: message.type,
+        );
+      });
+      
+      // Haptic feedback
+      HapticFeedback.mediumImpact();
+    }
+  }
+  
+  // 🆕 Método para cancelar reply
+  void _handleCancelReply() {
+    setState(() {
+      _replySnapshot = null;
+    });
+  }
+  
+  // 🆕 Método para scroll até mensagem original
+  void _handleScrollToMessage(String messageId) {
+    _scrollToMessageFunc?.call(messageId);
+  }
+
   // Send text message (uses provided text to avoid race with controller clearing)
   Future<void> _sendTextMessage(String inputText) async {
     await _chatService.sendTextMessage(
@@ -115,7 +168,15 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
       receiver: widget.user,
       i18n: _i18n,
       setIsSending: (isSending) => setState(() {}),
+      replySnapshot: _replySnapshot, // 🆕 Passar snapshot de reply
     );
+    
+    // 🆕 Limpar reply após enviar
+    if (_replySnapshot != null) {
+      setState(() {
+        _replySnapshot = null;
+      });
+    }
     // Removido auto-scroll - ListView já posiciona naturalmente na mensagem mais recente
   }
 
@@ -128,7 +189,15 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
       i18n: _i18n,
       progressDialog: _pr,
       setIsSending: (isSending) => setState(() {}),
+      replySnapshot: _replySnapshot, // 🆕 Passar snapshot de reply
     );
+    
+    // 🆕 Limpar reply após enviar
+    if (_replySnapshot != null) {
+      setState(() {
+        _replySnapshot = null;
+      });
+    }
     // Removido auto-scroll - ListView já posiciona naturalmente na mensagem mais recente
   }
   
@@ -332,6 +401,11 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
               remoteUser: widget.user,
               chatService: _chatService,
               messagesController: _messagesController,
+              onMessageLongPress: _handleReplyMessage, // 🆕 Callback para reply
+              onReplyTap: _handleScrollToMessage, // 🆕 Callback para scroll
+              onScrollToMessageRegistered: (scrollFunc) {
+                _scrollToMessageFunc = scrollFunc;
+              },
             ),
           ),
 
@@ -343,6 +417,9 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
             blockedMessage: _i18n.translate('you_have_blocked_this_user_you_can_not_send_a_message'),
             onSendText: _sendTextMessage,
             onSendImage: () async { await _getImage(); },
+            replySnapshot: _replySnapshot, // 🆕 Passar dados de reply
+            onCancelReply: _handleCancelReply, // 🆕 Callback para cancelar
+            isOwnReply: _replySnapshot?.senderId == AppState.currentUserId, // 🆕 Se é reply de msg própria
           ),
           // Espaço dinâmico: reduz quando teclado está aberto
           SizedBox(height: isKeyboardOpen ? 0 : 28),

@@ -185,7 +185,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
                   itemCount: participantUserIds.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) => const SizedBox.shrink(),
                   itemBuilder: (context, index) {
                     final userId = participantUserIds[index];
                     

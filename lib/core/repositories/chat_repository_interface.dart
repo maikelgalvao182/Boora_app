@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 
 
 /// Interface para o repositório de chat
@@ -21,18 +22,21 @@ abstract class IChatRepository {
     required String textMsg,
     required String imgLink,
     required bool isRead,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   });
   
   /// Envia uma mensagem de texto
   Future<void> sendTextMessage({
     required String text,
     required User receiver,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   });
   
   /// Envia uma mensagem com imagem
   Future<void> sendImageMessage({
     required File imageFile,
     required User receiver,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   });
   
   /// Verifica se o usuário está bloqueado

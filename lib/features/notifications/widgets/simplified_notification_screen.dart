@@ -14,7 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// [MVVM] Constantes da View - evita magic numbers
 class _NotificationScreenConstants {
-  static const int filterCount = 5; // All, Activities, Event Chat, Profile Views, Reviews
+  static const int filterCount = 4; // All, Activities, Profile Views, Reviews
   static const double loadingIndicatorPadding = 16;
 }
 
@@ -234,32 +234,30 @@ class _NotificationFilterPageState extends State<_NotificationFilterPage>
         }
 
         // Lista com dados - 🚀 USANDO InfiniteListView
-        return RefreshIndicator(
-          onRefresh: () => widget.controller.fetchNotifications(shouldRefresh: true),
-          child: InfiniteListView(
-            key: PageStorageKey('notif_${widget.filterIndex}'),
-            controller: widget.controller.getScrollController(widget.filterIndex),
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final doc = notifications[index];
-              
-              return RepaintBoundary(
-                child: NotificationItemWidget(
-                  key: ValueKey(doc.id),
-                  notification: doc,
-                  isVipEffective: isVipEffective,
-                  i18n: i18n,
-                  index: index,
-                  totalCount: notifications.length,
-                  onTap: () => widget.controller.markAsRead(doc.id),
-                ),
-              );
-            },
-            onLoadMore: widget.controller.loadMore,
-            isLoadingMore: widget.controller.isLoadingMore,
-            exhausted: !hasMore,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-          ),
+        return InfiniteListView(
+          key: PageStorageKey('notif_${widget.filterIndex}'),
+          controller: widget.controller.getScrollController(widget.filterIndex),
+          itemCount: notifications.length,
+          padding: const EdgeInsets.only(top: 16),
+          itemBuilder: (context, index) {
+            final doc = notifications[index];
+            
+            return RepaintBoundary(
+              child: NotificationItemWidget(
+                key: ValueKey(doc.id),
+                notification: doc,
+                isVipEffective: isVipEffective,
+                i18n: i18n,
+                index: index,
+                totalCount: notifications.length,
+                onTap: () => widget.controller.markAsRead(doc.id),
+                isLocallyRead: widget.controller.isNotificationRead(doc.id),
+              ),
+            );
+          },
+          onLoadMore: widget.controller.loadMore,
+          isLoadingMore: widget.controller.isLoadingMore,
+          exhausted: !hasMore,
         );
       },
     );

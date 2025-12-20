@@ -141,6 +141,7 @@ class EventActionButtons extends StatelessWidget {
             child: GlimpseButton(
               text: leaveButtonText,
               icon: Iconsax.logout_1,
+              iconSize: 18,
               backgroundColor: Colors.red,
               textColor: Colors.white,
               onPressed: () {

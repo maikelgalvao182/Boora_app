@@ -7,6 +7,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/repositories/chat_repository_interface.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
 import 'package:partiu/core/services/block_service.dart';
 
@@ -76,6 +77,7 @@ class ChatRepository implements IChatRepository {
     required String textMsg,
     required String imgLink,
     required bool isRead,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     // 🔍 DIAGNOSTIC LOGS
     print('🔍 [CHAT DEBUG] ===== SAVE MESSAGE OPERATION =====');
@@ -84,6 +86,9 @@ class ChatRepository implements IChatRepository {
     print('🔍 [CHAT DEBUG] Receiver ID: $receiverId');
     print('🔍 [CHAT DEBUG] Is Event Chat: ${receiverId.startsWith("event_")}');
     print('🔍 [CHAT DEBUG] Message: ${textMsg.substring(0, textMsg.length < 50 ? textMsg.length : 50)}...');
+    if (replySnapshot != null) {
+      print('🔍 [CHAT DEBUG] Reply To: ${replySnapshot.messageId}');
+    }
     
     final timestamp = FieldValue.serverTimestamp();
     
@@ -118,6 +123,8 @@ class ChatRepository implements IChatRepository {
         'timestamp': timestamp,
         'message_read': false, // Event messages não usam message_read individual
         'readBy': [senderId], // Marca como lido pelo sender no array
+        // 🆕 Dados de reply (se houver)
+        if (replySnapshot != null) ...replySnapshot.toMap(),
       });
       
       print('✅ [CHAT DEBUG] EventChat message created - Cloud Function will update conversations');
@@ -151,6 +158,8 @@ class ChatRepository implements IChatRepository {
       'message_img_link': imgLink,
       'timestamp': timestamp,
       'message_read': true, // Sender marca como lido
+      // 🆕 Dados de reply (se houver)
+      if (replySnapshot != null) ...replySnapshot.toMap(),
     });
 
     // Mensagem no documento do receiver
@@ -172,6 +181,8 @@ class ChatRepository implements IChatRepository {
       'message_img_link': imgLink,
       'timestamp': timestamp,
       'message_read': isRead, // Receiver usa o parâmetro isRead
+      // 🆕 Dados de reply (se houver)
+      if (replySnapshot != null) ...replySnapshot.toMap(),
     });
 
     // Atualiza conversa do sender
@@ -231,6 +242,7 @@ class ChatRepository implements IChatRepository {
   Future<void> sendTextMessage({
     required String text,
     required User receiver,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     try {
       print('🔍 [CHAT DEBUG] ===== SEND TEXT MESSAGE =====');
@@ -246,6 +258,9 @@ class ChatRepository implements IChatRepository {
       print('🔍 [CHAT DEBUG] Receiver User ID: ${receiver.userId}');
       print('🔍 [CHAT DEBUG] Receiver Full Name: ${receiver.userFullname}');
       print('🔍 [CHAT DEBUG] Is Event Chat: ${receiver.userId.startsWith("event_")}');
+      if (replySnapshot != null) {
+        print('🔍 [CHAT DEBUG] Reply To: ${replySnapshot.messageId}');
+      }
 
       final currentUser = AppState.currentUser.value;
       print('🔍 [CHAT DEBUG] Current User Full Name: ${currentUser?.userFullname}');
@@ -269,6 +284,7 @@ class ChatRepository implements IChatRepository {
         textMsg: text,
         imgLink: '',
         isRead: false,
+        replySnapshot: replySnapshot, // 🆕 Passar dados de reply
       );
       
       print('✅ [CHAT DEBUG] sendTextMessage completed successfully!');
@@ -282,6 +298,7 @@ class ChatRepository implements IChatRepository {
   Future<void> sendImageMessage({
     required File imageFile,
     required User receiver,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     try {
       print('🖼️ [CHAT DEBUG] ===== SEND IMAGE MESSAGE =====');
@@ -347,6 +364,7 @@ class ChatRepository implements IChatRepository {
         textMsg: '',
         imgLink: imageUrl,
         isRead: false,
+        replySnapshot: replySnapshot, // 🆕 Passar dados de reply
       );
       
       print('✅ [CHAT DEBUG] sendImageMessage completed successfully!');

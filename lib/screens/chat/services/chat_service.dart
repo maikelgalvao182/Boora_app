@@ -11,6 +11,7 @@ import 'package:partiu/dialogs/common_dialogs.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/screens/chat/models/user_model.dart' as chat_user_model;
 import 'package:partiu/screens/chat/viewmodels/chat_view_model.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
@@ -213,6 +214,7 @@ class ChatService {
     required User receiver,
     required AppLocalizations i18n,
     required Function(bool) setIsSending,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     if (text.trim().isEmpty) return;
 
@@ -222,6 +224,7 @@ class ChatService {
       await _viewModel.sendTextMessage(
         text: text,
         receiver: receiver,
+        replySnapshot: replySnapshot, // 🆕 Passar para ViewModel
         onError: (error) {
           ToastService.showError(
             message: error,
@@ -246,6 +249,7 @@ class ChatService {
     required AppLocalizations i18n,
     required ProgressDialog progressDialog,
     required Function(bool) setIsSending,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     setIsSending(true);
     // Show processing dialog
@@ -262,6 +266,7 @@ class ChatService {
       await _viewModel.sendImageMessage(
         imageFile: compressedFile,
         receiver: receiver,
+        replySnapshot: replySnapshot, // 🆕 Passar para ViewModel
         onError: (error) {
           ToastService.showError(
             message: error,

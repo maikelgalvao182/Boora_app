@@ -46,6 +46,7 @@ class _ConversationsListState extends State<ConversationsList> {
       itemCount: widget.itemCount + (widget.isLoadingMore ? 1 : 0),
       physics: const AlwaysScrollableScrollPhysics(),
       controller: widget.controller,
+      padding: const EdgeInsets.only(top: 16),
       itemBuilder: (context, index) {
         // Footer loader
         if (widget.isLoadingMore && index == widget.itemCount) {

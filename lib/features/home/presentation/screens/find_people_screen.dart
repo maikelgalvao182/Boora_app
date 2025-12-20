@@ -284,12 +284,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                     
                     final user = usersList[index];
                     
-                    // Adiciona separador entre itens
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: index < usersList.length - 1 ? 12 : 0,
-                      ),
-                      child: UserCard(
+                    return UserCard(
                         key: ValueKey(user.userId),
                         userId: user.userId,
                         user: user,
@@ -298,8 +293,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                         onTap: () {
                           // TODO: Navegar para perfil do usuário
                         },
-                      ),
-                    );
+                      );
                   },
                 );
               },

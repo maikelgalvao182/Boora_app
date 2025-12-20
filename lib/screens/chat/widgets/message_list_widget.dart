@@ -5,6 +5,7 @@ import 'package:partiu/helpers/app_localizations.dart' as helpers;
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
 import 'package:partiu/screens/chat/widgets/glimpse_chat_bubble.dart';
 import 'package:partiu/shared/widgets/my_circular_progress.dart';
@@ -27,6 +28,7 @@ class _ProcessedMessage {
     this.senderId,
     this.avatarUrl,
     this.fullName,
+    this.replyTo, // 🆕
   });
   final String id;
   final String message;
@@ -40,17 +42,24 @@ class _ProcessedMessage {
   final String? senderId;
   final String? avatarUrl;
   final String? fullName;
+  final ReplySnapshot? replyTo; // 🆕
 }
 
 class MessageListWidget extends StatefulWidget {
 
   const MessageListWidget({
     required this.remoteUserId, required this.remoteUser, required this.chatService, required this.messagesController, super.key,
+    this.onMessageLongPress, // 🆕 Callback para long press
+    this.onReplyTap, // 🆕 Callback para tap no reply
+    this.onScrollToMessageRegistered, // 🆕 Callback para registrar função de scroll
   });
   final String remoteUserId;
   final User remoteUser;
   final ChatService chatService;
   final ScrollController messagesController;
+  final Function(Message)? onMessageLongPress; // 🆕
+  final Function(String messageId)? onReplyTap; // 🆕
+  final Function(void Function(String messageId) scrollToMessage)? onScrollToMessageRegistered; // 🆕
 
   @override
   State<MessageListWidget> createState() => _MessageListWidgetState();
@@ -59,6 +68,13 @@ class MessageListWidget extends StatefulWidget {
 class _MessageListWidgetState extends State<MessageListWidget> {
   // Cache para mensagens processadas
   final Map<String, _ProcessedMessage> _messageCache = {};
+  
+  // 🆕 Map para rastrear índices de mensagens (para scroll)
+  final Map<String, int> _messageIndexMap = {};
+  
+  // 🆕 Mensagem destacada (highlight temporário)
+  String? _highlightedMessageId;
+  Timer? _highlightTimer;
   
   // State for messages
   List<Message>? _messages;
@@ -74,6 +90,10 @@ class _MessageListWidgetState extends State<MessageListWidget> {
     super.initState();
     _initStream();
     _initBlockListener();
+    // 🆕 Registrar função de scroll para ser acessada externamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onScrollToMessageRegistered?.call(scrollToMessage);
+    });
   }
 
   @override
@@ -93,8 +113,39 @@ class _MessageListWidgetState extends State<MessageListWidget> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _highlightTimer?.cancel(); // 🆕 Cancelar timer de highlight
     BlockService.instance.removeListener(_onBlockedUsersChanged);
     super.dispose();
+  }
+  
+  // 🆕 Método público para scroll até uma mensagem (chamado via GlobalKey)
+  void scrollToMessage(String messageId, {bool highlight = false}) {
+    final index = _messageIndexMap[messageId];
+    
+    if (index != null && _messages != null) {
+      // Calcular posição aproximada (lista reversa)
+      final reversedIndex = _messages!.length - 1 - index;
+      
+      // Scroll suave
+      widget.messagesController.animateTo(
+        reversedIndex * 80.0, // Estimativa de altura por item
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      
+      // Highlight temporário
+      if (highlight) {
+        setState(() => _highlightedMessageId = messageId);
+        _highlightTimer?.cancel();
+        _highlightTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() => _highlightedMessageId = null);
+          }
+        });
+      }
+    } else {
+      debugPrint('⚠️ Mensagem $messageId não encontrada na lista');
+    }
   }
   
   /// Listener para re-filtrar mensagens quando bloqueios mudam
@@ -289,6 +340,7 @@ class _MessageListWidgetState extends State<MessageListWidget> {
         senderId: message.senderId,
         avatarUrl: avatarUrl,
         fullName: fullName,
+        replyTo: message.replyTo, // 🆕 Passar dados de reply
       );
       
       // Adicionar ao cache
@@ -364,22 +416,56 @@ class _MessageListWidgetState extends State<MessageListWidget> {
           itemBuilder: (context, index) {
             final reversedIndex = processedMessages.length - 1 - index;
             final processedMsg = processedMessages[reversedIndex];
+            
+            // 🆕 Atualizar map de índices para scroll
+            _messageIndexMap[processedMsg.id] = reversedIndex;
+            
+            // 🆕 Verificar se está highlighted
+            final isHighlighted = _highlightedMessageId == processedMsg.id;
 
             return RepaintBoundary(
               key: ValueKey(processedMsg.id),
-              child: GlimpseChatBubble(
-                message: processedMsg.message,
-                isUserSender: processedMsg.isUserSender,
-                time: processedMsg.time,
-                isRead: processedMsg.isRead,
-                imageUrl: processedMsg.imageUrl,
-                isSystem: processedMsg.isSystem,
-                type: processedMsg.type,
-                params: processedMsg.params,
-                messageId: processedMsg.id,
-                senderId: processedMsg.senderId,
-                avatarUrl: processedMsg.avatarUrl,
-                fullName: processedMsg.fullName,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: isHighlighted
+                    ? BoxDecoration(
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      )
+                    : null,
+                child: GlimpseChatBubble(
+                  message: processedMsg.message,
+                  isUserSender: processedMsg.isUserSender,
+                  time: processedMsg.time,
+                  isRead: processedMsg.isRead,
+                  imageUrl: processedMsg.imageUrl,
+                  isSystem: processedMsg.isSystem,
+                  type: processedMsg.type,
+                  params: processedMsg.params,
+                  messageId: processedMsg.id,
+                  senderId: processedMsg.senderId,
+                  avatarUrl: processedMsg.avatarUrl,
+                  fullName: processedMsg.fullName,
+                  replyTo: processedMsg.replyTo, // 🆕 Passar dados de reply
+                  onLongPress: () { // 🆕 Long press para reply
+                    // Buscar a mensagem original para passar ao callback
+                    final originalMessage = _messages?.firstWhere(
+                      (m) => m.id == processedMsg.id,
+                      orElse: () => Message(
+                        id: processedMsg.id,
+                        userId: processedMsg.senderId ?? '',
+                        senderId: processedMsg.senderId,
+                        type: processedMsg.type ?? 'text',
+                        text: processedMsg.message,
+                        imageUrl: processedMsg.imageUrl,
+                      ),
+                    );
+                    widget.onMessageLongPress?.call(originalMessage!);
+                  },
+                  onReplyTap: processedMsg.replyTo != null 
+                      ? () => widget.onReplyTap?.call(processedMsg.replyTo!.messageId) 
+                      : null, // 🆕 Tap no reply
+                ),
               ),
             );
           },

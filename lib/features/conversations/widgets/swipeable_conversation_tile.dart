@@ -66,11 +66,7 @@ class SwipeableConversationTile extends StatelessWidget {
         ? IconsaxPlusBold.logout 
         : IconsaxPlusBold.trash;
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 20),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Slidable(
+    return Slidable(
           key: ValueKey(conversationId),
           
           // Ação ao deslizar para esquerda
@@ -94,7 +90,6 @@ class SwipeableConversationTile extends StatelessWidget {
                 },
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                borderRadius: BorderRadius.circular(16),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -118,15 +113,13 @@ class SwipeableConversationTile extends StatelessWidget {
             ],
           ),
           
-          child: ConversationTile(
-            conversationId: conversationId,
-            rawData: rawData,
-            isVipEffective: isVipEffective,
-            isLast: isLast,
-            onTap: onTap,
-            chatService: chatService,
-          ),
-        ),
+      child: ConversationTile(
+        conversationId: conversationId,
+        rawData: rawData,
+        isVipEffective: isVipEffective,
+        isLast: isLast,
+        onTap: onTap,
+        chatService: chatService,
       ),
     );
   }

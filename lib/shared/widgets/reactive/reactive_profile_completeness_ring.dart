@@ -33,12 +33,14 @@ class ReactiveProfileCompletenessRing extends StatelessWidget {
     required this.size,
     required this.child,
     this.strokeWidth = 4.0,
+    this.showBadge = true,
     super.key,
   });
 
   final double size;
   final Widget child;
   final double strokeWidth;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +53,7 @@ class ReactiveProfileCompletenessRing extends StatelessWidget {
             size: size,
             strokeWidth: strokeWidth,
             percentage: 0,
+            showBadge: showBadge,
             child: child,
           );
         }
@@ -66,6 +69,7 @@ class ReactiveProfileCompletenessRing extends StatelessWidget {
               size: size,
               strokeWidth: strokeWidth,
               percentage: percentage,
+              showBadge: showBadge,
               child: child,
             );
           },

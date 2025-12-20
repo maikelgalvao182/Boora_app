@@ -194,7 +194,7 @@ class ConversationTile extends StatelessWidget {
     }
 
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       visualDensity: VisualDensity.standard,
       dense: false,
       tileColor: hasUnread 
@@ -258,8 +258,8 @@ class ConversationTile extends StatelessWidget {
               // Badge posicionado absolutamente sobre o avatar
               if (hasUnread)
                 Positioned(
-                  left: 16 + ConversationStyles.avatarSize - 8,
-                  top: 26,
+                  left: 16 + ConversationStyles.avatarSize - 16,
+                  top: 8,
                   child: _UnreadBadge(),
                 ),
             ],

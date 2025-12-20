@@ -30,6 +30,9 @@ class SimplifiedNotificationController extends ChangeNotifier {
   final Map<String?, DocumentSnapshot<Map<String, dynamic>>?> _lastDocumentByFilter = {};
   final Map<String?, bool> _hasMoreByFilter = {};
   final Map<String?, bool> _isFirstLoadByFilter = {};
+  
+  // 🆕 Set de IDs de notificações marcadas como lidas localmente
+  final Set<String> _locallyReadNotifications = {};
 
   // Notificadores específicos por filtro
   final Map<String?, ValueNotifier<int>> _filterUpdateNotifiers = {};
@@ -39,6 +42,7 @@ class SimplifiedNotificationController extends ChangeNotifier {
 
   // Estado global
   static const int _pageSize = 20;
+  static const int _maxLocallyReadCacheSize = 100; // Limite para evitar memory leak
   bool _isLoading = false;
 
   // Estado de UI
@@ -67,6 +71,14 @@ class SimplifiedNotificationController extends ChangeNotifier {
   int get selectedFilterIndex => _selectedFilterIndex;
   ValueNotifier<int> get selectedFilterIndexNotifier => _selectedFilterIndexNotifier;
   bool get isVipEffective => _isVipEffective;
+  
+  // 🆕 Verifica se uma notificação foi marcada como lida localmente
+  bool isNotificationLocallyRead(String notificationId) => 
+      _locallyReadNotifications.contains(notificationId);
+  
+  // 🆕 Alias para compatibilidade com UI
+  bool isNotificationRead(String notificationId) => 
+      _locallyReadNotifications.contains(notificationId);
   
   // 🚀 Getters para paginação com InfiniteListView
   bool get isLoadingMore => _isLoadingMore[_selectedFilterIndex] ?? false;
@@ -148,23 +160,23 @@ class SimplifiedNotificationController extends ChangeNotifier {
   // Mapeamento público para a View usar
   // Cada índice corresponde a um tipo de notificação ou grupo
   // IMPORTANTE: Apenas categorias com triggers IMPLEMENTADOS
+  // NOTA: Chat (1x1 e grupo) usa apenas push notifications, não salva in-app
   String? mapFilterIndexToKey(int index) {
     switch (index) {
       case 0: return null; // Todas
       case 1: return 'activity'; // Atividades (todos os tipos activity_*)
-      case 2: return 'event_chat_message'; // Chat de Eventos
-      case 3: return 'profile_views_aggregated'; // Visualizações de Perfil
-      case 4: return 'reviews'; // Avaliações
+      case 2: return 'profile_views_aggregated'; // Visualizações de Perfil
+      case 3: return 'reviews'; // Avaliações
       default: return null;
     }
   }
 
   // Keys de tradução para filtros (a View deve traduzir)
   // Correspondem exatamente aos triggers implementados
+  // NOTA: Chat (1x1 e grupo) usa apenas push notifications, não aparece aqui
   static const List<String> filterLabelKeys = [
     'notif_filter_all',
     'notif_filter_activities',
-    'notif_filter_event_chat',
     'notif_filter_profile_views',
     'notif_filter_reviews',
   ];
@@ -323,6 +335,9 @@ class SimplifiedNotificationController extends ChangeNotifier {
         print('🔄 [NotificationController] Dados atualizados detectados');
         _notificationsByFilter[key] = filteredDocs;
         
+        // 🧹 Limpar Set de lidos localmente - os dados do servidor já têm o estado correto
+        _locallyReadNotifications.clear();
+        
         if (filteredDocs.isNotEmpty) {
           _lastDocumentByFilter[key] = filteredDocs.last;
         }
@@ -430,13 +445,36 @@ class SimplifiedNotificationController extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // READ
+  // READ - Optimistic UI Pattern com Rollback
   // ---------------------------------------------------------------------------
   Future<void> markAsRead(String notificationId) async {
+    // 🚀 Optimistic UI: Atualiza UI imediatamente
+    _locallyReadNotifications.add(notificationId);
+    
+    // Limitar tamanho do Set para evitar memory leak
+    if (_locallyReadNotifications.length > _maxLocallyReadCacheSize) {
+      // Remove os primeiros itens (mais antigos)
+      final toRemove = _locallyReadNotifications.take(
+        _locallyReadNotifications.length - _maxLocallyReadCacheSize,
+      ).toList();
+      _locallyReadNotifications.removeAll(toRemove);
+    }
+    
+    // Notifica UI para rebuild imediato
+    _notifyFilterUpdate(_selectedFilterKey);
+    _notifyFilterUpdate(null); // Também notifica "all"
+    notifyListeners();
+    
     try {
+      // Persiste no Firestore
       await _repository.readNotification(notificationId);
-    } catch (_) {
-      // silencioso
+    } catch (e) {
+      // ⚠️ Rollback: Se falhar, reverte o estado local
+      _locallyReadNotifications.remove(notificationId);
+      _notifyFilterUpdate(_selectedFilterKey);
+      _notifyFilterUpdate(null);
+      notifyListeners();
+      debugPrint('⚠️ [NotificationController] Rollback markAsRead: $e');
     }
   }
 

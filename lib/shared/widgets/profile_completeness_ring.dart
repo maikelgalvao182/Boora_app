@@ -24,6 +24,7 @@ class ProfileCompletenessRing extends StatelessWidget {
     required this.percentage,
     required this.child,
     this.strokeWidth = 4.0,
+    this.showBadge = true,
     super.key,
   });
 
@@ -31,6 +32,7 @@ class ProfileCompletenessRing extends StatelessWidget {
   final int percentage; // 0-100
   final Widget child;
   final double strokeWidth;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -80,8 +82,8 @@ class ProfileCompletenessRing extends StatelessWidget {
             child: child,
           ),
 
-          // Badge de percentual (apenas se incompleto)
-          if (percentage < 100 && percentage > 0)
+          // Badge de percentual (apenas se incompleto e showBadge = true)
+          if (showBadge && percentage < 100 && percentage > 0)
             Positioned(
               bottom: -5,
               child: Container(

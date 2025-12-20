@@ -1,7 +1,9 @@
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/screens/chat/widgets/image_lightbox.dart';
+import 'package:partiu/screens/chat/widgets/reply_bubble_widget.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,9 @@ class GlimpseChatBubble extends StatelessWidget {
     this.avatarUrl,
     this.fullName,
     this.senderId,
+    this.replyTo, // 🆕 Dados de reply
+    this.onLongPress, // 🆕 Callback para long press
+    this.onReplyTap, // 🆕 Callback para tap no reply
   });
   final String message;
   final bool isUserSender;
@@ -36,6 +41,9 @@ class GlimpseChatBubble extends StatelessWidget {
   final String? avatarUrl;
   final String? fullName;
   final String? senderId;
+  final ReplySnapshot? replyTo; // 🆕
+  final VoidCallback? onLongPress; // 🆕
+  final VoidCallback? onReplyTap; // 🆕
 
   /// Processa markdown simples (**texto** → negrito)
   List<TextSpan> _parseMarkdown(String text, TextStyle baseStyle) {
@@ -189,8 +197,9 @@ class GlimpseChatBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(left: 4, bottom: 4),
                     child: _buildSenderName(context),
                   ),
-                // Bolha de mensagem
+                // Bolha de mensagem com long press para reply
                 GestureDetector(
+                  onLongPress: isSystem ? null : onLongPress, // 🆕 Long press para reply (não para system messages)
                   onTap: (imageUrl != null && imageUrl!.isNotEmpty)
                       ? () {
                           Navigator.of(context).push(
@@ -228,8 +237,26 @@ class GlimpseChatBubble extends StatelessWidget {
                               : const Radius.circular(18)),
                     ),
                   ),
-                  child: imageUrl != null && imageUrl!.isNotEmpty
-                      ? ClipRRect(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 🆕 Reply bubble (se for resposta)
+                      if (replyTo != null)
+                        Padding(
+                          padding: imageUrl != null && imageUrl!.isNotEmpty
+                              ? const EdgeInsets.fromLTRB(8, 8, 8, 0)
+                              : EdgeInsets.zero,
+                          child: ReplyBubbleWidget(
+                            replySnapshot: replyTo!,
+                            isUserSender: isUserSender,
+                            onTap: onReplyTap,
+                          ),
+                        ),
+                      
+                      // Conteúdo original da mensagem
+                      if (imageUrl != null && imageUrl!.isNotEmpty)
+                        ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             width: 200,
@@ -294,7 +321,8 @@ class GlimpseChatBubble extends StatelessWidget {
                             ),
                           ),
                         )
-                      : Text.rich(
+                      else
+                        Text.rich(
                           TextSpan(
                             children: _parseMarkdown(
                               displayMessage,
@@ -309,7 +337,9 @@ class GlimpseChatBubble extends StatelessWidget {
                           ),
                           textAlign: isSystem ? TextAlign.center : TextAlign.left,
                         ),
+                    ],
                   ),
+                ),
                 ),
                 
                 // Horário (não exibido para system)

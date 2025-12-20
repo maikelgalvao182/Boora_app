@@ -102,6 +102,7 @@ export const deactivateExpiredEvents = functions
         const currentBatch = batches[batches.length - 1];
         currentBatch.update(doc.ref, {
           isActive: false,
+          status: "inactive",
           deactivatedAt: now,
           deactivatedReason: "expired",
         });

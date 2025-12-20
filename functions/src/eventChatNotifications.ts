@@ -35,8 +35,6 @@ export const onEventChatMessageCreated = functions.firestore
         messageData.message_type || messageData.messageType;
       const senderName =
         messageData.sender_name || messageData.senderName || "Usuário";
-      const senderPhotoUrl =
-        messageData.sender_photo_url || messageData.senderPhotoUrl || "";
 
       console.log(
         `📬 [EventChatNotification] Nova mensagem no evento ${eventId} (v2)`
@@ -122,99 +120,56 @@ export const onEventChatMessageCreated = functions.firestore
         );
       }
 
-      // Criar notificações para todos os participantes exceto o remetente
-      let notificationCount = 0;
-
+      // Enviar apenas push notifications (sem salvar in-app)
+      // NOTA: Chat de evento segue padrão Instagram
+      // Apenas push, sem tela de notificações
       console.log(`   SenderId: ${senderId}`);
       console.log(`   Tipo de mensagem: ${messageType}`);
 
-      for (const participantId of participantIds) {
-        console.log(`   Processando participante: ${participantId}`);
+      // DeepLink: abre o chat do evento
+      const deepLink = `partiu://event-chat/${eventId}`;
 
-        // Evita notificar o remetente REAL, mas permite mensagens do sistema
-        if (senderId !== "system" && participantId === senderId) {
-          console.log("   ⏭️ Pulando - remetente real");
-          continue;
-        }
-
-        // Criar notificação no formato esperado pelo app
-        const notificationRef = admin
-          .firestore()
-          .collection("Notifications")
-          .doc();
-
-        batch.set(notificationRef, {
-          n_receiver_id: participantId, // Campo padrão para queries
-          userId: participantId, // Campo duplicado para compatibilidade
-          n_type: "event_chat_message",
-          n_params: {
-            eventId: eventId,
-            eventTitle: activityText,
-            emoji: emoji,
-            senderName: senderName,
-            messagePreview: messageText?.substring(0, 100) || "",
-          },
-          n_related_id: eventId,
-          n_read: false,
-          n_sender_id: senderId,
-          n_sender_fullname: senderName,
-          n_sender_photo_link: senderPhotoUrl,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        notificationCount++;
-      }
-
-      if (notificationCount > 0) {
-        await batch.commit();
-        console.log(
-          `✅ ${notificationCount} notificações in-app criadas ` +
-          `para evento ${eventId}`
+      // Disparar push notifications para cada participante (exceto remetente)
+      const pushPromises = participantIds
+        .filter((id: string) => senderId !== "system" && id !== senderId)
+        .map((participantId: string) =>
+          sendPush({
+            userId: participantId,
+            event: "event_chat_message",
+            notification: {
+              title: activityText,
+              body: `${senderName}: ${messageText?.substring(0, 100) || ""}`,
+            },
+            data: {
+              n_type: "event_chat_message",
+              sub_type: "event_chat_message",
+              eventId: eventId,
+              senderId: senderId,
+              n_sender_name: senderName,
+              senderName: senderName,
+              eventTitle: activityText,
+              eventName: activityText,
+              activityText: activityText,
+              emoji: emoji,
+              eventEmoji: emoji,
+              n_message: messageText?.substring(0, 100) || "",
+              messagePreview: messageText?.substring(0, 100) || "",
+              deepLink: deepLink,
+            },
+            context: {
+              groupId: eventId,
+            },
+          })
         );
 
-        // DeepLink: abre o chat do evento
-        const deepLink = `partiu://event-chat/${eventId}`;
-
-        // Disparar push notifications para cada participante
-        const pushPromises = participantIds
-          .filter((id: string) => senderId !== "system" && id !== senderId)
-          .map((participantId: string) =>
-            sendPush({
-              userId: participantId,
-              event: "event_chat_message",
-              notification: {
-                title: activityText,
-                body: `${senderName}: ${messageText?.substring(0, 100) || ""}`,
-              },
-              data: {
-                n_type: "event_chat_message",
-                sub_type: "event_chat_message",
-                eventId: eventId,
-                senderId: senderId,
-                n_sender_name: senderName,
-                senderName: senderName,
-                eventTitle: activityText,
-                eventName: activityText,
-                activityText: activityText,
-                emoji: emoji,
-                eventEmoji: emoji,
-                n_message: messageText?.substring(0, 100) || "",
-                messagePreview: messageText?.substring(0, 100) || "",
-                deepLink: deepLink,
-              },
-              context: {
-                groupId: eventId,
-              },
-            })
-          );
-
+      if (pushPromises.length > 0) {
         await Promise.all(pushPromises);
         console.log(
           `✅ ${pushPromises.length} push notifications enviadas ` +
           `para evento ${eventId}`
         );
       } else {
-        console.log("⏭️ Nenhuma notificação criada (remetente ou sistema)");
+        console.log("⏭️ Nenhum push enviado (remetente ou sistema)");
       }
     } catch (error) {
       console.error("❌ Erro ao criar notificações de EventChat:", error);

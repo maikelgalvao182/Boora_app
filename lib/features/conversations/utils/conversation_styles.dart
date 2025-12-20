@@ -13,7 +13,7 @@ class ConversationStyles {
   // ============================================================================
   
   /// Tamanho padrão do avatar na lista de conversas (conversation_tile)
-  static const double avatarSize = 40;
+  static const double avatarSize = 52;
   
   /// Tamanho do avatar no app bar do chat (chat_app_bar_widget)
   static const double avatarSizeChatAppBar = 40;

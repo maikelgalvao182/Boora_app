@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/repositories/chat_repository_interface.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:flutter/material.dart';
 
 /// ViewModel para a tela de chat
@@ -67,6 +68,7 @@ class ChatViewModel extends ChangeNotifier {
     required String text,
     required User receiver,
     required Function(String) onError,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     if (text.trim().isEmpty) return;
     
@@ -75,6 +77,7 @@ class ChatViewModel extends ChangeNotifier {
       await _chatRepository.sendTextMessage(
         text: text,
         receiver: receiver,
+        replySnapshot: replySnapshot, // 🆕 Passar para repository
       );
     } catch (e) {
       _setErrorMessage(e.toString());
@@ -89,12 +92,14 @@ class ChatViewModel extends ChangeNotifier {
     required File imageFile,
     required User receiver,
     required Function(String) onError,
+    ReplySnapshot? replySnapshot, // 🆕 Dados de reply
   }) async {
     _setLoading(true);
     try {
       await _chatRepository.sendImageMessage(
         imageFile: imageFile,
         receiver: receiver,
+        replySnapshot: replySnapshot, // 🆕 Passar para repository
       );
     } catch (e) {
       _setErrorMessage(e.toString());

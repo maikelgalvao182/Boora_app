@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 
 /// Modelo para mensagens do chat com otimizações de performance
 class Message {
@@ -14,6 +15,7 @@ class Message {
     this.timestamp,
     this.isRead,
     this.params,
+    this.replyTo, // 🆕 Dados de reply
   });
 
   /// Criar Message a partir de documento Firestore
@@ -57,6 +59,16 @@ class Message {
 
     final finalUserId = userId ?? '';
     
+    // 🆕 Criar ReplySnapshot se campos de reply existirem
+    ReplySnapshot? replyTo;
+    if (data['replyToMessageId'] != null) {
+      try {
+        replyTo = ReplySnapshot.fromMap(data);
+      } catch (e) {
+        print('⚠️ [Message Model] Erro ao parsear reply: $e');
+      }
+    }
+    
     return Message(
       id: id,
       text: data['message'] ?? data['message_text'] as String?, // ✅ Suporta ambos os campos
@@ -68,6 +80,7 @@ class Message {
       timestamp: timestamp,
       isRead: data['message_read'] as bool?,
       params: data['message_params'] as Map<String, dynamic>?,
+      replyTo: replyTo, // 🆕
     );
   }
   final String id;
@@ -80,6 +93,7 @@ class Message {
   final DateTime? timestamp;
   final bool? isRead;
   final Map<String, dynamic>? params;
+  final ReplySnapshot? replyTo; // 🆕 Dados de reply
 
   /// Converter para Map para salvar no Firestore
   Map<String, dynamic> toMap() {
@@ -94,6 +108,7 @@ class Message {
       'timestamp': timestamp != null ? Timestamp.fromDate(timestamp!) : FieldValue.serverTimestamp(),
       'message_read': isRead,
       'message_params': params,
+      if (replyTo != null) ...replyTo!.toMap(), // 🆕 Spread dos campos de reply
     };
   }
 
@@ -108,6 +123,7 @@ class Message {
     DateTime? timestamp,
     bool? isRead,
     Map<String, dynamic>? params,
+    ReplySnapshot? replyTo, // 🆕
   }) {
     return Message(
       id: id ?? this.id,
@@ -120,6 +136,7 @@ class Message {
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
       params: params ?? this.params,
+      replyTo: replyTo ?? this.replyTo, // 🆕
     );
   }
 
@@ -137,7 +154,8 @@ class Message {
       type == other.type &&
       timestamp == other.timestamp &&
       isRead == other.isRead &&
-      params == other.params;
+      params == other.params &&
+      replyTo == other.replyTo; // 🆕
 
   @override
   int get hashCode =>
@@ -150,5 +168,6 @@ class Message {
       type.hashCode ^
       timestamp.hashCode ^
       isRead.hashCode ^
-      params.hashCode;
+      params.hashCode ^
+      replyTo.hashCode; // 🆕
 }

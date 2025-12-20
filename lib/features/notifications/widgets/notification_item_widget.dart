@@ -22,6 +22,7 @@ class NotificationItemWidget extends StatelessWidget {
     required this.totalCount,
     super.key,
     this.onTap,
+    this.isLocallyRead = false,
   });
   
   final DocumentSnapshot<Map<String, dynamic>> notification;
@@ -30,6 +31,7 @@ class NotificationItemWidget extends StatelessWidget {
   final int index;
   final int totalCount;
   final VoidCallback? onTap;
+  final bool isLocallyRead;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +40,8 @@ class NotificationItemWidget extends StatelessWidget {
     final senderName = (data[N_SENDER_FULLNAME] as String?) ?? '';
     final senderPhotoUrl = (data['n_sender_photo_link'] as String?) ?? '';
     final nType = NotificationMessageTranslator.extractType(data) ?? '';
-    final isUnread = !((data[N_READ] as bool?) ?? false);
+    // Se foi marcado como lido localmente, considerar como lido
+    final isUnread = isLocallyRead ? false : !((data[N_READ] as bool?) ?? false);
     final timestamp = data['timestamp'];
     
     debugPrint('🔔 [NotificationItem] Building notification:');
@@ -124,35 +127,61 @@ class NotificationItemWidget extends StatelessWidget {
               screen: data['screen'] as String?,
             );
           },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Container(
+            color: isUnread ? GlimpseColors.lightTextField : Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar - para mensagens de sistema, mostrar emoji se disponível
-                if ((senderId.isEmpty || senderId == 'system') && emoji != null && emoji.isNotEmpty)
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: GlimpseColors.primaryLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        emoji,
-                        style: const TextStyle(fontSize: 24),
+                // Avatar com badge - Stack para posicionar o dot
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Avatar - para mensagens de sistema, mostrar emoji se disponível
+                    if ((senderId.isEmpty || senderId == 'system') && emoji != null && emoji.isNotEmpty)
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: GlimpseColors.primaryLight,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            emoji,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                      )
+                    else
+                      // Avatar normal para mensagens de usuários - redondo
+                      StableAvatar(
+                        userId: senderId,
+                        photoUrl: senderPhotoUrl.isNotEmpty ? senderPhotoUrl : null,
+                        size: 52,
+                        borderRadius: BorderRadius.circular(999), // Redondo
+                        enableNavigation: false,
                       ),
-                    ),
-                  )
-                else
-                  // Avatar normal para mensagens de usuários - redondo
-                  StableAvatar(
-                    userId: senderId,
-                    photoUrl: senderPhotoUrl.isNotEmpty ? senderPhotoUrl : null,
-                    size: 42,
-                    borderRadius: BorderRadius.circular(999), // Redondo
-                    enableNavigation: false,
-                  ),
+                    // Badge de não lido (dot vermelho)
+                    if (isUnread)
+                      Positioned(
+                        right: 2,
+                        top: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: GlimpseColors.actionColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -227,6 +256,8 @@ class NotificationItemWidget extends StatelessWidget {
           ),
         ),
         const Divider(
+          height: 1,
+          thickness: 1,
           color: GlimpseColors.lightTextField,
         ),
       ],

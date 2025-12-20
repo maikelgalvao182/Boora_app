@@ -75,7 +75,6 @@ class AppNotifications {
       case ActivityNotificationTypes.activityHeatingUp:
       case ActivityNotificationTypes.activityExpiringSoon:
       case ActivityNotificationTypes.activityCanceled:
-      case 'event_chat_message': // Mensagens de chat de evento
         if (nRelatedId != null && nRelatedId.isNotEmpty) {
           await _handleActivityNotification(context, nRelatedId);
         }
