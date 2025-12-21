@@ -102,7 +102,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       if (mounted) {
         final i18nToast = AppLocalizations.of(context);
         ToastService.showSuccess(
-          message: i18n.translate('user_unblocked_successfully') ?? i18nToast.translate('success_generic'),
+          message: i18nToast.translate('user_unblocked_successfully'),
         );
       }
     } catch (e) {
@@ -110,7 +110,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       if (mounted) {
         final i18nToast = AppLocalizations.of(context);
         ToastService.showError(
-          message: i18n.translate('error_unblocking_user') ?? i18nToast.translate('error_generic'),
+          message: i18nToast.translate('error_unblocking_user'),
         );
       }
     }

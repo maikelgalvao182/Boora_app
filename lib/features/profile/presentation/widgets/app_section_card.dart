@@ -408,7 +408,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
       if (context.mounted) {
         final i18nToast = AppLocalizations.of(context);
         ToastService.showError(
-          message: i18n.translate('error_deleting_account') ?? i18nToast.translate('error_deleting_account'),
+          message: i18nToast.translate('error_deleting_account'),
         );
       }
     }

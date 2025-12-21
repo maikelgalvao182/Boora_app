@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/pending_application_model.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/shared/widgets/action_card.dart';
@@ -45,6 +47,13 @@ class ApproveCard extends StatelessWidget {
       onPrimaryAction: () async {
         await repo.approveApplication(application.applicationId);
         debugPrint('✅ Aplicação aprovada: ${application.applicationId}');
+        
+        if (context.mounted) {
+          final i18n = AppLocalizations.of(context);
+          ToastService.showSuccess(
+            message: i18n.translate('application_approved_successfully'),
+          );
+        }
       },
       secondaryButtonText: 'Recusar',
       secondaryButtonColor: GlimpseColors.rejectButtonColor,

@@ -182,8 +182,7 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
           // Verificar se usuário está bloqueado
           if (BlockService().isBlockedCached(widget.currentUserId, widget.displayUser.userId)) {
             ToastService.showWarning(
-              message: widget.i18n.translate('user_blocked_cannot_message') ?? 
-              'Você não pode enviar mensagens para este usuário',
+              message: widget.i18n.translate('user_blocked_cannot_message'),
             );
             return;
           }

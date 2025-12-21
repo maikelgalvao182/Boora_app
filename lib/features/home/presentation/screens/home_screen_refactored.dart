@@ -76,10 +76,17 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
       conversationsViewModel,
     );
     
-    initializer.initialize().catchError((e) {
-      debugPrint('Erro na inicialização em background: $e');
-    });
+    // ⚡ AGUARDAR inicialização completar antes de renderizar UI
+    // Isso garante que os bitmaps dos markers estejam em cache
+    // quando o GoogleMapView for criado
+    try {
+      await initializer.initialize();
+    } catch (e) {
+      debugPrint('Erro na inicialização: $e');
+    }
 
+    if (!mounted) return;
+    
     setState(() {
       _initialized = true;
       // Carregar página inicial após ter acesso aos providers

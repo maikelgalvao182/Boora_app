@@ -194,7 +194,7 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
       } else {
         AppLogger.error('Erro ao salvar verificação', tag: _tag);
         if (mounted) {
-          _showError('Erro ao salvar verificação');
+          _showError('verification_save_error');
         }
       }
     } catch (e, stackTrace) {
@@ -206,7 +206,7 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
       );
       
       if (mounted) {
-        _showError('Erro ao processar verificação');
+        _showError('error_processing_verification');
       }
     }
   }

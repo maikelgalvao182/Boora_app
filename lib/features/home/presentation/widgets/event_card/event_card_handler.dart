@@ -37,46 +37,63 @@ class EventCardHandler {
     if (!controller.hasApplied) {
       debugPrint('🔄 Aplicando para o evento...');
       
-      // 🎉 Disparar confetti IMEDIATAMENTE (antes do await)
-      if (context.mounted) {
-        debugPrint('🎊 Disparando animação de confetti instantaneamente...');
-        ConfettiOverlay.show(context);
-      }
+      // 🎯 Verificar se é evento open (será auto-aprovado)
+      final isOpenEvent = controller.privacyType == 'open';
+      final i18n = AppLocalizations.of(context);
       
-      try {
-        await controller.applyToEvent();
-        debugPrint('✅ Aplicação realizada com sucesso!');
+      // 🎉 Disparar confetti E dialog SIMULTANEAMENTE para evento open
+      // Isso evita race condition - ambos aparecem instantaneamente
+      if (isOpenEvent && context.mounted) {
+        debugPrint('🎊 Evento OPEN: Disparando confetti + dialog instantaneamente');
         
-        // Se foi auto-aprovado (evento aberto), confirmar entrada no chat
-        if (controller.isApproved && context.mounted) {
-          debugPrint('✅ Auto-aprovado, mostrando dialog de confirmação');
-          
-          final i18n = AppLocalizations.of(context);
-          final confirmed = await GlimpseCupertinoDialog.show(
-            context: context,
-            title: i18n.translate('success') ?? 'Sucesso',
-            message: i18n.translate('application_approved_redirect_to_chat') ?? 
-                     'Sua aplicação foi aprovada! Deseja entrar no chat do evento?',
-            confirmText: i18n.translate('go_to_chat') ?? 'Ir para o chat',
-            cancelText: i18n.translate('later') ?? 'Depois',
-          );
-          
+        // Confetti imediato
+        ConfettiOverlay.show(context);
+        
+        // Dialog imediato (não espera applyToEvent)
+        // ignore: unawaited_futures
+        GlimpseCupertinoDialog.show(
+          context: context,
+          title: i18n.translate('success') ?? 'Sucesso',
+          message: i18n.translate('application_approved_redirect_to_chat') ?? 
+                   'Sua aplicação foi aprovada! Deseja entrar no chat do evento?',
+          confirmText: i18n.translate('go_to_chat') ?? 'Ir para o chat',
+          cancelText: i18n.translate('later') ?? 'Depois',
+        ).then((confirmed) {
           if (confirmed == true) {
             debugPrint('✅ Usuário confirmou, entrando no chat');
             onActionSuccess();
           } else {
             debugPrint('⏸️ Usuário optou por entrar depois');
           }
-        } else if (!controller.isApproved) {
-          debugPrint('⏳ Aplicação pendente de aprovação');
-        }
-      } catch (e) {
-        debugPrint('❌ Erro ao aplicar: $e');
-        if (context.mounted) {
-          final i18n = AppLocalizations.of(context);
-          ToastService.showError(
-            message: i18n.translate('error_applying_to_event'),
-          );
+        });
+        
+        // Aplicar em background (fire-and-forget para não bloquear UI)
+        controller.applyToEvent().catchError((e) {
+          debugPrint('❌ Erro ao aplicar (background): $e');
+          if (context.mounted) {
+            ToastService.showError(
+              message: i18n.translate('error_applying_to_event'),
+            );
+          }
+        });
+        
+      } else if (context.mounted) {
+        // Evento fechado - precisa aguardar aprovação
+        debugPrint('🔒 Evento FECHADO: Disparando confetti, aplicação pendente');
+        
+        // Confetti imediato
+        ConfettiOverlay.show(context);
+        
+        try {
+          await controller.applyToEvent();
+          debugPrint('✅ Aplicação realizada com sucesso (pendente aprovação)');
+        } catch (e) {
+          debugPrint('❌ Erro ao aplicar: $e');
+          if (context.mounted) {
+            ToastService.showError(
+              message: i18n.translate('error_applying_to_event'),
+            );
+          }
         }
       }
     } else {

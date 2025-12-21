@@ -41,7 +41,7 @@ class VerificationCard extends StatelessWidget {
       if (context.mounted) {
         final i18n = AppLocalizations.of(context);
         ToastService.showError(
-          message: i18n.translate('error_opening_verification') ?? 'Erro ao abrir verificação',
+          message: i18n.translate('error_opening_verification'),
         );
       }
     }

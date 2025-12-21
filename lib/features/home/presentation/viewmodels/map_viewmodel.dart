@@ -185,12 +185,21 @@ class MapViewModel extends ChangeNotifier {
   /// Inicializa o ViewModel
   /// 
   /// Deve ser chamado após o mapa estar pronto
+  /// 
+  /// Este método:
+  /// 1. Pré-carrega pins padrão
+  /// 2. Carrega eventos próximos (popula cache de bitmaps durante geração de markers)
+  /// 
+  /// NOTA: O cache de bitmaps é SINGLETON (GoogleEventMarkerService)
+  /// então os bitmaps gerados aqui serão reutilizados pelo GoogleMapView.
   Future<void> initialize() async {
     // Pré-carregar pins (imagens) para Google Maps
     await _googleMarkerService.preloadDefaultPins();
     
-    // Carregar eventos iniciais
+    // Carregar eventos iniciais (popula cache de bitmaps durante _generateGoogleMarkers)
     await loadNearbyEvents();
+    
+    debugPrint('🖼️ MapViewModel: ${_events.length} eventos com bitmaps em cache (singleton)');
   }
 
   /// Carrega eventos próximos à localização do usuário
@@ -256,6 +265,10 @@ class MapViewModel extends ChangeNotifier {
   }
 
   /// Gera markers do Google Maps
+  /// 
+  /// NOTA: Os markers gerados aqui podem não ter callbacks corretos
+  /// porque onMarkerTap é configurado pelo GoogleMapView.initState()
+  /// Os BITMAPS pré-carregados são o que importa para performance
   Future<void> _generateGoogleMarkers() async {
     final markers = await _googleMarkerService.buildEventMarkers(
       _events,

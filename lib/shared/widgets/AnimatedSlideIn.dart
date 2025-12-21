@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // 🔴 OBRIGATÓRIO
 
 class AnimatedSlideIn extends StatefulWidget {
   final Widget child;
   final Duration duration;
   final Duration delay;
-  final double offsetX; // deslocamento inicial (da direita)
+  final double offsetX;
 
   const AnimatedSlideIn({
     super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 600),
-    this.delay = const Duration(milliseconds: 0),
+    this.delay = Duration.zero,
     this.offsetX = 60.0,
   });
 
@@ -20,9 +20,9 @@ class AnimatedSlideIn extends StatefulWidget {
 
 class _AnimatedSlideInState extends State<AnimatedSlideIn>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _opacity;
+  late final AnimationController _controller;
+  late final Animation<Offset> _offset;
+  late final Animation<double> _opacity;
 
   @override
   void initState() {
@@ -33,24 +33,21 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
       duration: widget.duration,
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: Offset(widget.offsetX / 100, 0), // transforma px em proporção
+    _offset = Tween<Offset>(
+      begin: Offset(widget.offsetX / 300, 0),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: Curves.easeOutBack, // o bounce SUAVE
+        curve: Curves.easeOutQuart,
       ),
     );
 
-    _opacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
+    _opacity = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(0.0, 0.9, curve: Curves.easeOut), // ❗ sem const
     );
 
-    // delay opcional
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
     });
@@ -64,18 +61,12 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (_, child) {
-        return Opacity(
-          opacity: _opacity.value,
-          child: Transform.translate(
-            offset: Offset(_slideAnimation.value.dx * 100, 0),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _offset,
+        child: widget.child,
+      ),
     );
   }
 }

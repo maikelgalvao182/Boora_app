@@ -25,6 +25,15 @@ class ParticipantsAvatarsList extends StatefulWidget {
 }
 
 class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
+  /// Flag para saber se já recebemos dados do servidor
+  bool _hasReceivedServerData = false;
+  
+  /// Flag para animar apenas na primeira renderização
+  bool _hasAnimated = false;
+  
+  /// Cache local para exibir enquanto aguarda dados do servidor
+  List<Map<String, dynamic>>? _cachedParticipants;
+  
   /// Stream de participantes aprovados com dados do usuário
   Stream<List<Map<String, dynamic>>> get _participantsStream {
     debugPrint('🔵 [ParticipantsAvatarsList] Stream INICIADO para eventId: ${widget.eventId}');
@@ -40,10 +49,16 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
           debugPrint('   └─ hasPendingWrites: ${snapshot.metadata.hasPendingWrites}');
           debugPrint('   └─ docs.length: ${snapshot.docs.length}');
           
-          // Ignorar dados do cache para evitar avatar fantasma
-          if (snapshot.metadata.isFromCache) {
-            debugPrint('⚠️ [ParticipantsAvatarsList] Ignorando dados do CACHE');
-            return <Map<String, dynamic>>[];
+          // Se é do cache E já recebemos dados do servidor antes,
+          // ignorar para evitar avatar fantasma ao sair do evento
+          if (snapshot.metadata.isFromCache && _hasReceivedServerData) {
+            debugPrint('⚠️ [ParticipantsAvatarsList] Ignorando CACHE (já temos dados do servidor)');
+            return _cachedParticipants ?? <Map<String, dynamic>>[];
+          }
+          
+          // Marca que recebemos dados do servidor
+          if (!snapshot.metadata.isFromCache) {
+            _hasReceivedServerData = true;
           }
           
           final participants = <Map<String, dynamic>>[];
@@ -93,6 +108,9 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
             debugPrint('   └─ ${p['fullName']} (${p['userId']}) - photoUrl: ${p['photoUrl']}');
           }
           
+          // Atualiza cache local
+          _cachedParticipants = participants;
+          
           return participants;
         });
   }
@@ -102,7 +120,8 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _participantsStream,
       builder: (context, snapshot) {
-        final participants = snapshot.data ?? [];
+        // Usa dados do snapshot ou cache local para evitar flicker
+        final participants = snapshot.data ?? _cachedParticipants ?? [];
         
         if (participants.isEmpty) {
           return const SizedBox.shrink();
@@ -110,6 +129,12 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
 
         final visible = participants.take(widget.maxVisible).toList();
         final remaining = participants.length - visible.length;
+        
+        // Anima apenas na primeira vez que exibe avatares
+        final shouldAnimate = !_hasAnimated;
+        if (shouldAnimate && participants.isNotEmpty) {
+          _hasAnimated = true;
+        }
 
         return Column(
           children: [
@@ -119,28 +144,44 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (int i = 0; i < visible.length; i++)
-                  AnimatedSlideIn(
-                    key: ValueKey(visible[i]['userId']),
-                    delay: Duration(milliseconds: i * 100),
-                    offsetX: 60.0,
-                    child: Padding(
+                  if (shouldAnimate)
+                    AnimatedSlideIn(
+                      key: ValueKey('anim_${visible[i]['userId']}'),
+                      delay: Duration(milliseconds: i * 100),
+                      offsetX: 60.0,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
+                        child: _ParticipantItem(
+                          participant: visible[i],
+                          isCreator: visible[i]['isCreator'] == true,
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      key: ValueKey(visible[i]['userId']),
                       padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
                       child: _ParticipantItem(
                         participant: visible[i],
                         isCreator: visible[i]['isCreator'] == true,
                       ),
                     ),
-                  ),
                 
                 if (remaining > 0)
-                  AnimatedSlideIn(
-                    delay: Duration(milliseconds: visible.length * 100),
-                    offsetX: 60.0,
-                    child: Padding(
+                  if (shouldAnimate)
+                    AnimatedSlideIn(
+                      delay: Duration(milliseconds: visible.length * 100),
+                      offsetX: 60.0,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _RemainingCounter(count: remaining),
+                      ),
+                    )
+                  else
+                    Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: _RemainingCounter(count: remaining),
                     ),
-                  ),
               ],
             ),
           ],

@@ -19,8 +19,18 @@ import 'package:partiu/features/subscription/services/simple_revenue_cat_service
 /// - Carrega dados do Firestore
 /// - Salva no SessionManager (fonte de verdade)
 /// - SessionManager sincroniza automaticamente com AppState
+/// 
+/// SPLASH SCREEN:
+/// O splash é uma MÁSCARA de estado real, não decoração.
+/// - `initialized` só é true quando AUTH + SESSION estão prontos
+/// - Sem delays artificiais - baseado 100% em estado real
 class AuthSyncService extends ChangeNotifier {
-  bool _initialized = false;
+  /// Auth já respondeu (Firebase disse se há user ou não)
+  bool _authResolved = false;
+  
+  /// Sessão pronta (login/logout completo, serviços inicializados)
+  bool _sessionReady = false;
+  
   bool _notificationServiceInitialized = false; // Flag para inicializar apenas uma vez
   StreamSubscription<fire_auth.User?>? _authSubscription;
   StreamSubscription<DocumentSnapshot>? _userSubscription;
@@ -31,8 +41,11 @@ class AuthSyncService extends ChangeNotifier {
   /// Usuário completo da aplicação (delegado para SessionManager)
   app_user.User? get appUser => SessionManager.instance.currentUser;
   
-  /// Indica se o serviço foi inicializado (recebeu primeiro evento do Firebase)
-  bool get initialized => _initialized;
+  /// Indica se o serviço foi inicializado (auth resolvido + sessão pronta)
+  /// 
+  /// REGRA DE OURO: Splash só some quando este getter retornar true.
+  /// Isso é um COMPUTED STATE, não um flag manual.
+  bool get initialized => _authResolved && _sessionReady;
   
   /// Indica se o usuário está logado (delegado para SessionManager)
   bool get isLoggedIn => SessionManager.instance.isLoggedIn && SessionManager.instance.currentUser != null;
@@ -73,6 +86,12 @@ class AuthSyncService extends ChangeNotifier {
       _log('🔄 _handleAuthStateChange DISPARADO!');
       _log('🔄 Auth state changed: ${user?.uid ?? 'null'}');
       _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // ✅ Auth respondeu - Firebase disse se há user ou não
+      _authResolved = true;
+      
+      // Reset session ready - será marcado quando tudo estiver pronto
+      _sessionReady = false;
 
       // Cancela subscription anterior do usuário se existir
       await _userSubscription?.cancel();
@@ -84,6 +103,7 @@ class AuthSyncService extends ChangeNotifier {
 
         // NOTA: RevenueCat login movido para dentro de _loadUserDataAndSaveToSession
         // para garantir que só logamos se o usuário existir no Firestore
+        // _sessionReady será marcado dentro do snapshot listener quando tudo estiver pronto
 
         await _loadUserDataAndSaveToSession(user.uid);
         // NOTA: NotificationsCounterService.initialize() agora é chamado dentro do snapshot listener
@@ -106,12 +126,10 @@ class AuthSyncService extends ChangeNotifier {
         
         // Resetar flag para permitir reinicialização no próximo login
         _notificationServiceInitialized = false;
-      }
-
-      // Marca como inicializado após o primeiro evento
-      if (!_initialized) {
-        _initialized = true;
-        _log('✅ AuthSyncService inicializado');
+        
+        // ✅ Sessão pronta (logout completo)
+        _sessionReady = true;
+        _log('✅ Logout completo - initialized: $initialized');
       }
 
       // Notifica listeners (GoRouter, widgets, etc.)
@@ -120,10 +138,9 @@ class AuthSyncService extends ChangeNotifier {
       _logError('❌ Erro ao processar mudança de auth', e, stack);
       
       // Mesmo com erro, marca como inicializado para não travar a UI
-      if (!_initialized) {
-        _initialized = true;
-        notifyListeners();
-      }
+      _authResolved = true;
+      _sessionReady = true;
+      notifyListeners();
     }
   }
 
@@ -150,6 +167,11 @@ class AuthSyncService extends ChangeNotifier {
           if (!snapshot.exists) {
             _log('Documento do usuário não existe: $uid');
             await SessionManager.instance.logout();
+            // Sessão pronta (documento não existe = logout)
+            if (!_sessionReady) {
+              _sessionReady = true;
+              notifyListeners();
+            }
             return;
           }
 
@@ -157,6 +179,11 @@ class AuthSyncService extends ChangeNotifier {
           if (data == null) {
             _log('Dados do usuário são null: $uid');
             await SessionManager.instance.logout();
+            // Sessão pronta (dados null = logout)
+            if (!_sessionReady) {
+              _sessionReady = true;
+              notifyListeners();
+            }
             return;
           }
 
@@ -212,15 +239,34 @@ class AuthSyncService extends ChangeNotifier {
             }
           }
           
+          // ✅ Sessão pronta - todos os serviços inicializados
+          if (!_sessionReady) {
+            _sessionReady = true;
+            _log('✅ Sessão pronta - initialized: $initialized');
+          }
+          
           _log('📊 [INIT] Chamando notifyListeners() final...');
           notifyListeners();
           _log('✅ [INIT] notifyListeners() completo - UI pode atualizar agora');
         } catch (e, stack) {
           _logError('Erro ao processar snapshot do usuário', e, stack);
+          // Mesmo com erro, marca sessão como pronta para não travar
+          if (!_sessionReady) {
+            _sessionReady = true;
+            notifyListeners();
+          }
         }
       });
     } catch (e, stack) {
       _logError('Erro ao carregar dados do usuário', e, stack);
+      // Mesmo com erro, marca sessão como pronta para não travar
+      if (!_sessionReady) {
+        _sessionReady = true;
+        notifyListeners();
+      }
+    }
+  }
+
   /// Força logout do usuário (delega para SessionManager)
   Future<void> signOut() async {
     try {
@@ -243,11 +289,6 @@ class AuthSyncService extends ChangeNotifier {
       // Firebase signOut por último (dispara authStateChanges que confirma o logout)
       await fire_auth.FirebaseAuth.instance.signOut();
       
-      _log('Logout completado');
-    } catch (e, stack) {
-      _logError('Erro durante logout', e, stack);
-    }
-  }   
       _log('Logout completado');
     } catch (e, stack) {
       _logError('Erro durante logout', e, stack);

@@ -143,11 +143,11 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           },
         );
       } else if (_viewModel.saveState == LocationSaveState.error) {
-        _showErrorDialog(_viewModel.saveError ?? 'Unknown error');
+        _showErrorDialog(_viewModel.saveError ?? _i18n.translate('unknown_error'));
       }
     } catch (e) {
       if (mounted) setState(() => _isSaving = false);
-      _showErrorDialog('Erro ao obter localização: $e');
+      _showErrorDialog('${_i18n.translate('error_getting_location')}: $e');
     }
   }
   

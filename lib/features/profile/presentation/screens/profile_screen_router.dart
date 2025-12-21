@@ -19,7 +19,7 @@ class ProfileScreenRouter {
     final currentUserId = AppState.currentUserId;
     if (currentUserId == null || currentUserId.isEmpty) {
       if (context.mounted) {
-        _showError(context, 'Usuário não autenticado');
+        _showError(context, 'user_not_authenticated');
       }
       return;
     }
@@ -55,7 +55,7 @@ class ProfileScreenRouter {
     
     if (finalUserId == null || finalUserId.isEmpty) {
       if (context.mounted) {
-        _showError(context, 'Usuário não autenticado. Tente novamente.');
+        _showError(context, 'user_not_authenticated_try_again');
       }
       return;
     }
@@ -83,18 +83,19 @@ class ProfileScreenRouter {
       
       // Se for outro usuário, mostra erro por enquanto
       if (context.mounted) {
-        _showError(context, 'Visualização de outros perfis ainda não implementada');
+        _showError(context, 'other_profiles_not_implemented');
       }
     } catch (e) {
       if (context.mounted) {
-        _showError(context, 'Erro ao carregar perfil: $e');
+        final i18n = AppLocalizations.of(context);
+        _showError(context, '${i18n.translate('error_loading_profile')}: $e');
       }
     }
   }
 
   /// Mostra erro via Toast
-  static void _showError(BuildContext context, String message) {
+  static void _showError(BuildContext context, String messageKey) {
     final i18n = AppLocalizations.of(context);
-    ToastService.showError(message: message);
+    ToastService.showError(message: i18n.translate(messageKey));
   }
 }

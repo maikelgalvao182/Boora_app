@@ -7,31 +7,40 @@ import 'package:partiu/features/home/presentation/widgets/helpers/marker_bitmap_
 
 /// Serviço responsável por gerar e gerenciar markers de eventos no Google Maps
 /// 
+/// SINGLETON: Compartilha cache de bitmaps entre todas as instâncias
+/// Isso permite que os bitmaps pré-carregados no AppInitializerService
+/// sejam reutilizados pelo GoogleMapView
+/// 
 /// Responsabilidades:
 /// - Gerar pins de emoji
 /// - Gerar pins de avatar
 /// - Gerar pins de cluster (com badge de contagem)
 /// - Criar markers para o mapa
-/// - Gerenciar cache de bitmaps
+/// - Gerenciar cache de bitmaps (compartilhado via singleton)
 /// - Clusterizar eventos baseado no zoom
 class GoogleEventMarkerService {
+  /// Instância singleton
+  static final GoogleEventMarkerService _instance = GoogleEventMarkerService._internal();
+  
+  /// Factory constructor que retorna a instância singleton
+  factory GoogleEventMarkerService() => _instance;
+  
+  /// Constructor interno
+  GoogleEventMarkerService._internal()
+      : _avatarService = AvatarService(),
+        _clusterService = MarkerClusterService();
+  
   final AvatarService _avatarService;
   final MarkerClusterService _clusterService;
 
-  /// Cache de bitmaps de emojis
+  /// Cache de bitmaps de emojis (compartilhado)
   final Map<String, BitmapDescriptor> _emojiCache = {};
 
-  /// Cache de bitmaps de avatares
+  /// Cache de bitmaps de avatares (compartilhado)
   final Map<String, BitmapDescriptor> _avatarCache = {};
 
   /// Bitmap padrão para avatares
   BitmapDescriptor? _defaultAvatarPin;
-
-  GoogleEventMarkerService({
-    AvatarService? avatarService,
-    MarkerClusterService? clusterService,
-  }) : _avatarService = avatarService ?? AvatarService(),
-       _clusterService = clusterService ?? MarkerClusterService();
 
   /// Pré-carrega bitmaps padrão
   /// 
@@ -46,6 +55,52 @@ class GoogleEventMarkerService {
     } catch (e) {
       // Fallback será tratado no momento de usar
     }
+  }
+
+  /// Pré-carrega bitmaps de emojis e avatares para uma lista de eventos
+  /// 
+  /// Este método deve ser chamado durante a inicialização do app
+  /// para popular o cache de bitmaps. Assim quando os markers forem
+  /// gerados com callbacks, os bitmaps já estarão prontos.
+  /// 
+  /// Retorna o número de bitmaps pré-carregados
+  Future<int> preloadBitmapsForEvents(List<EventModel> events) async {
+    if (events.isEmpty) return 0;
+    
+    final stopwatch = Stopwatch()..start();
+    int loaded = 0;
+    
+    // Pré-carregar em paralelo para máxima velocidade
+    await Future.wait(events.map((event) async {
+      try {
+        // Pré-carregar emoji (se não estiver no cache)
+        final emojiKey = '${event.emoji}-${event.id}';
+        if (!_emojiCache.containsKey(emojiKey)) {
+          final bitmap = await MarkerBitmapGenerator.generateEmojiPinForGoogleMaps(
+            event.emoji,
+            eventId: event.id,
+          );
+          _emojiCache[emojiKey] = bitmap;
+          loaded++;
+        }
+        
+        // Pré-carregar avatar (se não estiver no cache)
+        if (!_avatarCache.containsKey(event.createdBy)) {
+          final avatarUrl = await _avatarService.getAvatarUrl(event.createdBy);
+          final bitmap = await MarkerBitmapGenerator.generateAvatarPinForGoogleMaps(avatarUrl);
+          _avatarCache[event.createdBy] = bitmap;
+          loaded++;
+        }
+      } catch (e) {
+        // Ignorar erros individuais, continuar com os próximos
+        debugPrint('⚠️ [MarkerService] Erro ao pré-carregar bitmap: $e');
+      }
+    }));
+    
+    stopwatch.stop();
+    debugPrint('⚡ [MarkerService] $loaded bitmaps pré-carregados em ${stopwatch.elapsedMilliseconds}ms');
+    
+    return loaded;
   }
 
   /// Gera ou retorna bitmap de emoji do cache
@@ -94,18 +149,33 @@ class GoogleEventMarkerService {
     List<EventModel> events, {
     Function(String eventId)? onTap,
   }) async {
+    final stopwatch = Stopwatch()..start();
     final Set<Marker> markers = {};
+    
+    if (events.isEmpty) return markers;
+    
+    // ⚡ OTIMIZAÇÃO: Pré-carregar todos os bitmaps em PARALELO primeiro
+    // Isso é muito mais rápido que carregar sequencialmente
+    await Future.wait(events.map((event) async {
+      await _getEmojiPin(event.emoji, event.id);
+      await _getAvatarPin(event.createdBy);
+    }));
+    
+    debugPrint('⚡ [MarkerService] Bitmaps pré-carregados em ${stopwatch.elapsedMilliseconds}ms');
 
     // Contador para z-index único por evento
+    // Usando valores NEGATIVOS para ficar ABAIXO do pin do usuário do Google
+    // O pin azul do usuário tem z-index ~0, então usamos negativos
     int eventIndex = 0;
 
     for (final event in events) {
       try {
-        // Z-index único para este evento
-        final baseZIndex = eventIndex * 2;
+        // Z-index negativo para ficar ABAIXO do pin do usuário
+        // Emoji usa índice base negativo, avatar usa base - 1
+        final baseZIndex = -1000 + (eventIndex * 2);
         eventIndex++;
         
-        // 1. Emoji pin PRIMEIRO (renderiza embaixo)
+        // 1. Emoji pin PRIMEIRO (renderiza embaixo) - já está em cache
         final emojiPin = await _getEmojiPin(event.emoji, event.id);
 
         markers.add(
@@ -114,7 +184,7 @@ class GoogleEventMarkerService {
             position: LatLng(event.lat, event.lng),
             icon: emojiPin,
             anchor: const Offset(0.5, 1.0), // Ancorado no fundo
-            zIndex: baseZIndex.toDouble(),
+            zIndex: baseZIndex.toDouble(), // Negativo - abaixo do pin do usuário
             onTap: onTap != null ? () {
               debugPrint('🟢 [MarkerService] Emoji marker tapped: ${event.id}');
               debugPrint('🟢 [MarkerService] Callback exists: ${onTap != null}');
@@ -124,7 +194,7 @@ class GoogleEventMarkerService {
           ),
         );
 
-        // 2. Avatar pin DEPOIS (renderiza em cima do seu emoji, mas abaixo do próximo evento)
+        // 2. Avatar pin DEPOIS (renderiza em cima do seu emoji, mas abaixo do pin do usuário)
         final avatarPin = await _getAvatarPin(event.createdBy);
 
         markers.add(
@@ -133,7 +203,7 @@ class GoogleEventMarkerService {
             position: LatLng(event.lat, event.lng),
             icon: avatarPin,
             anchor: const Offset(0.5, 0.80), // 8px abaixo do centro (0.08 = 8/100) para subir visualmente
-            zIndex: (baseZIndex + 1).toDouble(),
+            zIndex: (baseZIndex + 1).toDouble(), // Negativo - abaixo do pin do usuário
             onTap: onTap != null ? () {
               debugPrint('🔵 [MarkerService] Avatar marker tapped: ${event.id}');
               debugPrint('🔵 [MarkerService] Callback exists: ${onTap != null}');
@@ -147,6 +217,9 @@ class GoogleEventMarkerService {
         continue;
       }
     }
+    
+    stopwatch.stop();
+    debugPrint('✅ [MarkerService] ${markers.length} markers gerados em ${stopwatch.elapsedMilliseconds}ms');
 
     return markers;
   }
@@ -175,6 +248,8 @@ class GoogleEventMarkerService {
   }) async {
     final stopwatch = Stopwatch()..start();
     final Set<Marker> markers = {};
+    
+    if (events.isEmpty) return markers;
 
     // Clusterizar eventos
     final clusters = _clusterService.clusterEvents(
@@ -183,11 +258,23 @@ class GoogleEventMarkerService {
     );
 
     debugPrint('🔲 [MarkerService] Gerando markers para ${clusters.length} clusters (zoom: ${zoom.toStringAsFixed(1)})');
+    
+    // ⚡ OTIMIZAÇÃO: Pré-carregar todos os bitmaps em PARALELO primeiro
+    // Isso usa o cache singleton - se já foi carregado no AppInitializer, será instantâneo
+    final singleEvents = clusters.where((c) => c.isSingleEvent).map((c) => c.firstEvent).toList();
+    if (singleEvents.isNotEmpty) {
+      await Future.wait(singleEvents.map((event) async {
+        await _getEmojiPin(event.emoji, event.id);
+        await _getAvatarPin(event.createdBy);
+      }));
+    }
+    
+    debugPrint('⚡ [MarkerService] Bitmaps verificados/carregados em ${stopwatch.elapsedMilliseconds}ms');
 
     // Contador para z-index único por evento
-    // Cada evento usa 2 níveis: um para emoji (par) e um para avatar (ímpar)
-    // Isso garante que emoji+avatar de um evento fiquem juntos
-    // e não interfiram com outros eventos
+    // Usando valores NEGATIVOS para ficar ABAIXO do pin do usuário do Google
+    // O pin azul do usuário tem z-index ~0, então usamos negativos
+    // Cada evento usa 2 níveis: um para emoji e um para avatar
     int eventIndex = 0;
 
     for (final cluster in clusters) {
@@ -199,13 +286,12 @@ class GoogleEventMarkerService {
           // Obter posição (com offset se houver sobreposição)
           final position = _clusterService.getPositionForEvent(event, events, zoom);
           
-          // Z-index único para este evento
-          // Emoji usa índice base, avatar usa índice base + 1
-          // Próximo evento começa no índice base + 2
-          final baseZIndex = eventIndex * 2;
+          // Z-index negativo para ficar ABAIXO do pin do usuário
+          // Emoji usa índice base negativo, avatar usa base + 1
+          final baseZIndex = -1000 + (eventIndex * 2);
           eventIndex++;
           
-          // 1. Emoji pin (camada de baixo do par)
+          // 1. Emoji pin (camada de baixo do par) - já está em cache
           final emojiPin = await _getEmojiPin(event.emoji, event.id);
           markers.add(
             Marker(
@@ -213,7 +299,7 @@ class GoogleEventMarkerService {
               position: position,
               icon: emojiPin,
               anchor: const Offset(0.5, 1.0),
-              zIndex: baseZIndex.toDouble(),
+              zIndex: baseZIndex.toDouble(), // Negativo - abaixo do pin do usuário
               onTap: onSingleTap != null
                   ? () {
                       debugPrint('🟢 [MarkerService] Single marker tapped: ${event.id}');
@@ -223,7 +309,7 @@ class GoogleEventMarkerService {
             ),
           );
 
-          // 2. Avatar pin (camada de cima do par, mas abaixo do próximo evento)
+          // 2. Avatar pin (camada de cima do par, mas abaixo do pin do usuário) - já está em cache
           final avatarPin = await _getAvatarPin(event.createdBy);
           markers.add(
             Marker(
@@ -231,7 +317,7 @@ class GoogleEventMarkerService {
               position: position,
               icon: avatarPin,
               anchor: const Offset(0.5, 0.80),
-              zIndex: (baseZIndex + 1).toDouble(),
+              zIndex: (baseZIndex + 1).toDouble(), // Negativo - abaixo do pin do usuário
               onTap: onSingleTap != null
                   ? () {
                       debugPrint('🔵 [MarkerService] Single avatar tapped: ${event.id}');
@@ -242,8 +328,9 @@ class GoogleEventMarkerService {
           );
         } else {
           // Marker de cluster: emoji + badge
-          // Clusters usam z-index alto para ficar sempre visíveis
-          final clusterZIndex = 10000 + eventIndex;
+          // Clusters usam z-index negativo mas mais alto que markers individuais
+          // para ficar visíveis, porém ainda abaixo do pin do usuário
+          final clusterZIndex = -500 + eventIndex;
           eventIndex++;
           
           final clusterPin = await MarkerBitmapGenerator.generateClusterPinForGoogleMaps(
@@ -257,7 +344,7 @@ class GoogleEventMarkerService {
               position: cluster.center,
               icon: clusterPin,
               anchor: const Offset(0.5, 0.5),
-              zIndex: clusterZIndex.toDouble(),
+              zIndex: clusterZIndex.toDouble(), // Negativo - abaixo do pin do usuário
               onTap: onClusterTap != null
                   ? () {
                       debugPrint('🔴 [MarkerService] Cluster tapped: ${cluster.count} eventos');

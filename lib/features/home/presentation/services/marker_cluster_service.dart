@@ -63,7 +63,7 @@ class MarkerClusterService {
   /// Zoom máximo para ativar clustering
   /// Acima deste zoom (visão mais próxima), mostra apenas markers individuais
   /// Abaixo ou igual (visão ampla), ativa o clustering
-  static const double _maxClusterZoom = 12.0;
+  static const double _maxClusterZoom = 11.0;
 
   /// Retorna tamanho do grid baseado no zoom atual
   /// 

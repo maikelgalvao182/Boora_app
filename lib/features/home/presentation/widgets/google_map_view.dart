@@ -118,8 +118,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
         widget.viewModel.loadNearbyEvents();
       } else {
         debugPrint('✅ GoogleMapView: ${widget.viewModel.events.length} eventos já pré-carregados!');
-        debugPrint('✅ GoogleMapView: ${widget.viewModel.googleMarkers.length} markers já pré-carregados!');
-        // Usar markers pré-carregados
+        debugPrint('⚡ GoogleMapView: Bitmaps já em cache, gerando markers com callbacks...');
+        
+        // Os BITMAPS foram pré-carregados no AppInitializerService,
+        // então a geração de markers será instantânea
+        _currentZoom = 12.0; // Zoom padrão - visão regional
         _onEventsChanged();
       }
     });
@@ -239,13 +242,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Callback quando cluster é tocado
   /// 
   /// Comportamento:
-  /// - Zoom in para expandir o cluster
-  /// - Se zoom já alto, mostra lista de eventos
+  /// - Zoom in até desfazer o cluster (zoom > 11 desativa clustering)
+  /// - Se zoom já alto, mostra o primeiro evento
   void _onClusterTap(List<EventModel> eventsInCluster) async {
     if (_mapController == null || eventsInCluster.isEmpty) return;
     
-    // Se zoom já está alto (>= 16), não faz sentido dar mais zoom
-    // Mostrar lista de eventos ou o primeiro evento
+    // Se zoom já está alto (>= 16), mostrar primeiro evento
     if (_currentZoom >= 16) {
       debugPrint('📍 Cluster tocado em zoom alto - mostrando primeiro evento');
       _onMarkerTap(eventsInCluster.first);
@@ -262,8 +264,17 @@ class GoogleMapViewState extends State<GoogleMapView> {
     avgLat /= eventsInCluster.length;
     avgLng /= eventsInCluster.length;
     
-    // Calcular novo zoom (aumenta em 2 níveis)
-    final newZoom = (_currentZoom + 2).clamp(3.0, 20.0);
+    // 🎯 Calcular zoom para DESFAZER o cluster
+    // Clustering é ativado quando zoom <= 11, então precisamos ir para zoom > 11
+    // Quanto mais eventos no cluster, mais zoom precisamos para separar
+    double newZoom;
+    if (_currentZoom <= 11) {
+      // Se estamos em zoom de clustering, ir direto para zoom 12-13 (desativa clustering)
+      newZoom = eventsInCluster.length > 5 ? 13.0 : 12.0;
+    } else {
+      // Se já passou do threshold de clustering, aumentar normalmente
+      newZoom = (_currentZoom + 2).clamp(3.0, 20.0);
+    }
     
     debugPrint('🔍 Expandindo cluster: zoom ${_currentZoom.toStringAsFixed(1)} → ${newZoom.toStringAsFixed(1)}');
     
@@ -277,14 +288,23 @@ class GoogleMapViewState extends State<GoogleMapView> {
           newZoom,
         ),
       );
+      
+      // Aguardar animação completar
+      await Future.delayed(const Duration(milliseconds: 400));
+      
     } finally {
-      // Aguardar um pouco para animação completar
-      await Future.delayed(const Duration(milliseconds: 300));
       _isAnimating = false;
     }
     
-    // Nota: O recálculo dos clusters acontecerá automaticamente
-    // no onCameraIdle quando a animação terminar
+    // 🎯 FORÇAR rebuild dos markers após zoom do cluster
+    // O onCameraIdle pode ter sido ignorado durante a animação
+    _currentZoom = newZoom;
+    
+    // Limpar cache de clusters para forçar recalculo com novo zoom
+    _markerService.clearClusterCache();
+    
+    debugPrint('🔄 Forçando rebuild de markers após zoom do cluster');
+    await _rebuildClusteredMarkers();
   }
 
   /// Callback quando o mapa é criado
@@ -301,7 +321,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       await _moveCameraTo(
         widget.viewModel.lastLocation!.latitude,
         widget.viewModel.lastLocation!.longitude,
-        zoom: 15.0,
+        zoom: 12.0, // Visão regional para ver mais eventos
       );
     } else {
       await _moveCameraToUserLocation();
@@ -393,7 +413,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
     await _moveCameraTo(
       result.location.latitude,
       result.location.longitude,
-      zoom: 15.0,
+      zoom: 12.0, // Visão regional para ver mais eventos
     );
   }
 
@@ -583,10 +603,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
       // Callback quando câmera para (após movimento)
       onCameraIdle: _onCameraIdle,
 
-      // Posição inicial (São Paulo)
+      // Posição inicial (São Paulo) - zoom afastado para ver região
       initialCameraPosition: const CameraPosition(
         target: LatLng(-23.5505, -46.6333),
-        zoom: 12.0,
+        zoom: 10.0,
       ),
       
       // Permitir zoom de 3.0 (visão continental) até 20.0 (visão de rua detalhada)

@@ -44,7 +44,7 @@ class _DiditVerificationExampleState extends State<DiditVerificationExample> {
     final microphoneStatus = await Permission.microphone.request();
 
     if (!cameraStatus.isGranted || !microphoneStatus.isGranted) {
-      _showError('Permissões de câmera e microfone são necessárias');
+      _showError('camera_microphone_permissions_required');
       return;
     }
 
@@ -60,9 +60,9 @@ class _DiditVerificationExampleState extends State<DiditVerificationExample> {
     // 3. Processar resultado
     if (result == true) {
       setState(() => _isVerified = true);
-      _showSuccess('Verificação concluída com sucesso!');
+      _showSuccess('verification_completed_successfully');
     } else {
-      _showError('Verificação não concluída');
+      _showError('verification_not_completed');
     }
   }
 

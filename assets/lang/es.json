@@ -505,6 +505,23 @@
   "section_account": "Cuenta",
   "follow_us_on_tiktok": "Síguenos en TikTok",
   "follow_us_on_instagram": "Síguenos en Instagram",
-  
-  "years_old": "años"
+  "years_old": "años",
+  "camera_microphone_permissions_required": "Se requieren permisos de cámara y micrófono",
+  "verification_completed_successfully": "¡Verificación completada con éxito!",
+  "verification_not_completed": "Verificación no completada",
+  "error_processing_verification": "Error al procesar verificación",
+  "failed_to_remove_image": "Error al eliminar imagen",
+  "selected_file_not_found": "Archivo seleccionado no encontrado",
+  "invalid_file_zero_size": "Archivo inválido (tamaño cero)",
+  "unexpected_error": "Error inesperado",
+  "user_not_authenticated_try_again": "Usuario no autenticado. Inténtalo de nuevo.",
+  "other_profiles_not_implemented": "Visualización de otros perfiles aún no implementada",
+  "unknown_error": "Error desconocido",
+  "error_getting_location": "Error al obtener ubicación",
+  "image_uploaded": "¡Imagen subida!",
+  "upload_failed": "Error al subir",
+  "image_removed": "¡Imagen eliminada!",
+  "user_not_authenticated_message": "El usuario no está autenticado",
+  "application_approved_successfully": "¡Solicitud aprobada con éxito!"
 }
+

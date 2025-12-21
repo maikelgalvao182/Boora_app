@@ -665,6 +665,23 @@
   "later": "Later",
   "review_sent_successfully": "Review sent successfully!",
   "reviews_sent_successfully": "{count} reviews sent successfully!",
-  "error_confirming_presence": "Error confirming presence"
+  "error_confirming_presence": "Error confirming presence",
+  "camera_microphone_permissions_required": "Camera and microphone permissions are required",
+  "verification_completed_successfully": "Verification completed successfully!",
+  "verification_not_completed": "Verification not completed",
+  "error_processing_verification": "Error processing verification",
+  "failed_to_remove_image": "Failed to remove image",
+  "selected_file_not_found": "Selected file not found",
+  "invalid_file_zero_size": "Invalid file (zero size)",
+  "unexpected_error": "Unexpected error",
+  "user_not_authenticated_try_again": "User not authenticated. Please try again.",
+  "other_profiles_not_implemented": "Viewing other profiles not yet implemented",
+  "unknown_error": "Unknown error",
+  "error_getting_location": "Error getting location",
+  "image_uploaded": "Image uploaded!",
+  "upload_failed": "Upload failed",
+  "image_removed": "Image removed!",
+  "user_not_authenticated_message": "User is not authenticated",
+  "application_approved_successfully": "Application approved successfully!"
   
 }

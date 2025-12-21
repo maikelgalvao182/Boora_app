@@ -55,14 +55,16 @@ class _UserImagesGridState extends State<UserImagesGrid> {
     if (result.success) {
       debugPrint('[UserImagesGrid] ✅ Delete SUCCESS for index: $index');
       if (!context.mounted) return;
+      final i18n = AppLocalizations.of(context);
       ToastService.showSuccess(
-        message: imageDeletedMsg ?? 'Imagem removida!',
+        message: imageDeletedMsg ?? i18n.translate('image_removed'),
       );
     } else {
       debugPrint('[UserImagesGrid] ❌ Delete FAILED for index: $index - ${result.errorMessage}');
       if (!context.mounted) return;
+      final i18n = AppLocalizations.of(context);
       ToastService.showError(
-        message: deleteFailedMsg ?? 'Falha ao remover imagem',
+        message: deleteFailedMsg ?? i18n.translate('failed_to_remove_image'),
       );
     }
   }
@@ -98,7 +100,7 @@ class _UserImagesGridState extends State<UserImagesGrid> {
       if (!await file.exists()) {
         debugPrint('[UserImagesGrid] ❌ Selected file does not exist');
         if (!context.mounted) return;
-        _showErrorToastWithI18n(context, i18n, 'Arquivo selecionado não foi encontrado');
+        _showErrorToastWithI18n(context, i18n, i18n.translate('selected_file_not_found'));
         return;
       }
       
@@ -108,7 +110,7 @@ class _UserImagesGridState extends State<UserImagesGrid> {
       if (fileSize == 0) {
         debugPrint('[UserImagesGrid] ❌ File size is zero');
         if (!context.mounted) return;
-        _showErrorToastWithI18n(context, i18n, 'Arquivo inválido (tamanho zero)');
+        _showErrorToastWithI18n(context, i18n, i18n.translate('invalid_file_zero_size'));
         return;
       }
       
@@ -132,18 +134,22 @@ class _UserImagesGridState extends State<UserImagesGrid> {
         debugPrint('[UserImagesGrid] ✅ Upload SUCCESS for index: $index');
         if (!context.mounted) return;
         ToastService.showSuccess(
-          message: i18n.translate('image_uploaded') ?? 'Imagem enviada!',
+          message: i18n.translate('image_uploaded'),
         );
       } else {
         debugPrint('[UserImagesGrid] ❌ Upload FAILED for index: $index - ${result.errorMessage}');
         if (!context.mounted) return;
-        _showErrorToastWithI18n(context, i18n, '${i18n.translate('failed_to_upload_image')}: ${result.errorMessage}');
+        ToastService.showError(
+          message: '${i18n.translate('failed_to_upload_image')}: ${result.errorMessage}',
+        );
       }
     } catch (e, stackTrace) {
       debugPrint('[UserImagesGrid] 💥 Exception in _handleAddImage: $e');
       debugPrint('[UserImagesGrid] 📚 StackTrace: $stackTrace');
       if (!context.mounted) return;
-      _showErrorToastWithI18n(context, i18n, 'Erro inesperado: $e');
+      ToastService.showError(
+        message: '${i18n.translate('unexpected_error')}: $e',
+      );
     } finally {
       // Garantir que loading seja removido
       if (mounted) {
@@ -153,9 +159,9 @@ class _UserImagesGridState extends State<UserImagesGrid> {
     }
   }
 
-  void _showErrorToastWithI18n(BuildContext context, AppLocalizations i18n, String message) {
+  void _showErrorToastWithI18n(BuildContext context, AppLocalizations i18n, String messageKey) {
     ToastService.showError(
-      message: i18n.translate('upload_failed') ?? 'Falha no upload',
+      message: i18n.translate(messageKey),
     );
   }
 

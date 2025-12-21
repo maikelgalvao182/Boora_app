@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -37,20 +38,41 @@ class FcmTokenService {
   String? _currentToken;
   String? _currentDeviceId;
   
+  /// 🔒 Flag para garantir que initialize() só rode uma vez por sessão
+  bool _initialized = false;
+  
+  /// 🔔 Subscription do listener de token refresh (para cancelar no logout)
+  StreamSubscription<String>? _tokenRefreshSub;
+  
+  /// 🔒 Mutex para evitar chamadas concorrentes de _saveToken()
+  bool _saving = false;
+  
   /// 🚀 Inicializa o serviço de FCM tokens
   /// 
-  /// Deve ser chamado após o login do usuário
+  /// Deve ser chamado após o login do usuário.
+  /// ⚠️ IDÊMPOTENTE: só executa uma vez por sessão.
   Future<void> initialize() async {
+    // 🔒 Guard: evita múltiplas inicializações (causa de push duplicado)
+    if (_initialized) {
+      print('⚠️ [FCM Token] initialize() já executado nesta sessão, ignorando');
+      return;
+    }
+    
+    // ⚠️ IMPORTANTE: Verificar user ANTES de setar _initialized
+    // Evita "queimar" a sessão se chamado antes do login
+    final user = fire_auth.FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print('⚠️ [FCM Token] Usuário não autenticado, aguardando login');
+      return;
+    }
+    
+    // ✅ Só marca como inicializado APÓS confirmar que há user
+    _initialized = true;
+    
     try {
       print('╔═══════════════════════════════════════════════════════');
       print('║ 🔑 [FCM Token Service] INICIALIZANDO');
       print('╚═══════════════════════════════════════════════════════');
-      
-      final user = fire_auth.FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        print('⚠️ [FCM Token] Usuário não autenticado, aguardando login');
-        return;
-      }
       
       print('👤 [FCM Token] User ID: ${user.uid}');
       print('📧 [FCM Token] Email: ${user.email ?? "N/A"}');
@@ -64,13 +86,27 @@ class FcmTokenService {
         // iOS: Agenda retry para depois que o APNS token estiver disponível
         if (Platform.isIOS) {
           print('⏰ [FCM Token] Agendando retry em 5 segundos...');
+          final userIdAtSchedule = user.uid; // Captura o userId no momento do agendamento
           Future.delayed(const Duration(seconds: 5), () async {
+            // 🔒 Guard: aborta se sessão foi invalidada (logout/troca de conta)
+            if (!_initialized) {
+              print('⚠️ [FCM Token] Retry abortado — sessão inválida (logout ocorreu)');
+              return;
+            }
+            
+            // Verifica se o usuário atual ainda é o mesmo
+            final currentUser = fire_auth.FirebaseAuth.instance.currentUser;
+            if (currentUser == null || currentUser.uid != userIdAtSchedule) {
+              print('⚠️ [FCM Token] Retry abortado — usuário mudou');
+              return;
+            }
+            
             print('\n🔄 [FCM Token] Tentando novamente após delay...');
             final retryToken = await _getToken();
             if (retryToken != null) {
               final retryDeviceId = await _getDeviceId();
               await _saveToken(
-                userId: user.uid,
+                userId: currentUser.uid,
                 token: retryToken,
                 deviceId: retryDeviceId,
               );
@@ -182,12 +218,20 @@ class FcmTokenService {
       
       await batch.commit();
       
-      // Limpa cache local
+      // Cancela listener de token refresh (CRÍTICO: evita push duplicado)
+      print('🔔 [FCM Token] Cancelando listener de token refresh...');
+      await _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = null;
+      print('✅ [FCM Token] Listener cancelado');
+      
+      // Limpa cache local e reset de estado
       _currentToken = null;
       _currentDeviceId = null;
+      _initialized = false; // Permite re-inicialização após novo login
+      _saving = false; // Reset do mutex
       
       print('✅ [FCM Token] ${snapshot.docs.length} token(s) removido(s) com sucesso');
-      print('💾 [FCM Token] Cache local limpo');
+      print('💾 [FCM Token] Cache local e estado resetados');
       
     } catch (e) {
       print('❌ [FCM Token] Erro ao remover tokens: $e');
@@ -319,11 +363,19 @@ class FcmTokenService {
   }
   
   /// 💾 Salva o token no Firestore
+  /// 🔒 Mutex interno evita chamadas concorrentes
   Future<void> _saveToken({
     required String userId,
     required String token,
     required String deviceId,
   }) async {
+    // 🔒 Mutex: evita chamadas concorrentes (initialize + retry + onTokenRefresh)
+    if (_saving) {
+      print('⚠️ [FCM Token] _saveToken já em execução, ignorando chamada concorrente');
+      return;
+    }
+    _saving = true;
+    
     try {
       print('  ⏳ [FCM Token] Preparando para salvar no Firestore...');
       print('  📋 [FCM Token] Dados:');
@@ -440,6 +492,8 @@ class FcmTokenService {
       
     } catch (e) {
       print('❌ [FCM Token] Erro ao salvar token: $e');
+    } finally {
+      _saving = false;
     }
   }
   
@@ -460,8 +514,17 @@ class FcmTokenService {
   }
   
   /// 🔄 Configura listener para token refresh automático
+  /// ⚠️ IDÊMPOTENTE: só registra o listener uma vez
   void _setupTokenRefreshListener() {
-    _messaging.onTokenRefresh.listen((newToken) async {
+    // 🔒 Guard: evita múltiplos listeners (CAUSA RAIZ de push duplicado)
+    if (_tokenRefreshSub != null) {
+      print('⚠️ [FCM Token] Listener de refresh já registrado, ignorando');
+      return;
+    }
+    
+    print('🧨 [FCM Token] Registrando token refresh listener (deve aparecer 1x por sessão)');
+    
+    _tokenRefreshSub = _messaging.onTokenRefresh.listen((newToken) async {
       print('🔄 [FCM Token] Token atualizado automaticamente');
       
       final user = fire_auth.FirebaseAuth.instance.currentUser;
