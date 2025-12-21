@@ -1,5 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
+extension _StringExtension on String {
+  String get capitalized => isEmpty ? this : '${this[0].toUpperCase()}${substring(1).toLowerCase()}';
+}
+
 /// Dialog Cupertino reutilizável com botões lado a lado
 /// 
 /// Estilo iOS nativo com:
@@ -27,12 +31,12 @@ class GlimpseCupertinoDialog {
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
             textStyle: const TextStyle(color: CupertinoColors.activeBlue),
-            child: Text(cancelText.toLowerCase()),
+            child: Text(cancelText.capitalized),
           ),
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(true),
             textStyle: const TextStyle(color: CupertinoColors.activeBlue),
-            child: Text(confirmText.toLowerCase()),
+            child: Text(confirmText.capitalized),
           ),
         ],
       ),
@@ -58,12 +62,12 @@ class GlimpseCupertinoDialog {
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
             textStyle: const TextStyle(color: CupertinoColors.activeBlue),
-            child: Text(cancelText.toLowerCase()),
+            child: Text(cancelText.capitalized),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(destructiveText.toLowerCase()),
+            child: Text(destructiveText.capitalized),
           ),
         ],
       ),

@@ -37,13 +37,14 @@ class StableAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('🎯 StableAvatar build - userId: $userId');
-    debugPrint('🎯 StableAvatar build - photoUrl: $photoUrl');
-    debugPrint('🎯 StableAvatar build - size: $size');
+    debugPrint('═══════════════════════════════════════════');
+    debugPrint('🎯 [StableAvatar] BUILD');
+    debugPrint('   └─ userId: $userId');
+    debugPrint('   └─ photoUrl param: $photoUrl');
     
     // UserID vazio → avatar padrão
     if (userId.trim().isEmpty) {
-      debugPrint('⚠️ StableAvatar - userId vazio, mostrando avatar padrão');
+      debugPrint('⚠️ [StableAvatar] userId VAZIO - usando empty avatar');
       return _AvatarShell(
         size: size,
         borderRadius: borderRadius,
@@ -52,15 +53,21 @@ class StableAvatar extends StatelessWidget {
       );
     }
 
-    // Usar UserStore para reatividade global (sincroniza com edição de perfil)
+    // Usar UserStore para reatividade global
     final notifier = UserStore.instance.getAvatarEntryNotifier(userId);
     
     // Se photoUrl foi passado explicitamente, preload no UserStore
-    if (photoUrl != null && photoUrl!.isNotEmpty) {
-      debugPrint('✅ StableAvatar - preloadAvatar com photoUrl: $photoUrl');
+    final hasValidPhotoUrl = photoUrl != null && photoUrl!.isNotEmpty;
+    debugPrint('🔍 [StableAvatar] hasValidPhotoUrl: $hasValidPhotoUrl');
+    
+    if (hasValidPhotoUrl) {
+      debugPrint('✅ [StableAvatar] Agendando preloadAvatar com URL: $photoUrl');
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('⏰ [StableAvatar] PostFrameCallback - chamando preloadAvatar');
         UserStore.instance.preloadAvatar(userId, photoUrl!);
       });
+    } else {
+      debugPrint('⚠️ [StableAvatar] photoUrl VAZIO ou NULL - UserStore vai buscar');
     }
 
     return _AvatarShell(
@@ -75,10 +82,15 @@ class StableAvatar extends StatelessWidget {
           builder: (context, entry, _) {
             final state = entry.state;
             final provider = entry.provider;
-
-            debugPrint('🔄 StableAvatar ValueListenableBuilder - userId: $userId, state: $state');
-            debugPrint('🔄 StableAvatar ValueListenableBuilder - provider: $provider');
-
+            
+            debugPrint('🔄 [StableAvatar] ValueListenableBuilder REBUILD');
+            debugPrint('   └─ userId: $userId');
+            debugPrint('   └─ state: $state');
+            debugPrint('   └─ provider: ${provider.runtimeType}');
+            if (provider is NetworkImage) {
+              debugPrint('   └─ NetworkImage URL: ${(provider as NetworkImage).url}');
+            }
+            
             return AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
               child: state == AvatarState.loading

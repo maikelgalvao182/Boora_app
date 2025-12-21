@@ -43,9 +43,16 @@ export const onEventChatMessageCreated = functions.firestore
       console.log(`   Tipo: ${messageType}`);
       console.log(`   Mensagem: ${messageText}`);
 
-      // Ignorar mensagens do sistema (não geram notificações)
-      if (messageType === "system" || senderId === "system") {
-        console.log("⏭️ Mensagem do sistema - não criar notificação");
+      // Ignorar mensagens do sistema e de entrada (não geram notificações)
+      // event_join já é notificado pelo index.ts via activity_new_participant
+      const isSystemMessage = messageType === "system" ||
+        messageType === "event_join" ||
+        senderId === "system";
+
+      if (isSystemMessage) {
+        console.log(
+          "⏭️ Mensagem do sistema/entrada - não criar notificação"
+        );
         return;
       }
 

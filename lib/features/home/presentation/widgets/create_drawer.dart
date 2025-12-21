@@ -254,53 +254,55 @@ class _CreateDrawerState extends State<CreateDrawer> {
 
               const SizedBox(height: 16),
 
-              // Text Field
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: TextField(
-                    controller: _controller.textController,
-                    autofocus: !_controller.isSuggestionMode,
-                    maxLines: 1,
-                    textCapitalization: TextCapitalization.sentences,
-                    onChanged: (text) {
-                      // Desbloquear emoji quando usuário editar manualmente
-                      // (só desbloqueia se o texto mudou em relação à sugestão)
-                      if (!_controller.isUpdatingFromSuggestion) {
-                        _controller.unlockEmoji();
-                      }
-                    },
-                    onTap: () {
-                      if (_controller.isSuggestionMode) {
-                        _controller.toggleSuggestionMode();
-                      }
-                    },
-                    decoration: InputDecoration(
-                      hintText: AppLocalizations.of(context).translate('activity_placeholder'),
-                      hintStyle: GoogleFonts.getFont(
+              // Text Field (apenas visível se não estiver em modo sugestão)
+              if (!_controller.isSuggestionMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      controller: _controller.textController,
+                      autofocus: !_controller.isSuggestionMode,
+                      maxLines: 1,
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (text) {
+                        // Desbloquear emoji quando usuário editar manualmente
+                        // (só desbloqueia se o texto mudou em relação à sugestão)
+                        if (!_controller.isUpdatingFromSuggestion) {
+                          _controller.unlockEmoji();
+                        }
+                      },
+                      onTap: () {
+                        if (_controller.isSuggestionMode) {
+                          _controller.toggleSuggestionMode();
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: AppLocalizations.of(context).translate('activity_placeholder'),
+                        hintStyle: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: GlimpseColors.textHint,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
                         fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: GlimpseColors.textHint,
+                        fontWeight: FontWeight.w400,
+                        color: GlimpseColors.textSubTitle,
                       ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    style: GoogleFonts.getFont(
-                      FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: GlimpseColors.textSubTitle,
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+              if (!_controller.isSuggestionMode)
+                const SizedBox(height: 8),
 
               // Área de sugestões expandível
               AnimatedContainer(

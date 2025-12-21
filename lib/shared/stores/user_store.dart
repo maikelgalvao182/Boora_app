@@ -162,7 +162,6 @@ class UserStore {
     }
     _ensureListening(userId);
     return _avatarEntryNotifiers.putIfAbsent(userId, () {
-      // Verifica se já temos dados do usuário para inicializar com o estado correto
       final existingUser = _users[userId];
       if (existingUser != null) {
         final entryState = existingUser.avatarUrl.isEmpty
@@ -170,8 +169,6 @@ class UserStore {
             : AvatarState.loaded;
         return ValueNotifier<AvatarEntry>(AvatarEntry(entryState, existingUser.avatarProvider));
       }
-      
-      // Se não temos dados ainda, inicializa como loading
       return ValueNotifier<AvatarEntry>(AvatarEntry(AvatarState.loading, _loadingPlaceholder));
     });
   }
@@ -352,7 +349,6 @@ class UserStore {
     
     final provider = NetworkImage(avatarUrl);
 
-    // Garantir que entry existe (com valores mínimos)
     if (!_users.containsKey(userId)) {
       _users[userId] = UserEntry(
         avatarUrl: avatarUrl,
@@ -367,27 +363,20 @@ class UserStore {
       }
     }
     
-    // ✅ CRÍTICO: Garantir que o notifier existe E está com estado correto
-    // Isso evita que _ensureListening sobrescreva com loading
     final avatarEntry = AvatarEntry(AvatarState.loaded, provider);
     
     if (_avatarEntryNotifiers.containsKey(userId)) {
-      // Atualiza notifier existente
       _avatarEntryNotifiers[userId]!.value = avatarEntry;
     } else {
-      // Cria notifier já com estado loaded
       _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(avatarEntry);
     }
     
-    // Atualiza também o notifier de ImageProvider
     if (_avatarNotifiers.containsKey(userId)) {
       _avatarNotifiers[userId]!.value = provider;
     } else {
       _avatarNotifiers[userId] = ValueNotifier<ImageProvider>(provider);
     }
     
-    // ✅ CRÍTICO: Notificar invalidação de avatar para listeners externos
-    // (ex: GoogleMapView para regenerar markers)
     _avatarInvalidationNotifier.value = userId;
   }
 

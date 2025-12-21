@@ -110,16 +110,29 @@ class EventApplicationRepository {
       // 🗑️ INVALIDAR cache de participantes do evento
       _cache.remove('event_participants_$eventId');
       
-      // Se foi auto-aprovado, verificar threshold para notificação "heating up"
+      // Se foi auto-aprovado, notificar dono e verificar threshold para notificação "heating up"
       if (status == ApplicationStatus.autoApproved) {
-        // Contar participantes aprovados
-        final approvedCount = await _getApprovedParticipantsCount(eventId);
-        debugPrint('🔥 Contagem de participantes aprovados: $approvedCount');
-        
-        // Disparar notificação se atingiu threshold
+        // Buscar dados do evento
         final eventDoc = await _firestore.collection('events').doc(eventId).get();
         if (eventDoc.exists) {
           final activity = ActivityModel.fromFirestore(eventDoc);
+          
+          // 🔔 Notificar o dono que alguém entrou
+          final userDoc = await _firestore.collection('Users').doc(userId).get();
+          final userName = userDoc.data()?['fullname'] ?? userDoc.data()?['fullName'] ?? 'Alguém';
+          
+          await _notificationService.notifyNewParticipant(
+            activity: activity,
+            participantId: userId,
+            participantName: userName,
+          );
+          debugPrint('✅ Notificação de novo participante enviada para o dono');
+          
+          // Contar participantes aprovados
+          final approvedCount = await _getApprovedParticipantsCount(eventId);
+          debugPrint('🔥 Contagem de participantes aprovados: $approvedCount');
+          
+          // Verificar threshold para heating up
           await _notificationService.notifyActivityHeatingUp(
             activity: activity,
             currentCount: approvedCount,
@@ -228,7 +241,18 @@ class EventApplicationRepository {
       if (eventDoc.exists) {
         final activity = ActivityModel.fromFirestore(eventDoc);
         
-        // Disparar notificação de aprovação
+        // 🔔 Notificar o dono que alguém entrou (para eventos privados após aprovação)
+        final userDoc = await _firestore.collection('Users').doc(userId).get();
+        final userName = userDoc.data()?['fullname'] ?? userDoc.data()?['fullName'] ?? 'Alguém';
+        
+        await _notificationService.notifyNewParticipant(
+          activity: activity,
+          participantId: userId,
+          participantName: userName,
+        );
+        debugPrint('✅ Notificação de novo participante enviada para o dono');
+        
+        // Disparar notificação de aprovação para o usuário
         await _notificationService.notifyJoinApproved(
           activity: activity,
           approvedUserId: userId,
@@ -373,6 +397,8 @@ class EventApplicationRepository {
   /// - photoUrl
   /// - fullName
   /// - appliedAt
+  /// 
+  /// IMPORTANTE: Inclui o criador do evento como primeiro participante
   Future<List<Map<String, dynamic>>> getApprovedApplicationsWithUserData(String eventId) async {
     final cacheKey = 'event_participants_$eventId';
     
@@ -386,6 +412,11 @@ class EventApplicationRepository {
     debugPrint('⏳ [EventApplicationRepo] Cache MISS: buscando do Firestore...');
     
     try {
+      // 0. Buscar o evento para obter o creatorId
+      final eventDoc = await _firestore.collection('events').doc(eventId).get();
+      final eventData = eventDoc.data();
+      final creatorId = eventData?['createdBy'] as String?;
+      
       // 1. Buscar applications aprovadas ou auto-aprovadas
       final applicationsSnapshot = await _firestore
           .collection('EventApplications')
@@ -397,30 +428,59 @@ class EventApplicationRepository {
           .orderBy('appliedAt', descending: false) // Ordem cronológica
           .get();
 
-      if (applicationsSnapshot.docs.isEmpty) {
+      // 2. Coletar todos os userIds (criador + applications)
+      final userIds = <String>[];
+      
+      // Adicionar criador primeiro (sempre será o primeiro participante)
+      if (creatorId != null && creatorId.isNotEmpty) {
+        userIds.add(creatorId);
+      }
+      
+      // Adicionar participantes das applications (excluindo criador se já adicionado)
+      for (final doc in applicationsSnapshot.docs) {
+        final userId = doc.data()['userId'] as String;
+        if (!userIds.contains(userId)) {
+          userIds.add(userId);
+        }
+      }
+      
+      if (userIds.isEmpty) {
         final emptyResult = <Map<String, dynamic>>[];
         _cache.set(cacheKey, emptyResult, ttl: const Duration(minutes: 3));
         return emptyResult;
       }
 
-      // 2. Extrair userIds e buscar em batch (otimizado)
-      final userIds = applicationsSnapshot.docs
-          .map((doc) => doc.data()['userId'] as String)
-          .toList();
-
+      // 3. Buscar dados dos usuários em batch (otimizado)
       final usersBasicInfo = await _userRepo.getUsersBasicInfo(userIds);
       
-      // 3. Criar mapa userId → userData para lookup rápido
+      // 4. Criar mapa userId → userData para lookup rápido
       final userDataMap = {
         for (var user in usersBasicInfo) user['userId'] as String: user
       };
 
-      // 4. Combinar applications com user data
+      // 5. Montar lista de resultados (criador primeiro)
       final results = <Map<String, dynamic>>[];
       
+      // Adicionar criador primeiro
+      if (creatorId != null && userDataMap.containsKey(creatorId)) {
+        final creatorData = userDataMap[creatorId];
+        results.add({
+          'userId': creatorId,
+          'photoUrl': creatorData?['photoUrl'] as String?,
+          'fullName': creatorData?['fullName'] as String?,
+          'appliedAt': eventData?['createdAt'] as Timestamp?, // Usar createdAt do evento
+          'isCreator': true,
+        });
+      }
+      
+      // Adicionar demais participantes das applications
       for (final appDoc in applicationsSnapshot.docs) {
         final appData = appDoc.data();
         final userId = appData['userId'] as String;
+        
+        // Pular se for o criador (já adicionado)
+        if (userId == creatorId) continue;
+        
         final userData = userDataMap[userId];
         
         if (userData != null) {

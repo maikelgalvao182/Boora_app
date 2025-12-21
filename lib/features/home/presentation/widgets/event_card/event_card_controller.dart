@@ -276,13 +276,32 @@ class EventCardController extends ChangeNotifier {
     });
     
     // LISTENER DOS PARTICIPANTES APROVADOS
+    // ✅ Escutar AMBOS 'approved' E 'autoApproved' para atualizar lista em tempo real
     _participantsSub = FirebaseFirestore.instance
         .collection('EventApplications')
         .where('eventId', isEqualTo: eventId)
-        .where('status', isEqualTo: 'approved')
+        .where('status', whereIn: ['approved', 'autoApproved'])
         .snapshots()
         .listen((snapshot) async {
       if (_disposed) return;
+      
+      final uid = _auth.currentUser?.uid;
+      
+      // ✅ PRESERVAR participante otimista durante transição
+      // Se o usuário atual ainda não está no snapshot mas estava na lista local (otimista),
+      // manter ele até que o servidor confirme
+      final currentUserInSnapshot = uid != null && snapshot.docs.any((doc) => doc.data()['userId'] == uid);
+      final currentUserInLocalList = uid != null && _approvedParticipants.any((p) => p['userId'] == uid);
+      final isOptimisticUpdate = currentUserInLocalList && !currentUserInSnapshot;
+      
+      if (isOptimisticUpdate) {
+        // Manter lista atual - o participante otimista ainda não chegou ao servidor
+        debugPrint('📱 [EventCard] Mantendo participante otimista enquanto aguarda servidor');
+        return;
+      }
+      
+      // Invalidar cache antes de buscar para garantir dados frescos
+      _applicationRepo.invalidateEventParticipantsCache(eventId);
       
       // Recarregar participantes com dados do usuário
       _approvedParticipants = await _applicationRepo.getApprovedApplicationsWithUserData(eventId);
@@ -387,6 +406,10 @@ class EventCardController extends ChangeNotifier {
         userId: uid,
         eventPrivacyType: _privacyType!,
       );
+      
+      // Stream do ParticipantsAvatarsList vai atualizar automaticamente
+    } catch (e) {
+      rethrow;
     } finally {
       _isApplying = false;
       notifyListeners();

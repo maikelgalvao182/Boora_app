@@ -38,8 +38,8 @@ class _ConfettiCelebrationState extends State<ConfettiCelebration> {
     _controller = ConfettiController(duration: widget.duration);
     
     if (widget.autoPlay) {
-      // Pequeno delay para garantir que o widget está montado
-      Future.delayed(const Duration(milliseconds: 100), () {
+      // Disparar imediatamente usando microtask (mais rápido que addPostFrameCallback)
+      Future.microtask(() {
         if (mounted) {
           _controller.play();
         }

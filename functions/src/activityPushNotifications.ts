@@ -34,6 +34,11 @@ import {sendPush, PushEvent} from "./services/pushDispatcher";
  * 🎯 EVENTOS DE ATIVIDADES
  *
  * Lista centralizada para type guard.
+ *
+ * ⚠️ NOTA: `activity_new_participant` foi REMOVIDO desta lista porque
+ * o push já é disparado diretamente pela Cloud Function `onApplicationApproved`
+ * no index.ts quando uma EventApplication é aprovada.
+ * Manter aqui causaria PUSH DUPLICADO.
  */
 const ACTIVITY_EVENTS: PushEvent[] = [
   "activity_created",
@@ -41,7 +46,7 @@ const ACTIVITY_EVENTS: PushEvent[] = [
   "activity_join_request",
   "activity_join_approved",
   "activity_join_rejected",
-  "activity_new_participant",
+  // "activity_new_participant", // ❌ REMOVIDO - push via onApplicationApproved
   "activity_expiring_soon",
   "activity_canceled",
 ];
@@ -70,6 +75,15 @@ export const onActivityNotificationCreated = functions.firestore
     }
 
     try {
+      // 🔒 PROTEÇÃO CONTRA DUPLICAÇÃO (retry do Firebase)
+      // Se já enviou push para esta notificação, ignora
+      if (notificationData.push_sent === true) {
+        console.log(
+          `⏭️ [ActivityPush] Push já enviado para ${notificationId}, ignorando`
+        );
+        return;
+      }
+
       // 🔒 PROTEÇÃO CONTRA LOOP INFINITO
       const origin = notificationData.n_origin || notificationData.source;
       if (origin === "push" || origin === "system") {
@@ -251,6 +265,9 @@ export const onActivityNotificationCreated = functions.firestore
           groupId: activityId,
         },
       });
+
+      // 🔒 MARCAR COMO ENVIADO para evitar duplicação em retry
+      await snap.ref.update({push_sent: true});
 
       console.log(
         `✅ [ActivityPush] Push disparado: ${nType} → ${receiverId}`

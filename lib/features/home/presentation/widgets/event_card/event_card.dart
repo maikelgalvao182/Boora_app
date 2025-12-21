@@ -118,17 +118,16 @@ class _EventCardState extends State<EventCard> {
                   
                   const SizedBox(height: 24),
                   
-                  // Contador de participantes
+                  // Contador de participantes (stream)
                   ParticipantsCounter(
-                    count: _controller.participantsCount,
+                    eventId: _controller.eventId,
                     singularLabel: i18n.translate('participant_singular'),
                     pluralLabel: i18n.translate('participant_plural'),
                   ),
                   
-                  // Lista de avatares
+                  // Lista de avatares (stream)
                   ParticipantsAvatarsList(
-                    participants: _controller.visibleParticipants,
-                    remainingCount: _controller.remainingParticipantsCount,
+                    eventId: _controller.eventId,
                     creatorId: _controller.creatorId,
                   ),
                   

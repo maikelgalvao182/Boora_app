@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -5,59 +6,146 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/AnimatedSlideIn.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 
-/// Widget burro que exibe lista horizontal de avatares dos participantes
-class ParticipantsAvatarsList extends StatelessWidget {
+/// Widget reativo que exibe lista horizontal de avatares dos participantes
+/// Usa Stream direto do Firestore - atualiza automaticamente ao participar/sair
+class ParticipantsAvatarsList extends StatefulWidget {
   const ParticipantsAvatarsList({
-    required this.participants,
-    required this.remainingCount,
+    required this.eventId,
     required this.creatorId,
+    this.maxVisible = 5,
     super.key,
   });
 
-  final List<Map<String, dynamic>> participants;
-  final int remainingCount;
+  final String eventId;
   final String? creatorId;
+  final int maxVisible;
+
+  @override
+  State<ParticipantsAvatarsList> createState() => _ParticipantsAvatarsListState();
+}
+
+class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
+  /// Stream de participantes aprovados com dados do usuário
+  Stream<List<Map<String, dynamic>>> get _participantsStream {
+    debugPrint('🔵 [ParticipantsAvatarsList] Stream INICIADO para eventId: ${widget.eventId}');
+    
+    return FirebaseFirestore.instance
+        .collection('EventApplications')
+        .where('eventId', isEqualTo: widget.eventId)
+        .where('status', whereIn: ['approved', 'autoApproved'])
+        .snapshots()
+        .asyncMap((snapshot) async {
+          debugPrint('📥 [ParticipantsAvatarsList] Snapshot recebido');
+          debugPrint('   └─ isFromCache: ${snapshot.metadata.isFromCache}');
+          debugPrint('   └─ hasPendingWrites: ${snapshot.metadata.hasPendingWrites}');
+          debugPrint('   └─ docs.length: ${snapshot.docs.length}');
+          
+          // Ignorar dados do cache para evitar avatar fantasma
+          if (snapshot.metadata.isFromCache) {
+            debugPrint('⚠️ [ParticipantsAvatarsList] Ignorando dados do CACHE');
+            return <Map<String, dynamic>>[];
+          }
+          
+          final participants = <Map<String, dynamic>>[];
+          
+          for (final doc in snapshot.docs) {
+            final userId = doc.data()['userId'] as String?;
+            debugPrint('👤 [ParticipantsAvatarsList] Processando doc: ${doc.id}');
+            debugPrint('   └─ userId: $userId');
+            if (userId == null) continue;
+            
+            // Buscar dados do usuário
+            final userDoc = await FirebaseFirestore.instance
+                .collection('Users')
+                .doc(userId)
+                .get();
+            
+            debugPrint('📄 [ParticipantsAvatarsList] UserDoc exists: ${userDoc.exists}');
+            
+            if (userDoc.exists) {
+              final userData = userDoc.data()!;
+              final fullName = userData['fullName'] ?? 'Anônimo';
+              final photoUrl = userData['photoUrl'] ?? '';
+              
+              debugPrint('✅ [ParticipantsAvatarsList] Dados do usuário:');
+              debugPrint('   └─ fullName: $fullName');
+              debugPrint('   └─ photoUrl: $photoUrl');
+              debugPrint('   └─ isCreator: ${userId == widget.creatorId}');
+              
+              participants.add({
+                'userId': userId,
+                'fullName': fullName,
+                'photoUrl': photoUrl,
+                'isCreator': userId == widget.creatorId,
+              });
+            }
+          }
+          
+          // Ordenar: criador sempre primeiro
+          participants.sort((a, b) {
+            if (a['isCreator'] == true) return -1;
+            if (b['isCreator'] == true) return 1;
+            return 0;
+          });
+          
+          debugPrint('📊 [ParticipantsAvatarsList] Total participantes: ${participants.length}');
+          for (var p in participants) {
+            debugPrint('   └─ ${p['fullName']} (${p['userId']}) - photoUrl: ${p['photoUrl']}');
+          }
+          
+          return participants;
+        });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (participants.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _participantsStream,
+      builder: (context, snapshot) {
+        final participants = snapshot.data ?? [];
+        
+        if (participants.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        final visible = participants.take(widget.maxVisible).toList();
+        final remaining = participants.length - visible.length;
+
+        return Column(
           children: [
-            // Avatares com nomes
-            for (int i = 0; i < participants.length; i++)
-              AnimatedSlideIn(
-                delay: Duration(milliseconds: i * 100),
-                offsetX: 60.0,
-                child: Padding(
-                  padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
-                  child: _ParticipantItem(
-                    participant: participants[i],
-                    isCreator: participants[i]['userId'] == creatorId,
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < visible.length; i++)
+                  AnimatedSlideIn(
+                    key: ValueKey(visible[i]['userId']),
+                    delay: Duration(milliseconds: i * 100),
+                    offsetX: 60.0,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
+                      child: _ParticipantItem(
+                        participant: visible[i],
+                        isCreator: visible[i]['isCreator'] == true,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            
-            // Contador de participantes restantes
-            if (remainingCount > 0)
-              AnimatedSlideIn(
-                delay: Duration(milliseconds: participants.length * 100),
-                offsetX: 60.0,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: _RemainingCounter(count: remainingCount),
-                ),
-              ),
+                
+                if (remaining > 0)
+                  AnimatedSlideIn(
+                    delay: Duration(milliseconds: visible.length * 100),
+                    offsetX: 60.0,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: _RemainingCounter(count: remaining),
+                    ),
+                  ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -74,6 +162,10 @@ class _ParticipantItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userId = participant['userId'] as String;
+    final photoUrl = participant['photoUrl'] as String?;
+    final fullName = participant['fullName'] as String? ?? 'Anônimo';
+
     return Column(
       children: [
         SizedBox(
@@ -82,31 +174,35 @@ class _ParticipantItem extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Avatar
               StableAvatar(
-                userId: participant['userId'] as String,
-                photoUrl: participant['photoUrl'] as String?,
+                userId: userId,
+                photoUrl: photoUrl,
                 size: 40,
                 borderRadius: BorderRadius.circular(999),
                 enableNavigation: true,
               ),
-              
-              // Badge para criador
               if (isCreator)
-                const Positioned(
+                Positioned(
                   bottom: -2,
                   right: 0,
-                  child: _CreatorBadge(),
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: GlimpseColors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
                 ),
             ],
           ),
         ),
         const SizedBox(height: 4),
-        // Nome
         SizedBox(
           width: 50,
           child: Text(
-            participant['fullName'] as String? ?? 'Anônimo',
+            fullName,
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
               fontSize: 12,
@@ -123,32 +219,9 @@ class _ParticipantItem extends StatelessWidget {
   }
 }
 
-/// Badge dot para identificar o criador
-class _CreatorBadge extends StatelessWidget {
-  const _CreatorBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: GlimpseColors.primary,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white,
-          width: 2,
-        ),
-      ),
-    );
-  }
-}
-
 /// Contador de participantes restantes (+X)
 class _RemainingCounter extends StatelessWidget {
-  const _RemainingCounter({
-    required this.count,
-  });
+  const _RemainingCounter({required this.count});
 
   final int count;
 
@@ -176,11 +249,7 @@ class _RemainingCounter extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        // Espaço vazio para alinhar com os nomes
-        const SizedBox(
-          width: 50,
-          height: 17,
-        ),
+        const SizedBox(width: 50, height: 17),
       ],
     );
   }

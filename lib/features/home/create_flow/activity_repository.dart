@@ -57,8 +57,13 @@ class ActivityRepository {
         'photoReferences': draft.photoReferences, // URLs reais do Google Places
 
       // Agendamento
+      // Se horário flexível, salvar data às 00:00 para DateFormatter retornar vazio
       'schedule': {
-        'date': Timestamp.fromDate(draft.selectedTime ?? draft.selectedDate!),
+        'date': Timestamp.fromDate(
+          draft.timeType == TimeType.flexible
+              ? DateTime(draft.selectedDate!.year, draft.selectedDate!.month, draft.selectedDate!.day, 0, 0, 0)
+              : (draft.selectedTime ?? draft.selectedDate!),
+        ),
         'timeType': _timeTypeToString(draft.timeType!),
       },
 

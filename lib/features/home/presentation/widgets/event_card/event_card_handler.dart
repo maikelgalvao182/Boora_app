@@ -36,17 +36,16 @@ class EventCardHandler {
     // Se ainda não aplicou, aplicar agora
     if (!controller.hasApplied) {
       debugPrint('🔄 Aplicando para o evento...');
+      
+      // 🎉 Disparar confetti IMEDIATAMENTE (antes do await)
+      if (context.mounted) {
+        debugPrint('🎊 Disparando animação de confetti instantaneamente...');
+        ConfettiOverlay.show(context);
+      }
+      
       try {
         await controller.applyToEvent();
         debugPrint('✅ Aplicação realizada com sucesso!');
-        
-        // 🎉 Mostrar confetti celebration
-        if (context.mounted) {
-          debugPrint('🎊 Disparando animação de confetti...');
-          ConfettiOverlay.show(context);
-        } else {
-          debugPrint('⚠️ Context não está montado, confetti não será exibido');
-        }
         
         // Se foi auto-aprovado (evento aberto), confirmar entrada no chat
         if (controller.isApproved && context.mounted) {

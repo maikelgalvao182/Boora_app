@@ -424,14 +424,16 @@ class PushNotificationManager {
       print('║ Notification: ${message.notification?.toMap()}');
       print('╚═══════════════════════════════════════════════════════');
 
-      // 🔒 GUARD CLAUSE: Se a mensagem já vem com notification payload,
-      // significa que o SO (iOS/Android) já exibiu automaticamente.
-      // NÃO devemos criar notificação local para evitar duplicação.
-      final hasSystemNotification = message.notification != null;
+      // 🔒 GUARD CLAUSE: Evitar duplicação de notificação
+      // O pushDispatcher SEMPRE envia com notification payload (android.notification + apns.alert)
+      // Isso faz o SO exibir automaticamente. Se criarmos notificação local, haverá DUAS.
+      //
+      // Verificamos n_origin == 'push' porque o pushDispatcher sempre marca isso.
+      // NÃO dependemos apenas de message.notification != null porque pode variar por dispositivo.
       final origin = message.data['n_origin'] ?? '';
 
-      if (hasSystemNotification && origin == 'push') {
-        print('🔕 [PushManager] Push já exibido pelo SO. Não criar notificação local.');
+      if (origin == 'push') {
+        print('🔕 [PushManager] Push do servidor (n_origin=push). SO já exibiu. Não duplicar.');
         return;
       }
 
