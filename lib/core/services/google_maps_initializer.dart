@@ -1,7 +1,7 @@
 import 'package:partiu/core/services/google_maps_config_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 
-/// Serviço para inicializar o Google Maps com chaves dinâmicas do Firebase
+/// Serviço para inicializar o Google Maps com chaves locais (constants.dart)
 class GoogleMapsInitializer {
   static const String _tag = 'GoogleMapsInitializer';
   static bool _isInitialized = false;
@@ -11,14 +11,14 @@ class GoogleMapsInitializer {
     if (_isInitialized) return;
 
     try {
-      AppLogger.info('Initializing Google Maps with Firebase keys...', tag: _tag);
+      AppLogger.info('Initializing Google Maps with local keys...', tag: _tag);
 
       // O GoogleMapsConfigService já faz toda a configuração nativa
       // incluindo os method channels para iOS e Android
       final configService = GoogleMapsConfigService();
       await configService.initialize();
       
-      AppLogger.success('Google Maps configuration loaded from Firebase and configured on native platforms', tag: _tag);
+      AppLogger.success('Google Maps configured using local constants', tag: _tag);
 
       _isInitialized = true;
       AppLogger.success('Google Maps initialization completed', tag: _tag);

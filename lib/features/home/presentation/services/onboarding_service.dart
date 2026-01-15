@@ -3,18 +3,21 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Serviço para controlar exibição do onboarding após primeiro cadastro.
-/// 
-/// O onboarding é exibido apenas uma vez por usuário, após o primeiro
-/// scroll no mapa da tela inicial. Usa SharedPreferences para persistir
-/// o estado entre sessões.
+/// Serviço para controlar exibição do onboarding.
+///
+/// O onboarding é exibido apenas uma vez por usuário e é liberado quando
+/// o usuário toca pela primeira vez no overlay/botão de criar ("+") na tela
+/// de descoberta.
+///
+/// Usa SharedPreferences para persistir o estado entre sessões e também
+/// persiste no Firestore (por usuário) para sobreviver reinstalações.
 class OnboardingService {
   OnboardingService._();
   static final OnboardingService instance = OnboardingService._();
 
   static const String _tag = 'OnboardingService';
   static const String _keyOnboardingCompleted = 'boora_onboarding_completed_v1';
-  static const String _keyFirstMapScroll = 'boora_first_map_scroll_v1';
+  static const String _keyFirstCreateOverlayTap = 'boora_first_create_overlay_tap_v1';
 
   // Firestore (por usuário)
   static const String _usersCollection = 'Users';
@@ -53,25 +56,37 @@ class OnboardingService {
     }
   }
 
-  /// Verifica se já houve o primeiro scroll no mapa
-  Future<bool> hasFirstMapScrollOccurred() async {
+  /// Verifica se já houve o primeiro toque no overlay/botão "+" (Create)
+  ///
+  /// Este é o gatilho que libera a exibição do onboarding.
+  Future<bool> hasFirstCreateOverlayTapOccurred() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_keyFirstMapScroll) ?? false;
-    } catch (e) {
-      AppLogger.error('Erro ao verificar primeiro scroll: $e', tag: _tag);
+      return prefs.getBool(_keyFirstCreateOverlayTap) ?? false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Erro ao verificar primeiro toque no create overlay',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
       return true;
     }
   }
 
-  /// Marca que o primeiro scroll no mapa ocorreu
-  Future<void> markFirstMapScroll() async {
+  /// Marca que o primeiro toque no overlay/botão "+" (Create) ocorreu
+  Future<void> markFirstCreateOverlayTap() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyFirstMapScroll, true);
-      AppLogger.info('Primeiro scroll no mapa marcado', tag: _tag);
-    } catch (e) {
-      AppLogger.error('Erro ao marcar primeiro scroll: $e', tag: _tag);
+      await prefs.setBool(_keyFirstCreateOverlayTap, true);
+      AppLogger.info('Primeiro toque no create overlay marcado', tag: _tag);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Erro ao marcar primeiro toque no create overlay',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -93,7 +108,7 @@ class OnboardingService {
   }
 
   /// Verifica se deve mostrar o onboarding
-  /// Retorna true se: ainda não completou E o primeiro scroll já ocorreu
+  /// Retorna true se: ainda não completou E o usuário já tocou no overlay/botão "+"
   Future<bool> shouldShowOnboarding() async {
     AppLogger.debug('shouldShowOnboarding chamado', tag: _tag);
 
@@ -103,9 +118,9 @@ class OnboardingService {
       return false;
     }
 
-    final scrollOccurred = await hasFirstMapScrollOccurred();
-    AppLogger.debug('scrollOccurred: $scrollOccurred', tag: _tag);
-    return scrollOccurred;
+    final createTapOccurred = await hasFirstCreateOverlayTapOccurred();
+    AppLogger.debug('createTapOccurred: $createTapOccurred', tag: _tag);
+    return createTapOccurred;
   }
 
   Future<bool?> _getRemoteOnboardingComplete(String userId) async {
@@ -145,12 +160,6 @@ class OnboardingService {
         {_fieldOnboardingComplete: complete},
         SetOptions(merge: true),
       );
-
-      // Compatibilidade: gravar também em `users`
-      await firestore.collection(_usersCollectionLegacy).doc(userId).set(
-        {_fieldOnboardingComplete: complete},
-        SetOptions(merge: true),
-      );
     } catch (e, stackTrace) {
       AppLogger.error(
         'Erro ao salvar onboardingComplete no Firestore',
@@ -166,10 +175,15 @@ class OnboardingService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyOnboardingCompleted);
-      await prefs.remove(_keyFirstMapScroll);
+      await prefs.remove(_keyFirstCreateOverlayTap);
       AppLogger.info('Onboarding resetado', tag: _tag);
-    } catch (e) {
-      AppLogger.error('Erro ao resetar onboarding: $e', tag: _tag);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Erro ao resetar onboarding',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

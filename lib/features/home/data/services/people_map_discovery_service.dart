@@ -111,6 +111,19 @@ class PeopleMapDiscoveryService {
     await _executeQuery(bounds);
   }
 
+  /// Faz preload (best-effort) de pessoas/avatares para um bounds, sem
+  /// publicar resultados em `nearbyPeople/nearbyPeopleCount`.
+  ///
+  /// Útil para warmup: aquece cache de imagens sem causar “flash” de dados
+  /// de um raio aproximado antes do viewport real do mapa estar disponível.
+  Future<void> preloadForBounds(MapBounds bounds) async {
+    await _executeQuery(
+      bounds,
+      publishToNotifiers: false,
+      reportLoading: false,
+    );
+  }
+
   Future<void> refreshCurrentBounds() async {
     debugPrint('🔄 [PeopleMapDiscovery] refreshCurrentBounds chamado');
     final bounds = currentBounds.value;
@@ -122,10 +135,16 @@ class PeopleMapDiscoveryService {
     await forceRefresh(bounds);
   }
 
-  Future<void> _executeQuery(MapBounds bounds) async {
+  Future<void> _executeQuery(
+    MapBounds bounds, {
+    bool publishToNotifiers = true,
+    bool reportLoading = true,
+  }) async {
     debugPrint('🔍 [PeopleMapDiscovery] _executeQuery iniciado...');
-    isLoading.value = true;
-    lastError.value = null;
+    if (reportLoading) {
+      isLoading.value = true;
+      lastError.value = null;
+    }
     final quadkey = bounds.toQuadkey();
 
     final activeFilters = _locationQueryService.currentFilters;
@@ -133,9 +152,13 @@ class PeopleMapDiscoveryService {
 
     if (_shouldUseCache(quadkey, filtersSignature)) {
       debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${_cachedPeople.length} pessoas');
-      nearbyPeople.value = _cachedPeople;
-      nearbyPeopleCount.value = _cachedCount;
-      isLoading.value = false;
+      if (publishToNotifiers) {
+        nearbyPeople.value = _cachedPeople;
+        nearbyPeopleCount.value = _cachedCount;
+      }
+      if (reportLoading) {
+        isLoading.value = false;
+      }
       return;
     }
 
@@ -151,7 +174,9 @@ class PeopleMapDiscoveryService {
       final userLocation = await _locationService.getCurrentLocation();
       if (userLocation == null) {
         debugPrint('⚠️ [PeopleMapDiscovery] Localização do usuário não disponível');
-        isLoading.value = false;
+        if (reportLoading) {
+          isLoading.value = false;
+        }
         return;
       }
 
@@ -275,17 +300,23 @@ class PeopleMapDiscoveryService {
       _lastFiltersSignature = filtersSignature;
 
       debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
-      nearbyPeople.value = people;
-      nearbyPeopleCount.value = adjustedTotalCandidates;
+      if (publishToNotifiers) {
+        nearbyPeople.value = people;
+        nearbyPeopleCount.value = adjustedTotalCandidates;
+      }
 
-      isLoading.value = false;
+      if (reportLoading) {
+        isLoading.value = false;
+      }
 
       debugPrint('✅ [PeopleMapDiscovery] ${people.length} pessoas encontradas (total: $adjustedTotalCandidates)');
     } catch (e, stack) {
       debugPrint('⚠️ [PeopleMapDiscovery] Falha ao buscar pessoas em bounds: $e');
       debugPrint('   Stack: $stack');
-      lastError.value = e;
-      isLoading.value = false;
+      if (reportLoading) {
+        lastError.value = e;
+        isLoading.value = false;
+      }
     }
   }
 

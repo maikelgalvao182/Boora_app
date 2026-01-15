@@ -16,6 +16,9 @@
     
     <!-- Permissions for camera -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Permissions for microphone (Didit pode solicitar captura de mídia via WebView) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -77,7 +80,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyD_WdCn19E8sJjtnLXu8i8UnvpffQKkPpo" />
+            android:value="AIzaSyCUkR549yBaSk1MSiPxo_NrKh4sSJrUj4k" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

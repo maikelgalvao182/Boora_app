@@ -14,12 +14,16 @@ class NotificationFilter extends StatelessWidget {
     required this.onSelected,
     super.key,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    this.selectedBackgroundColor = GlimpseColors.primary,
+    this.unselectedBackgroundColor = GlimpseColors.lightTextField,
   });
   
   final List<String> items;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final EdgeInsetsGeometry padding;
+  final Color selectedBackgroundColor;
+  final Color unselectedBackgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +41,8 @@ class NotificationFilter extends StatelessWidget {
           title: items[i],
           selected: effectiveSelectedIndex == i,
           onTap: () => onSelected(i),
+          selectedBackgroundColor: selectedBackgroundColor,
+          unselectedBackgroundColor: unselectedBackgroundColor,
         ),
       ),
     );
@@ -48,17 +54,19 @@ class _NotificationChipButton extends StatelessWidget {
     required this.title,
     required this.selected,
     required this.onTap,
+    required this.selectedBackgroundColor,
+    required this.unselectedBackgroundColor,
   });
   
   final String title;
   final bool selected;
   final VoidCallback onTap;
+  final Color selectedBackgroundColor;
+  final Color unselectedBackgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    final bg = selected 
-        ? GlimpseColors.primary 
-        : GlimpseColors.lightTextField;
+    final bg = selected ? selectedBackgroundColor : unselectedBackgroundColor;
     final fg = selected ? Colors.white : Colors.black;
 
     return Padding(

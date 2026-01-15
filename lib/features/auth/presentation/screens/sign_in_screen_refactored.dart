@@ -409,6 +409,8 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                       ),
                     ),
 
+                    const SizedBox(height: 24),
+
                       ],
                     ),
               ],

@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/geo_distance_helper.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
+import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/data/repositories/event_map_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
@@ -63,6 +64,8 @@ class MapViewModel extends ChangeNotifier {
   /// Estado de mapa pronto (localização + eventos + markers carregados)
   bool _mapReady = false;
   bool get mapReady => _mapReady;
+
+  bool _didInitialize = false;
 
   /// Última localização obtida (Google Maps LatLng)
   LatLng? _lastLocation;
@@ -209,6 +212,21 @@ class MapViewModel extends ChangeNotifier {
     _reloadSubscription = null;
     _stopBoundsCategoriesListener();
     BlockService.instance.removeListener(_onBlockedUsersChanged);
+
+    // ✅ IMPORTANTE: limpar estado em memória para evitar markers “fantasmas” após logout/delete.
+    // Sem isso, o GoogleMapView pode manter markers antigos porque o stream foi cancelado
+    // e nenhum novo evento chega para disparar rebuild.
+    _events = const [];
+    _googleMarkers = <Marker>{};
+    _mapReady = false;
+    _lastLocation = null;
+    _selectedCategory = null;
+    _availableCategoriesInBounds = const [];
+    _eventsInBoundsCount = 0;
+    _matchingEventsInBoundsCount = 0;
+    _eventsInBoundsCountByCategory = const {};
+
+    notifyListeners();
     debugPrint('✅ MapViewModel: Streams cancelados');
   }
 
@@ -305,13 +323,30 @@ class MapViewModel extends ChangeNotifier {
   /// NOTA: O cache de bitmaps é SINGLETON (GoogleEventMarkerService)
   /// então os bitmaps gerados aqui serão reutilizados pelo GoogleMapView.
   Future<void> initialize() async {
-    // Pré-carregar pins (imagens) para Google Maps
-    await _googleMarkerService.preloadDefaultPins();
-    
-    // Carregar eventos iniciais (markers serão gerados pelo GoogleMapView conforme viewport/zoom)
-    await loadNearbyEvents();
-    
-    debugPrint('🖼️ MapViewModel: ${_events.length} eventos com bitmaps em cache (singleton)');
+    if (_didInitialize) {
+      return;
+    }
+
+    _didInitialize = true;
+
+    try {
+      // Pré-carregar pins (imagens) para Google Maps
+      await _googleMarkerService.preloadDefaultPins();
+
+      // Carregar eventos iniciais apenas se ainda não temos nada em memória.
+      // Evita competir com o stream de eventos em tempo real.
+      final hasEvents = _events.isNotEmpty;
+      if (!hasEvents && !_mapReady) {
+        await loadNearbyEvents();
+      }
+    } catch (e, stack) {
+      AppLogger.error(
+        'Falha ao inicializar MapViewModel',
+        tag: 'MAP',
+        error: e,
+        stackTrace: stack,
+      );
+    }
   }
 
   /// Carrega eventos próximos à localização do usuário
@@ -638,6 +673,21 @@ class MapViewModel extends ChangeNotifier {
   /// Limpa cache de markers
   void clearCache() {
     _googleMarkerService.clearCache();
+  }
+
+  /// Atualiza categorias do drawer baseado no bounding box visível
+  /// 
+  /// Chamado pelo GoogleMapView quando a câmera para de mover.
+  /// Isso mantém os chips de categoria sincronizados com o viewport.
+  Future<void> loadEventsInBounds(MapBounds bounds) async {
+    await _mapDiscoveryService.loadEventsInBounds(bounds);
+  }
+
+  /// Força refresh imediato das categorias do drawer
+  /// 
+  /// Ignora cache e debounce. Usado na inicialização do mapa.
+  Future<void> forceRefreshBounds(MapBounds bounds) async {
+    await _mapDiscoveryService.forceRefresh(bounds);
   }
 
   @override

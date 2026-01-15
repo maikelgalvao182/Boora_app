@@ -9,6 +9,8 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/screens/chat/models/reply_snapshot.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Widget que renderiza a referência de reply dentro de uma bolha de mensagem
 /// 
@@ -58,6 +60,13 @@ class ReplyBubbleWidget extends StatelessWidget {
         ? GlimpseColors.primaryColorLight
         : (isDarkMode ? Colors.white : Colors.black87);
 
+    final senderNameStyle = GoogleFonts.getFont(
+      FONT_PLUS_JAKARTA_SANS,
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Colors.black,
+    );
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -91,17 +100,7 @@ class ReplyBubbleWidget extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Nome do autor
-                      Text(
-                        replySnapshot.senderName,
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: lineColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      _buildSenderName(context, senderNameStyle),
                       
                       const SizedBox(height: 2),
                       
@@ -244,5 +243,80 @@ class ReplyBubbleWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildSenderName(BuildContext context, TextStyle style) {
+    final resolvedSenderId = replySnapshot.senderId.trim();
+    final snapshotName = replySnapshot.senderName.trim();
+
+    // Se não temos senderId, só dá para usar o que veio no snapshot.
+    if (resolvedSenderId.isEmpty) {
+      if (snapshotName.isEmpty || _isPlaceholderName(snapshotName)) {
+        return const SizedBox.shrink();
+      }
+      return Text(
+        snapshotName,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final notifier = UserStore.instance.getNameNotifier(resolvedSenderId);
+    return ValueListenableBuilder<String?>(
+      valueListenable: notifier,
+      builder: (context, name, _) {
+        final storeName = name?.trim() ?? '';
+        if (storeName.isNotEmpty && !_isPlaceholderName(storeName)) {
+          return Text(
+            storeName,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+        }
+
+        // Fallback raro: tenta query direta apenas se ainda não temos nada.
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: UserRepository().getUserById(resolvedSenderId),
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            final fetched = (data?['fullName'] as String?)?.trim() ??
+                (data?['fullname'] as String?)?.trim() ??
+                '';
+
+            if (fetched.isEmpty || _isPlaceholderName(fetched)) {
+              // Sem nome resolvido: tenta usar o snapshot se ele não for placeholder.
+              if (snapshotName.isNotEmpty && !_isPlaceholderName(snapshotName)) {
+                return Text(
+                  snapshotName,
+                  style: style,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+              }
+
+              return const SizedBox.shrink();
+            }
+
+            return Text(
+              fetched,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool _isPlaceholderName(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == 'unknown user' ||
+        normalized == 'unkonwn user' ||
+        normalized == 'unknow user' ||
+        normalized == 'usuário' ||
+        normalized == 'usuario';
   }
 }

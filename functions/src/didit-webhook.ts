@@ -124,52 +124,73 @@ exports.diditWebhook = functions.https.onRequest(async (req: any, res: any) => {
     // O Flutter pode gerenciar estado local durante verificação
 
     // ✅ PROCESSAMENTO SIMPLIFICADO: Apenas salvar resultado final
-    if (status === "Approved" && decision && decision.id_verification) {
-      const idVerification = decision.id_verification;
-      const userId = vendor_data; // vendor_data é o userId
+    const userId = vendor_data; // vendor_data é o userId
+    const normalizedStatus = String(status || "").trim().toLowerCase();
 
-      if (userId && idVerification.status === "Approved") {
-        try {
-          console.log(`✅ Verificação aprovada para usuário: ${userId}`);
+    if (!userId) {
+      console.warn("⚠️ Webhook sem vendor_data (userId). Ignorando update de usuário.");
+    } else if (normalizedStatus === "approved" || normalizedStatus === "completed") {
+      try {
+        console.log(`✅ Marcando usuário como verificado (Didit): ${userId}`);
 
-          // 🎯 Salvar APENAS em FaceVerifications (dados detalhados)
-          await db.collection("FaceVerifications").doc(userId).set({
-            userId: userId,
+        // Atualizar usuário (fonte de verdade pro app)
+        await db.collection("Users").doc(userId).set({
+          user_is_verified: true,
+          verified_at: admin.firestore.FieldValue.serverTimestamp(),
+          facial_id: session_id,
+          verification_type: "didit",
+          facial_verification: {
             facialId: session_id,
             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: "verified",
-            gender: idVerification.gender || null,
-            age: idVerification.age || null,
-            details: {
-              verification_type: "didit",
-              verification_date: new Date().toISOString(),
-              document_type: idVerification.document_type,
-              document_number: idVerification.document_number,
-              full_name: idVerification.full_name,
-              first_name: idVerification.first_name,
-              last_name: idVerification.last_name,
-              date_of_birth: idVerification.date_of_birth,
-              nationality: idVerification.nationality,
-              issuing_state: idVerification.issuing_state_name,
-              portrait_image: idVerification.portrait_image,
-              session_id: session_id,
-              session_url: decision.session_url,
-            },
-          });
-
-          // Atualizar usuário
-          await db.collection("Users").doc(userId).set({
-            user_is_verified: true,
-            verified_at: admin.firestore.FieldValue.serverTimestamp(),
-            facial_id: session_id,
             verification_type: "didit",
-          }, {merge: true});
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
 
-          console.log("Verificação salva automaticamente para:", userId);
-        } catch (error) {
-          console.error("Erro ao salvar verificação:", error);
-          // Não retorna erro, webhook foi processado com sucesso
+        // Se tiver detalhes, salva em FaceVerifications.
+        if (decision && decision.id_verification) {
+          const idVerification = decision.id_verification;
+          const idStatus = String(idVerification.status || "").trim().toLowerCase();
+
+          if (idStatus === "approved") {
+            await db.collection("FaceVerifications").doc(userId).set({
+              userId: userId,
+              facialId: session_id,
+              verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+              status: "verified",
+              gender: idVerification.gender || null,
+              age: idVerification.age || null,
+              details: {
+                verification_type: "didit",
+                verification_date: new Date().toISOString(),
+                document_type: idVerification.document_type,
+                document_number: idVerification.document_number,
+                full_name: idVerification.full_name,
+                first_name: idVerification.first_name,
+                last_name: idVerification.last_name,
+                date_of_birth: idVerification.date_of_birth,
+                nationality: idVerification.nationality,
+                issuing_state: idVerification.issuing_state_name,
+                portrait_image: idVerification.portrait_image,
+                session_id: session_id,
+                session_url: decision.session_url,
+              },
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {merge: true});
+          } else {
+            console.warn(
+              `⚠️ decision.id_verification.status != Approved (status=${idVerification.status}). Pulando FaceVerifications detalhado.`,
+            );
+          }
+        } else {
+          console.warn(
+            "⚠️ Approved sem decision.id_verification. Users será atualizado, mas FaceVerifications detalhado não será salvo.",
+          );
         }
+      } catch (error) {
+        console.error("Erro ao salvar verificação (Didit webhook):", error);
+        // Não retorna erro, webhook foi processado com sucesso
       }
     }
 

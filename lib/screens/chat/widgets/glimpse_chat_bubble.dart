@@ -561,6 +561,7 @@ class GlimpseChatBubble extends StatelessWidget {
   bool _isPlaceholderName(String value) {
     final normalized = value.trim().toLowerCase();
     return normalized == 'unknown user' ||
+        normalized == 'unkonwn user' ||
         normalized == 'unknow user' ||
         normalized == 'usuário' ||
         normalized == 'usuario';

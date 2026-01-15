@@ -9,7 +9,6 @@ import 'package:partiu/features/profile/presentation/widgets/about_me_section.da
 import 'package:partiu/features/profile/presentation/widgets/basic_information_profile_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/interests_profile_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/languages_profile_section.dart';
-import 'package:partiu/features/profile/presentation/widgets/gallery_profile_section.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/screens/chat/chat_screen_refactored.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,10 +17,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/features/reviews/data/repositories/review_repository.dart';
 import 'package:partiu/features/reviews/data/models/review_model.dart';
 import 'package:partiu/features/reviews/data/models/review_stats_model.dart';
-import 'package:partiu/features/reviews/presentation/components/review_card_v2.dart';
 import 'package:partiu/features/reviews/presentation/components/review_stats_section.dart';
 import 'package:partiu/features/reviews/presentation/components/review_badges_section.dart';
-import 'package:partiu/features/profile/presentation/widgets/comment_card.dart';
 import 'package:partiu/features/reviews/presentation/components/review_comments_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/profile_actions_section.dart';
 
@@ -103,7 +100,6 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
             _buildBasicInfo(),
             _buildInterests(),
             _buildLanguages(),
-            _buildGallery(),
             _buildReviewsV2(), // 🆕 NOVO sistema
           ],
         ),
@@ -155,16 +151,6 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
           child: LanguagesProfileSection(userId: widget.displayUser.userId),
         );
       },
-    );
-  }
-
-  Widget _buildGallery() {
-    // Galeria não precisa de ValueListenableBuilder pois usa dados diretos do User
-    if (widget.displayUser.userGallery == null || widget.displayUser.userGallery!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return RepaintBoundary(
-      child: GalleryProfileSection(galleryMap: widget.displayUser.userGallery),
     );
   }
 

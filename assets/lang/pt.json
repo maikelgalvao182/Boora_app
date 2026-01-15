@@ -81,7 +81,7 @@
   "are_you_sure_you_want_to_delete_conversation": "Tem certeza que deseja excluir esta conversa? Esta ação não pode ser desfeita.",
   "conversation_deleted_successfully": "Conversa excluída com sucesso",
   "no_people_found_nearby": "Ainda não encontramos ninguém por perto",
-  "zoom_in_to_see_people": "Aumente o mapa para ver pessoas",
+  "zoom_in_to_see_people": "Aproxime o mapa para carregar perfis",
   "people_near_you": "Perto de você",
   "nearby_people_count_singular": "{count} pessoa",
   "nearby_people_count_plural": "{count} pessoas",
@@ -848,10 +848,10 @@
   "subscribe_monthly_plan": "Assinar Plano Mensal",
   "subscribe_annual_plan": "Assinar Plano Anual",
 
-  "subscription_benefit_unlock_people_list_title": "Desbloqueie a lista completa de pessoas",
+  "subscription_benefit_unlock_people_list_title": "Desbloqueie a lista completa de perfis",
   "subscription_benefit_unlock_people_list_subtitle": "Veja todas as pessoas disponíveis no app",
-  "subscription_benefit_more_visibility_title": "Apareça em destaque no topo da lista da sua região",
-  "subscription_benefit_more_visibility_subtitle": "Seja visto por mais pessoas",
+  "subscription_benefit_more_visibility_title": "Apareça no topo da lista da sua região",
+  "subscription_benefit_more_visibility_subtitle": "Ganhe destaque e seja visto por mais pessoas",
   "subscription_benefit_profile_visits_title": "Veja quem visitou seu perfil",
   "subscription_benefit_profile_visits_subtitle": "Descubra quem passou pelo seu perfil",
   

@@ -10,6 +10,8 @@ class SubscriptionPurchaseController extends ChangeNotifier {
     required this.onError,
   });
 
+  bool _isDisposed = false;
+
   final SimpleSubscriptionProvider provider;
   final VoidCallback onSuccess;
   final Function(String error) onError;
@@ -139,12 +141,23 @@ class SubscriptionPurchaseController extends ChangeNotifier {
 
   bool get hasPlans => provider.offering?.availablePackages.isNotEmpty == true;
 
+  void _safeNotify() {
+    if (_isDisposed) return;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
   /// Inicializa carregando apenas uma vez
   Future<void> initialize() async {
     if (provider.offering != null) return; // já está pronto
 
     _isLoading = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       await provider.init(); // provider carrega a offering
@@ -153,14 +166,14 @@ class SubscriptionPurchaseController extends ChangeNotifier {
       onError(_error!);
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
   /// Selecionar plano
   void selectPlan(SubscriptionPlan plan) {
     _selectedPlan = plan;
-    notifyListeners();
+    _safeNotify();
   }
 
   /// Realizar compra
@@ -174,7 +187,7 @@ class SubscriptionPurchaseController extends ChangeNotifier {
     if (_isPurchasing) return;
 
     _isPurchasing = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       await provider.purchase(package);
@@ -209,7 +222,7 @@ class SubscriptionPurchaseController extends ChangeNotifier {
       }
     } finally {
       _isPurchasing = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 

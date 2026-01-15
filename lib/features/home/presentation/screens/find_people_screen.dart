@@ -32,14 +32,32 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   final PeopleMapDiscoveryService _peopleDiscoveryService = PeopleMapDiscoveryService();
   bool _vipDialogOpen = false;
   double _lastScrollPosition = 0.0;
+  late bool _hasVip;
+
+  void _onVipAccessChanged(bool hasAccess) {
+    if (!mounted) return;
+
+    final next = hasAccess || VipAccessService.isVip;
+    if (_hasVip == next) return;
+
+    setState(() {
+      _hasVip = next;
+      if (_hasVip) {
+        _vipDialogOpen = false;
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+
+    _hasVip = VipAccessService.hasVipAccessRealtime || VipAccessService.isVip;
+    VipAccessService.addAccessListener(_onVipAccessChanged);
     
-    final isVip = VipAccessService.isVip;
+    final isVip = _hasVip;
     debugPrint('🎯 [FindPeopleScreen] Usando controller singleton');
     debugPrint('👤 [FindPeopleScreen] Status VIP: ${isVip ? "✅ VIP ATIVO" : "❌ NÃO-VIP (bloqueio será aplicado)"}');
 
@@ -58,11 +76,12 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     // Ele deve persistir entre navegações para manter o estado
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    VipAccessService.removeAccessListener(_onVipAccessChanged);
     super.dispose();
   }
 
   void _onScroll() {
-    final isVip = VipAccessService.isVip;
+    final isVip = _hasVip;
     
     if (isVip) {
       return;
@@ -280,11 +299,11 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                       onRefresh: () async => _peopleDiscoveryService.refreshCurrentBounds(),
                       controller: _scrollController,
                       padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-                      itemCount: VipAccessService.isVip
+                      itemCount: _hasVip
                           ? usersList.length
                           : (usersList.length > 12 ? 13 : usersList.length),
                       itemBuilder: (context, index) {
-                        if (!VipAccessService.isVip && index == 12) {
+                        if (!_hasVip && index == 12) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: VipLockedCard(

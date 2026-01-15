@@ -10,6 +10,20 @@ const Color APP_PRIMARY_COLOR = GlimpseColors.primaryColorLight;
 const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 
+/// GOOGLE MAPS / PLACES API KEYS
+/// ÚNICA fonte de verdade no app (Dart).
+///
+/// iOS
+const String GOOGLE_MAPS_API_KEY_IOS = 'AIzaSyBHlCReMj7dEaA-e0dguSe45roNoU1HKXA';
+
+/// Android
+const String GOOGLE_MAPS_API_KEY_ANDROID = 'AIzaSyCUkR549yBaSk1MSiPxo_NrKh4sSJrUj4k';
+
+/// Places Web Service
+/// Neste app usamos a mesma chave do Maps por plataforma.
+const String GOOGLE_PLACES_API_KEY_IOS = GOOGLE_MAPS_API_KEY_IOS;
+const String GOOGLE_PLACES_API_KEY_ANDROID = GOOGLE_MAPS_API_KEY_ANDROID;
+
 /// FONT FAMILY CONSTANTS
 const String FONT_PLUS_JAKARTA_SANS = 'Manrope';
 const String FONT_GLITZ = 'Glitz';

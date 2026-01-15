@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/people_ranking_card.dart';
 import 'package:partiu/features/home/presentation/widgets/people_ranking_card_shimmer.dart';
@@ -8,6 +9,7 @@ import 'package:partiu/features/home/presentation/state/people_ranking_state.dar
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
 import 'package:partiu/features/notifications/widgets/notification_filter_shimmer.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
+import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
 import 'package:partiu/shared/widgets/outline_horizontal_filter.dart';
 import 'package:partiu/shared/widgets/pull_to_refresh.dart';
 
@@ -95,12 +97,26 @@ class _RankingTabState extends State<RankingTab> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        // Importante: UI de tabs (incluindo "Lugares" e a Glimpse tab header)
-        // foi removida. Esta página agora mostra apenas o conteúdo de "Pessoas".
-        child: _buildContent(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GlimpseTabAppBar(
+              title: i18n.translate('ranking_title').isNotEmpty
+                  ? i18n.translate('ranking_title')
+                  : 'Ranking',
+            ),
+            const SizedBox(height: 8),
+
+            // Importante: UI de tabs (incluindo "Lugares" e a Glimpse tab header)
+            // foi removida. Esta página agora mostra apenas o conteúdo de "Pessoas".
+            Expanded(child: _buildContent()),
+          ],
+        ),
       ),
     );
   }

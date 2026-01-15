@@ -1,11 +1,15 @@
 import 'package:flutter/painting.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math' show cos;
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
+import 'package:partiu/features/home/data/models/map_bounds.dart';
+import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/core/utils/app_logger.dart';
@@ -23,6 +27,25 @@ class AppInitializerService {
     this.locationsRankingViewModel,
     this.conversationsViewModel,
   );
+
+  Future<({dynamic location, dynamic events})?> _waitForInitialMapSnapshot({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      final location = mapViewModel.lastLocation;
+      final events = mapViewModel.events;
+
+      if (location != null && events.isNotEmpty) {
+        return (location: location, events: events);
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    return null;
+  }
 
   /// Executa toda a inicialização necessária (LEGADO)
   ///
@@ -170,6 +193,104 @@ class AppInitializerService {
         await mapViewModel.initialize();
       } else {
         AppLogger.info('Warmup mapa ignorado (já pronto/carregando)', tag: 'INIT');
+      }
+
+      // 1.05) Se o mapa está inicializando em paralelo (ex.: DiscoverScreen),
+      // espera um snapshot mínimo (location + events) para conseguir fazer warmup.
+      // Não bloqueia: timeout curto.
+      final snapshot = await _waitForInitialMapSnapshot();
+
+      // 1.1) Warmup de avatares do viewport inicial (best-effort)
+      //
+      // Objetivo: quando o GoogleMapView for gerado após o Splash, os markers já
+      // nasçam com o bitmap do avatar em cache (sem passar por empty state).
+      //
+      // Limitação: no AppInitializer não temos acesso ao GoogleMapController,
+      // então aproximamos o bounding box inicial por um raio em km ao redor da
+      // localização inicial (zoom padrão ~12).
+      try {
+        final location = snapshot?.location ?? mapViewModel.lastLocation;
+        final events = snapshot?.events ?? mapViewModel.events;
+
+        if (location != null && events.isNotEmpty) {
+          const initialViewportWarmupRadiusKm = 25.0;
+          const maxUsersToWarm = 30;
+
+          // Helper local para bounding box (graus) a partir de raio em km.
+          // Mesmo princípio do GeoService, mas sem depender dele aqui.
+          const earthRadiusKm = 6371.0;
+          final lat = location.latitude;
+          final lng = location.longitude;
+          final latDelta = initialViewportWarmupRadiusKm / earthRadiusKm * (180 / 3.141592653589793);
+          final lngDelta = initialViewportWarmupRadiusKm /
+              (earthRadiusKm * (cos(lat * 3.141592653589793 / 180))) *
+              (180 / 3.141592653589793);
+
+          final minLat = lat - latDelta;
+          final maxLat = lat + latDelta;
+          final minLng = lng - lngDelta;
+          final maxLng = lng + lngDelta;
+
+          final viewportEvents = events.where((e) {
+            final withinLat = e.lat >= minLat && e.lat <= maxLat;
+            final withinLng = e.lng >= minLng && e.lng <= maxLng;
+            return withinLat && withinLng;
+          }).toList(growable: false);
+
+          if (viewportEvents.isNotEmpty) {
+            final markerService = GoogleEventMarkerService();
+            // Timeout mais generoso (5s) para primeira impressão do usuário.
+            // Melhor demorar um pouco mais no splash do que mostrar empty state.
+            final loaded = await markerService
+                .preloadAvatarPinsForEvents(viewportEvents, maxUsers: maxUsersToWarm)
+                .timeout(const Duration(seconds: 5));
+
+            AppLogger.success(
+              'Warmup avatares viewport OK (loaded=$loaded, events=${viewportEvents.length}, maxUsers=$maxUsersToWarm)',
+              tag: 'INIT',
+            );
+          }
+        }
+      } catch (e) {
+        AppLogger.warning('Warmup avatares viewport falhou: $e', tag: 'INIT');
+      }
+
+      // 1.2) Warmup da descoberta de pessoas (PeopleButton / FindPeople)
+      // Objetivo: pré-carregar count e o primeiro avatar do modo "Perto de você"
+      // antes do usuário interagir com o mapa.
+      try {
+        final location = snapshot?.location ?? mapViewModel.lastLocation;
+        if (location != null) {
+          const initialPeopleWarmupRadiusKm = 25.0;
+
+          const earthRadiusKm = 6371.0;
+          final lat = location.latitude;
+          final lng = location.longitude;
+          final latDelta = initialPeopleWarmupRadiusKm / earthRadiusKm * (180 / 3.141592653589793);
+          final lngDelta = initialPeopleWarmupRadiusKm /
+              (earthRadiusKm * (cos(lat * 3.141592653589793 / 180))) *
+              (180 / 3.141592653589793);
+
+          final bounds = MapBounds(
+            minLat: lat - latDelta,
+            maxLat: lat + latDelta,
+            minLng: lng - lngDelta,
+            maxLng: lng + lngDelta,
+          );
+
+          final peopleService = PeopleMapDiscoveryService();
+          // ⚠️ Importante: aqui é warmup, então NÃO publicamos no `nearbyPeople`.
+          // Se publicarmos, o PeopleButton pode mostrar um resultado de raio
+          // aproximado antes do mapa calcular o viewport real.
+          await peopleService.preloadForBounds(bounds).timeout(const Duration(seconds: 5));
+
+          AppLogger.success(
+            'Warmup pessoas viewport OK (bounds≈${initialPeopleWarmupRadiusKm.toStringAsFixed(0)}km)',
+            tag: 'INIT',
+          );
+        }
+      } catch (e) {
+        AppLogger.warning('Warmup pessoas viewport falhou: $e', tag: 'INIT');
       }
 
       // 2) Conversas — pode ficar para quando entrar na aba, mas aqui é warmup

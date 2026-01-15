@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:partiu/core/services/face_verification_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/screens/verification/didit_verification_screen.dart';
@@ -108,7 +109,11 @@ class _DiditVerificationExampleState extends State<DiditVerificationExample> {
         title: Text(i18n.translate('identity_verification_title')),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CupertinoActivityIndicator(
+                radius: 12,
+              ),
+            )
           : Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(

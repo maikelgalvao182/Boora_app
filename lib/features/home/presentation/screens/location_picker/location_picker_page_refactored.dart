@@ -58,7 +58,7 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
 
   Future<void> _initializeAsync() async {
     try {
-      // Carregar API key do Firebase
+      // Carregar API key local (constants.dart)
       final configService = GoogleMapsConfigService();
       _apiKey = await configService.getGooglePlacesApiKey();
 

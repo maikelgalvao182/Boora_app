@@ -42,6 +42,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
   static const double _peopleButtonHeight = 48;
   static const double _filtersSpacing = 8;
 
+  bool _isShowingOnboarding = false;
+
   void _showCreateDrawer() async {
     final coordinator = CreateFlowCoordinator(mapViewModel: widget.mapViewModel);
     
@@ -155,45 +157,47 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
-  /// Chamado quando o primeiro scroll no mapa ocorre
-  void _onFirstMapScroll() async {
-    debugPrint('🚀 [DiscoverTab] _onFirstMapScroll chamado');
-    debugPrint('   mounted: $mounted');
-    
-    // Verificar se deve mostrar o onboarding
-    debugPrint('   🔍 Verificando shouldShowOnboarding...');
-    final shouldShow = await OnboardingService.instance.shouldShowOnboarding();
-    debugPrint('   📊 shouldShow: $shouldShow');
-    debugPrint('   mounted após await: $mounted');
-    
-    if (shouldShow && mounted) {
-      debugPrint('   ✅ Iniciando navegação para LiquidSwipeOnboarding...');
-      
-      try {
-        // Navegar para o onboarding em fullscreen ao invés de trocar o widget tree
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (context) {
-              debugPrint('   🎨 [DiscoverTab] MaterialPageRoute.builder chamado');
-              return LiquidSwipeOnboarding(
-                onComplete: () {
-                  debugPrint('   ✅ [DiscoverTab] Onboarding completado, fechando...');
-                  if (mounted) {
-                    Navigator.of(context).pop();
-                  }
-                },
-              );
+  Future<void> _showOnboarding() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (routeContext) {
+          return LiquidSwipeOnboarding(
+            onComplete: () {
+              if (Navigator.of(routeContext).canPop()) {
+                Navigator.of(routeContext).pop();
+              }
             },
-          ),
-        );
-        debugPrint('   ✅ [DiscoverTab] Navegação para onboarding concluída');
-      } catch (e, stackTrace) {
-        debugPrint('   ❌ [DiscoverTab] Erro ao mostrar onboarding: $e');
-        debugPrint('   Stack: $stackTrace');
-      }
-    } else {
-      debugPrint('   ⏭️ Não mostrando onboarding (shouldShow: $shouldShow, mounted: $mounted)');
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleCreatePressed() async {
+    if (_isShowingOnboarding) return;
+
+    final completed = await OnboardingService.instance.isOnboardingCompleted();
+    if (!mounted) return;
+
+    if (completed) {
+      _showCreateDrawer();
+      return;
+    }
+
+    final alreadyTapped =
+        await OnboardingService.instance.hasFirstCreateOverlayTapOccurred();
+    if (!alreadyTapped) {
+      await OnboardingService.instance.markFirstCreateOverlayTap();
+    }
+
+    if (!mounted) return;
+
+    _isShowingOnboarding = true;
+    try {
+      await _showOnboarding();
+    } finally {
+      _isShowingOnboarding = false;
     }
   }
 
@@ -207,7 +211,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         DiscoverScreen(
           key: _discoverKey,
           mapViewModel: widget.mapViewModel,
-          onFirstMapScroll: _onFirstMapScroll,
         ),
         
         // Botão "Perto de você" (canto superior direito)
@@ -283,6 +286,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   }
                 },
                 padding: const EdgeInsets.symmetric(horizontal: 16),
+                unselectedBackgroundColor: Colors.white,
               );
             },
           ),
@@ -314,7 +318,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
           right: 16,
           bottom: 24,
           child: CreateButton(
-            onPressed: _showCreateDrawer,
+            onPressed: _handleCreatePressed,
           ),
         ),
       ],

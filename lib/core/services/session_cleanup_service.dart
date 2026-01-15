@@ -6,6 +6,7 @@ import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
+import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -133,6 +134,8 @@ class SessionCleanupService {
       _log('🗺️  ETAPA 5.3/9: Cancelando streams do MapViewModel');
       try {
         MapViewModel.instance?.cancelAllStreams();
+        // Limpar cache de bitmaps/markers (singleton) para evitar estado visual antigo.
+        GoogleEventMarkerService().clearCache();
         _log('✅ MapViewModel streams cancelados');
       } catch (e) {
         _log('⚠️  Etapa 5.3/9 falhou: $e (continuando...)');

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as google;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
 
@@ -355,8 +356,90 @@ class MarkerBitmapGenerator {
     }
   }
 
+  static Future<google.BitmapDescriptor> _generateCircularAvatarFromBytes(
+    Uint8List bytes,
+    int size,
+  ) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+
+    final padding = 0;
+    final canvasSize = size + (padding * 2);
+    final center = canvasSize / 2;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    final borderWidth = 8.0;
+    final borderPaint = Paint()..color = Colors.white;
+    canvas.drawCircle(
+      Offset(center, center),
+      size / 2,
+      borderPaint,
+    );
+
+    final clipPath = Path()
+      ..addOval(
+        Rect.fromCircle(
+          center: Offset(center, center),
+          radius: (size / 2) - borderWidth,
+        ),
+      );
+    canvas.clipPath(clipPath);
+
+    final availableSize = size - (borderWidth * 2);
+    final imageWidth = image.width.toDouble();
+    final imageHeight = image.height.toDouble();
+    final imageAspect = imageWidth / imageHeight;
+
+    late final Rect srcRect;
+    if (imageAspect > 1) {
+      final scaledWidth = imageHeight;
+      final cropX = (imageWidth - scaledWidth) / 2;
+      srcRect = Rect.fromLTWH(cropX, 0, scaledWidth, imageHeight);
+    } else if (imageAspect < 1) {
+      final scaledHeight = imageWidth;
+      final cropY = (imageHeight - scaledHeight) / 2;
+      srcRect = Rect.fromLTWH(0, cropY, imageWidth, scaledHeight);
+    } else {
+      srcRect = Rect.fromLTWH(0, 0, imageWidth, imageHeight);
+    }
+
+    final dstRect = Rect.fromLTWH(
+      padding + borderWidth,
+      padding + borderWidth,
+      availableSize,
+      availableSize,
+    );
+
+    canvas.drawImageRect(
+      image,
+      srcRect,
+      dstRect,
+      Paint(),
+    );
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(canvasSize, canvasSize);
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    final uint8list = byteData!.buffer.asUint8List();
+
+    return _descriptorFromPngBytes(uint8list);
+  }
+
   /// Gera avatar padrão cinza com ícone de pessoa (Google Maps)
   static Future<google.BitmapDescriptor> _generateDefaultAvatarPinForGoogleMaps(int size) async {
+    try {
+      final byteData = await rootBundle.load('assets/images/empty_avatar2.jpg');
+      final bytes = byteData.buffer.asUint8List();
+      if (bytes.isNotEmpty) {
+        return _generateCircularAvatarFromBytes(bytes, size);
+      }
+    } catch (_) {
+      // Fallback abaixo.
+    }
+
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 

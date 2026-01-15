@@ -1,4 +1,5 @@
 import 'package:partiu/features/notifications/widgets/notification_filter.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:flutter/material.dart';
 
 /// Horizontal list of notification categories with i18n support
@@ -19,6 +20,8 @@ class NotificationHorizontalFilters extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 20),
     this.spacingAbove = 0,
     this.icons,
+    this.selectedBackgroundColor,
+    this.unselectedBackgroundColor,
   });
   
   /// List of translated filter labels
@@ -39,6 +42,9 @@ class NotificationHorizontalFilters extends StatelessWidget {
   /// Optional icons for each filter
   final List<IconData>? icons;
 
+  final Color? selectedBackgroundColor;
+  final Color? unselectedBackgroundColor;
+
   @override
   Widget build(BuildContext context) {
     return NotificationFilter(
@@ -51,6 +57,8 @@ class NotificationHorizontalFilters extends StatelessWidget {
         top: 4,
         bottom: 4,
       ),
+      selectedBackgroundColor: selectedBackgroundColor ?? GlimpseColors.primary,
+      unselectedBackgroundColor: unselectedBackgroundColor ?? GlimpseColors.lightTextField,
     );
   }
 }

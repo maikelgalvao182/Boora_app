@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:partiu/core/models/didit_session.dart';
 import 'package:partiu/core/services/didit_verification_service.dart';
 import 'package:partiu/core/services/face_verification_service.dart';
@@ -30,6 +34,7 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
   WebViewController? _controller;
   
   bool _isLoading = true;
+  bool _isPageLoading = true;
   DiditSession? _session;
   String? _errorMessage;
 
@@ -46,6 +51,22 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
+
+      if (Platform.isAndroid) {
+        final granted = await _ensureAndroidMediaPermissions();
+        if (!granted) {
+          AppLogger.warning(
+            'Permissões de câmera/microfone negadas; abortando verificação',
+            tag: _tag,
+          );
+          setState(() {
+            _isLoading = false;
+            _errorMessage =
+                'Permissão de câmera e microfone é necessária para verificar sua identidade.';
+          });
+          return;
+        }
+      }
 
       AppLogger.info('Criando sessão de verificação...', tag: _tag);
 
@@ -88,6 +109,47 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
     }
   }
 
+  Future<bool> _ensureAndroidMediaPermissions() async {
+    try {
+      final result = await [
+        Permission.camera,
+        Permission.microphone,
+      ].request();
+
+      final camera = result[Permission.camera];
+      final microphone = result[Permission.microphone];
+
+      final hasCamera = camera?.isGranted ?? false;
+      final hasMicrophone = microphone?.isGranted ?? false;
+
+      if (hasCamera && hasMicrophone) {
+        return true;
+      }
+
+      if ((camera?.isPermanentlyDenied ?? false) ||
+          (microphone?.isPermanentlyDenied ?? false)) {
+        AppLogger.warning(
+          'Permissões negadas permanentemente. camera=$camera mic=$microphone',
+          tag: _tag,
+        );
+      } else {
+        AppLogger.warning(
+          'Permissões negadas/limitadas. camera=$camera mic=$microphone',
+          tag: _tag,
+        );
+      }
+      return false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Erro ao solicitar permissões no Android: $e',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return false;
+    }
+  }
+
   void _setupWebView(String url) {
     // Configure platform-specific parameters
     final params = WebViewPlatform.instance is WebKitWebViewPlatform
@@ -97,24 +159,46 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
           )
         : const PlatformWebViewControllerCreationParams();
 
-    // Initialize the WebView controller
-    final controller = WebViewController.fromPlatformCreationParams(params)
+    // Initialize the WebView controller (declarar antes para poder referenciar em callbacks)
+    final controller = WebViewController.fromPlatformCreationParams(params);
+
+    controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(
-          'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36')
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
             AppLogger.info('Carregando: $url', tag: _tag);
+            if (mounted) {
+              setState(() {
+                _isPageLoading = true;
+              });
+            }
           },
           onPageFinished: (url) {
             AppLogger.info('Página carregada: $url', tag: _tag);
+
+            // No Android, o WebView pode renderizar um placeholder/overlay de play
+            // (principalmente em elementos <video>) antes do stream/câmera iniciar.
+            if (Platform.isAndroid) {
+              _suppressAndroidPlayOverlay(controller);
+            }
+
+            if (mounted) {
+              setState(() {
+                _isPageLoading = false;
+              });
+            }
           },
           onWebResourceError: (error) {
             AppLogger.error(
               'Erro ao carregar: ${error.errorCode} - ${error.description}',
               tag: _tag,
             );
+            if (mounted) {
+              setState(() {
+                _isPageLoading = false;
+              });
+            }
           },
           onNavigationRequest: (request) {
             final url = request.url;
@@ -126,17 +210,77 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(url));
+      );
+
+    controller.loadRequest(Uri.parse(url));
 
     // Configure platform-specific settings
     final platformController = controller.platform;
 
     // Android-specific configuration
     if (platformController is AndroidWebViewController) {
+      // Mantém o UA customizado só no Android.
+      // (No iOS, sobrescrever para UA de Android pode afetar o HTML/fluxo do Didit.)
+      controller.setUserAgent(
+        'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      );
+
       // Handle permissions
       platformController.setOnPlatformPermissionRequest((request) {
         request.grant();
+      });
+
+      // Suporte a <input type="file"> / capture (ex.: abrir câmera para documento)
+      platformController.setOnShowFileSelector((params) async {
+        try {
+          AppLogger.info(
+            'File selector solicitado. capture=${params.isCaptureEnabled} mode=${params.mode} types=${params.acceptTypes}',
+            tag: _tag,
+          );
+
+          final acceptTypes = params.acceptTypes.map((e) => e.toLowerCase()).toList();
+          final acceptsImages = acceptTypes.isEmpty || acceptTypes.any((t) => t.contains('image'));
+
+          if (!acceptsImages) {
+            AppLogger.warning(
+              'File selector com tipos não suportados: ${params.acceptTypes}',
+              tag: _tag,
+            );
+            return <String>[];
+          }
+
+          // Garante permissões antes de abrir câmera/galeria.
+          final granted = await _ensureAndroidMediaPermissions();
+          if (!granted) {
+            return <String>[];
+          }
+
+          final picker = ImagePicker();
+
+          if (params.isCaptureEnabled) {
+            final file = await picker.pickImage(source: ImageSource.camera);
+            if (file == null) return <String>[];
+            return <String>[file.path];
+          }
+
+          // Se não for capture, tenta galeria (single ou múltiplo).
+          if (params.mode == FileSelectorMode.openMultiple) {
+            final files = await picker.pickMultiImage();
+            return files.map((f) => f.path).toList();
+          }
+
+          final file = await picker.pickImage(source: ImageSource.gallery);
+          if (file == null) return <String>[];
+          return <String>[file.path];
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            'Erro no file selector do WebView: $e',
+            tag: _tag,
+            error: e,
+            stackTrace: stackTrace,
+          );
+          return <String>[];
+        }
       });
 
       platformController.setGeolocationPermissionsPromptCallbacks(
@@ -154,6 +298,53 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
     setState(() {
       _controller = controller;
     });
+  }
+
+  Future<void> _suppressAndroidPlayOverlay(WebViewController controller) async {
+    try {
+      // CSS para esconder overlays/controles de play que aparecem como um ícone grande.
+      // Isso é intencionalmente conservador: mira somente pseudo-elementos de controle.
+      const css = '''
+        video::-webkit-media-controls-start-playback-button { display: none !important; }
+        video::-webkit-media-controls-play-button { display: none !important; }
+        video::-webkit-media-controls-overlay-play-button { display: none !important; }
+        video::-webkit-media-controls { display: none !important; }
+      ''';
+
+      final js = '''
+        (function() {
+          try {
+            var style = document.getElementById('__partiu_hide_play_overlay');
+            if (!style) {
+              style = document.createElement('style');
+              style.id = '__partiu_hide_play_overlay';
+              style.type = 'text/css';
+              style.appendChild(document.createTextNode(${_jsString(css)}));
+              (document.head || document.documentElement).appendChild(style);
+            }
+          } catch (e) {}
+        })();
+      ''';
+
+      await controller.runJavaScript(js);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Falha ao suprimir overlay de play no Android: $e',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  static String _jsString(String value) {
+    // Serializa string Dart para literal JS segura.
+    final escaped = value
+        .replaceAll('\\', r'\\')
+        .replaceAll("'", r"\\'")
+        .replaceAll('\n', r'\\n')
+        .replaceAll('\r', r'');
+    return "'$escaped'";
   }
 
   /// Observa mudanças no status da sessão
@@ -275,8 +466,9 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(
+          const CupertinoActivityIndicator(
             color: Colors.white,
+            radius: 12,
           ),
           const SizedBox(height: 16),
           Text(
@@ -337,6 +529,13 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
     if (_controller == null) {
       return _buildLoading();
     }
+
+    // No Android, evita mostrar o HTML inicial (onde o ícone/asset de play aparece)
+    // enquanto a página ainda está carregando.
+    if (Platform.isAndroid && _isPageLoading) {
+      return _buildLoading();
+    }
+
     return WebViewWidget(controller: _controller!);
   }
 

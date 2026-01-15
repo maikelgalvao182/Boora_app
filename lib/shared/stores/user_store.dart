@@ -211,6 +211,44 @@ class UserStore {
     return notifier;
   }
 
+  /// ✅ Avatar sem listener do Firestore (reduz Read Ops)
+  ///
+  /// Use quando o caller já tem `photoUrl` (ex.: listas de participantes) e
+  /// quer apenas renderizar a imagem com cache, sem abrir `Users/{userId}.snapshots()`.
+  ///
+  /// - Não cria subscription Firestore
+  /// - Usa `preloadAvatar()` (cache + warmup) quando `photoUrl` é fornecida
+  ValueNotifier<AvatarEntry> getAvatarEntryNotifierNoFirestore(
+    String userId, {
+    String? photoUrl,
+  }) {
+    if (userId.trim().isEmpty) {
+      return ValueNotifier<AvatarEntry>(const AvatarEntry(AvatarState.empty, _emptyAvatar));
+    }
+
+    if (photoUrl != null && photoUrl.trim().isNotEmpty) {
+      preloadAvatar(userId, photoUrl.trim());
+    }
+
+    final existing = _avatarEntryNotifiers[userId];
+    if (existing != null) return existing;
+
+    final existingUser = _users[userId];
+    if (existingUser != null && existingUser.avatarUrl.isNotEmpty) {
+      final notifier = ValueNotifier<AvatarEntry>(
+        AvatarEntry(AvatarState.loaded, existingUser.avatarProvider),
+      );
+      _avatarEntryNotifiers[userId] = notifier;
+      return notifier;
+    }
+
+    final notifier = ValueNotifier<AvatarEntry>(
+      AvatarEntry(AvatarState.loading, _loadingPlaceholder),
+    );
+    _avatarEntryNotifiers[userId] = notifier;
+    return notifier;
+  }
+
   /// ✅ Nome
   ValueNotifier<String?> getNameNotifier(String userId) {
     if (userId.isEmpty) {

@@ -22,6 +22,8 @@ import 'package:partiu/screens/chat/widgets/dummy_presence_header.dart';
 import 'package:partiu/screens/chat/widgets/message_list_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 
 class ChatScreenRefactored extends StatefulWidget {
@@ -107,10 +109,11 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
     if (!mounted) return;
 
     // Inicia reply direto (sem abrir um segundo Cupertino).
-    final remoteName = widget.user.fullName.trim();
-    final senderName = message.senderId == AppState.currentUserId
-      ? _i18n.translate('you')
-      : (remoteName.isNotEmpty ? remoteName : 'Usuário');
+    // ⚠️ Importante: NÃO usar widget.user.fullName aqui, pois em chats de evento
+    // esse valor pode ser o nome do evento (e não do autor real da mensagem).
+    final senderName = await _resolveReplySenderName(message);
+
+    if (!mounted) return;
 
     setState(() {
       _replySnapshot = ReplySnapshot(
@@ -124,6 +127,24 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
     });
 
     HapticFeedback.mediumImpact();
+  }
+
+  Future<String> _resolveReplySenderName(Message message) async {
+    final senderId = (message.senderId ?? '').trim();
+    if (senderId.isEmpty) return '';
+
+    if (senderId == AppState.currentUserId) {
+      return _i18n.translate('you');
+    }
+
+    // 1) Tenta cache reativo local (rápido, sem await)
+    final cached = UserStore.instance.getNameNotifier(senderId).value?.trim() ?? '';
+    if (cached.isNotEmpty) return cached;
+
+    // 2) Fallback: busca no Firestore Users (para não salvar nome errado no snapshot)
+    final data = await UserRepository().getUserById(senderId);
+    final fetched = (data?['fullName'] as String?)?.trim() ?? (data?['fullname'] as String?)?.trim() ?? '';
+    return fetched;
   }
   
   // 🆕 Método para cancelar reply

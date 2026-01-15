@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_variables.dart';
@@ -12,13 +11,14 @@ import 'package:partiu/features/home/presentation/widgets/user_card_shimmer.dart
 import 'package:partiu/shared/widgets/star_badge.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Card horizontal de usuário
 /// 
 /// Exibe:
 /// - Avatar (StableAvatar)
 /// - fullName
-/// - from (localização)
+/// - locality/state (localização)
 /// - Interesses em comum (se fornecido via userWithMeta)
 /// - Time ago (opcional, apenas para profile_visits)
 class UserCard extends StatefulWidget {
@@ -52,6 +52,29 @@ class UserCard extends StatefulWidget {
 class _UserCardState extends State<UserCard> {
   UserCardController? _controller;
   bool _needsRatingFromController = false;
+
+  String? _formatLocationText({
+    String? locality,
+    String? state,
+    String? fallback,
+  }) {
+    final city = locality?.trim();
+    final uf = state?.trim();
+
+    if (city != null && city.isNotEmpty && uf != null && uf.isNotEmpty) {
+      return '$city, $uf';
+    }
+    if (city != null && city.isNotEmpty) {
+      return city;
+    }
+
+    final fb = fallback?.trim();
+    if (fb != null && fb.isNotEmpty) {
+      return fb.replaceAll(RegExp(r'\s*-\s*'), ', ');
+    }
+
+    return null;
+  }
 
   String? _formatDistanceText(double? rawDistance) {
     if (rawDistance == null || !rawDistance.isFinite || rawDistance < 0) {
@@ -102,7 +125,8 @@ class _UserCardState extends State<UserCard> {
       final u = widget.userWithMeta!;
       return _buildUserCard(
         fullName: u.user.fullName ?? 'Usuário',
-        from: '', // UserWithMeta/UserModel não tem from
+        locality: u.user.locality,
+        state: u.user.state,
         distanceKm: u.distanceKm,
         commonInterests: u.commonInterests,
         photoUrl: u.user.photoUrl,
@@ -115,7 +139,9 @@ class _UserCardState extends State<UserCard> {
       final u = widget.user!;
       return _buildUserCard(
         fullName: u.userFullname,
-        from: u.from ?? '',
+        locality: u.locality,
+        state: u.state,
+        fallbackLocation: u.from,
         distanceKm: u.distance,
         commonInterests: u.commonInterests ?? [],
         photoUrl: u.photoUrl,
@@ -144,7 +170,9 @@ class _UserCardState extends State<UserCard> {
 
     return _buildUserCard(
       fullName: user.fullName,
-      from: user.from ?? '',
+      locality: user.locality,
+      state: user.state,
+      fallbackLocation: user.from,
       distanceKm: user.distance,
       commonInterests: user.commonInterests ?? [],
       photoUrl: user.photoUrl,
@@ -179,7 +207,9 @@ class _UserCardState extends State<UserCard> {
 
   Widget _buildUserCard({
     required String fullName,
-    required String from,
+    String? locality,
+    String? state,
+    String? fallbackLocation,
     double? distanceKm,
     List<String> commonInterests = const [],
     String? photoUrl,
@@ -187,12 +217,11 @@ class _UserCardState extends State<UserCard> {
     DateTime? visitedAt,
   }) {
     final distanceText = _formatDistanceText(distanceKm);
-    final locationText = from.trim().isEmpty
-        ? ''
-        : from
-            .trim()
-            // Normaliza separadores comuns para usar vírgula ("Cidade, UF")
-            .replaceAll(RegExp(r'\s*-\s*'), ', ');
+    final initialLocationText = _formatLocationText(
+      locality: locality,
+      state: state,
+      fallback: fallbackLocation,
+    );
 
     // Process common interests
     String commonInterestsText = '0 matchs ';
@@ -277,45 +306,71 @@ class _UserCardState extends State<UserCard> {
                   ),
 
                   // Locality/State (esquerda) + Distância (direita)
-                  if (locationText.isNotEmpty || distanceText != null || widget.trailingWidget != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        if (locationText.isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              locationText,
-                              style: GoogleFonts.getFont(
-                                FONT_PLUS_JAKARTA_SANS,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: GlimpseColors.textSubTitle,
+                  ValueListenableBuilder<String?>(
+                    valueListenable: UserStore.instance.getCityNotifier(widget.userId),
+                    builder: (context, city, _) {
+                      return ValueListenableBuilder<String?>(
+                        valueListenable: UserStore.instance.getStateNotifier(widget.userId),
+                        builder: (context, uf, __) {
+                          final resolvedLocationText = _formatLocationText(
+                            locality: city ?? locality,
+                            state: uf ?? state,
+                            fallback: initialLocationText,
+                          );
+
+                          final hasRow = (resolvedLocationText != null && resolvedLocationText.isNotEmpty) ||
+                              distanceText != null ||
+                              widget.trailingWidget != null;
+
+                          if (!hasRow) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Column(
+                            children: [
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  if (resolvedLocationText != null && resolvedLocationText.isNotEmpty)
+                                    Expanded(
+                                      child: Text(
+                                        resolvedLocationText,
+                                        style: GoogleFonts.getFont(
+                                          FONT_PLUS_JAKARTA_SANS,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: GlimpseColors.textSubTitle,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )
+                                  else
+                                    const Spacer(),
+
+                                  if (distanceText != null)
+                                    Text(
+                                      distanceText,
+                                      style: GoogleFonts.getFont(
+                                        FONT_PLUS_JAKARTA_SANS,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: GlimpseColors.textSubTitle,
+                                      ),
+                                    ),
+
+                                  if (widget.trailingWidget != null) ...[
+                                    const SizedBox(width: 8),
+                                    widget.trailingWidget!,
+                                  ],
+                                ],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )
-                        else
-                          const Spacer(),
-
-                        if (distanceText != null)
-                          Text(
-                            distanceText,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: GlimpseColors.textSubTitle,
-                            ),
-                          ),
-
-                        if (widget.trailingWidget != null) ...[
-                          const SizedBox(width: 8),
-                          widget.trailingWidget!,
-                        ],
-                      ],
-                    ),
-                  ],
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
 
                   // Interesses em comum (linha de baixo)
                   if (commonInterestsText.isNotEmpty) ...[

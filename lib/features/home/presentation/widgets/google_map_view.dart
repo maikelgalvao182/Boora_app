@@ -10,11 +10,9 @@ import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
-import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
-import 'package:partiu/features/home/presentation/services/onboarding_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
@@ -44,14 +42,11 @@ import 'package:partiu/shared/widgets/confetti_celebration.dart';
 class GoogleMapView extends StatefulWidget {
   final MapViewModel viewModel;
   final VoidCallback? onPlatformMapCreated;
-  /// Callback chamado quando o primeiro scroll do mapa ocorre (para onboarding)
-  final VoidCallback? onFirstMapScroll;
 
   const GoogleMapView({
     super.key,
     required this.viewModel,
     this.onPlatformMapCreated,
-    this.onFirstMapScroll,
   });
 
   @override
@@ -64,9 +59,6 @@ class GoogleMapViewState extends State<GoogleMapView> {
   
   /// Serviço para gerar markers customizados (com clustering)
   final GoogleEventMarkerService _markerService = GoogleEventMarkerService();
-  
-  /// Serviço para descoberta de eventos por bounding box
-  final MapDiscoveryService _discoveryService = MapDiscoveryService();
 
   /// Serviço para contagem de pessoas por bounding box
   final PeopleMapDiscoveryService _peopleCountService = PeopleMapDiscoveryService();
@@ -95,21 +87,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Flag para evitar rebuild pesado enquanto o usuário move o mapa
   bool _isCameraMoving = false;
 
-  /// Flag para rastrear se já processou o primeiro scroll (para onboarding)
-  bool _firstScrollProcessed = false;
-
-  /// Se eventos mudarem durante pan/zoom, faz 1 rebuild quando a câmera ficar idle.
-  bool _needsMarkerRebuildAfterCameraIdle = false;
-
-  /// Coalesce de múltiplas invalidações de avatar em um único rebuild
-  final Set<String> _pendingAvatarInvalidations = <String>{};
-  Timer? _avatarInvalidationDebounce;
-  bool _needsMarkerRebuildForAvatar = false;
-
-  Timer? _avatarReadyDebounce;
-
   Timer? _cameraIdleDebounce;
   static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 200);
+
+  VoidCallback? _avatarBitmapsListener;
+  Timer? _avatarBitmapsDebounce;
+  static const Duration _avatarBitmapsDebounceDuration = Duration(milliseconds: 150);
 
   static const double _viewportBoundsBufferFactor = 1.3;
 
@@ -171,66 +154,37 @@ class GoogleMapViewState extends State<GoogleMapView> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadMapStyle();
+    widget.viewModel.onMarkerTap = (event) => _onMarkerTap(event);
+    MapNavigationService.instance.registerMapHandler(
+      (eventId, {showConfetti = false}) {
+        _handleEventNavigation(eventId, showConfetti: showConfetti);
+      },
+    );
+    widget.viewModel.addListener(_onEventsChanged);
+
+    // Quando um avatar termina de carregar em background, o Marker do Google Maps
+    // NÃO se atualiza sozinho: precisamos reconstruir o Set<Marker> para trocar o ícone.
+    _avatarBitmapsListener = () {
+      if (!mounted || _isAnimating || _isCameraMoving) return;
+      if (widget.viewModel.events.isEmpty) return;
+
+      _avatarBitmapsDebounce?.cancel();
+      _avatarBitmapsDebounce = Timer(_avatarBitmapsDebounceDuration, () {
+        if (!mounted || _isAnimating || _isCameraMoving) return;
+        unawaited(_rebuildClusteredMarkers());
+      });
+    };
+    _markerService.avatarBitmapsVersion.addListener(_avatarBitmapsListener!);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    
-    // Carregar estilo do mapa de assets
-    _loadMapStyle();
-    
-    // Configurar callback de tap no ViewModel recebido
-    debugPrint('🔴 GoogleMapView: Configurando callback onMarkerTap');
-    widget.viewModel.onMarkerTap = (event) => _onMarkerTap(event);
-    debugPrint('🔴 GoogleMapView: Callback configurado? ${widget.viewModel.onMarkerTap != null}');
-    
-    // Registrar handler de navegação no MapNavigationService
-    MapNavigationService.instance.registerMapHandler((eventId, {bool showConfetti = false}) {
-      _handleEventNavigation(eventId, showConfetti: showConfetti);
-    });
-    debugPrint('🗺️ GoogleMapView: Handler de navegação registrado');
-    
-    // ✅ Listener para invalidação de avatares do UserStore
-    // Quando um avatar é atualizado, limpa cache e regenera markers
-    UserStore.instance.avatarInvalidationNotifier.addListener(_onAvatarInvalidated);
-    debugPrint('👤 GoogleMapView: Listener de invalidação de avatar registrado');
-
-    // ✅ Listener para quando avatares terminarem de carregar para o cache do MarkerService
-    // Isso troca placeholder -> avatar real com debounce (reduz “pisca”).
-    _markerService.avatarBitmapsVersion.addListener(_onAvatarBitmapsUpdated);
-    unawaited(_markerService.preloadDefaultPins());
-    
-    // Listener para atualizar markers quando eventos mudarem
-    widget.viewModel.addListener(_onEventsChanged);
-
-    // ⚡ Se o Splash/AppInitializer já gerou markers, usa como estado inicial.
-    // Isso faz os markers aparecerem junto com o mapa, sem esperar rebuild assíncrono.
-    final preloadedMarkers = widget.viewModel.googleMarkers;
-    if (preloadedMarkers.isNotEmpty) {
-      _markers = preloadedMarkers;
-      debugPrint('⚡ GoogleMapView: Usando ${_markers.length} markers pré-carregados do MapViewModel');
-    }
-    
-    // Verificar se eventos e markers já foram pré-carregados pelo AppInitializerService
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.viewModel.events.isEmpty && !widget.viewModel.isLoading) {
-        debugPrint('🔴 GoogleMapView: Nenhum evento pré-carregado, carregando agora...');
-        widget.viewModel.loadNearbyEvents();
-      } else {
-        debugPrint('✅ GoogleMapView: ${widget.viewModel.events.length} eventos já pré-carregados!');
-        debugPrint('⚡ GoogleMapView: Bitmaps já em cache, gerando markers com callbacks...');
-        
-        // Os BITMAPS foram pré-carregados no AppInitializerService,
-        // então a geração de markers será instantânea
-        _currentZoom = 12.0; // Zoom padrão - visão regional
-        _onEventsChanged();
-      }
-    });
-  }
-  
   /// Carrega o estilo do mapa de assets
   Future<void> _loadMapStyle() async {
     try {
@@ -244,160 +198,66 @@ class GoogleMapViewState extends State<GoogleMapView> {
     }
   }
   
-  /// Callback quando um avatar é invalidado
-  /// 
-  /// Limpa cache do avatar e regenera markers
-  void _onAvatarInvalidated() async {
-    final invalidatedUserId = UserStore.instance.avatarInvalidationNotifier.value;
-    if (invalidatedUserId == null || invalidatedUserId.isEmpty) return;
-    
-    debugPrint('👤 GoogleMapView: Avatar invalidado para userId: $invalidatedUserId');
-
-    _pendingAvatarInvalidations.add(invalidatedUserId);
-
-    _avatarInvalidationDebounce?.cancel();
-    _avatarInvalidationDebounce = Timer(const Duration(milliseconds: 450), () async {
-      if (!mounted) return;
-
-      final idsToInvalidate = List<String>.from(_pendingAvatarInvalidations);
-      _pendingAvatarInvalidations.clear();
-
-      for (final userId in idsToInvalidate) {
-        await _markerService.removeCachedAvatar(userId);
-      }
-
-      if (widget.viewModel.events.isEmpty) return;
-
-      // Evita rebuild pesado durante pan/zoom.
-      if (_isAnimating || _isCameraMoving) {
-        _needsMarkerRebuildForAvatar = true;
-        return;
-      }
-
-      debugPrint('🔄 GoogleMapView: Regenerando markers (debounced) após invalidação de avatar');
-      await _rebuildClusteredMarkers();
-    });
-  }
-
-  void _onAvatarBitmapsUpdated() {
-    if (!mounted) return;
-    if (widget.viewModel.events.isEmpty) return;
-
-    // Evita rebuild pesado durante pan/zoom.
-    if (_isAnimating || _isCameraMoving) {
-      _needsMarkerRebuildForAvatar = true;
-      return;
-    }
-
-    _avatarReadyDebounce?.cancel();
-    _avatarReadyDebounce = Timer(const Duration(milliseconds: 250), () async {
-      if (!mounted) return;
-      if (widget.viewModel.events.isEmpty) return;
-
-      // Se a câmera começou a mover durante o debounce, adia para onCameraIdle.
-      if (_isAnimating || _isCameraMoving) {
-        _needsMarkerRebuildForAvatar = true;
-        return;
-      }
-
-      await _rebuildClusteredMarkers();
-    });
-  }
-  
   /// Callback quando eventos mudarem
-  /// 
-  /// Recalcula clusters baseado no zoom atual
   void _onEventsChanged() async {
-    if (!mounted) {
-      debugPrint('⚠️ GoogleMapView._onEventsChanged: widget não montado, ignorando');
-      return;
-    }
-    
-    if (_isAnimating) {
-      debugPrint('⚠️ GoogleMapView._onEventsChanged: animação em progresso, ignorando');
-      return;
-    }
-    
-    final eventCount = widget.viewModel.events.length;
-    debugPrint('🔔 GoogleMapView._onEventsChanged: $eventCount eventos');
-    
-    if (eventCount > 0) {
-      debugPrint('📋 IDs: ${widget.viewModel.events.map((e) => e.id).take(5).join(", ")}...');
-    }
-    
+    if (!mounted || _isAnimating) return;
     await _rebuildClusteredMarkers();
   }
 
   /// Reconstrói markers com clustering baseado no zoom atual
-  /// 
-  /// Este método é chamado:
-  /// - Quando eventos mudam (listener do ViewModel)
-  /// - Quando zoom muda (onCameraIdle)
   Future<void> _rebuildClusteredMarkers() async {
-    if (!mounted) {
-      debugPrint('⚠️ _rebuildClusteredMarkers: widget não montado');
-      return;
-    }
-
-    if (_isAnimating || _isCameraMoving) {
-      _needsMarkerRebuildAfterCameraIdle = true;
-      debugPrint('⚠️ _rebuildClusteredMarkers: câmera em movimento/animação, adiando rebuild');
-      return;
-    }
+    if (!mounted) return;
+    if (_isAnimating || _isCameraMoving) return;
 
     final allEvents = widget.viewModel.events;
-
-    // Garante placeholder pronto para não cair em defaultMarker.
-    await _markerService.preloadDefaultPins();
-
-    final eventsByCategory = _applyCategoryFilter(allEvents);
-    final bounds = _lastExpandedVisibleBounds;
-
-    final viewportEvents = bounds == null
-        ? eventsByCategory
-        : eventsByCategory
-            .where((event) => _boundsContains(bounds, event.lat, event.lng))
-            .toList(growable: false);
-
-    final eventCount = viewportEvents.length;
-    final currentMarkerCount = _markers.length;
-    
-    debugPrint(
-      '🔄 _rebuildClusteredMarkers: memory=${allEvents.length}, viewport=$eventCount, markersAtuais=$currentMarkerCount',
-    );
-    
-    // ⚠️ IMPORTANTE: Limpar markers quando não há eventos
-    if (eventCount == 0) {
-      if (currentMarkerCount > 0) {
-        debugPrint('🗑️ Limpando $currentMarkerCount markers da UI (0 eventos)');
-        setState(() {
-          _markers = {};
-        });
-        debugPrint('✅ Markers limpos com sucesso!');
-      } else {
-        debugPrint('ℹ️ Nenhum marker para limpar (já está vazio)');
+    if (allEvents.isEmpty) {
+      if (_markers.isNotEmpty) {
+        setState(() => _markers = {});
       }
       return;
     }
+
+    // Se não temos bounds ainda, tenta obter do mapa
+    var bounds = _lastExpandedVisibleBounds;
+    if (bounds == null && _mapController != null) {
+      try {
+        final visibleRegion = await _mapController!.getVisibleRegion();
+        bounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
+        _lastExpandedVisibleBounds = bounds;
+      } catch (_) {
+        // Mapa ainda não pronto - não renderiza markers
+        return;
+      }
+    }
     
-    final stopwatch = Stopwatch()..start();
+    // Sem bounds = não renderiza (evita renderizar tudo)
+    if (bounds == null) return;
+
+    final eventsByCategory = _applyCategoryFilter(allEvents);
+    final viewportEvents = eventsByCategory
+        .where((event) => _boundsContains(bounds!, event.lat, event.lng))
+        .toList(growable: false);
+
+    if (viewportEvents.isEmpty) return;
+
+    // Pré-carrega avatares do viewport em background.
+    // Isso aumenta a chance de, ao dar zoom in (desfazer cluster), os avatares já estarem no cache.
+    unawaited(
+      _markerService.preloadAvatarPinsForEvents(
+        viewportEvents,
+        maxUsers: 30,
+      ),
+    );
     
-    debugPrint('🔲 Reconstruindo markers com clustering (zoom: ${_currentZoom.toStringAsFixed(1)}, $eventCount eventos)');
-    
-    // Gerar markers clusterizados
     final markers = await _markerService.buildClusteredMarkers(
       viewportEvents,
       zoom: _currentZoom,
       onSingleTap: (eventId) {
-        debugPrint('🎯 Marker individual tocado: $eventId');
         final event = _eventsInViewportById[eventId] ??
             widget.viewModel.events.firstWhere((e) => e.id == eventId);
         _onMarkerTap(event);
       },
-      onClusterTap: (eventsInCluster) {
-        debugPrint('🔴 Cluster tocado: ${eventsInCluster.length} eventos');
-        _onClusterTap(eventsInCluster);
-      },
+      onClusterTap: (eventsInCluster) => _onClusterTap(eventsInCluster),
     );
 
     _eventsInViewportById
@@ -405,12 +265,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       ..addEntries(viewportEvents.map((e) => MapEntry(e.id, e)));
     
     if (mounted) {
-      setState(() {
-        _markers = markers;
-      });
-      stopwatch.stop();
-      debugPrint('✅ GoogleMapView: ${_markers.length} markers clusterizados em ${stopwatch.elapsedMilliseconds}ms');
-      debugPrint('🗺️ Markers atualizados na UI');
+      setState(() => _markers = markers);
     }
   }
 
@@ -433,6 +288,17 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// - Se zoom já alto, mostra o primeiro evento
   void _onClusterTap(List<EventModel> eventsInCluster) async {
     if (_mapController == null || eventsInCluster.isEmpty) return;
+
+    // Warmup: ao tocar no cluster, pré-carrega avatares dos criadores do cluster.
+    // Assim, quando o zoom in desfizer o cluster, os avatares tendem a já estar no cache.
+    // Timeout curto para não travar a interação.
+    try {
+      await _markerService
+          .preloadAvatarPinsForEvents(eventsInCluster, maxUsers: 30)
+          .timeout(const Duration(milliseconds: 900));
+    } catch (_) {
+      // Best-effort.
+    }
     
     // Se zoom já está alto (>= 16), mostrar primeiro evento
     if (_currentZoom >= 16) {
@@ -568,8 +434,9 @@ class GoogleMapViewState extends State<GoogleMapView> {
       final expandedBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
       _lastExpandedVisibleBounds = expandedBounds;
 
-      // Queries/counters usam bounds EXPANDIDO para reduzir refetch durante pequenos pans.
-      final queryBounds = MapBounds.fromLatLngBounds(expandedBounds);
+      // Fonte de verdade para drawer/chips: bounds VISÍVEL (frame).
+      // O bounds expandido é usado apenas para reduzir churn de render de markers.
+      final queryBounds = MapBounds.fromLatLngBounds(visibleRegion);
       // Pessoas devem ser determinadas pelo que está DENTRO do frame.
       final peopleBounds = MapBounds.fromLatLngBounds(visibleRegion);
       
@@ -578,13 +445,6 @@ class GoogleMapViewState extends State<GoogleMapView> {
       // Recalcular clusters se zoom mudou significativamente OU se cruzou o limiar de clustering
       if ((zoomChanged || crossedClusterThreshold) && widget.viewModel.events.isNotEmpty) {
         debugPrint('🔄 GoogleMapView: Zoom mudou - recalculando clusters');
-        await _rebuildClusteredMarkers();
-      }
-
-      // Se eventos mudaram durante o movimento, faz um rebuild único aqui.
-      if (_needsMarkerRebuildAfterCameraIdle && widget.viewModel.events.isNotEmpty) {
-        _needsMarkerRebuildAfterCameraIdle = false;
-        debugPrint('🔄 GoogleMapView: Rebuild pendente após câmera parar');
         await _rebuildClusteredMarkers();
       }
       
@@ -599,7 +459,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       } else {
         _lastRequestedQueryBounds = queryBounds;
         _lastRequestedQueryAt = now;
-        await _discoveryService.loadEventsInBounds(queryBounds);
+        await widget.viewModel.loadEventsInBounds(queryBounds);
       }
 
       // Atualizar contagem/lista de pessoas SOMENTE quando o zoom está próximo
@@ -612,13 +472,6 @@ class GoogleMapViewState extends State<GoogleMapView> {
       if (viewportActive) {
         await _peopleCountService.loadPeopleCountInBounds(peopleBounds);
       }
-
-      // Se houve invalidação de avatar enquanto a câmera se movia, faz 1 rebuild aqui.
-      if (_needsMarkerRebuildForAvatar && widget.viewModel.events.isNotEmpty) {
-        _needsMarkerRebuildForAvatar = false;
-        debugPrint('🔄 GoogleMapView: Regenerando markers após câmera parar (avatar invalidado)');
-        await _rebuildClusteredMarkers();
-      }
     } catch (error) {
       debugPrint('⚠️ GoogleMapView: Erro ao capturar bounding box: $error');
     }
@@ -628,53 +481,6 @@ class GoogleMapViewState extends State<GoogleMapView> {
     _isCameraMoving = true;
     // Evita acumular downloads enquanto o usuário está pan/zoom no mapa.
     UserStore.instance.cancelAvatarPreloads();
-    
-    // Detectar primeiro scroll do usuário (para onboarding)
-    _checkFirstMapScroll();
-  }
-  
-  /// Verifica se este é o primeiro scroll e dispara callback de onboarding
-  Future<void> _checkFirstMapScroll() async {
-    debugPrint('🎯 [GoogleMapView] _checkFirstMapScroll iniciado');
-    debugPrint('   _firstScrollProcessed: $_firstScrollProcessed');
-    
-    if (_firstScrollProcessed) {
-      debugPrint('   ⏭️ Primeiro scroll já processado, ignorando');
-      return;
-    }
-    _firstScrollProcessed = true;
-    
-    // Verificar se onboarding ainda não foi completado
-    debugPrint('   🔍 Verificando shouldShowOnboarding...');
-    final shouldShow = await OnboardingService.instance.shouldShowOnboarding();
-    debugPrint('   📊 shouldShow: $shouldShow');
-    
-    if (shouldShow) {
-      // O primeiro scroll já ocorreu em outra sessão e o onboarding ainda
-      // não foi completado. Dispara o callback para exibir o onboarding.
-      debugPrint('   ✅ Disparando callback onFirstMapScroll (onboarding pendente)');
-      debugPrint('   🎯 widget.onFirstMapScroll is null? ${widget.onFirstMapScroll == null}');
-      widget.onFirstMapScroll?.call();
-      return;
-    }
-    
-    // Verifica se é realmente o primeiro scroll (ainda não marcado)
-    debugPrint('   🔍 Verificando hasFirstMapScrollOccurred...');
-    final alreadyScrolled = await OnboardingService.instance.hasFirstMapScrollOccurred();
-    debugPrint('   📊 alreadyScrolled: $alreadyScrolled');
-    
-    if (!alreadyScrolled) {
-      // Marcar que ocorreu o primeiro scroll
-      debugPrint('   ✍️ Marcando primeiro scroll...');
-      await OnboardingService.instance.markFirstMapScroll();
-      
-      // Disparar callback para mostrar onboarding
-      debugPrint('   ✅ Disparando callback onFirstMapScroll (primeiro scroll)');
-      debugPrint('   🎯 widget.onFirstMapScroll is null? ${widget.onFirstMapScroll == null}');
-      widget.onFirstMapScroll?.call();
-    } else {
-      debugPrint('   ⏭️ Scroll já foi marcado anteriormente, não disparando callback');
-    }
   }
 
   /// Faz busca inicial de eventos na região visível
@@ -699,8 +505,18 @@ class GoogleMapViewState extends State<GoogleMapView> {
       
       debugPrint('🎯 GoogleMapView: Busca inicial de eventos em $bounds');
       
-      // Forçar busca imediata (ignora debounce)
-      await _discoveryService.forceRefresh(bounds);
+      // Forçar busca imediata para categorias do drawer (ignora debounce)
+      // mas evita duplicar com um refetch que possa ter sido disparado no 1º onCameraIdle.
+      final now = DateTime.now();
+      final withinPrevious = _lastRequestedQueryBounds != null &&
+          _isBoundsContained(bounds, _lastRequestedQueryBounds!);
+      final tooSoon = now.difference(_lastRequestedQueryAt) < _minIntervalBetweenContainedBoundsQueries;
+
+      if (!(withinPrevious && tooSoon)) {
+        _lastRequestedQueryBounds = bounds;
+        _lastRequestedQueryAt = now;
+        await widget.viewModel.forceRefreshBounds(bounds);
+      }
 
       // Contagem/lista de pessoas só faz sentido quando zoom está próximo
       // (clusters desfeitos). Em zoom out, não fazemos preload.
@@ -712,6 +528,25 @@ class GoogleMapViewState extends State<GoogleMapView> {
       
       // Gerar markers iniciais com clustering
       if (widget.viewModel.events.isNotEmpty) {
+        // ✅ Warmup: pré-carrega avatares APENAS do viewport inicial (bounding box visível)
+        // para que os markers já nasçam com avatar, sem passar pelo empty state.
+        try {
+          final eventsByCategory = _applyCategoryFilter(widget.viewModel.events);
+          final viewportEvents = eventsByCategory
+              .where((event) => _boundsContains(visibleRegion, event.lat, event.lng))
+              .toList(growable: false);
+
+          // Warmup inicial: timeout maior (5s) para primeira impressão do usuário.
+          if (viewportEvents.isNotEmpty) {
+            debugPrint('🔥 GoogleMapView: Warmup inicial de ${viewportEvents.length} avatares...');
+            final loaded = await _markerService
+                .preloadAvatarPinsForEvents(viewportEvents, maxUsers: 30)
+                .timeout(const Duration(seconds: 5));
+            debugPrint('✅ GoogleMapView: Warmup concluído ($loaded avatares carregados)');
+          }
+        } catch (e) {
+          debugPrint('⚠️ GoogleMapView: Warmup inicial falhou: $e');
+        }
         await _rebuildClusteredMarkers();
       }
     } catch (error) {
@@ -963,14 +798,13 @@ class GoogleMapViewState extends State<GoogleMapView> {
   @override
   void dispose() {
     _cameraIdleDebounce?.cancel();
-    _avatarInvalidationDebounce?.cancel();
-    _avatarReadyDebounce?.cancel();
+    _avatarBitmapsDebounce?.cancel();
+    final listener = _avatarBitmapsListener;
+    if (listener != null) {
+      _markerService.avatarBitmapsVersion.removeListener(listener);
+    }
     widget.viewModel.removeListener(_onEventsChanged);
-    UserStore.instance.avatarInvalidationNotifier.removeListener(_onAvatarInvalidated);
-    _markerService.avatarBitmapsVersion.removeListener(_onAvatarBitmapsUpdated);
     MapNavigationService.instance.unregisterMapHandler();
-    debugPrint('🗺️ GoogleMapView: Handler de navegação removido');
-    _markerService.clearCache(); // Limpar cache de markers e clusters
     _mapController?.dispose();
     _mapController = null;
     super.dispose();

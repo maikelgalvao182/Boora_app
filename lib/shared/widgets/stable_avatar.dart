@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/core/services/cache/cache_key_utils.dart';
+import 'package:partiu/core/services/cache/image_caches.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/core/models/user.dart';
@@ -45,6 +48,32 @@ class StableAvatar extends StatelessWidget {
         borderRadius: borderRadius,
         enableNavigation: false,
         child: _image(_emptyImage, 'empty', devicePixelRatio: devicePixelRatio),
+      );
+    }
+
+    // ✅ Otimização de Read Ops: se já recebemos `photoUrl`, não há necessidade
+    // de abrir listener do Firestore (Users.doc) só para pintar o avatar.
+    // Isso reduz drasticamente leituras em listas (ex.: participantes, cards, etc).
+    final providedUrl = photoUrl?.trim();
+    if (providedUrl != null && providedUrl.isNotEmpty) {
+      // Aquece o cache global do app (sem iniciar listener Firestore).
+      UserStore.instance.preloadAvatar(userId, providedUrl);
+
+      final provider = CachedNetworkImageProvider(
+        providedUrl,
+        cacheManager: AvatarImageCache.instance,
+        cacheKey: stableImageCacheKey(providedUrl),
+      );
+
+      return _AvatarShell(
+        size: size,
+        borderRadius: borderRadius,
+        enableNavigation: enableNavigation,
+        userId: userId,
+        onTap: onTap,
+        child: RepaintBoundary(
+          child: _image(provider, userId, devicePixelRatio: devicePixelRatio),
+        ),
       );
     }
 

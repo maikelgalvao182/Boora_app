@@ -31,11 +31,21 @@ class GoogleEventMarkerService {
   static const int _clusterPinSizePx = 250;
   static const int _avatarPinSizePx = 120;
 
+  /// Cache do DPR para garantir consistência entre chamadas.
+  /// Uma vez calculado, não muda mais (evita cache miss por variação de DPR).
+  static double? _cachedDevicePixelRatio;
+
   static double get _devicePixelRatio {
+    if (_cachedDevicePixelRatio != null) return _cachedDevicePixelRatio!;
+    
     final view = WidgetsBinding.instance.platformDispatcher.implicitView;
-    if (view != null) return view.devicePixelRatio;
+    if (view != null) {
+      _cachedDevicePixelRatio = view.devicePixelRatio;
+      return _cachedDevicePixelRatio!;
+    }
     final views = WidgetsBinding.instance.platformDispatcher.views;
-    return views.isNotEmpty ? views.first.devicePixelRatio : 1.0;
+    _cachedDevicePixelRatio = views.isNotEmpty ? views.first.devicePixelRatio : 3.0;
+    return _cachedDevicePixelRatio!;
   }
 
   static String get _dprKey => _devicePixelRatio.toStringAsFixed(2);
@@ -77,7 +87,7 @@ class GoogleEventMarkerService {
 
   ValueListenable<int> get avatarBitmapsVersion => _avatarBitmapsVersion;
 
-  static const int _maxAvatarPrefetchConcurrent = 4;
+  static const int _maxAvatarPrefetchConcurrent = 8;
   final Queue<String> _avatarPrefetchQueue = Queue<String>();
   final Set<String> _avatarPrefetchScheduled = <String>{};
   int _avatarPrefetchActive = 0;
@@ -134,6 +144,16 @@ class GoogleEventMarkerService {
     final cached = _avatarCache[avatarBitmapKey];
     if (cached != null) return cached;
 
+    // ✅ Evitar “pisca”: se já existe um avatar cacheado para esse userId
+    // em outro DPR (ex.: aquecido no splash / primeiro frame), reutilize-o.
+    // Isso mantém o avatar visível até o preload do DPR atual terminar.
+    final anyCached = _findAnyCachedAvatarPinForUser(userId);
+    if (anyCached != null) {
+      // Ainda agenda o preload do DPR atual em background.
+      _scheduleAvatarPrefetch(userId);
+      return anyCached;
+    }
+
     // Garantir que o placeholder é consistente (sem cair em BitmapDescriptor.defaultMarker).
     if (_defaultAvatarPin == null) {
       await preloadDefaultPins();
@@ -143,6 +163,17 @@ class GoogleEventMarkerService {
     _scheduleAvatarPrefetch(userId);
 
     return _defaultAvatarPin ?? BitmapDescriptor.defaultMarker;
+  }
+
+  BitmapDescriptor? _findAnyCachedAvatarPinForUser(String userId) {
+    // Formato: '$userId-$_avatarPinSizePx@$_dprKey'
+    final prefix = '$userId-$_avatarPinSizePx@';
+    for (final entry in _avatarCache.entries) {
+      if (entry.key.startsWith(prefix)) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 
   /// Pré-carrega bitmaps de emojis e avatares para uma lista de eventos
@@ -201,6 +232,60 @@ class GoogleEventMarkerService {
     stopwatch.stop();
     debugPrint('⚡ [MarkerService] $loaded bitmaps pré-carregados em ${stopwatch.elapsedMilliseconds}ms');
     
+    return loaded;
+  }
+
+  /// Pré-carrega SOMENTE bitmaps de AVATAR para os criadores dos eventos.
+  ///
+  /// Objetivo: aquecer rapidamente o viewport inicial do mapa para que os
+  /// markers já nasçam com avatar (sem passar pelo empty state).
+  ///
+  /// - Deduplica por `createdBy`
+  /// - Limita quantidade para evitar aquecer o “mapa inteiro”
+  /// - Usa concorrência controlada
+  Future<int> preloadAvatarPinsForEvents(
+    List<EventModel> events, {
+    int maxUsers = 30,
+  }) async {
+    if (events.isEmpty) return 0;
+
+    if (_defaultAvatarPin == null) {
+      await preloadDefaultPins();
+    }
+
+    final uniqueUserIds = <String>{};
+    for (final event in events) {
+      final userId = event.createdBy;
+      if (userId.trim().isEmpty) continue;
+      uniqueUserIds.add(userId);
+      if (uniqueUserIds.length >= maxUsers) break;
+    }
+
+    final toLoad = uniqueUserIds
+        .where((userId) => !_avatarCache.containsKey(_avatarCacheKey(userId)))
+        .toList(growable: false);
+    if (toLoad.isEmpty) return 0;
+
+    int loaded = 0;
+    final queue = Queue<String>.from(toLoad);
+    final workers = <Future<void>>[];
+
+    final concurrency = _maxAvatarPrefetchConcurrent;
+    for (var i = 0; i < concurrency; i++) {
+      workers.add(() async {
+        while (queue.isNotEmpty) {
+          final userId = queue.removeFirst();
+          try {
+            await _getAvatarPin(userId);
+            loaded++;
+          } catch (_) {
+            // Best-effort.
+          }
+        }
+      }());
+    }
+
+    await Future.wait(workers);
     return loaded;
   }
 
