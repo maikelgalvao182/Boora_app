@@ -202,6 +202,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return model.interests.trim().isNotEmpty;
       case SignupWizardStep.instagram:
         return true; // Opcional
+      case SignupWizardStep.country:
+        return model.country != null && model.country!.isNotEmpty;
       case SignupWizardStep.origin:
         return model.originSource != null && model.originSource!.isNotEmpty;
       case SignupWizardStep.evaluation:
@@ -231,6 +233,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       'instagram': model.instagram.trim(), // Usuário do Instagram
       'jobTitle': '', // Será preenchido posteriormente
       'bio': model.bio.trim(), // Obrigatório
+      'from': model.country ?? '', // País do usuário
+      'flag': model.countryFlag ?? '', // Bandeira emoji do país
       'originSource': model.originSource ?? '',
       'agreeTerms': model.agreeTerms,
       'vip_priority': 2,
@@ -301,6 +305,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return i18n.translate('select_interests');
       case SignupWizardStep.instagram:
         return i18n.translate('instagram_username');
+      case SignupWizardStep.country:
+        return i18n.translate('select_country');
       case SignupWizardStep.origin:
         return i18n.translate('how_did_you_hear_about_us');
       case SignupWizardStep.evaluation:
@@ -324,6 +330,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return i18n.translate('select_activity_categories');
       case SignupWizardStep.instagram:
         return i18n.translate('instagram_subtitle');
+      case SignupWizardStep.country:
+        return i18n.translate('country_subtitle');
       case SignupWizardStep.origin:
         return i18n.translate('we_would_love_to_know');
       case SignupWizardStep.evaluation:
@@ -496,6 +504,27 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
               initialInstagram: _cadastroViewModel.instagram,
               onInstagramChanged: (value) {
                 _cadastroViewModel.setInstagram(value);
+                _onCadastroChanged(); // Força update do botão
+              },
+            ),
+          ),
+        );
+      
+      case SignupWizardStep.country:
+        return Container(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: CountrySelectorWidget(
+              initialCountry: _cadastroViewModel.country,
+              onCountryChanged: (countryData) {
+                if (countryData != null) {
+                  _cadastroViewModel.setCountry(countryData.name);
+                  _cadastroViewModel.setCountryFlag(countryData.flag);
+                } else {
+                  _cadastroViewModel.setCountry(null);
+                  _cadastroViewModel.setCountryFlag(null);
+                }
                 _onCadastroChanged(); // Força update do botão
               },
             ),

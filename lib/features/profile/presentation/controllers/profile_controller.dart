@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/models/review_model.dart';
 import 'package:partiu/core/models/review_stats_model.dart';
+import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/features/profile/data/services/profile_visits_service.dart';
 
@@ -34,6 +35,8 @@ class ProfileController {
   StreamSubscription<DocumentSnapshot>? _profileSubscription;
   StreamSubscription<QuerySnapshot>? _reviewsSubscription;
 
+  bool _isReleased = false;
+
   final _firestore = FirebaseFirestore.instance;
 
   /// Avatar URL reativo (via UserStore)
@@ -51,6 +54,7 @@ class ProfileController {
 
   /// Carrega dados do perfil
   Future<void> load(String targetUserId) async {
+    if (_isReleased) return;
     isLoading.value = true;
     error.value = null;
 
@@ -62,6 +66,7 @@ class ProfileController {
           .snapshots()
           .listen(
             (snapshot) {
+              if (_isReleased) return;
               if (snapshot.exists && snapshot.data() != null) {
                 profile.value = User.fromDocument(snapshot.data()!);
                 error.value = null;
@@ -70,24 +75,43 @@ class ProfileController {
               }
               isLoading.value = false;
             },
-            onError: (e) {
+            onError: (e, stack) {
+              if (_isReleased) return;
+              // Em logout, o Firestore pode disparar permission-denied em streams ativos.
+              // Guardamos para não tentar atualizar notifiers já descartados.
               error.value = 'Erro ao carregar perfil: $e';
               isLoading.value = false;
+              AppLogger.error(
+                'Erro no stream do perfil',
+                tag: 'ProfileController',
+                error: e,
+                stackTrace: stack,
+              );
             },
           );
 
       // Carrega reviews
       await _loadReviews(targetUserId);
-    } catch (e) {
+    } catch (e, stack) {
+      if (_isReleased) return;
       error.value = 'Erro ao carregar perfil: $e';
       isLoading.value = false;
+      AppLogger.error(
+        'Erro ao carregar perfil',
+        tag: 'ProfileController',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
   /// Carrega reviews do usuário
   Future<void> _loadReviews(String targetUserId) async {
     try {
-      debugPrint('🔍 [ProfileController] Iniciando carregamento de reviews para usuário: ${targetUserId.substring(0, 8)}...');
+      AppLogger.info(
+        'Iniciando carregamento de reviews para usuário: ${targetUserId.substring(0, 8)}...',
+        tag: 'ProfileController',
+      );
       
       _reviewsSubscription = _firestore
           .collection('Reviews')
@@ -97,7 +121,11 @@ class ProfileController {
           .snapshots()
           .listen(
         (snapshot) {
-          debugPrint('✅ [ProfileController] Reviews carregadas: ${snapshot.docs.length} documentos');
+          if (_isReleased) return;
+          AppLogger.info(
+            'Reviews carregadas: ${snapshot.docs.length} documentos',
+            tag: 'ProfileController',
+          );
           final loadedReviews = snapshot.docs
               .map((doc) => Review.fromFirestore(doc.data(), doc.id))
               .toList();
@@ -115,19 +143,42 @@ class ProfileController {
             );
           }
         },
-        onError: (error) {
-          debugPrint('❌ [ProfileController] Erro no stream de reviews: $error');
-          if (error.toString().contains('failed-precondition')) {
-            debugPrint('⚠️  [ProfileController] Índice necessário: https://console.firebase.google.com');
+        onError: (e, stack) {
+          if (_isReleased) return;
+
+          final errorText = e.toString();
+          AppLogger.error(
+            'Erro no stream de reviews',
+            tag: 'ProfileController',
+            error: e,
+            stackTrace: stack,
+          );
+
+          if (errorText.contains('failed-precondition')) {
+            AppLogger.warning(
+              'Índice necessário para query de reviews (Firestore)',
+              tag: 'ProfileController',
+            );
           }
-          if (error.toString().contains('permission-denied')) {
-            debugPrint('⚠️  [ProfileController] Permissão negada - possível logout em andamento');
+
+          if (errorText.contains('permission-denied')) {
+            // Pode acontecer durante logout; não quebra a UI.
+            AppLogger.warning(
+              'Permissão negada no stream de reviews (possível logout em andamento)',
+              tag: 'ProfileController',
+            );
           }
         },
         cancelOnError: true,
       );
-    } catch (e) {
-      debugPrint('❌ [ProfileController] Erro ao configurar listener de reviews: $e');
+    } catch (e, stack) {
+      if (_isReleased) return;
+      AppLogger.error(
+        'Erro ao configurar listener de reviews',
+        tag: 'ProfileController',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -144,20 +195,34 @@ class ProfileController {
   /// - Incrementa visitCount em visitas repetidas
   Future<void> registerVisit(String currentUserId) async {
     if (currentUserId.isEmpty || currentUserId == userId) {
-      debugPrint('⏭️  [ProfileController] Visita não registrada: ${currentUserId.isEmpty ? "userId vazio" : "próprio perfil"}');
+      AppLogger.info(
+        'Visita não registrada: ${currentUserId.isEmpty ? "userId vazio" : "próprio perfil"}',
+        tag: 'ProfileController',
+      );
       return; // Não registra visita no próprio perfil
     }
 
     try {
-      debugPrint('📝 [ProfileController] Registrando visita: ${currentUserId.substring(0, 8)}... → ${userId.substring(0, 8)}...');
+      if (_isReleased) return;
+      AppLogger.info(
+        'Registrando visita: ${currentUserId.substring(0, 8)}... → ${userId.substring(0, 8)}...',
+        tag: 'ProfileController',
+      );
       
       await ProfileVisitsService.instance.recordVisit(
         visitedUserId: userId,
       );
       
-      debugPrint('✅ [ProfileController] Visita registrada com sucesso');
-    } catch (e) {
-      debugPrint('❌ [ProfileController] Erro ao registrar visita: $e');
+      if (_isReleased) return;
+      AppLogger.success('Visita registrada com sucesso', tag: 'ProfileController');
+    } catch (e, stack) {
+      if (_isReleased) return;
+      AppLogger.error(
+        'Erro ao registrar visita',
+        tag: 'ProfileController',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -168,7 +233,9 @@ class ProfileController {
 
   /// Libera recursos
   void release() {
-    debugPrint('🧹 [ProfileController] Liberando recursos do controller');
+    if (_isReleased) return;
+    _isReleased = true;
+    AppLogger.info('Liberando recursos do controller', tag: 'ProfileController');
     _profileSubscription?.cancel();
     _reviewsSubscription?.cancel();
     profile.dispose();
@@ -176,6 +243,6 @@ class ProfileController {
     error.dispose();
     reviews.dispose();
     reviewStats.dispose();
-    debugPrint('✅ [ProfileController] Recursos liberados');
+    AppLogger.success('Recursos liberados', tag: 'ProfileController');
   }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
+import 'package:partiu/shared/widgets/typing_indicator.dart';
 
 /// Botão flutuante "Perto de você" com avatares empilhados
 class PeopleButton extends StatefulWidget {
@@ -140,6 +142,16 @@ class _ZoomInToSeePeopleButton extends StatelessWidget {
       line2 = full.substring(splitIdx + 1).trimLeft(); // mantém "para ..."
     }
 
+    // Fallback para outros idiomas: divide em duas linhas
+    if (line2.isEmpty) {
+      final words = full.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      if (words.length >= 2) {
+        final splitAt = (words.length / 2).ceil();
+        line1 = words.take(splitAt).join(' ');
+        line2 = words.skip(splitAt).join(' ');
+      }
+    }
+
     return Material(
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.3),
@@ -229,99 +241,122 @@ class _PeopleNearYouButton extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: peopleCountService.nearbyPeopleCount,
       builder: (context, boundsCount, _) {
-        return ValueListenableBuilder<List<app_user.User>>(
-          valueListenable: peopleCountService.nearbyPeople,
-          builder: (context, nearbyPeople, __) {
-            final count = boundsCount.clamp(0, 1 << 30);
+        return ValueListenableBuilder<bool>(
+          valueListenable: peopleCountService.isLoading,
+          builder: (context, isLoading, __) {
+            return ValueListenableBuilder<List<app_user.User>>(
+              valueListenable: peopleCountService.nearbyPeople,
+              builder: (context, nearbyPeople, ___) {
+                final count = boundsCount.clamp(0, 1 << 30);
 
-            final peopleNearYouLabel = i18n.translate('people_near_you');
-            final countTemplate = count == 1
-                ? i18n.translate('nearby_people_count_singular')
-                : i18n.translate('nearby_people_count_plural');
-            final peopleCountLabel =
-                countTemplate.replaceAll('{count}', count.toString());
+                final peopleNearYouLabel = i18n.translate('people_near_you');
+                final countTemplate = count == 1
+                    ? i18n.translate('nearby_people_count_singular')
+                    : i18n.translate('nearby_people_count_plural');
+                final peopleCountLabel =
+                    countTemplate.replaceAll('{count}', count.toString());
 
-            final user = nearbyPeople.isNotEmpty ? nearbyPeople.first : null;
+                const subtitleLineHeight = 14.0;
 
-            return ValueListenableBuilder<app_user.User?>(
-              valueListenable: cachedUser,
-              builder: (context, cached, ___) {
-                final effectiveUser = user ?? cached;
+                final user = nearbyPeople.isNotEmpty ? nearbyPeople.first : null;
 
-                return Material(
-              elevation: 8,
-              shadowColor: Colors.black.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(100),
-              child: InkWell(
-                onTap: onPressed,
-                borderRadius: BorderRadius.circular(100),
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.only(left: 4, right: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (effectiveUser != null)
-                        Container(
+                return ValueListenableBuilder<app_user.User?>(
+                  valueListenable: cachedUser,
+                  builder: (context, cached, ____) {
+                    final effectiveUser = user ?? cached;
+
+                    return Material(
+                      elevation: 8,
+                      shadowColor: Colors.black.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(100),
+                      child: InkWell(
+                        onTap: onPressed,
+                        borderRadius: BorderRadius.circular(100),
+                        child: Container(
+                          height: 48,
+                          padding: const EdgeInsets.only(left: 4, right: 8),
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(100),
                           ),
-                          child: StableAvatar(
-                            userId: effectiveUser.userId,
-                            photoUrl: effectiveUser.photoUrl,
-                            size: 40,
-                            enableNavigation: false,
-                          ),
-                        )
-                      else
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.grey[400],
-                            size: 20,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (effectiveUser != null)
+                                Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: StableAvatar(
+                                    userId: effectiveUser.userId,
+                                    photoUrl: effectiveUser.photoUrl,
+                                    size: 40,
+                                    enableNavigation: false,
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: const Center(
+                                    child: CupertinoActivityIndicator(radius: 8),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    peopleNearYouLabel,
+                                    style: titleStyle,
+                                  ),
+                                  if (isLoading)
+                                    SizedBox(
+                                      height: subtitleLineHeight,
+                                      child: TypingIndicator(
+                                        color: subtitleStyle.color ??
+                                            GlimpseColors.primary,
+                                        dotSize: 5,
+                                      ),
+                                    )
+                                  else
+                                    SizedBox(
+                                      height: subtitleLineHeight,
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          peopleCountLabel,
+                                          style: subtitleStyle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.chevron_right,
+                                size: 20,
+                                color: GlimpseColors.primaryColorLight,
+                              ),
+                            ],
                           ),
                         ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            peopleNearYouLabel,
-                            style: titleStyle,
-                          ),
-                          Text(
-                            peopleCountLabel,
-                            style: subtitleStyle,
-                          ),
-                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 20,
-                        color: GlimpseColors.primaryColorLight,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
+                    );
+                  },
+                );
               },
             );
           },

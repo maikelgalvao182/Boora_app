@@ -84,9 +84,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           setState(() => _isLoading = false);
 
           ToastService.showWarning(
-            message: _i18n.translate('account_uses_social_login') != ''
-                ? _i18n.translate('account_uses_social_login')
-                : 'Esse e-mail está vinculado a login com Google/Apple. Entre por esse método (não existe senha para redefinir).',
+            message: _i18n.translate('email_linked_to_social_login').isNotEmpty
+                ? _i18n.translate('email_linked_to_social_login')
+                : _i18n.translate('account_uses_social_login'),
           );
         }
         return;

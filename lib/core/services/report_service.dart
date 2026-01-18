@@ -45,7 +45,22 @@ class ReportService {
     }
 
     try {
-      await _firestore.collection('reports').add({
+      // Buscar activityText se for denúncia de evento
+      String? activityText;
+      if (eventId != null) {
+        try {
+          final eventDoc = await _firestore.collection('events').doc(eventId).get();
+          if (eventDoc.exists) {
+            final eventData = eventDoc.data();
+            activityText = eventData?['activityText'] as String?;
+          }
+        } catch (e) {
+          debugPrint('⚠️ [ReportService] Erro ao buscar activityText: $e');
+          // Continua mesmo se falhar ao buscar o activityText
+        }
+      }
+
+      final reportData = {
         'reporterId': user.uid,
         'targetUserId': targetUserId,
         'eventId': eventId,
@@ -53,7 +68,10 @@ class ReportService {
         'createdAt': FieldValue.serverTimestamp(),
         'platform': _platform,
         'appVersion': _appVersion,
-      });
+        if (activityText != null) 'activityText': activityText,
+      };
+
+      await _firestore.collection('reports').add(reportData);
 
       debugPrint('✅ [ReportService] Denúncia enviada com sucesso');
     } catch (e) {

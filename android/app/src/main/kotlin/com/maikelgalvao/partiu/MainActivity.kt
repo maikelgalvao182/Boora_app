@@ -8,6 +8,12 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 	private val channel = "com.example.partiu/google_maps"
 
+	override fun onNewIntent(intent: android.content.Intent) {
+		super.onNewIntent(intent)
+		// Necessário para deep links quando launchMode != standard (singleTop)
+		setIntent(intent)
+	}
+
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 

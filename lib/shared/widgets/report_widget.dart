@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/dialogs/report_user_dialog.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Widget de denúncia/bloqueio de usuário
 /// Exibe ícone de flag apenas para visitantes (não para o dono do perfil)
@@ -20,6 +21,9 @@ class ReportWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    final tooltip = i18n.translate('report_or_block_tooltip');
+
     return SizedBox(
       width: 28,
       child: IconButton(
@@ -31,7 +35,7 @@ class ReportWidget extends StatelessWidget {
           color: iconColor ?? Theme.of(context).iconTheme.color,
         ),
         onPressed: () => _showReportDialog(context),
-        tooltip: 'Denunciar ou Bloquear',
+        tooltip: tooltip,
       ),
     );
   }

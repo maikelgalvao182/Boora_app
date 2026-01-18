@@ -12,6 +12,7 @@ import 'package:partiu/shared/widgets/star_badge.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/shared/stores/user_store.dart';
+import 'package:partiu/shared/widgets/country_flag_widget.dart';
 
 /// Card horizontal de usuário
 /// 
@@ -131,6 +132,8 @@ class _UserCardState extends State<UserCard> {
         commonInterests: u.commonInterests,
         photoUrl: u.user.photoUrl,
         overallRating: rating,
+        countryFlag: u.user.flag,
+        countryName: null,
       );
     }
 
@@ -147,6 +150,8 @@ class _UserCardState extends State<UserCard> {
         photoUrl: u.photoUrl,
         overallRating: rating,
         visitedAt: u.visitedAt,
+        countryFlag: u.flag,
+        countryName: u.from,
       );
     }
 
@@ -177,6 +182,8 @@ class _UserCardState extends State<UserCard> {
       commonInterests: user.commonInterests ?? [],
       photoUrl: user.photoUrl,
       overallRating: rating,
+      countryFlag: user.flag,
+      countryName: user.from,
     );
   }
 
@@ -215,6 +222,8 @@ class _UserCardState extends State<UserCard> {
     String? photoUrl,
     double? overallRating,
     DateTime? visitedAt,
+    String? countryFlag,
+    String? countryName,
   }) {
     final distanceText = _formatDistanceText(distanceKm);
     final initialLocationText = _formatLocationText(
@@ -255,13 +264,35 @@ class _UserCardState extends State<UserCard> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar
-            StableAvatar(
-              userId: widget.userId,
-              photoUrl: photoUrl ?? _controller?.photoUrl,
-              size: 56,
-              borderRadius: BorderRadius.circular(8),
-              enableNavigation: true,
+            // Avatar com flag
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                StableAvatar(
+                  userId: widget.userId,
+                  photoUrl: photoUrl ?? _controller?.photoUrl,
+                  size: 56,
+                  borderRadius: BorderRadius.circular(8),
+                  enableNavigation: true,
+                ),
+                
+                // Country flag badge (parte inferior do avatar)
+                if ((countryName != null && countryName.isNotEmpty) ||
+                    (countryFlag != null && countryFlag.isNotEmpty))
+                  Positioned(
+                    bottom: -4,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: CountryFlagWidget(
+                        countryName: countryName,
+                        flag: countryFlag,
+                        size: 20,
+                        borderWidth: 2,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             
             const SizedBox(width: 12),

@@ -209,14 +209,6 @@ class UpdateLocationViewModel extends ChangeNotifier {
         country: countryStr,
         locality: localityStr,
         state: stateStr,
-        formattedAddress: [
-          place.street,
-          place.subLocality,
-          localityStr,
-          stateStr,
-          place.postalCode,
-          countryStr,
-        ].where((e) => e != null && e.isNotEmpty).join(', '),
       );
       
       _saveState = LocationSaveState.success;

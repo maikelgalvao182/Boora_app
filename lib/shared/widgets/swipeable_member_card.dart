@@ -52,72 +52,75 @@ class SwipeableMemberCard extends StatelessWidget {
   final VoidCallback? onTap;
   final int? index;
 
+  void _handleDelete() {
+    HapticFeedback.mediumImpact();
+    onDelete();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Slidable(
-        key: ValueKey(userId),
-        
-        // Ação ao deslizar para esquerda
-        endActionPane: ActionPane(
-          motion: const BehindMotion(), // Card desliza revelando ação por trás
-          extentRatio: 0.30, // Largura da ação revelada
-          dismissible: DismissiblePane(
-            onDismissed: () {
-              HapticFeedback.mediumImpact();
-              onDelete();
-            },
-            closeOnCancel: true,
-          ),
-          openThreshold: 0.2, // Facilita abertura
-          closeThreshold: 0.6, // Facilita fechamento
-          children: [
-            CustomSlidableAction(
-              onPressed: (_) {
-                HapticFeedback.mediumImpact();
-                onDelete();
-              },
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    IconsaxPlusBold.trash,
-                    color: Colors.white,
-                    size: 24,
+    return Slidable(
+      key: ValueKey(userId),
+      
+      // Ação ao deslizar para esquerda
+      endActionPane: ActionPane(
+        motion: const BehindMotion(), // Card desliza revelando ação por trás
+        extentRatio: 0.30, // Largura da ação revelada
+        dismissible: DismissiblePane(
+          onDismissed: _handleDelete,
+          closeOnCancel: true,
+        ),
+        openThreshold: 0.2, // Facilita abertura
+        closeThreshold: 0.6, // Facilita fechamento
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _handleDelete,
+              child: Container(
+                margin: const EdgeInsets.only(left: 16),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        IconsaxPlusBold.trash,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        deleteLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    deleteLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ],
-        ),
-
-        child: GestureDetector(
-          onLongPress: () {
-            // Feedback háptico ao segurar
-            HapticFeedback.mediumImpact();
-            
-            // Abre o slidable programaticamente
-            final slidableController = Slidable.of(context);
-            slidableController?.openEndActionPane();
-          },
-          child: child ?? UserCard(
-            userId: userId,
-            onTap: onTap,
-            index: index,
           ),
+        ],
+      ),
+
+      child: GestureDetector(
+        onLongPress: () {
+          // Feedback háptico ao segurar
+          HapticFeedback.mediumImpact();
+          
+          // Abre o slidable programaticamente
+          final slidableController = Slidable.of(context);
+          slidableController?.openEndActionPane();
+        },
+        child: child ?? UserCard(
+          userId: userId,
+          onTap: onTap,
+          index: index,
         ),
       ),
     );

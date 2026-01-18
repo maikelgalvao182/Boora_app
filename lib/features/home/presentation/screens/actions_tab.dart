@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:partiu/app/services/localization_service.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/pending_application_model.dart';
 import 'package:partiu/features/home/data/repositories/pending_applications_repository.dart';
 import 'package:partiu/features/home/presentation/widgets/approve_card.dart';
@@ -35,6 +35,12 @@ class _ActionsTabState extends State<ActionsTab> {
   @override
   Widget build(BuildContext context) {
     debugPrint('🔄 ActionsTab: build');
+
+    final i18n = AppLocalizations.of(context);
+    String tr(String key, String fallback) {
+      final value = i18n.translate(key);
+      return value.isNotEmpty ? value : fallback;
+    }
     
     return Scaffold(
       backgroundColor: Colors.white,
@@ -42,7 +48,7 @@ class _ActionsTabState extends State<ActionsTab> {
         child: Column(
           children: [
             GlimpseTabAppBar(
-              title: LocalizationService.of(context).translate('actions') ?? 'Ações',
+              title: tr('actions', 'Ações'),
             ),
             const SizedBox(height: 8),
             Expanded(

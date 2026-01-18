@@ -10,6 +10,7 @@ enum SignupWizardStep {
   bio,
   instagram,
   interests,
+  country,
   origin,
   evaluation,
 }
@@ -32,6 +33,7 @@ class SignupWizardViewModel extends ChangeNotifier {
     SignupWizardStep.bio,
     SignupWizardStep.instagram,
     SignupWizardStep.interests,
+    SignupWizardStep.country,
     SignupWizardStep.origin,
     SignupWizardStep.evaluation,
   ];

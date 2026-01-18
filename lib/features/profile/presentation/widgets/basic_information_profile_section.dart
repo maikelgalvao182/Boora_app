@@ -53,8 +53,8 @@ class BasicInformationProfileSection extends StatelessWidget {
     // Idade
     if (user.age != null) {
       entries.add(BasicInfoEntry(
-        label: 'Idade',
-        value: '${user.age} anos',
+        label: _tr(i18n, 'age_label', fallback: 'Idade'),
+        value: _formatYearsOld(i18n, user.age!),
       ));
     }
 
@@ -69,8 +69,8 @@ class BasicInformationProfileSection extends StatelessWidget {
     // Orientação Sexual
     if (user.sexualOrientation != null && user.sexualOrientation!.trim().isNotEmpty) {
       entries.add(BasicInfoEntry(
-        label: 'Orientação',
-        value: user.sexualOrientation!,
+        label: _tr(i18n, 'sexual_orientation_label', fallback: 'Orientação'),
+        value: _translateSexualOrientation(i18n, user.sexualOrientation!),
       ));
     }
 
@@ -93,6 +93,17 @@ class BasicInformationProfileSection extends StatelessWidget {
     return entries;
   }
 
+  String _formatYearsOld(AppLocalizations i18n, int age) {
+    final template = i18n.translate('years_old');
+    if (template.trim().isEmpty) return '$age anos';
+    return template.replaceAll('{age}', '$age');
+  }
+
+  String _tr(AppLocalizations i18n, String key, {required String fallback}) {
+    final translated = i18n.translate(key);
+    return translated.trim().isNotEmpty ? translated : fallback;
+  }
+
   /// Traduz valor de gênero do banco (inglês) para o idioma atual
   String _translateGender(AppLocalizations i18n, String gender) {
     switch (gender) {
@@ -104,6 +115,24 @@ class BasicInformationProfileSection extends StatelessWidget {
         return i18n.translate('gender_non_binary');
       default:
         return gender; // Retorna o valor original se não encontrar tradução
+    }
+  }
+
+  /// Traduz valor de orientação sexual do banco (português) para o idioma atual
+  String _translateSexualOrientation(AppLocalizations i18n, String orientation) {
+    switch (orientation) {
+      case 'Heterossexual':
+        return i18n.translate('sexual_orientation_heterosexual');
+      case 'Homossexual':
+        return i18n.translate('sexual_orientation_homosexual');
+      case 'Bissexual':
+        return i18n.translate('sexual_orientation_bisexual');
+      case 'Outro':
+        return i18n.translate('sexual_orientation_other');
+      case 'Prefiro não informar':
+        return i18n.translate('sexual_orientation_prefer_not_to_say');
+      default:
+        return orientation; // Retorna o valor original se não encontrar tradução
     }
   }
 }

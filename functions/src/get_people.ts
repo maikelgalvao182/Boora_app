@@ -81,6 +81,14 @@ export const getPeople = functions.https.onCall(async (data, context) => {
         if (doc.id === userId) return false; // Excluir próprio usuário
 
         const d = doc.data();
+
+        // Status do usuário: por segurança, não retornar perfis inativos.
+        // Mantém compatibilidade com docs legados que não possuem o campo.
+        const status = d.status;
+        if (status != null && status !== "active") {
+          return false;
+        }
+
         const lng = d.longitude;
 
         // Filtro de longitude (Firestore só permite 1 range query)

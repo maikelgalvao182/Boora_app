@@ -90,8 +90,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
     final user = _currentUser;
     if (user == null) {
+      final i18n = AppLocalizations.of(context);
       ToastService.showWarning(
-        message: 'Sua sessão expirou. Faça login novamente.',
+        message: i18n.translate('session_expired'),
       );
       return;
     }
@@ -132,8 +133,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
     final user = _currentUser;
     if (user == null) {
+      final i18n = AppLocalizations.of(context);
       ToastService.showWarning(
-        message: 'Sua sessão expirou. Faça login novamente.',
+        message: i18n.translate('session_expired'),
       );
       return;
     }

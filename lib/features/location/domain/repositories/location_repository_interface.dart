@@ -21,6 +21,5 @@ abstract class LocationRepositoryInterface {
     required String country,
     required String locality,
     required String state,
-    String? formattedAddress,
   });
 }

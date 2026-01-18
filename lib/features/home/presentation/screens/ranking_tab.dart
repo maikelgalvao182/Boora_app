@@ -232,11 +232,15 @@ class _RankingTabState extends State<RankingTab> {
               // Mostrar empty state quando vazio E já carregou
               if (_peopleState.displayedRankings.isEmpty && _peopleViewModel.shouldShowEmptyState) {
                 debugPrint('   ⚠️ Renderizando EMPTY STATE');
+                final i18n = AppLocalizations.of(context);
+                final emptyText = i18n.translate('ranking_people_empty').isNotEmpty
+                    ? i18n.translate('ranking_people_empty')
+                    : 'Nenhuma pessoa no ranking ainda';
                 return SizedBox(
                   height: MediaQuery.of(context).size.height * 0.5,
                   child: Center(
                     child: GlimpseEmptyState.standard(
-                      text: 'Nenhuma pessoa no ranking ainda',
+                      text: emptyText,
                     ),
                   ),
                 );
@@ -266,10 +270,12 @@ class _RankingTabState extends State<RankingTab> {
   }
 
   Widget _buildStateFilter(List<String> states) {
+    final i18n = AppLocalizations.of(context);
     final selectedState = _peopleState.filter.state;
     
     // Criar lista com "Todos" + estados
-    final items = ['Todos', ...states];
+    final allLabel = i18n.translate('all').isNotEmpty ? i18n.translate('all') : 'Todos';
+    final items = [allLabel, ...states];
     
     // Index selecionado (0 = Todos, 1+ = estados)
     final selectedIndex = selectedState == null 
@@ -291,19 +297,23 @@ class _RankingTabState extends State<RankingTab> {
   }
 
   Widget _buildCityFilter(List<String> cities) {
+    final i18n = AppLocalizations.of(context);
     final selectedCity = _peopleState.filter.city;
     
     // Criar lista com "Todas" + cidades
-    final values = ['Todas', ...cities];
+    final allLabel = i18n.translate('all_feminine').isNotEmpty
+        ? i18n.translate('all_feminine')
+        : 'Todas';
+    final values = [allLabel, ...cities];
     
     // Valor selecionado (null = Todas, string = cidade específica)
-    final selected = selectedCity ?? 'Todas';
+    final selected = selectedCity ?? allLabel;
     
     return OutlineHorizontalFilter(
       values: values,
       selected: selected,
       onSelected: (value) {
-        if (value == null || value == 'Todas') {
+        if (value == null || value == allLabel) {
           _peopleState.setCityFilter(null);
         } else {
           _peopleState.setCityFilter(value);

@@ -12,13 +12,16 @@ import * as admin from "firebase-admin";
 import {sendPush} from "./services/pushDispatcher";
 
 export {deleteChatMessage} from "./chatMessageDeletion";
+export {patchAddCountryFlag} from "./patchAddCountryFlag";
+export {patchRemoveFormattedAddress} from "./patchRemoveFormattedAddress";
+export {onReportCreated} from "./reportModeration";
+export {onUserCreatedReferral} from "./referrals";
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// 🔒 Export getPeople Cloud Function (server-side security)
-// export {getPeople} from "./get_people";
+// 🔒 getPeople é exportado via "export * from ./get_people" no final do arquivo.
 
 /**
  * Quando um evento é criado, automaticamente:

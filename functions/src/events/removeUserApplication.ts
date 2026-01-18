@@ -13,12 +13,57 @@ import * as admin from "firebase-admin";
  * migration is performed.
  */
 
+const BATCH_SIZE = 500;
+
+/**
+ * Deleta mensagens de um usuário específico no chat do evento
+ *
+ * @param {admin.firestore.Firestore} firestore - Firestore instance
+ * @param {string} eventId - ID do evento
+ * @param {string} userId - ID do usuário cujas mensagens serão deletadas
+ * @return {Promise<number>} Quantidade de mensagens deletadas
+ */
+async function deleteUserMessagesFromEventChat(
+  firestore: admin.firestore.Firestore,
+  eventId: string,
+  userId: string
+): Promise<number> {
+  const messagesRef = firestore
+    .collection("EventChats")
+    .doc(eventId)
+    .collection("Messages")
+    .where("sender_id", "==", userId);
+
+  let totalDeleted = 0;
+  let snapshot = await messagesRef.limit(BATCH_SIZE).get();
+
+  while (!snapshot.empty) {
+    const batch = firestore.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    totalDeleted += snapshot.docs.length;
+
+    // Busca próximo lote
+    snapshot = await messagesRef.limit(BATCH_SIZE).get();
+  }
+
+  if (totalDeleted > 0) {
+    console.log(
+      `🗑️ Deleted ${totalDeleted} messages from user ` +
+      `${userId} in event ${eventId}`
+    );
+  }
+
+  return totalDeleted;
+}
+
 /**
  * Helper function to execute the batch removal logic.
  * Handles:
  * 1. Application deletion (if doc provided)
  * 2. EventChat update (safe decrement)
  * 3. Conversation deletion
+ * 4. User messages deletion from event chat
  *
  * @param {admin.firestore.Firestore} firestore - Firestore instance
  * @param {string} eventId - ID of the event
@@ -77,6 +122,9 @@ async function executeRemovalBatch(
   batch.delete(conversationRef);
 
   await batch.commit();
+
+  // 4. Delete all user messages from event chat (outside batch for large sets)
+  await deleteUserMessagesFromEventChat(firestore, eventId, userId);
 }
 
 /**

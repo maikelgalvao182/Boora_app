@@ -1,14 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     
-    <!-- Remove AD_ID permission added by dependencies -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
-    
     <!-- Permissions for location and maps -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- AppsFlyer: Permission for tracking and attribution -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     
     <!-- Permissions for push notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -63,6 +63,29 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- AppsFlyer OneLink (Android App Links) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="boora.onelink.me"
+                    android:pathPrefix="/bFrs" />
+            </intent-filter>
+
+            <!-- URI Scheme fallback -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="boora"
+                    android:host="main" />
+            </intent-filter>
         </activity>
 
         <!-- Required for image_cropper (uCrop) on Android -->
@@ -81,6 +104,15 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCUkR549yBaSk1MSiPxo_NrKh4sSJrUj4k" />
+        
+        <!-- AppsFlyer: Receiver for install referrer -->
+        <receiver
+            android:name="com.appsflyer.SingleInstallBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

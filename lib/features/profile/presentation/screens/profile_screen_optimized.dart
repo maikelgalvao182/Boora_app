@@ -12,6 +12,7 @@ import 'package:partiu/shared/widgets/report_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/services/block_service.dart';
+import 'package:partiu/core/utils/app_logger.dart';
 
 /// Tela de perfil otimizada seguindo arquitetura MVVM
 /// 
@@ -46,7 +47,10 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   void initState() {
     super.initState();
     
-    debugPrint('🚀 [ProfileScreen] Inicializando para userId: ${widget.user.userId.substring(0, 8)}...');
+    AppLogger.info(
+      'Inicializando para userId: ${widget.user.userId.substring(0, 8)}...',
+      tag: 'ProfileScreen',
+    );
     
     _controller = ProfileController(
       userId: widget.user.userId,
@@ -56,10 +60,13 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
     // Aguarda frame inicial para carregar dados
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
-        debugPrint('📥 [ProfileScreen] Carregando dados do perfil');
+        AppLogger.info('Carregando dados do perfil', tag: 'ProfileScreen');
         _controller.load(widget.user.userId);
       } else {
-        debugPrint('⚠️  [ProfileScreen] Widget não mais montado, cancelando carregamento');
+        AppLogger.warning(
+          'Widget não mais montado, cancelando carregamento',
+          tag: 'ProfileScreen',
+        );
       }
     });
   }
@@ -268,7 +275,10 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
 
   @override
   void dispose() {
-    debugPrint('🗑️  [ProfileScreen] Dispose chamado para userId: ${widget.user.userId.substring(0, 8)}...');
+    AppLogger.info(
+      'Dispose chamado para userId: ${widget.user.userId.substring(0, 8)}...',
+      tag: 'ProfileScreen',
+    );
     _controller.release();
     super.dispose();
   }

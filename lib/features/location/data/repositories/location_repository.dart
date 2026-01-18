@@ -98,7 +98,6 @@ class LocationRepository implements LocationRepositoryInterface {
     required String country,
     required String locality,
     required String state,
-    String? formattedAddress,
   }) async {
     try {
       AppLogger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', tag: 'LocationRepository');
@@ -121,7 +120,6 @@ class LocationRepository implements LocationRepositoryInterface {
         'country': country,
         'locality': locality,
         'state': state,
-        if (formattedAddress != null) 'formattedAddress': formattedAddress,
         'locationUpdatedAt': FieldValue.serverTimestamp(),
       });
       

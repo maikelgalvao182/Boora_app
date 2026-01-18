@@ -7,6 +7,7 @@ import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.d
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
@@ -109,6 +110,23 @@ class AppInitializerService {
           final userRepo = UserRepository();
           final currentUserData = await userRepo.getUserById(currentUserId);
           if (currentUserData != null) {
+            // ✅ Seed da localização inicial do mapa via Firestore.
+            // Evita o primeiro frame em São Paulo quando o user já tem coords persistidas.
+            try {
+              final rawLat = currentUserData['latitude'];
+              final rawLng = currentUserData['longitude'];
+
+              final lat = rawLat is num ? rawLat.toDouble() : double.tryParse(rawLat?.toString() ?? '');
+              final lng = rawLng is num ? rawLng.toDouble() : double.tryParse(rawLng?.toString() ?? '');
+
+              if (lat != null && lng != null) {
+                mapViewModel.seedInitialLocation(LatLng(lat, lng));
+                AppLogger.success('Seed de localização inicial aplicado (Firestore)', tag: 'INIT');
+              }
+            } catch (e) {
+              AppLogger.warning('Seed de localização inicial falhou: $e', tag: 'INIT');
+            }
+
             // ✅ Preload do nome no UserStore para evitar "pop" no HomeAppBar
             final rawName = currentUserData['fullName'] ??
                 currentUserData['full_name'] ??

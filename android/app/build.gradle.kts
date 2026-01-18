@@ -81,4 +81,10 @@ flutter {
 dependencies {
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
+    // AppsFlyer SDK
+    implementation("com.appsflyer:af-android-sdk:6.14.2")
+    
+    // Google Play Install Referrer (melhora precisão de atribuição do AppsFlyer)
+    implementation("com.android.installreferrer:installreferrer:2.2")
 }

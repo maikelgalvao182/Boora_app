@@ -588,6 +588,7 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
       birthMonthController: _birthMonthController,
       birthYearController: _birthYearController,
       localityController: _localityController,
+      countryController: _countryController,
       languagesController: _languagesController,
       instagramController: _instagramController,
       validateBio: (value) => viewModel.validateField('bio', value),

@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/controllers/locale_controller.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/managers/session_manager.dart';
@@ -21,6 +22,7 @@ import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_background_updater.dart'; // LocationSyncScheduler
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/subscription/providers/simple_subscription_provider.dart';
+import 'package:partiu/services/appsflyer_service.dart';
 // import 'package:brazilian_locations/brazilian_locations.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
@@ -104,6 +106,19 @@ Future<void> main() async {
       debugPrint('Firebase já inicializado: $e');
     }
 
+    // 📈 Inicializar AppsFlyer (Deep Linking + Referrals)
+    if (APPSFLYER_DEV_KEY.isNotEmpty) {
+      await AppsflyerService.instance.initialize(
+        devKey: APPSFLYER_DEV_KEY,
+        appId: APPSFLYER_APP_ID_IOS,
+      );
+    } else {
+      AppLogger.warning(
+        'AppsFlyer não inicializado: APPSFLYER_DEV_KEY não configurada',
+        tag: 'APPSFLYER',
+      );
+    }
+
     // 🔔 Inicializar Push Notification Manager (ANTES do runApp)
     await PushNotificationManager.instance.initialize();
     debugPrint('✅ PushNotificationManager iniciado');
@@ -121,6 +136,12 @@ Future<void> main() async {
     final serviceLocator = ServiceLocator();
     await serviceLocator.init();
 
+    // 🌍 LocaleController (duas camadas):
+    // - null => segue idioma do sistema
+    // - Locale => override manual persistido
+    final localeController = LocaleController();
+    await localeController.load();
+
     // Inicializar LocationSyncScheduler para atualização automática de localização
     // Isso mantém o Firestore atualizado a cada 10 minutos automaticamente
     final locationService = serviceLocator.get<LocationService>();
@@ -133,6 +154,9 @@ Future<void> main() async {
     runApp(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider.value(
+            value: localeController,
+          ),
           // AuthSyncService como singleton - ÚNICA fonte de verdade para auth
           ChangeNotifierProvider(
             create: (_) => AuthSyncService(),
@@ -204,6 +228,9 @@ class AppRoot extends StatelessWidget {
     debugPrint('✅ [AppRoot] Router criado');
     
     debugPrint('📊 [AppRoot] Construindo MaterialApp.router...');
+
+    final localeController = context.watch<LocaleController>();
+
     return MaterialApp.router(
       title: APP_NAME,
       debugShowCheckedModeBanner: false,
@@ -224,7 +251,18 @@ class AppRoot extends StatelessWidget {
         Locale('en', 'US'), // Inglês
         Locale('es', 'ES'), // Espanhol
       ],
-      locale: const Locale('pt', 'BR'), // Idioma padrão
+      locale: localeController.locale, // null => segue sistema
+      localeResolutionCallback: (deviceLocale, supportedLocales) {
+        // Se o usuário escolheu manualmente, `locale` não é null.
+        // Aqui resolve apenas quando segue o idioma do sistema.
+        if (deviceLocale == null) return supportedLocales.first;
+
+        final deviceLang = deviceLocale.languageCode.toLowerCase();
+        for (final l in supportedLocales) {
+          if (l.languageCode.toLowerCase() == deviceLang) return l;
+        }
+        return supportedLocales.first; // fallback consistente (pt)
+      },
       
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),

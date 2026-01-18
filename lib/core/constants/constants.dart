@@ -10,6 +10,15 @@ const Color APP_PRIMARY_COLOR = GlimpseColors.primaryColorLight;
 const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 
+/// APPSFLYER / ONE LINK
+/// Configure via --dart-define quando necessário
+const String APPSFLYER_DEV_KEY = String.fromEnvironment('APPSFLYER_DEV_KEY', defaultValue: '');
+const String APPSFLYER_APP_ID_IOS = String.fromEnvironment('APPSFLYER_APP_ID_IOS', defaultValue: '');
+const String APPSFLYER_ONELINK_DOMAIN = 'boora.onelink.me';
+const String APPSFLYER_ONELINK_TEMPLATE_ID = 'bFrs';
+const String APPSFLYER_URI_SCHEME = 'boora';
+const String REFERRAL_DEEP_LINK_VALUE = 'invite';
+
 /// GOOGLE MAPS / PLACES API KEYS
 /// ÚNICA fonte de verdade no app (Dart).
 ///
@@ -340,8 +349,8 @@ const double DEFAULT_MAX_AGE_PARTICIPANTS = 36.0;
 const int FREE_PEOPLE_LIMIT = 13;
 
 /// EXTERNAL LINKS / SOCIAL MEDIA
-const String TIKTOK_URL = 'https://www.tiktok.com/@booraapp';
-const String INSTAGRAM_URL = 'https://www.instagram.com/booraapp';
+const String TIKTOK_URL = 'https://www.tiktok.com/@boora_app';
+const String INSTAGRAM_URL = 'https://www.instagram.com/boora_app';
 
 /// BOORA.SPACE WEBSITE LINKS
 const String BOORA_WEBSITE_URL = 'https://www.boora.space/';

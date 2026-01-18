@@ -47,13 +47,7 @@ class ReplyBubbleWidget extends StatelessWidget {
     final lineColor = GlimpseColors.primaryLight;
     
     // Cor de fundo do reply bubble
-    final backgroundColor = isUserSender
-        ? (isDarkMode 
-            ? Colors.white.withValues(alpha: 0.15)
-            : Colors.white.withValues(alpha: 0.5))
-        : (isDarkMode
-            ? Colors.black.withValues(alpha: 0.15)
-            : Colors.black.withValues(alpha: 0.08));
+    final backgroundColor = GlimpseColors.primaryLight;
 
     // Cor do texto
     final textColor = isUserSender

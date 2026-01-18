@@ -33,8 +33,14 @@ class ActivityRepository {
       throw Exception('Localização inválida ou sem coordenadas.');
     }
 
+    final docRef = _firestore.collection('events').doc();
+    final eventId = docRef.id;
+
     // Construir documento
     final docData = {
+      // Id do documento (útil para queries/serialização)
+      'eventId': eventId,
+
       // Informações básicas
       'activityText': draft.activityText!.trim(),
       'emoji': draft.emoji!,
@@ -89,13 +95,13 @@ class ActivityRepository {
 
     // Salvar no Firestore
     try {
-      final docRef = await _firestore.collection('events').add(docData);
+      await docRef.set(docData);
       
       // ✅ Notificações agora são criadas via Cloud Function (onActivityCreatedNotification)
       // O trigger escuta onCreate em "events" e cria notificações automaticamente
       // Removida chamada direta que causava permission-denied
       
-      return docRef.id;
+      return eventId;
     } catch (e) {
       rethrow;
     }

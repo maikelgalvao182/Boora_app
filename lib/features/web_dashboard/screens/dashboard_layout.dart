@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:partiu/features/web_dashboard/screens/events_table_screen.dart';
 import 'package:partiu/features/web_dashboard/screens/users_table_screen.dart';
+import 'package:partiu/features/web_dashboard/screens/reports_table_screen.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
 class DashboardLayout extends StatefulWidget {
@@ -16,6 +17,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
   final List<Widget> _screens = [
     const UsersTableScreen(),
     const EventsTableScreen(),
+    const ReportsTableScreen(),
   ];
 
   @override
@@ -42,6 +44,11 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                 icon: const Icon(Icons.event),
                 selectedIcon: const Icon(Icons.event_available),
                 label: Text(i18n.translate('web_dashboard_events_tab')),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.warning),
+                selectedIcon: const Icon(Icons.warning_amber),
+                label: Text(i18n.translate('web_dashboard_reports_tab')),
               ),
             ],
           ),

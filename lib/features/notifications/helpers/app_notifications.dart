@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/notifications/models/activity_notification_types.dart';
 import 'package:partiu/features/subscription/services/vip_access_service.dart';
+import 'package:partiu/features/conversations/services/conversation_navigation_service.dart';
+import 'package:partiu/core/services/auth_sync_service.dart';
 
 /// Helper para navegação baseada em notificações
 /// 
@@ -153,15 +157,14 @@ class AppNotifications {
       case String p when p.startsWith('chat/'):
         final chatUserId = p.replaceFirst('chat/', '');
         debugPrint('💬 [AppNotifications] Opening chat with: $chatUserId');
-        // TODO: Navegar para conversa específica
-        _goToConversationsTab(context);
+        await _handleChatNotification(context, chatUserId);
         break;
       
       // Event Chat: partiu://event-chat/{eventId}
       case String p when p.startsWith('event-chat/'):
         final eventId = p.replaceFirst('event-chat/', '');
         debugPrint('💬 [AppNotifications] Opening event chat: $eventId');
-        await _handleActivityNotification(context, eventId);
+        await _handleEventChatNotification(context, eventId);
         break;
       
       // Group Info: partiu://group-info/{eventId}?tab=requests
@@ -238,6 +241,86 @@ class AppNotifications {
       default:
         debugPrint('⚠️ [AppNotifications] Unknown deepLink path: $fullPath');
         break;
+    }
+  }
+
+  /// Handle chat 1x1 navigation
+  Future<void> _handleChatNotification(BuildContext context, String otherUserId) async {
+    try {
+      if (!context.mounted) return;
+
+      final conversationService = Provider.of<ConversationNavigationService>(context, listen: false);
+      final currentUserId = Provider.of<AuthSyncService>(context, listen: false).firebaseUser?.uid;
+
+      if (currentUserId == null) {
+        debugPrint('❌ [AppNotifications] User not logged in');
+        return;
+      }
+
+      // Buscar conversa do Firestore para obter dados do usuário
+      final conversationDoc = await FirebaseFirestore.instance
+          .collection('Connections')
+          .doc(currentUserId)
+          .collection('Conversations')
+          .doc(otherUserId)
+          .get();
+
+      if (!conversationDoc.exists) {
+        debugPrint('❌ [AppNotifications] Conversation not found for user: $otherUserId');
+        return;
+      }
+
+      // Usar ConversationNavigationService para abrir o chat
+      if (context.mounted) {
+        await conversationService.handleConversationTap(
+          context: context,
+          doc: null,
+          data: conversationDoc.data() ?? {},
+          conversationId: otherUserId,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [AppNotifications] Error opening chat: $e');
+    }
+  }
+
+  /// Handle event chat navigation
+  Future<void> _handleEventChatNotification(BuildContext context, String eventId) async {
+    try {
+      if (!context.mounted) return;
+
+      final conversationService = Provider.of<ConversationNavigationService>(context, listen: false);
+      final currentUserId = Provider.of<AuthSyncService>(context, listen: false).firebaseUser?.uid;
+
+      if (currentUserId == null) {
+        debugPrint('❌ [AppNotifications] User not logged in');
+        return;
+      }
+
+      // Buscar conversa do evento do Firestore
+      final conversationDoc = await FirebaseFirestore.instance
+          .collection('Connections')
+          .doc(currentUserId)
+          .collection('Conversations')
+          .doc('event_$eventId')
+          .get();
+
+      if (!conversationDoc.exists) {
+        debugPrint('❌ [AppNotifications] Event conversation not found: $eventId');
+        return;
+      }
+
+      // Usar ConversationNavigationService para abrir o chat do evento
+      if (context.mounted) {
+        await conversationService.handleConversationTap(
+          context: context,
+          doc: null,
+          data: conversationDoc.data() ?? {},
+          conversationId: 'event_$eventId',
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [AppNotifications] Error opening event chat: $e');
     }
   }
 

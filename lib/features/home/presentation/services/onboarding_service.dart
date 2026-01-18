@@ -21,7 +21,6 @@ class OnboardingService {
 
   // Firestore (por usuário)
   static const String _usersCollection = 'Users';
-  static const String _usersCollectionLegacy = 'users';
   static const String _fieldOnboardingComplete = 'onboardingComplete';
 
   /// Verifica se o onboarding já foi completado
@@ -102,8 +101,13 @@ class OnboardingService {
       if (userId == null || userId.isEmpty) return;
 
       await _setRemoteOnboardingComplete(userId, true);
-    } catch (e) {
-      AppLogger.error('Erro ao marcar onboarding: $e', tag: _tag);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Erro ao marcar onboarding',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -130,13 +134,6 @@ class OnboardingService {
       final doc = await firestore.collection(_usersCollection).doc(userId).get();
       if (doc.exists) {
         final value = doc.data()?[_fieldOnboardingComplete];
-        if (value is bool) return value;
-      }
-
-      // Compatibilidade: alguns pontos do app ainda usam `users`
-      final legacyDoc = await firestore.collection(_usersCollectionLegacy).doc(userId).get();
-      if (legacyDoc.exists) {
-        final value = legacyDoc.data()?[_fieldOnboardingComplete];
         if (value is bool) return value;
       }
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/widgets/AnimatedSlideIn.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
@@ -14,7 +13,6 @@ class ParticipantsAvatarsList extends StatefulWidget {
     required this.eventId,
     required this.creatorId,
     this.preloadedParticipants,
-    this.maxVisible = 5,
     super.key,
   });
 
@@ -22,7 +20,6 @@ class ParticipantsAvatarsList extends StatefulWidget {
   final String? creatorId;
   /// Dados pré-carregados do EventCardController para exibição instantânea
   final List<Map<String, dynamic>>? preloadedParticipants;
-  final int maxVisible;
 
   @override
   State<ParticipantsAvatarsList> createState() => _ParticipantsAvatarsListState();
@@ -104,27 +101,23 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
   }
   
   Widget _buildParticipantsList(List<Map<String, dynamic>> participants) {
-    final visible = participants.take(widget.maxVisible).toList();
-    final remaining = participants.length - visible.length;
+    final visible = participants;
 
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (int i = 0; i < visible.length; i++)
-              _buildParticipantWidget(visible[i], i),
-            
-            if (remaining > 0)
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: _RemainingCounter(count: remaining),
-              ),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: ClipRect(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < visible.length; i++)
+                _buildParticipantWidget(visible[i], i),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
   
@@ -144,7 +137,6 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
     
     // ✅ Animar APENAS quem acabou de entrar
     if (isNewlyAdded) {
-      debugPrint('🎬 [ParticipantsAvatarsList] Animando entrada de: $userId');
       return AnimatedSlideIn(
         key: ValueKey('anim_$userId'),
         delay: Duration(milliseconds: index * 100),
@@ -228,40 +220,4 @@ class _ParticipantItem extends StatelessWidget {
   }
 }
 
-/// Contador de participantes restantes (+X)
-class _RemainingCounter extends StatelessWidget {
-  const _RemainingCounter({required this.count});
 
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = AppLocalizations.of(context);
-
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: GlimpseColors.lightTextField,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              i18n.translate('plus_count').replaceAll('{count}', count.toString()),
-              style: GoogleFonts.getFont(
-                FONT_PLUS_JAKARTA_SANS,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: GlimpseColors.textSubTitle,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        const SizedBox(width: 50, height: 17),
-      ],
-    );
-  }
-}

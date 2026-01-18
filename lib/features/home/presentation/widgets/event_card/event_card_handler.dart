@@ -53,11 +53,10 @@ class EventCardHandler {
         // ignore: unawaited_futures
         GlimpseCupertinoDialog.show(
           context: context,
-          title: i18n.translate('success') ?? 'Sucesso',
-          message: i18n.translate('application_approved_redirect_to_chat') ?? 
-                   'Sua aplicação foi aprovada! Deseja entrar no chat do evento?',
-          confirmText: i18n.translate('go_to_chat') ?? 'Ir para o chat',
-          cancelText: i18n.translate('later') ?? 'Depois',
+          title: i18n.translate('success'),
+          message: i18n.translate('application_approved_redirect_to_chat'),
+          confirmText: i18n.translate('go_to_chat'),
+          cancelText: i18n.translate('later'),
         ).then((confirmed) {
           if (confirmed == true) {
             debugPrint('✅ Usuário confirmou, entrando no chat');
@@ -147,7 +146,7 @@ class EventCardHandler {
       }
       
       ToastService.showSuccess(
-        message: i18n.translate('event_deleted_successfully') ?? 'Evento deletado com sucesso',
+        message: i18n.translate('event_deleted_successfully'),
       );
       
       debugPrint('🚪 Closing event card...');
@@ -161,7 +160,7 @@ class EventCardHandler {
       if (!context.mounted) return;
       
       ToastService.showError(
-        message: i18n.translate('failed_to_delete_event') ?? 'Erro ao deletar evento',
+        message: i18n.translate('failed_to_delete_event'),
       );
     }
   }
@@ -213,7 +212,7 @@ class EventCardHandler {
       }
       
       ToastService.showSuccess(
-        message: i18n.translate('left_event_successfully')?.replaceAll('{event}', eventName) ?? 'Você saiu do evento',
+        message: i18n.translate('left_event_successfully').replaceAll('{event}', eventName),
       );
       
       debugPrint('🚪 Closing event card...');
@@ -227,7 +226,7 @@ class EventCardHandler {
       if (!context.mounted) return;
       
       ToastService.showError(
-        message: i18n.translate('failed_to_leave_event') ?? 'Erro ao sair do evento',
+        message: i18n.translate('failed_to_leave_event'),
       );
     }
   }

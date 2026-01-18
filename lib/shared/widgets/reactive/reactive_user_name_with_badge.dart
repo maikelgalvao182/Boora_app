@@ -20,6 +20,23 @@ class ReactiveUserNameWithBadge extends StatelessWidget {
   final double spacing;
   final TextAlign textAlign;
 
+  String _buildDisplayName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) return 'Usuário';
+
+    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'Usuário';
+
+    final first = parts.first;
+    if (parts.length == 1) {
+      return first.length > 15 ? first.substring(0, 15) : first;
+    }
+
+    final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final safeFirst = first.length > 15 ? first.substring(0, 15) : first;
+    return lastInitial.isEmpty ? safeFirst : '$safeFirst $lastInitial.';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
@@ -35,7 +52,7 @@ class ReactiveUserNameWithBadge extends StatelessWidget {
         return ValueListenableBuilder<bool>(
           valueListenable: verifiedNotifier,
           builder: (context, isVerified, _) {
-            final displayName = name ?? 'Usuário';
+            final displayName = _buildDisplayName(name ?? '');
 
             return Row(
               mainAxisAlignment: textAlign == TextAlign.center 
@@ -54,13 +71,14 @@ class ReactiveUserNameWithBadge extends StatelessWidget {
                           : Colors.black,
                     ),
                     textAlign: textAlign,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (isVerified) ...[
                   SizedBox(width: spacing),
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 4, bottom: 3),
                     child: Icon(
                       Icons.verified,
                       size: iconSize,

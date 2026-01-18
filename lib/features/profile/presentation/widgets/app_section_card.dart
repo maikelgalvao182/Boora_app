@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/app/services/localization_service.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/features/profile/presentation/viewmodels/app_section_view_model.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
@@ -21,11 +20,13 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/constants/push_types.dart';
 import 'package:partiu/core/services/push_preferences_service.dart';
 import 'package:partiu/core/managers/session_manager.dart';
-import 'package:partiu/core/utils/app_logger.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/shared/stores/user_store.dart';
+import 'package:partiu/core/controllers/locale_controller.dart';
+import 'package:provider/provider.dart';
 
 class AppSectionCard extends StatefulWidget {
   const AppSectionCard({super.key});
@@ -38,6 +39,11 @@ class _AppSectionCardState extends State<AppSectionCard> {
   final AppHelper _appHelper = AppHelper();
   AppSectionViewModel? _viewModel;
 
+  String _tr(AppLocalizations i18n, String key, String fallback) {
+    final value = i18n.translate(key);
+    return value.isNotEmpty ? value : fallback;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -46,14 +52,14 @@ class _AppSectionCardState extends State<AppSectionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final i18n = LocalizationService.of(context);
+    final i18n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 24),
         // Seção: Notificações
-        _buildSectionHeader(context, i18n.translate('section_notifications') ?? 'Notificações'),
+        _buildSectionHeader(context, _tr(i18n, 'section_notifications', 'Notificações')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -65,7 +71,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildSwitchItem(
                 context,
                 icon: Iconsax.notification,
-                title: i18n.translate('global_notifications') ?? 'Notificações gerais',
+                title: _tr(i18n, 'global_notifications', 'Notificações gerais'),
                 value: PushPreferencesService.isEnabled(
                   PushType.global,
                   SessionManager.instance.currentUser?.pushPreferences,
@@ -76,7 +82,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildSwitchItem(
                 context,
                 icon: Iconsax.message,
-                title: i18n.translate('event_messages') ?? 'Mensagens dos eventos',
+                title: _tr(i18n, 'event_messages', 'Mensagens dos eventos'),
                 value: PushPreferencesService.isEnabled(
                   PushType.chatEvent,
                   SessionManager.instance.currentUser?.pushPreferences,
@@ -89,7 +95,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
         const SizedBox(height: 20),
 
         // Seção: Visibilidade
-        _buildSectionHeader(context, i18n.translate('section_visibility') ?? 'Visibilidade'),
+        _buildSectionHeader(context, _tr(i18n, 'section_visibility', 'Visibilidade')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -98,12 +104,12 @@ class _AppSectionCardState extends State<AppSectionCard> {
           color: Colors.white,
           child: Column(
             children: [
-              _buildMessageButtonSwitch(context, i18n),
+              _buildMessageButtonSwitch(context),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
               _buildListItem(
                 context,
                 icon: Iconsax.user_remove,
-                title: i18n.translate('blocked_users') ?? 'Usuários Bloqueados',
+                title: _tr(i18n, 'blocked_users', 'Usuários Bloqueados'),
                 onTap: () {
                   context.push(AppRoutes.blockedUsers);
                 },
@@ -114,7 +120,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
         const SizedBox(height: 20),
 
         // Seção: Suporte
-        _buildSectionHeader(context, i18n.translate('section_support') ?? 'Suporte'),
+        _buildSectionHeader(context, _tr(i18n, 'section_support', 'Suporte')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -126,7 +132,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.shield_tick,
-                title: i18n.translate('safety_and_etiquette') ?? 'Segurança e Etiqueta',
+                title: _tr(i18n, 'safety_and_etiquette', 'Segurança e Etiqueta'),
                 onTap: () async {
                   _appHelper.openSafetyPage();
                 },
@@ -135,7 +141,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.document_text_1,
-                title: i18n.translate('community_guidelines') ?? 'Diretrizes da Comunidade',
+                title: _tr(i18n, 'community_guidelines', 'Diretrizes da Comunidade'),
                 onTap: () async {
                   _appHelper.openGuidelinesPage();
                 },
@@ -144,7 +150,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.info_circle,
-                title: i18n.translate('about_us') ?? 'Sobre Nós',
+                title: _tr(i18n, 'about_us', 'Sobre Nós'),
                 onTap: () async {
                   _appHelper.openAboutPage();
                 },
@@ -153,7 +159,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.message_question,
-                title: i18n.translate('report_bug') ?? 'Reportar um Bug',
+                title: _tr(i18n, 'report_bug', 'Reportar um Bug'),
                 onTap: () async {
                   _appHelper.openBugReport();
                 },
@@ -164,7 +170,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
         const SizedBox(height: 20),
 
         // Seção: Social
-        _buildSectionHeader(context, i18n.translate('section_social') ?? 'Social'),
+        _buildSectionHeader(context, _tr(i18n, 'section_social', 'Social')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -176,7 +182,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.share,
-                title: i18n.translate('share_with_friends') ?? 'Compartilhar com Amigos',
+                title: _tr(i18n, 'share_with_friends', 'Compartilhar com Amigos'),
                 onTap: () async {
                   _appHelper.shareApp(context: context);
                 },
@@ -186,15 +192,15 @@ class _AppSectionCardState extends State<AppSectionCard> {
                 context,
                 icon: Iconsax.star,
                 title: Platform.isAndroid
-                    ? (i18n.translate('rate_on_play_store') ?? 'Avaliar na Play Store')
-                    : (i18n.translate('rate_on_app_store') ?? 'Avaliar na App Store'),
+                  ? _tr(i18n, 'rate_on_play_store', 'Avaliar na Play Store')
+                  : _tr(i18n, 'rate_on_app_store', 'Avaliar na App Store'),
                 onTap: () => _requestAppReview(),
               ),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
               _buildListItemWithImage(
                 context,
                 imagePath: 'assets/svg/tiktok2.svg',
-                title: i18n.translate('follow_us_on_tiktok') ?? 'Seguir no TikTok',
+                title: _tr(i18n, 'follow_us_on_tiktok', 'Seguir no TikTok'),
                 onTap: () async {
                   _appHelper.openUrl(TIKTOK_URL);
                 },
@@ -203,7 +209,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: IconsaxPlusLinear.instagram,
-                title: i18n.translate('follow_us_on_instagram') ?? 'Seguir no Instagram',
+                title: _tr(i18n, 'follow_us_on_instagram', 'Seguir no Instagram'),
                 onTap: () async {
                   _appHelper.openUrl(INSTAGRAM_URL);
                 },
@@ -214,7 +220,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
         const SizedBox(height: 20),
 
         // Seção: Legal
-        _buildSectionHeader(context, i18n.translate('section_legal') ?? 'Legal'),
+        _buildSectionHeader(context, _tr(i18n, 'section_legal', 'Legal')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -226,7 +232,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.lock,
-                title: i18n.translate('privacy_policy') ?? 'Política de Privacidade',
+                title: _tr(i18n, 'privacy_policy', 'Política de Privacidade'),
                 onTap: () async {
                   _appHelper.openPrivacyPage();
                 },
@@ -235,7 +241,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
               _buildListItem(
                 context,
                 icon: Iconsax.document_text,
-                title: i18n.translate('terms_of_service') ?? 'Termos de Serviço',
+                title: _tr(i18n, 'terms_of_service', 'Termos de Serviço'),
                 onTap: () async {
                   _appHelper.openTermsPage();
                 },
@@ -246,7 +252,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
         const SizedBox(height: 20),
 
         // Seção: Conta
-        _buildSectionHeader(context, i18n.translate('section_account') ?? 'Conta'),
+        _buildSectionHeader(context, _tr(i18n, 'section_account', 'Conta')),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -257,21 +263,28 @@ class _AppSectionCardState extends State<AppSectionCard> {
             children: [
               _buildListItem(
                 context,
+                icon: Iconsax.global,
+                title: _tr(i18n, 'language', 'Idioma'),
+                onTap: () => _showLanguageSheet(context),
+              ),
+              Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
+              _buildListItem(
+                context,
                 icon: Iconsax.logout,
-                title: i18n.translate('sign_out') ?? 'Sair',
+                title: _tr(i18n, 'sign_out', 'Sair'),
                 onTap: () {
                   debugPrint('🚪 [LOGOUT] Botão de logout clicado');
-                  _handleLogout(context, i18n);
+                  _handleLogout(context);
                 },
               ),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
               _buildListItem(
                 context,
                 icon: Iconsax.trash,
-                title: i18n.translate('delete_account') ?? 'Excluir Conta',
+                title: _tr(i18n, 'delete_account', 'Excluir Conta'),
                 iconColor: Colors.red,
                 textColor: Colors.red,
-                onTap: () => _handleDeleteAccount(context, i18n),
+                onTap: () => _handleDeleteAccount(context),
               ),
             ],
           ),
@@ -279,10 +292,92 @@ class _AppSectionCardState extends State<AppSectionCard> {
       ],
     );
   }
+
+  Future<void> _showLanguageSheet(BuildContext context) async {
+    final localeController = context.read<LocaleController>();
+    final effectiveLang = (localeController.overrideLanguageCode ??
+            Localizations.localeOf(context).languageCode)
+        .toLowerCase();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: false,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        final i18n = AppLocalizations.of(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _tr(i18n, 'language', 'Idioma'),
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _LanguageCard(
+                        assetPath: 'assets/svg/BR.svg',
+                        label: 'Português',
+                        isSelected: effectiveLang == 'pt',
+                        onTap: () async {
+                          await localeController.setLocale(const Locale('pt'));
+                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _LanguageCard(
+                        assetPath: 'assets/svg/US.svg',
+                        label: 'English',
+                        isSelected: effectiveLang == 'en',
+                        onTap: () async {
+                          await localeController.setLocale(const Locale('en'));
+                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _LanguageCard(
+                        assetPath: 'assets/svg/ES.svg',
+                        label: 'Español',
+                        isSelected: effectiveLang == 'es',
+                        onTap: () async {
+                          await localeController.setLocale(const Locale('es'));
+                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
   
   /// Executa logout com loading e navegação via go_router
-  Future<void> _handleLogout(BuildContext context, LocalizationService i18n) async {
+  Future<void> _handleLogout(BuildContext context) async {
     debugPrint('🚪 [LOGOUT] Iniciando processo de logout');
+
+    final i18n = AppLocalizations.of(context);
     
     // IMPORTANTE: Capturar GoRouter ANTES de qualquer operação assíncrona
     // para evitar "Looking up a deactivated widget's ancestor is unsafe"
@@ -294,7 +389,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
     try {
       // Mostra loading
       debugPrint('🚪 [LOGOUT] Mostrando dialog de progresso');
-      progressDialog.show(i18n.translate('signing_out') ?? 'Saindo...');
+      progressDialog.show(_tr(i18n, 'signing_out', 'Saindo...'));
       
       // Executa logout (processo de 9 etapas)
       debugPrint('🚪 [LOGOUT] Chamando _viewModel.signOut()');
@@ -332,8 +427,10 @@ class _AppSectionCardState extends State<AppSectionCard> {
   }
   
   /// Executa exclusão de conta com confirmação e Cloud Function
-  Future<void> _handleDeleteAccount(BuildContext context, LocalizationService i18n) async {
+  Future<void> _handleDeleteAccount(BuildContext context) async {
     debugPrint('🗑️ [DELETE_ACCOUNT] Iniciando processo de exclusão de conta');
+
+    final i18n = AppLocalizations.of(context);
     
     // Capturar GoRouter e userId ANTES de operações assíncronas
     final router = GoRouter.of(context);
@@ -349,11 +446,14 @@ class _AppSectionCardState extends State<AppSectionCard> {
     // Mostrar diálogo de confirmação usando GlimpseCupertinoDialog
     final confirmed = await GlimpseCupertinoDialog.showDestructive(
       context: context,
-      title: i18n.translate('delete_account') ?? 'Excluir Conta',
-      message: i18n.translate('all_your_profile_data_will_be_permanently_deleted') ?? 
+      title: _tr(i18n, 'delete_account', 'Excluir Conta'),
+      message: _tr(
+        i18n,
+        'all_your_profile_data_will_be_permanently_deleted',
           'Todos os seus dados de perfil serão permanentemente excluídos. Esta ação não pode ser desfeita.',
-      destructiveText: i18n.translate('DELETE') ?? 'Excluir',
-      cancelText: i18n.translate('CANCEL') ?? 'Cancelar',
+      ),
+      destructiveText: _tr(i18n, 'DELETE', 'Excluir'),
+      cancelText: _tr(i18n, 'CANCEL', 'Cancelar'),
     );
     
     if (confirmed != true) {
@@ -368,7 +468,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
     try {
       // Mostra loading
       debugPrint('🗑️ [DELETE_ACCOUNT] Mostrando dialog de progresso');
-      progressDialog.show(i18n.translate('deleting_account') ?? 'Excluindo conta...');
+      progressDialog.show(_tr(i18n, 'deleting_account', 'Excluindo conta...'));
       
       // Chama Cloud Function para deletar dados
       debugPrint('🗑️ [DELETE_ACCOUNT] Chamando Cloud Function deleteUserAccount');
@@ -407,7 +507,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
       // Mostra erro ao usuário se o contexto ainda estiver montado
       if (context.mounted) {
         ToastService.showError(
-          message: i18n.translate('error_deleting_account') ?? 'Erro ao excluir conta',
+          message: _tr(i18n, 'error_deleting_account', 'Erro ao excluir conta'),
         );
       }
     }
@@ -444,9 +544,11 @@ class _AppSectionCardState extends State<AppSectionCard> {
     }
   }
 
-  Widget _buildMessageButtonSwitch(BuildContext context, LocalizationService i18n) {
+  Widget _buildMessageButtonSwitch(BuildContext context) {
     final userId = AppState.currentUserId;
     if (userId == null || userId.isEmpty) return const SizedBox.shrink();
+
+    final i18n = AppLocalizations.of(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: UserStore.instance.getMessageButtonNotifier(userId),
@@ -454,18 +556,18 @@ class _AppSectionCardState extends State<AppSectionCard> {
         return _buildSwitchItem(
           context,
           icon: Iconsax.message,
-          title: i18n.translate('message_button') ?? 'Botão de mensagem no meu perfil',
+          title: _tr(i18n, 'message_button', 'Botão de mensagem no meu perfil'),
           value: enabled,
-          onChanged: (v) => _updateMessageButtonPreference(userId, v, i18n),
+          onChanged: (v) => _updateMessageButtonPreference(context, userId, v),
         );
       },
     );
   }
 
   Future<void> _updateMessageButtonPreference(
+    BuildContext context,
     String userId,
     bool enabled,
-    LocalizationService i18n,
   ) async {
     // 1. Atualiza UI imediatamente (optimistic update)
     final notifier = UserStore.instance.getMessageButtonNotifier(userId);
@@ -488,7 +590,8 @@ class _AppSectionCardState extends State<AppSectionCard> {
       debugPrint('❌ [MESSAGE_BUTTON] Erro ao atualizar preferência: $e');
       // Reverte para valor anterior em caso de erro
       notifier.value = previousValue;
-      ToastService.showError(message: i18n.translate('error') ?? 'Erro');
+      final i18n = AppLocalizations.of(context);
+      ToastService.showError(message: _tr(i18n, 'error', 'Erro'));
     }
   }
   
@@ -662,6 +765,60 @@ class _AppSectionCardState extends State<AppSectionCard> {
               ],
             ),
             Icon(Iconsax.arrow_right_3, size: 20, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageCard extends StatelessWidget {
+  const _LanguageCard({
+    required this.assetPath,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String assetPath;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isSelected ? GlimpseColors.primary : Colors.black.withValues(alpha: 0.10);
+    final bgColor = isSelected ? GlimpseColors.primaryLight.withValues(alpha: 0.35) : Colors.white;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              assetPath,
+              width: 36,
+              height: 36,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.getFont(
+                FONT_PLUS_JAKARTA_SANS,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
           ],
         ),
       ),

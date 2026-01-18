@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/core/utils/activity_helper.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/utils/emoji_helper.dart';
+import 'package:partiu/core/constants/glimpse_variables.dart';
 import 'package:partiu/features/home/presentation/widgets/create/suggestion_tags_view.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/create_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
@@ -103,9 +103,10 @@ class _CreateDrawerState extends State<CreateDrawer> {
     setState(() {}); // Forçar rebuild para atualizar UI
   }
 
-  void _onSuggestionSelected(String text) {
-    final emoji = ActivityHelper.getEmojiForActivity(text);
-    _controller.setSuggestion(text, emoji);
+  void _onSuggestionSelected(ActivitySuggestion suggestion) {
+    final i18n = AppLocalizations.of(context);
+    final text = i18n.translate(suggestion.textKey);
+    _controller.setSuggestion(text, suggestion.emoji);
     // O controller já define isSuggestionMode = false, apenas atualizamos a UI
     setState(() {});
   }

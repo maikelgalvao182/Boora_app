@@ -110,6 +110,7 @@ class User {
     this.interests,
     this.languages,
     this.from,
+    this.flag,
     this.distance,
     this.displayLatitude,
     this.displayLongitude,
@@ -242,6 +243,7 @@ class User {
       interests: (doc['interests'] as List?)?.cast<String>(),
       languages: doc['languages'] as String?,
       from: doc['from'],
+      flag: doc['flag'] as String?,
       distance: (doc['distance'] as num?)?.toDouble(),
       displayLatitude: (doc['displayLatitude'] as num?)?.toDouble(),
       displayLongitude: (doc['displayLongitude'] as num?)?.toDouble(),
@@ -286,6 +288,7 @@ class User {
   final List<String>? interests;
   final String? languages;
   final String? from; // País de origem
+  final String? flag; // Bandeira emoji do país
   final double? distance; // Distância em km do usuário atual
   final double? displayLatitude; // Latitude com offset para privacidade
   final double? displayLongitude; // Longitude com offset para privacidade
@@ -343,6 +346,7 @@ class User {
     List<String>? interests,
     String? languages,
     String? from,
+    String? flag,
     double? distance,
     double? displayLatitude,
     double? displayLongitude,
@@ -383,6 +387,7 @@ class User {
       interests: interests ?? this.interests,
       languages: languages ?? this.languages,
       from: from ?? this.from,
+      flag: flag ?? this.flag,
       distance: distance ?? this.distance,
       displayLatitude: displayLatitude ?? this.displayLatitude,
       displayLongitude: displayLongitude ?? this.displayLongitude,
@@ -469,6 +474,7 @@ class User {
       'interests': interests,
       'languages': languages,
       'from': from,
+      'flag': flag,
       'distance': distance,
       'vipProductId': vipProductId,
       'vipUpdatedAt': vipUpdatedAt,

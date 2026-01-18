@@ -21,10 +21,13 @@ class ReportEventButton extends StatelessWidget {
   final String eventId;
 
   void _showReportDialog(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    final barrierLabel = i18n.translate('dismiss');
+
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Dismiss',
+      barrierLabel: barrierLabel,
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -76,7 +79,7 @@ class ReportEventButton extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: GlimpseColors.error.withOpacity(0.05),
+        color: GlimpseColors.error.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(
@@ -145,6 +148,18 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         throw Exception('User not logged in');
       }
 
+      // Buscar dados do evento para obter o activityText
+      final eventDoc = await FirebaseFirestore.instance
+          .collection('events')
+          .doc(widget.eventId)
+          .get();
+
+      String? activityText;
+      if (eventDoc.exists) {
+        final eventData = eventDoc.data();
+        activityText = eventData?['activityText'] as String?;
+      }
+
       await FirebaseFirestore.instance.collection('reports').add({
         'eventId': widget.eventId,
         'reportedBy': currentUser.userId,
@@ -152,6 +167,7 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         'createdAt': FieldValue.serverTimestamp(),
         'status': 'pending',
         'type': 'event',
+        if (activityText != null) 'activityText': activityText,
       });
 
       if (!context.mounted) return;

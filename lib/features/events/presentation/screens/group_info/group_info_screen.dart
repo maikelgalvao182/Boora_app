@@ -214,7 +214,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                           index: index,
                           deleteLabel: i18n.translate('remove'),
                           onDelete: () {
-                            // Exibe dialog de confirmação para remover
+                            // Exibe dialog de confirmação e remove o participante
                             _controller.showRemoveParticipantDialog(
                               context,
                               userId,

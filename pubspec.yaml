@@ -2,7 +2,7 @@ name: partiu
 description: Boora - Não vá sozinho!
 publish_to: 'none'
 
-version: 1.0.12+14
+version: 1.0.15+17
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -30,6 +30,9 @@ dependencies:
 
   # Meta App Events (analytics/attribution only)
   facebook_app_events: ^0.24.0
+  
+  # Attribution & Deep Linking
+  appsflyer_sdk: ^6.14.4
   
   # UI Components
   flutter_svg: ^2.2.0

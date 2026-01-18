@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
@@ -11,6 +14,7 @@ import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/liquid_swipe_onboarding.dart';
 import 'package:partiu/features/home/presentation/widgets/navigate_to_user_button.dart';
 import 'package:partiu/features/home/presentation/widgets/people_button.dart';
+import 'package:partiu/features/home/presentation/widgets/invite_drawer.dart';
 import 'package:partiu/features/home/presentation/screens/find_people_screen.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -39,6 +43,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   static const double _peopleButtonTop = 16;
   static const double _peopleButtonRight = 16;
+  static const double _peopleButtonLeft = 16;
   static const double _peopleButtonHeight = 48;
   static const double _filtersSpacing = 8;
 
@@ -142,7 +147,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   void _showListDrawer() {
     // Usa bottom sheet nativo
-    ListDrawer.show(context);
+    ListDrawer.show(context, widget.mapViewModel);
   }
 
   void _centerOnUser() {
@@ -154,6 +159,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
       MaterialPageRoute(
         builder: (context) => const FindPeopleScreen(),
       ),
+    );
+  }
+
+  void _showInviteDrawer() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const InviteDrawer(),
     );
   }
 
@@ -213,6 +227,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
           mapViewModel: widget.mapViewModel,
         ),
         
+        // Botão "Ganhe 3 meses grátis" (canto superior esquerdo)
+        Positioned(
+          top: _peopleButtonTop,
+          left: _peopleButtonLeft,
+          child: _InviteOverlayButton(
+            onPressed: _showInviteDrawer,
+          ),
+        ),
+
         // Botão "Perto de você" (canto superior direito)
         Positioned(
           top: _peopleButtonTop,
@@ -332,5 +355,42 @@ class _DiscoverTabState extends State<DiscoverTab> {
       if (a[i] != b[i]) return false;
     }
     return true;
+  }
+}
+
+class _InviteOverlayButton extends StatelessWidget {
+  const _InviteOverlayButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.3),
+      borderRadius: BorderRadius.circular(100),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(100),
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: GlimpseColors.primary,
+            borderRadius: BorderRadius.circular(100),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'Ganhe 3 meses grátis',
+            style: GoogleFonts.getFont(
+              FONT_PLUS_JAKARTA_SANS,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

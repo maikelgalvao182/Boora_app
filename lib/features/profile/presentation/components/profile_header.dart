@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:circle_flags/circle_flags.dart';
+import 'package:flutter_country_selector/flutter_country_selector.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/services/cache/cache_key_utils.dart';
 import 'package:partiu/core/services/cache/image_caches.dart';
@@ -391,6 +392,11 @@ class _ProfileHeaderState extends State<ProfileHeader> {
           _buildNameWithAgeAndFlag(),
           
           const SizedBox(height: 8),
+
+          // Origem (from)
+          _buildOriginFrom(),
+          
+          const SizedBox(height: 8),
           
           // Localização (Cidade, Estado)
           _buildLocationWithState(),
@@ -405,41 +411,24 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   Widget _buildNameWithAgeAndFlag() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getFromNotifier(widget.user.userId),
-      builder: (context, from, _) {
-        // Obtém informações do país se disponível
-        final countryInfo = (from != null && from.isNotEmpty) ? getCountryInfo(from) : null;
-        
-        return Row(
-          children: [
-            // Bandeira do país (se disponível)
-            if (countryInfo != null) ...[
-              CircleFlag(
-                countryInfo.flagCode,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-            ],
-            
-            // Nome com badge
-            Flexible(
-              child: ReactiveUserNameWithBadge(
-                userId: widget.user.userId,
-                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-                iconSize: 18,
-                spacing: 8,
-              ),
+    return Row(
+      children: [
+        // Nome com badge
+        Flexible(
+          child: ReactiveUserNameWithBadge(
+            userId: widget.user.userId,
+            style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
-            
-            // Idade removida daqui e movida para AboutMeSection
-          ],
-        );
-      },
+            iconSize: 18,
+            spacing: 8,
+          ),
+        ),
+        
+        // Idade removida daqui e movida para AboutMeSection
+      ],
     );
   }
 
@@ -479,6 +468,74 @@ class _ProfileHeaderState extends State<ProfileHeader> {
         );
       },
     );
+  }
+
+  Widget _buildOriginFrom() {
+    return ValueListenableBuilder<String?>(
+      valueListenable: UserStore.instance.getFromNotifier(widget.user.userId),
+      builder: (context, from, _) {
+        final origin = from?.trim() ?? '';
+        if (origin.isEmpty) return const SizedBox.shrink();
+
+        final flagCode = _resolveIsoCode(context, origin);
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (flagCode != null && flagCode.isNotEmpty) ...[
+              CircleFlag(
+                flagCode,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              origin,
+              style: GoogleFonts.getFont(
+                FONT_PLUS_JAKARTA_SANS,
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String? _resolveIsoCode(BuildContext context, String country) {
+    final normalized = country.trim();
+    if (normalized.isEmpty) return null;
+
+    if (normalized.length == 2) {
+      final upper = normalized.toUpperCase();
+      final isValid = IsoCode.values.any((code) => code.name.toUpperCase() == upper);
+      return isValid ? upper : null;
+    }
+
+    // Primeiro tenta pelo locale atual.
+    final localization = CountrySelectorLocalization.of(context);
+    if (localization != null) {
+      final target = normalized.toLowerCase();
+      for (final iso in IsoCode.values) {
+        if (localization.countryName(iso).toLowerCase() == target) {
+          return iso.name;
+        }
+      }
+    }
+
+    // Fallback técnico: inglês (export público) para cobrir casos onde o dado veio em EN.
+    final en = CountrySelectorLocalizationEn();
+    final target = normalized.toLowerCase();
+    for (final iso in IsoCode.values) {
+      if (en.countryName(iso).toLowerCase() == target) {
+        return iso.name;
+      }
+    }
+
+    // Último: map rápido (nomes comuns).
+    return getCountryInfo(normalized)?.flagCode;
   }
 
   Widget _buildInstagram() {

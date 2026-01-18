@@ -7,9 +7,11 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/event_location.dart';
 import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
+import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card/list_card_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/list_drawer/list_drawer_controller.dart';
+import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card_shimmer.dart';
 
@@ -46,18 +48,24 @@ class ListCardControllerCache {
 /// ✅ Usa ListDrawerController (singleton) para gerenciar lista
 /// ✅ Cache de controllers por eventId
 /// ✅ Bottom sheet nativo do Flutter
+/// ✅ Filtro horizontal por categoria integrado com MapViewModel
 class ListDrawer extends StatelessWidget {
-  const ListDrawer({super.key});
+  const ListDrawer({
+    super.key,
+    required this.mapViewModel,
+  });
+
+  final MapViewModel mapViewModel;
 
   /// Mostra o bottom sheet
-  static Future<void> show(BuildContext context) {
+  static Future<void> show(BuildContext context, MapViewModel mapViewModel) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       isDismissible: true,
       enableDrag: true,
-      builder: (context) => const ListDrawer(),
+      builder: (context) => ListDrawer(mapViewModel: mapViewModel),
     );
   }
 
@@ -102,7 +110,7 @@ class ListDrawer extends StatelessWidget {
                 
                 // Título centralizado
                 Text(
-                  i18n?.translate('activities_in_region') ?? 'Atividades na região',
+                  i18n.translate('activities_in_region'),
                   textAlign: TextAlign.center,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
@@ -115,11 +123,16 @@ class ListDrawer extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // Filtro horizontal por categoria
+          _CategoryFilterBar(mapViewModel: mapViewModel),
+
+          const SizedBox(height: 8),
 
           // Lista de atividades
           Expanded(
-            child: _ListDrawerContent(),
+            child: _ListDrawerContent(mapViewModel: mapViewModel),
           ),
         ],
       ),
@@ -127,10 +140,80 @@ class ListDrawer extends StatelessWidget {
   }
 }
 
-/// Conteúdo interno do drawer (separado para usar controller)
-class _ListDrawerContent extends StatelessWidget {
+/// Barra de filtro horizontal por categoria
+class _CategoryFilterBar extends StatelessWidget {
+  const _CategoryFilterBar({required this.mapViewModel});
+
+  final MapViewModel mapViewModel;
+
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+
+    return ListenableBuilder(
+      listenable: mapViewModel,
+      builder: (context, _) {
+        final categories = mapViewModel.availableCategories;
+        final allLabel = i18n.translate('notif_filter_all');
+        final totalInBounds = mapViewModel.eventsInBoundsCount;
+        final countsByCategory = mapViewModel.eventsInBoundsCountByCategory;
+
+        // Build labels for each category with counts
+        final categoryLabels = categories.map((key) {
+          final normalized = key.trim();
+          if (normalized.isEmpty) return key;
+          final translated = i18n.translate('category_$normalized');
+          return translated.isEmpty ? key : translated;
+        }).toList(growable: false);
+
+        final allItem = '$allLabel ($totalInBounds)';
+        final items = <String>[
+          allItem,
+          ...List<String>.generate(
+            categories.length,
+            (index) {
+              final key = categories[index].trim();
+              final label = categoryLabels[index];
+              final count = countsByCategory[key] ?? 0;
+              return '$label ($count)';
+            },
+            growable: false,
+          ),
+        ];
+
+        final selected = mapViewModel.selectedCategory;
+        final selectedCategoryIndex =
+            selected == null ? -1 : categories.indexOf(selected);
+        final selectedIndex =
+            selectedCategoryIndex >= 0 ? selectedCategoryIndex + 1 : 0;
+
+        return NotificationHorizontalFilters(
+          items: items,
+          selectedIndex: selectedIndex,
+          onSelected: (index) {
+            if (index == 0) {
+              mapViewModel.setCategoryFilter(null);
+            } else {
+              mapViewModel.setCategoryFilter(categories[index - 1]);
+            }
+          },
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          unselectedBackgroundColor: GlimpseColors.lightTextField,
+        );
+      },
+    );
+  }
+}
+
+/// Conteúdo interno do drawer (separado para usar controller)
+class _ListDrawerContent extends StatelessWidget {
+  const _ListDrawerContent({required this.mapViewModel});
+
+  final MapViewModel mapViewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
     final controller = ListDrawerController();
     final discoveryService = MapDiscoveryService();
     
@@ -138,16 +221,30 @@ class _ListDrawerContent extends StatelessWidget {
     if (controller.currentUserId == null) {
       return Center(
         child: GlimpseEmptyState.standard(
-          text: 'Usuário não autenticado',
+          text: i18n.translate('user_not_authenticated'),
         ),
       );
     }
 
-    // ValueNotifier de eventos próximos (Singleton - lista viva sem rebuild)
-    return ValueListenableBuilder<List<EventLocation>>(
-      valueListenable: discoveryService.nearbyEvents,
-      builder: (context, nearbyEventsList, _) {
-        final hasNearbyEvents = nearbyEventsList.isNotEmpty;
+    // Wrap everything with ListenableBuilder to react to category changes
+    return ListenableBuilder(
+      listenable: mapViewModel,
+      builder: (context, _) {
+        final selectedCategory = mapViewModel.selectedCategory;
+
+        // ValueNotifier de eventos próximos (Singleton - lista viva sem rebuild)
+        return ValueListenableBuilder<List<EventLocation>>(
+          valueListenable: discoveryService.nearbyEvents,
+          builder: (context, nearbyEventsList, _) {
+            // Filtrar eventos pela categoria selecionada
+            final filteredNearbyEvents = selectedCategory == null
+                ? nearbyEventsList
+                : nearbyEventsList.where((event) {
+                    final eventCategory = event.category?.trim();
+                    return eventCategory == selectedCategory.trim();
+                  }).toList();
+
+            final hasNearbyEvents = filteredNearbyEvents.isNotEmpty;
 
         // ValueListenableBuilder para "Minhas atividades"
         return ValueListenableBuilder<bool>(
@@ -178,7 +275,7 @@ class _ListDrawerContent extends StatelessWidget {
                 if (!hasNearbyEvents && !hasMyEvents) {
                   return Center(
                     child: GlimpseEmptyState.standard(
-                      text: 'Nenhuma atividade encontrada',
+                      text: i18n.translate('no_activities_found'),
                     ),
                   );
                 }
@@ -194,16 +291,16 @@ class _ListDrawerContent extends StatelessWidget {
                         if (hasNearbyEvents) ...[
                           Padding(
                             padding: const EdgeInsets.only(top: 24, bottom: 16),
-                            child: _buildSectionLabel('Atividades próximas'),
+                            child: _buildSectionLabel(i18n.translate('nearby_activities')),
                           ),
-                          _buildNearbyEventsList(context, nearbyEventsList),
+                          _buildNearbyEventsList(context, filteredNearbyEvents),
                         ],
 
                         // SEÇÃO: Minhas atividades
                         if (hasMyEvents) ...[
                           Padding(
                             padding: const EdgeInsets.only(top: 16, bottom: 16),
-                            child: _buildSectionLabel('Minhas atividades'),
+                            child: _buildSectionLabel(i18n.translate('my_activities')),
                           ),
                           _buildMyEventsList(context, myEventsList),
                         ],
@@ -215,6 +312,8 @@ class _ListDrawerContent extends StatelessWidget {
                 );
               },
             );
+          },
+        );
           },
         );
       },
@@ -287,12 +386,10 @@ class _EventCardWrapper extends StatefulWidget {
     super.key,
     required this.eventId,
     required this.onEventTap,
-    this.distanceKm,
   });
 
   final String eventId;
   final VoidCallback onEventTap;
-  final double? distanceKm;
 
   @override
   State<_EventCardWrapper> createState() => _EventCardWrapperState();

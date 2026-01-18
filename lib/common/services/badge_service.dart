@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:partiu/common/utils/app_logger.dart';
 
 /// 🔔 BadgeService - Controle centralizado do badge do ícone do app
@@ -19,6 +20,8 @@ class BadgeService {
   
   bool _isSupported = false;
   bool _initialized = false;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   
   /// Verifica se o dispositivo suporta badge
   bool get isSupported => _isSupported;
@@ -28,16 +31,18 @@ class BadgeService {
     if (_initialized) return;
     
     try {
-      // `flutter_app_badger` foi removido (plugin descontinuado e incompatível
-      // com o toolchain Android atual). Mantemos o serviço como no-op.
-      _isSupported = false;
+      _isSupported = Platform.isIOS;
       _initialized = true;
       
       AppLogger.info(
         '🔔 [BadgeService] Inicializado - Suporte: $_isSupported',
       );
     } catch (e, stack) {
-      AppLogger.error('❌ [BadgeService] Erro ao verificar suporte', e, stack);
+      AppLogger.error(
+        '❌ [BadgeService] Erro ao verificar suporte',
+        error: e,
+        stackTrace: stack,
+      );
       _isSupported = false;
       _initialized = true;
     }
@@ -53,17 +58,22 @@ class BadgeService {
     }
     
     if (!_isSupported) {
-      AppLogger.info('ℹ️ [BadgeService] Badge não suportado neste dispositivo');
       return;
     }
     
     try {
-      // no-op
-      if (kDebugMode) {
-        AppLogger.info('🔔 [BadgeService] updateBadge($count) ignorado (no-op)');
+      if (Platform.isIOS) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                DarwinFlutterLocalNotificationsPlugin>()
+            ?.setBadgeCount(count);
       }
     } catch (e, stack) {
-      AppLogger.error('❌ [BadgeService] Erro ao atualizar badge', e, stack);
+      AppLogger.error(
+        '❌ [BadgeService] Erro ao atualizar badge',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
   
@@ -76,12 +86,18 @@ class BadgeService {
     if (!_isSupported) return;
     
     try {
-      // no-op
-      if (kDebugMode) {
-        AppLogger.info('🔔 [BadgeService] removeBadge() ignorado (no-op)');
+      if (Platform.isIOS) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                DarwinFlutterLocalNotificationsPlugin>()
+            ?.setBadgeCount(0);
       }
     } catch (e, stack) {
-      AppLogger.error('❌ [BadgeService] Erro ao remover badge', e, stack);
+      AppLogger.error(
+        '❌ [BadgeService] Erro ao remover badge',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
   

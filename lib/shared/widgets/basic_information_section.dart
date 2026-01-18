@@ -67,7 +67,7 @@ class BasicInformationSection extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: 80, // Fixed width for labels (reduced from Expanded)
+                    width: 104, // Fixed width for labels (increased by 24px)
                     child: Text(
                       item.label,
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 

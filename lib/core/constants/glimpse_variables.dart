@@ -319,8 +319,7 @@ CountryInfo? getCountryInfo(String countryName) {
   if (isoCodeStr != null) {
     return CountryInfo('country_${isoCodeStr.toLowerCase()}', isoCodeStr);
   }
-  
-  // Fallback: retorna o nome original sem tradução
+
   return null;
 }
 
@@ -336,88 +335,88 @@ String? getCountryKey(String countryName) {
 
 /// Modelo de sugestão de atividade
 class ActivitySuggestion {
-  final String text;
+  final String textKey;
   final String emoji;
 
-  const ActivitySuggestion(this.emoji, this.text);
+  const ActivitySuggestion(this.emoji, this.textKey);
 }
 
 /// Lista de sugestões de atividades
 const List<ActivitySuggestion> activitySuggestions = [
   // Ao ar livre / atividade física
-  ActivitySuggestion('🏃', 'Correr no parque'),
-  ActivitySuggestion('🏋️', 'Treinar na academia'),
-  ActivitySuggestion('🚶', 'Fazer uma caminhada'),
-  ActivitySuggestion('🧘', 'Fazer yoga'),
-  ActivitySuggestion('🚴', 'Pedalar pela cidade'),
-  ActivitySuggestion('🐕', 'Passear com o cachorro'),
+  ActivitySuggestion('🏃', 'activity_suggestion_run_in_park'),
+  ActivitySuggestion('🏋️', 'activity_suggestion_workout_gym'),
+  ActivitySuggestion('🚶', 'activity_suggestion_take_a_walk'),
+  ActivitySuggestion('🧘', 'activity_suggestion_do_yoga'),
+  ActivitySuggestion('🚴', 'activity_suggestion_bike_in_city'),
+  ActivitySuggestion('🐕', 'activity_suggestion_walk_the_dog'),
 
   // Bebidas / Rolês leves
-  ActivitySuggestion('☕', 'Tomar um café'),
-  ActivitySuggestion('🍺', 'Tomar um chopp'),
-  ActivitySuggestion('🍷', 'Beber um vinho'),
-  ActivitySuggestion('🥤', 'Tomar um açaí'),
-  ActivitySuggestion('🍹', 'Tomar um drink'),
-  ActivitySuggestion('🧋', 'Tomar um bubble tea'),
+  ActivitySuggestion('☕', 'activity_suggestion_have_coffee'),
+  ActivitySuggestion('🍺', 'activity_suggestion_have_draft_beer'),
+  ActivitySuggestion('🍷', 'activity_suggestion_drink_wine'),
+  ActivitySuggestion('🥤', 'activity_suggestion_have_acai'),
+  ActivitySuggestion('🍹', 'activity_suggestion_have_a_drink'),
+  ActivitySuggestion('🧋', 'activity_suggestion_have_bubble_tea'),
 
   // Comida
-  ActivitySuggestion('🍕', 'Comer pizza'),
-  ActivitySuggestion('🍔', 'Comer hambúrguer'),
-  ActivitySuggestion('🍣', 'Comer sushi'),
-  ActivitySuggestion('🍝', 'Jantar em algum lugar'),
-  ActivitySuggestion('🌮', 'Comer tacos'),
-  ActivitySuggestion('🥗', 'Comer algo leve'),
+  ActivitySuggestion('🍕', 'activity_suggestion_eat_pizza'),
+  ActivitySuggestion('🍔', 'activity_suggestion_eat_burger'),
+  ActivitySuggestion('🍣', 'activity_suggestion_eat_sushi'),
+  ActivitySuggestion('🍝', 'activity_suggestion_dinner_out'),
+  ActivitySuggestion('🌮', 'activity_suggestion_eat_tacos'),
+  ActivitySuggestion('🥗', 'activity_suggestion_light_meal'),
 
   // Casa / geek
-  ActivitySuggestion('🎬', 'Ir ao cinema'),
-  ActivitySuggestion('📺', 'Assistir um filme'),
-  ActivitySuggestion('🎮', 'Jogar videogame'),
-  ActivitySuggestion('🎲', 'Jogar board games'),
-  ActivitySuggestion('🎤', 'Ir ao karaokê'),
-  ActivitySuggestion('🎯', 'Jogar dardos'),
+  ActivitySuggestion('🎬', 'activity_suggestion_go_to_cinema'),
+  ActivitySuggestion('📺', 'activity_suggestion_watch_a_movie'),
+  ActivitySuggestion('🎮', 'activity_suggestion_play_video_games'),
+  ActivitySuggestion('🎲', 'activity_suggestion_play_board_games'),
+  ActivitySuggestion('🎤', 'activity_suggestion_go_to_karaoke'),
+  ActivitySuggestion('🎯', 'activity_suggestion_play_darts'),
 
   // Arte / cultura
-  ActivitySuggestion('📸', 'Tirar fotos'),
-  ActivitySuggestion('🖼️', 'Visitar museu'),
-  ActivitySuggestion('🎨', 'Fazer algo artístico'),
-  ActivitySuggestion('📚', 'Ler um livro'),
-  ActivitySuggestion('🧩', 'Montar um quebra-cabeça'),
-  ActivitySuggestion('🎹', 'Tocar algum instrumento'),
+  ActivitySuggestion('📸', 'activity_suggestion_take_photos'),
+  ActivitySuggestion('🖼️', 'activity_suggestion_visit_museum'),
+  ActivitySuggestion('🎨', 'activity_suggestion_do_something_artistic'),
+  ActivitySuggestion('📚', 'activity_suggestion_read_a_book'),
+  ActivitySuggestion('🧩', 'activity_suggestion_do_a_puzzle'),
+  ActivitySuggestion('🎹', 'activity_suggestion_play_an_instrument'),
 
   // Sociais / rolê leve
-  ActivitySuggestion('🛍️', 'Dar uma volta no shopping'),
-  ActivitySuggestion('🛒', 'Fazer compras'),
-  ActivitySuggestion('🌳', 'Fazer um piquenique'),
-  ActivitySuggestion('🧺', 'Sentar na praça e conversar'),
+  ActivitySuggestion('🛍️', 'activity_suggestion_walk_in_the_mall'),
+  ActivitySuggestion('🛒', 'activity_suggestion_go_shopping'),
+  ActivitySuggestion('🌳', 'activity_suggestion_have_a_picnic'),
+  ActivitySuggestion('🧺', 'activity_suggestion_sit_in_square_and_talk'),
 
   // Jogos físicos
-  ActivitySuggestion('🎳', 'Jogar boliche'),
-  ActivitySuggestion('🎱', 'Jogar sinuca'),
-  ActivitySuggestion('🏓', 'Jogar ping-pong'),
-  ActivitySuggestion('⛳', 'Jogar Mini-golfe'),
+  ActivitySuggestion('🎳', 'activity_suggestion_go_bowling'),
+  ActivitySuggestion('🎱', 'activity_suggestion_play_pool'),
+  ActivitySuggestion('🏓', 'activity_suggestion_play_ping_pong'),
+  ActivitySuggestion('⛳', 'activity_suggestion_play_mini_golf'),
 
   // Passeios
-  ActivitySuggestion('🚗', 'Dar uma volta pela cidade'),
-  ActivitySuggestion('🏞️', 'Ver o pôr do sol'),
-  ActivitySuggestion('🍧', 'Tomar sorvete'),
-  ActivitySuggestion('🥐', 'Ir numa padaria legal'),
+  ActivitySuggestion('🚗', 'activity_suggestion_drive_around_city'),
+  ActivitySuggestion('🏞️', 'activity_suggestion_watch_the_sunset'),
+  ActivitySuggestion('🍧', 'activity_suggestion_have_ice_cream'),
+  ActivitySuggestion('🥐', 'activity_suggestion_go_to_a_cool_bakery'),
 
   // 🎶 Shows / Música / Festas
-  ActivitySuggestion('🎤', 'Ir em um show'),
-  ActivitySuggestion('🎶', 'Ir num pagode'),
-  ActivitySuggestion('🥁', 'Samba com amigos'),
-  ActivitySuggestion('🪗', 'Dançar um Forrozinho'),
-  ActivitySuggestion('🤠', 'Ir num sertanejo'),
-  ActivitySuggestion('🎸', 'Ir num show de rock'),
-  ActivitySuggestion('🎧', 'Curtir Festa eletrônica'),
-  ActivitySuggestion('🔊', 'Ouvir música ao vivo'),
-  ActivitySuggestion('🪩', 'Ir numa balada'),
-  ActivitySuggestion('🕺', 'Sair pra dançar'),
-  ActivitySuggestion('🎪', 'Ir em um festival'),
-  ActivitySuggestion('🔥', 'Curtir Rave / Techno'),
-  ActivitySuggestion('🎵', 'Curtir Trap / Hip-hop night'),
-  ActivitySuggestion('💃', 'Curtir Baile funk'),
-  ActivitySuggestion('🎛️', 'After em algum lugar'),
-  ActivitySuggestion('🎚️', 'Rolê com DJ set'),
-  ActivitySuggestion('🌃', 'Night out na cidade'),
+  ActivitySuggestion('🎤', 'activity_suggestion_go_to_a_show'),
+  ActivitySuggestion('🎶', 'activity_suggestion_go_to_pagode'),
+  ActivitySuggestion('🥁', 'activity_suggestion_samba_with_friends'),
+  ActivitySuggestion('🪗', 'activity_suggestion_dance_forro'),
+  ActivitySuggestion('🤠', 'activity_suggestion_go_to_sertanejo'),
+  ActivitySuggestion('🎸', 'activity_suggestion_go_to_a_rock_show'),
+  ActivitySuggestion('🎧', 'activity_suggestion_electronic_party'),
+  ActivitySuggestion('🔊', 'activity_suggestion_live_music'),
+  ActivitySuggestion('🪩', 'activity_suggestion_go_to_a_club'),
+  ActivitySuggestion('🕺', 'activity_suggestion_go_dancing'),
+  ActivitySuggestion('🎪', 'activity_suggestion_go_to_a_festival'),
+  ActivitySuggestion('🔥', 'activity_suggestion_rave_techno'),
+  ActivitySuggestion('🎵', 'activity_suggestion_trap_hiphop_night'),
+  ActivitySuggestion('💃', 'activity_suggestion_baile_funk'),
+  ActivitySuggestion('🎛️', 'activity_suggestion_after_party'),
+  ActivitySuggestion('🎚️', 'activity_suggestion_dj_set'),
+  ActivitySuggestion('🌃', 'activity_suggestion_night_out_in_city'),
 ];

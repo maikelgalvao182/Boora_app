@@ -71,6 +71,17 @@ class MapViewModel extends ChangeNotifier {
   LatLng? _lastLocation;
   LatLng? get lastLocation => _lastLocation;
 
+  /// Seta uma localização inicial (ex.: persistida no Firestore) apenas se
+  /// ainda não existe uma `_lastLocation` em memória.
+  ///
+  /// Objetivo: permitir que o GoogleMap comece na cidade correta no primeiro
+  /// frame, sem pular do fallback (ex.: São Paulo) para a localização real.
+  void seedInitialLocation(LatLng location) {
+    if (_lastLocation != null) return;
+    _lastLocation = location;
+    notifyListeners();
+  }
+
   /// Eventos carregados
   List<EventModel> _events = [];
   List<EventModel> get events => _events;

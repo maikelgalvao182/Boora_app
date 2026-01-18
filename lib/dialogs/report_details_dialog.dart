@@ -44,6 +44,7 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
   final _messageController = TextEditingController();
   final _focusNode = FocusNode();
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void didChangeDependencies() {
@@ -70,13 +71,18 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
     final message = _messageController.text.trim();
 
     if (message.isEmpty) {
-      _showError(_i18n!.translate('report_message_empty'));
+      setState(() => _errorMessage = _i18n!.translate('report_message_empty'));
       return;
     }
 
     if (message.length < 10) {
-      _showError(_i18n!.translate('report_message_too_short'));
+      setState(() => _errorMessage = _i18n!.translate('report_message_too_short'));
       return;
+    }
+
+    // Limpa erro se validação passou
+    if (_errorMessage != null) {
+      setState(() => _errorMessage = null);
     }
 
     setState(() => _isLoading = true);
@@ -135,6 +141,10 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
               _buildHeader(),
               const SizedBox(height: 24),
               _buildTextField(),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 8),
+                _buildErrorText(),
+              ],
               const SizedBox(height: 20),
               _buildButtons(),
             ],
@@ -185,6 +195,20 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
       maxLength: 500,
       textInputAction: TextInputAction.done,
       textCapitalization: TextCapitalization.sentences,
+    );
+  }
+
+  Widget _buildErrorText() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        _errorMessage!,
+        style: const TextStyle(
+          color: Colors.red,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 

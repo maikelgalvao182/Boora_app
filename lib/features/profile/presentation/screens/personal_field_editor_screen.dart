@@ -85,9 +85,10 @@ class _PersonalFieldEditorScreenState extends State<PersonalFieldEditorScreen> {
       case PersonalFieldType.locality:
         widget.controllers['locality']!.addListener(_validateField);
       case PersonalFieldType.state:
+      case PersonalFieldType.from:
       case PersonalFieldType.languages:
       case PersonalFieldType.instagram:
-        // State, country, languages e instagram são opcionais, não precisam de listeners de validação
+        // State, from, languages e instagram são opcionais, não precisam de listeners de validação
         break;
     }
   }
@@ -111,9 +112,10 @@ class _PersonalFieldEditorScreenState extends State<PersonalFieldEditorScreen> {
       case PersonalFieldType.locality:
         widget.controllers['locality']!.removeListener(_validateField);
       case PersonalFieldType.state:
+      case PersonalFieldType.from:
       case PersonalFieldType.languages:
       case PersonalFieldType.instagram:
-        // State, country, languages e instagram são opcionais, não precisam remover listeners
+        // State, from, languages e instagram são opcionais, não precisam remover listeners
         break;
     }
   }
@@ -137,6 +139,7 @@ class _PersonalFieldEditorScreenState extends State<PersonalFieldEditorScreen> {
       case PersonalFieldType.school:
       case PersonalFieldType.locality:
       case PersonalFieldType.state:
+      case PersonalFieldType.from:
       case PersonalFieldType.languages:
       case PersonalFieldType.instagram:
         isValid = true;
@@ -235,8 +238,10 @@ class _PersonalFieldEditorScreenState extends State<PersonalFieldEditorScreen> {
 
       case PersonalFieldType.locality:
       case PersonalFieldType.state:
-        // Locality é read-only - atualizado automaticamente pelo LocationBackgroundUpdater
-        // Não deve mais abrir tela de edição
+      case PersonalFieldType.from:
+        // Locality, state e from são read-only
+        // Locality/State atualizados automaticamente pelo LocationBackgroundUpdater
+        // From é definido no signup e não pode ser editado posteriormente
         return const SizedBox.shrink();
 
       case PersonalFieldType.languages:

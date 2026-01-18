@@ -13,6 +13,10 @@ class VisitsService {
   int _cachedVisitsCount = 0;
   int get cachedVisitsCount => _cachedVisitsCount;
 
+  /// Flag para indicar se já carregou pelo menos uma vez
+  bool _hasLoadedOnce = false;
+  bool get hasLoadedOnce => _hasLoadedOnce;
+
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -51,18 +55,21 @@ class VisitsService {
         debugPrint('📊 [VisitsService] Count extraído: $count (cache atualizado)');
       }
       _cachedVisitsCount = count;
+      _hasLoadedOnce = true;
       return count;
     } on FirebaseFunctionsException catch (e) {
       if (kDebugMode) {
         debugPrint('❌ [VisitsService] FirebaseFunctionsException: ${e.code} - ${e.message}');
       }
       _cachedVisitsCount = 0;
+      _hasLoadedOnce = true;
       return 0;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ [VisitsService] Erro inesperado: $e');
       }
       _cachedVisitsCount = 0;
+      _hasLoadedOnce = true;
       return 0;
     }
   }

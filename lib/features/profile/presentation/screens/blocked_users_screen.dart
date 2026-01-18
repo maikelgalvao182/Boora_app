@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:partiu/app/services/localization_service.dart';
 import 'package:partiu/core/services/block_service.dart';
-import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
@@ -81,22 +80,30 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('❌ Erro ao carregar usuários bloqueados: $e');
+      AppLogger.error(
+        'Erro ao carregar usuários bloqueados',
+        tag: 'BLOCK',
+        error: e,
+      );
       setState(() => _isLoading = false);
     }
   }
 
   Future<void> _unblockUser(String userId, String userName) async {
-    final i18n = LocalizationService.of(context);
+    final i18n = AppLocalizations.of(context);
+
+    String tr(String key, String fallback) {
+      final value = i18n.translate(key);
+      return value.isNotEmpty ? value : fallback;
+    }
     
     // Confirmação
     final confirmed = await GlimpseCupertinoDialog.show(
       context: context,
-      title: i18n.translate('unblock_user') ?? 'Desbloquear usuário',
-      message: i18n.translate('unblock_user_confirmation')?.replaceAll('{name}', userName) ?? 
-          'Deseja desbloquear $userName?',
-      cancelText: i18n.translate('cancel') ?? 'Cancelar',
-      confirmText: i18n.translate('unblock') ?? 'Desbloquear',
+      title: tr('unblock_user', 'Desbloquear usuário'),
+      message: tr('unblock_user_confirmation', 'Deseja desbloquear {name}?').replaceAll('{name}', userName),
+      cancelText: tr('cancel', 'Cancelar'),
+      confirmText: tr('unblock', 'Desbloquear'),
     );
 
     if (confirmed != true) return;
@@ -116,7 +123,11 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         );
       }
     } catch (e) {
-      debugPrint('❌ Erro ao desbloquear usuário: $e');
+      AppLogger.error(
+        'Erro ao desbloquear usuário',
+        tag: 'BLOCK',
+        error: e,
+      );
       if (mounted) {
         final i18nToast = AppLocalizations.of(context);
         ToastService.showError(
@@ -128,20 +139,24 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final i18n = LocalizationService.of(context);
+    final i18n = AppLocalizations.of(context);
+
+    String tr(String key, String fallback) {
+      final value = i18n.translate(key);
+      return value.isNotEmpty ? value : fallback;
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: GlimpseAppBar(
-        title: i18n.translate('blocked_users') ?? 'Usuários Bloqueados',
+        title: tr('blocked_users', 'Usuários Bloqueados'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _blockedUsers.isEmpty
               ? Center(
                   child: GlimpseEmptyState.standard(
-                    text: i18n.translate('no_blocked_users') ?? 
-                        'Você não bloqueou nenhum usuário',
+                    text: tr('no_blocked_users', 'Você não bloqueou nenhum usuário'),
                   ),
                 )
               : ListView.builder(

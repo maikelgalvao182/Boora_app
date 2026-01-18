@@ -33,8 +33,7 @@ class ConversationNavigationService {
           BlockService().isBlockedCached(currentUserId, otherUserId)) {
         final i18n = AppLocalizations.of(context);
         ToastService.showWarning(
-          message: i18n?.translate('user_blocked_cannot_message') ?? 
-          'Você não pode enviar mensagens para este usuário',
+          message: i18n.translate('user_blocked_cannot_message'),
         );
         return;
       }

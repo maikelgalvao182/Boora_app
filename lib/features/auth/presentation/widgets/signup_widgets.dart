@@ -12,6 +12,7 @@ export 'gender_selector_widget.dart';
 export 'sexual_orientation_widget.dart';
 export 'bio_widget.dart';
 export 'specialty_selector_widget.dart';
+export 'country_selector_widget.dart';
 export 'origin_selector_widget.dart';
 
 // Widgets informativos

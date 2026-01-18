@@ -9,6 +9,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/profile/data/services/visits_service.dart';
+import 'package:partiu/shared/widgets/typing_indicator.dart';
 
 /// Widget chip que exibe o contador de visitas ao perfil.
 class ProfileVisitsChip extends StatelessWidget {
@@ -82,7 +83,21 @@ class ProfileVisitsChip extends StatelessWidget {
                 if (kDebugMode) {
                   debugPrint('   - visits (final): $visits');
                 }
-                
+
+                // Mostra loading se ainda está conectando E não tem cache válido
+                final isLoading = snapshot.connectionState == ConnectionState.waiting &&
+                    (visitsService.cachedVisitsCount == null || !visitsService.hasLoadedOnce);
+
+                if (isLoading) {
+                  return const Padding(
+                    padding: EdgeInsets.only(left: 2, right: 2),
+                    child: TypingIndicator(
+                      dotSize: 4,
+                      color: Colors.black,
+                    ),
+                  );
+                }
+
                 return Text(
                   visits.toString(),
                   style: GoogleFonts.getFont(

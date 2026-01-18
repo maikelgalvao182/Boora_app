@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -118,6 +119,8 @@ class StableAvatar extends StatelessWidget {
     // e o BoxFit.cover faz o recorte sem “amassar” a foto.
     final resizedProvider = ResizeImage(provider, width: cacheSize);
 
+    final spinnerRadius = (size / 6).clamp(6.0, 12.0);
+
     return Image(
       key: ValueKey(keyId),
       image: resizedProvider,
@@ -126,6 +129,17 @@ class StableAvatar extends StatelessWidget {
       fit: BoxFit.cover,
       gaplessPlayback: true,
       filterQuality: FilterQuality.low,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: CupertinoActivityIndicator(
+            radius: spinnerRadius,
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return _image(_emptyImage, 'empty', devicePixelRatio: devicePixelRatio);
+      },
     );
   }
 }

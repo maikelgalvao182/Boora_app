@@ -12,6 +12,7 @@ enum PersonalFieldType {
   birthDate,
   locality,
   state,
+  from,
   languages,
   instagram,
 }
@@ -39,6 +40,8 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('field_locality');
       case PersonalFieldType.state:
         return i18n.translate('field_state');
+      case PersonalFieldType.from:
+        return i18n.translate('field_from');
       case PersonalFieldType.languages:
         return i18n.translate('field_languages');
       case PersonalFieldType.instagram:
@@ -68,6 +71,8 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('placeholder_locality');
       case PersonalFieldType.state:
         return i18n.translate('placeholder_state');
+      case PersonalFieldType.from:
+        return i18n.translate('placeholder_from');
       case PersonalFieldType.languages:
         return i18n.translate('placeholder_languages');
       case PersonalFieldType.instagram:
@@ -97,6 +102,8 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('add_locality');
       case PersonalFieldType.state:
         return i18n.translate('add_state');
+      case PersonalFieldType.from:
+        return i18n.translate('add_from');
       case PersonalFieldType.languages:
         return i18n.translate('add_languages');
       case PersonalFieldType.instagram:
@@ -117,6 +124,7 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
       case PersonalFieldType.birthDate:
       case PersonalFieldType.locality:
       case PersonalFieldType.state:
+      case PersonalFieldType.from:
       case PersonalFieldType.languages:
       case PersonalFieldType.instagram:
         return false;

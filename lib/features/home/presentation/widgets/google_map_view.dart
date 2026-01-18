@@ -385,9 +385,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
         widget.viewModel.lastLocation!.latitude,
         widget.viewModel.lastLocation!.longitude,
         zoom: 12.0, // Visão regional para ver mais eventos
+        animate: false,
       );
     } else {
-      await _moveCameraToUserLocation();
+      await _moveCameraToUserLocation(animate: false);
     }
 
     // Fazer busca inicial de eventos na região visível
@@ -555,7 +556,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
   }
 
   /// Move a câmera para a localização do usuário
-  Future<void> _moveCameraToUserLocation() async {
+  Future<void> _moveCameraToUserLocation({bool animate = true}) async {
     final result = await widget.viewModel.getUserLocation();
 
     // Exibir mensagem de erro se houver
@@ -568,6 +569,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       result.location.latitude,
       result.location.longitude,
       zoom: 12.0, // Visão regional para ver mais eventos
+      animate: animate,
     );
   }
 
@@ -576,18 +578,23 @@ class GoogleMapViewState extends State<GoogleMapView> {
     double lat,
     double lng, {
     double zoom = 14.0,
+    bool animate = true,
   }) async {
     if (_mapController == null) return;
 
     try {
-      await _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(lat, lng),
-            zoom: zoom,
-          ),
+      final update = CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(lat, lng),
+          zoom: zoom,
         ),
       );
+
+      if (animate) {
+        await _mapController!.animateCamera(update);
+      } else {
+        await _mapController!.moveCamera(update);
+      }
     } catch (e) {
       // Falha silenciosa - câmera continua onde está
     }
@@ -759,6 +766,9 @@ class GoogleMapViewState extends State<GoogleMapView> {
   Widget build(BuildContext context) {
     // Widget limpo - apenas UI
     // Toda lógica delegada ao ViewModel
+    final seededLocation = widget.viewModel.lastLocation;
+    final initialTarget = seededLocation ?? const LatLng(-23.5505, -46.6333);
+
     return GoogleMap(
       style: _mapStyle,
       // Callback de criação
@@ -769,10 +779,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
       // Callback quando câmera para (após movimento)
       onCameraIdle: _onCameraIdle,
 
-      // Posição inicial (São Paulo) - zoom afastado para ver região
-      initialCameraPosition: const CameraPosition(
-        target: LatLng(-23.5505, -46.6333),
-        zoom: 10.0,
+      // Posição inicial: usa localização persistida (Firestore) quando disponível.
+      // Fallback para São Paulo apenas se não houver coords em cache/memória.
+      initialCameraPosition: CameraPosition(
+        target: initialTarget,
+        zoom: seededLocation != null ? 12.0 : 10.0,
       ),
       
       // Permitir zoom de 3.0 (visão continental) até 20.0 (visão de rua detalhada)

@@ -11,6 +11,8 @@ import 'package:iconsax/iconsax.dart';
 /// 
 /// 🎯 Widget "burro": Apenas exibe dados, delega navegação via callback
 /// Aceita qualquer enum que tenha titleKey e isRequired via extension
+/// 
+/// ⚠️ Campo "from" (país): Bloqueado para edição se já preenchido
 class FieldPreviewCard extends StatelessWidget {
   const FieldPreviewCard({
     required this.fieldType,
@@ -63,13 +65,30 @@ class FieldPreviewCard extends StatelessWidget {
     return 140.0; // fallback
   }
 
+  /// Helper para obter texto de "adicionar" baseado no tipo
+  String _getAddText(BuildContext context) {
+    if (fieldType is PersonalFieldType) {
+      return (fieldType as PersonalFieldType).addText(context);
+    }
+
+    final i18n = AppLocalizations.of(context);
+    return i18n.translate('add');
+  }
+
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final label = _getTitle(context);
+    
+    // Campo "from" bloqueado se já preenchido
+    final isFromFieldLocked = fieldType is PersonalFieldType && 
+        fieldType == PersonalFieldType.from && 
+        preview.isNotEmpty;
+    
+    final effectivelyDisabled = isDisabled || isFromFieldLocked;
 
     return InkWell(
-      onTap: isDisabled ? null : () {
+      onTap: effectivelyDisabled ? null : () {
         HapticFeedback.lightImpact();
         onTap();
       },
@@ -128,10 +147,10 @@ class FieldPreviewCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      preview.isEmpty ? i18n.translate('add') : preview,
+                      preview.isEmpty ? _getAddText(context) : preview,
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDisabled
+                        color: effectivelyDisabled
                           ? const Color(0xFF999999)
                           : (preview.isEmpty 
                             ? const Color(0xFF999999)
@@ -143,7 +162,7 @@ class FieldPreviewCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (!isDisabled)
+                  if (!effectivelyDisabled)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Icon(

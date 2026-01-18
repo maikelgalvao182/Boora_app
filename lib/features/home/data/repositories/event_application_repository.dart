@@ -72,6 +72,7 @@ class EventApplicationRepository {
       status: status,
       appliedAt: now,
       decisionAt: status == ApplicationStatus.autoApproved ? now : null,
+      presence: PresenceStatus.going,
     );
 
     try {

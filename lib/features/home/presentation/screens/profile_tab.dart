@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +10,6 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/toast_service.dart';
-import 'package:partiu/app/services/localization_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/skeletons/profile_header_skeleton.dart';
@@ -111,7 +109,7 @@ class _ProfileTabState extends State<ProfileTab> {
       if (mounted) {
         final i18n = AppLocalizations.of(context);
         ToastService.showError(
-          message: i18n.translate('profile_not_found') ?? 'Perfil não encontrado',
+          message: i18n.translate('profile_not_found'),
         );
       }
       return;
@@ -161,6 +159,12 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    String tr(String key, String fallback) {
+      final value = i18n.translate(key);
+      return value.isNotEmpty ? value : fallback;
+    }
+
     // Aguarda inicialização do ViewModel
     if (_viewModel == null) {
       return const Scaffold(
@@ -181,17 +185,17 @@ class _ProfileTabState extends State<ProfileTab> {
               child: Column(
                 children: [
                   GlimpseTabAppBar(
-                    title: LocalizationService.of(context).translate('profile') ?? 'Perfil',
+                    title: tr('profile', 'Perfil'),
                     actions: [
                       GlimpseTabActionButton(
                         icon: Iconsax.user,
-                        tooltip: LocalizationService.of(context).translate('view_profile') ?? 'Ver Perfil',
+                        tooltip: tr('view_profile', 'Ver Perfil'),
                         onPressed: () => _handleViewProfileTap(context),
                       ),
                       const SizedBox(width: 16),
                       GlimpseTabActionButton(
                         icon: Iconsax.edit,
-                        tooltip: LocalizationService.of(context).translate('edit_profile') ?? 'Editar Perfil',
+                        tooltip: tr('edit_profile', 'Editar Perfil'),
                         onPressed: () => _handleEditProfileTap(context),
                       ),
                     ],
@@ -267,7 +271,7 @@ class _ProfileHeaderContent extends StatelessWidget {
       debugPrint('❌ Error selecting photo: $e');
       if (context.mounted) {
         ToastService.showError(
-          message: i18n.translate('error_selecting_photo') ?? 'Erro ao selecionar foto',
+          message: i18n.translate('error_selecting_photo'),
         );
       }
     }
@@ -281,7 +285,7 @@ class _ProfileHeaderContent extends StatelessWidget {
       // Mostra loading
       if (context.mounted) {
         ToastService.showInfo(
-          message: i18n.translate('uploading_photo') ?? 'Enviando foto...',
+          message: i18n.translate('uploading_photo'),
         );
       }
 
@@ -294,13 +298,13 @@ class _ProfileHeaderContent extends StatelessWidget {
       if (result is PhotoUploadResultSuccess) {
         if (context.mounted) {
           ToastService.showSuccess(
-            message: i18n.translate('photo_updated_successfully') ?? 'Foto atualizada com sucesso!',
+            message: i18n.translate('photo_updated_successfully'),
           );
         }
       } else if (result is PhotoUploadResultFailure) {
         if (context.mounted) {
           ToastService.showError(
-            message: result.errorDetails ?? (i18n.translate('error_updating_photo') ?? 'Erro ao atualizar foto'),
+            message: result.errorDetails ?? i18n.translate('error_updating_photo'),
           );
         }
       }
@@ -308,7 +312,7 @@ class _ProfileHeaderContent extends StatelessWidget {
       debugPrint('❌ Error uploading photo: $e');
       if (context.mounted) {
         ToastService.showError(
-          message: i18n.translate('error_updating_photo') ?? 'Erro ao atualizar foto',
+          message: i18n.translate('error_updating_photo'),
         );
       }
     }

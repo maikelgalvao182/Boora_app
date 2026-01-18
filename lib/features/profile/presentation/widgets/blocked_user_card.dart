@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
-import 'package:partiu/app/services/localization_service.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 
 /// Card para exibir usuário bloqueado
@@ -31,7 +31,8 @@ class BlockedUserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final i18n = LocalizationService.of(context);
+    final i18n = AppLocalizations.of(context);
+    final unblockLabel = i18n.translate('unblock');
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -104,7 +105,7 @@ class BlockedUserCard extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              i18n.translate('unblock') ?? 'Desbloquear',
+              unblockLabel.isNotEmpty ? unblockLabel : 'Desbloquear',
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
                 fontSize: 13,

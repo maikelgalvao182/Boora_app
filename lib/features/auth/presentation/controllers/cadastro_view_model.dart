@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/features/profile/data/services/image_upload_service.dart';
+import 'package:partiu/services/referral_service.dart';
 
 /// ViewModel para gerenciar o fluxo de cadastro
 /// TODO: Implementar lógica completa
@@ -28,6 +29,7 @@ class CadastroViewModel extends ChangeNotifier {
   String instagram = '';
   String jobTitle = '';
   String? country;
+  String? countryFlag;
   
   // Origin
   String? originSource;
@@ -47,6 +49,7 @@ class CadastroViewModel extends ChangeNotifier {
     instagram = '';
     jobTitle = '';
     country = null;
+    countryFlag = null;
     originSource = null;
     agreeTerms = false;
     notifyListeners();
@@ -119,8 +122,14 @@ class CadastroViewModel extends ChangeNotifier {
     sexualOrientation = orientation;
     notifyListeners();
   }
-  void setCountry(String? countryCode) {
-    country = countryCode;
+  
+  void setCountry(String? countryName) {
+    country = countryName;
+    notifyListeners();
+  }
+  
+  void setCountryFlag(String? flag) {
+    countryFlag = flag;
     notifyListeners();
   }
   
@@ -186,6 +195,11 @@ class CadastroViewModel extends ChangeNotifier {
       }
       
       // Prepara os dados do usuário para salvar no Firestore
+      final from = (onboardingData['from'] as String?)?.trim();
+      final flag = (onboardingData['flag'] as String?)?.trim();
+
+      final referrerId = await ReferralService.instance.consumePendingReferrerId();
+
       final userData = <String, dynamic>{
         'userId': userId,
         'userEmail': currentUser.email, // Captura email do Auth (Google, Apple, Email/Pass)
@@ -204,6 +218,10 @@ class CadastroViewModel extends ChangeNotifier {
         'gender': onboardingData['gender'],
         'bio': onboardingData['bio'],
         'originSource': onboardingData['originSource'],
+
+        // País/origem
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (flag != null && flag.isNotEmpty) 'flag': flag,
         
         // Avatar
         if (photoUrl != null) 'photoUrl': photoUrl,
@@ -222,6 +240,12 @@ class CadastroViewModel extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'isBlocked': false,
+
+        // Referral (AppsFlyer)
+        if (referrerId != null && referrerId.isNotEmpty) 'referrerId': referrerId,
+        if (referrerId != null && referrerId.isNotEmpty) 'referralSource': 'appsflyer',
+        if (referrerId != null && referrerId.isNotEmpty)
+          'referralCapturedAt': FieldValue.serverTimestamp(),
       };
       
       AppLogger.info('Saving user data to Firestore...', tag: tag);

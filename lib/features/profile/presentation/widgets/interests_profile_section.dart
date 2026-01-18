@@ -65,10 +65,13 @@ class InterestsProfileSection extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: interests.map((interestId) {
-                  final tag = getInterestById(interestId.trim());
-                  final label = tag != null 
-                      ? '${tag.icon} ${i18n.translate(tag.nameKey)}'
-                      : interestId.trim();
+                  final normalizedInterestId = interestId.trim();
+                  final tag = getInterestById(normalizedInterestId);
+                  final translated = tag != null ? i18n.translate(tag.nameKey).trim() : '';
+                  final fallbackText = _humanizeInterestId(normalizedInterestId);
+                  final label = tag != null
+                      ? '${tag.icon} ${translated.isNotEmpty ? translated : fallbackText}'
+                      : fallbackText;
                   return TagVendor(
                     label: label,
                     isSelected: false,
@@ -84,5 +87,23 @@ class InterestsProfileSection extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _humanizeInterestId(String interestId) {
+    final normalized = interestId.trim();
+    if (normalized.isEmpty) return normalized;
+
+    final parts = normalized
+        .split(RegExp(r'[_\\s]+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+
+    if (parts.isEmpty) return normalized;
+
+    return parts
+        .map((part) => part.length == 1
+            ? part.toUpperCase()
+            : '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 }

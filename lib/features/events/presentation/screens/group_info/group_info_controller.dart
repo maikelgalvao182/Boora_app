@@ -490,7 +490,7 @@ class GroupInfoController extends ChangeNotifier {
 
       if (context.mounted) {
         ToastService.showSuccess(
-          message: i18n.translate('event_schedule_updated') ?? 'Data atualizada com sucesso!',
+          message: i18n.translate('event_schedule_updated'),
         );
       }
     } catch (e) {
@@ -499,7 +499,7 @@ class GroupInfoController extends ChangeNotifier {
 
       if (context.mounted) {
         ToastService.showError(
-          message: i18n.translate('failed_to_update_event_schedule') ?? 'Erro ao atualizar data',
+          message: i18n.translate('failed_to_update_event_schedule'),
         );
       }
     }

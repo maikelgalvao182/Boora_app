@@ -12,6 +12,7 @@ class UserModel {
   final List<String> interests;
   final String? locality;
   final String? state;
+  final String? flag;
   
   const UserModel({
     required this.userId,
@@ -22,6 +23,7 @@ class UserModel {
     this.interests = const [],
     this.locality,
     this.state,
+    this.flag,
   });
   
   factory UserModel.fromFirebaseUser(firebase_auth.User user) {
@@ -57,6 +59,7 @@ class UserModel {
       interests: List<String>.from(data['interests'] ?? []),
       locality: data['locality'] as String?,
       state: data['state'] as String?,
+      flag: data['flag'] as String?,
     );
   }
   
@@ -77,6 +80,7 @@ class UserModel {
       photoUrl: rawPhotoUrl,
       locality: map['locality'] as String?,
       state: map['state'] as String?,
+      flag: map['flag'] as String?,
     );
   }
   
@@ -89,6 +93,7 @@ class UserModel {
     String? userType,
     String? locality,
     String? state,
+    String? flag,
   }) {
     return UserModel(
       userId: userId ?? this.userId,
@@ -98,6 +103,7 @@ class UserModel {
       userType: userType ?? this.userType,
       locality: locality ?? this.locality,
       state: state ?? this.state,
+      flag: flag ?? this.flag,
     );
   }
   
@@ -113,6 +119,7 @@ class UserModel {
       'userType': userType,
       'locality': locality,
       'state': state,
+      'flag': flag,
     };
   }
   
