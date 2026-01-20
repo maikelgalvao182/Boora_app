@@ -40,7 +40,9 @@ class MapDiscoveryService {
   String? _lastQuadkey;
 
   // Configurações
-  static const Duration cacheTTL = Duration(seconds: 10);
+  /// TTL do cache por quadkey. 30s balanceia freshness vs economia de reads.
+  /// Em uso casual, usuário pode pan/zoom e voltar pro mesmo lugar.
+  static const Duration cacheTTL = Duration(seconds: 30);
   static const Duration debounceTime = Duration(milliseconds: 500);
   static const int maxEventsPerQuery = 100;
 

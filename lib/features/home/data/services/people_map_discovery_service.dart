@@ -46,7 +46,8 @@ class PeopleMapDiscoveryService {
   final ValueNotifier<bool> isLoading = ValueNotifier<bool>(false);
   final ValueNotifier<Object?> lastError = ValueNotifier<Object?>(null);
 
-  static const Duration cacheTTL = Duration(seconds: 10);
+  /// TTL do cache por quadkey + filtros. 30s balanceia freshness vs economia de reads.
+  static const Duration cacheTTL = Duration(seconds: 30);
   static const Duration debounceTime = Duration(milliseconds: 500);
 
   Timer? _debounceTimer;

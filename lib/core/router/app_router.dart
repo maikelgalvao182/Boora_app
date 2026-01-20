@@ -11,6 +11,7 @@ import 'package:partiu/features/location/presentation/screens/update_location_sc
 import 'package:partiu/features/home/presentation/screens/home_screen_refactored.dart';
 import 'package:partiu/features/home/presentation/screens/splash_screen.dart';
 import 'package:partiu/features/home/presentation/screens/advanced_filters_screen.dart';
+import 'package:partiu/features/home/presentation/widgets/referral_debug_screen.dart';
 import 'package:partiu/features/profile/presentation/screens/profile_screen_optimized.dart';
 import 'package:partiu/features/profile/presentation/screens/edit_profile_screen_advanced.dart';
 import 'package:partiu/features/profile/presentation/screens/profile_visits_screen.dart';
@@ -46,6 +47,7 @@ class AppRoutes {
   static const String schedule = '/schedule';
   static const String groupInfo = '/group-info';
   static const String splash = '/splash';
+  static const String referralDebug = '/referral-debug';
 }
 
 /// Cria o GoRouter com proteção baseada no AuthSyncService
@@ -65,6 +67,23 @@ GoRouter createAppRouter(BuildContext context) {
     redirect: (context, state) {
       try {
         final currentPath = state.uri.path;
+        final fullUri = state.uri.toString();
+
+        // Tratamento de deep links do AppsFlyer (boora://)
+        if (fullUri.startsWith('boora://')) {
+          debugPrint('🔗 [GoRouter] Deep link AppsFlyer detectado: $fullUri');
+          
+          // Deep link para main = home
+          if (fullUri.contains('boora://main')) {
+            debugPrint('🏠 [GoRouter] Redirecionando deep link main para /home');
+            return AppRoutes.home;
+          }
+          
+          // Outros deep links podem ser tratados aqui
+          // Por padrão, redireciona para home
+          debugPrint('🏠 [GoRouter] Deep link não específico, redirecionando para /home');
+          return AppRoutes.home;
+        }
 
         // Rotas públicas (não necessitam autenticação)
         // Importante: precisam permanecer acessíveis mesmo enquanto o AuthSyncService
@@ -298,6 +317,13 @@ GoRouter createAppRouter(BuildContext context) {
       builder: (context, state) => const ScheduleDrawer(),
     ),
     
+    // Referral Debug (apenas para desenvolvimento)
+    GoRoute(
+      path: AppRoutes.referralDebug,
+      name: 'referralDebug',
+      builder: (context, state) => const ReferralDebugScreen(),
+    ),
+    
     // Group Info
     GoRoute(
       path: '${AppRoutes.groupInfo}/:eventId',
@@ -319,23 +345,44 @@ GoRouter createAppRouter(BuildContext context) {
   ],
   
   // Tratamento de erro
-  errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('${AppLocalizations.of(context).translate('error')}: ${state.error}'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => context.go(AppRoutes.signIn),
-              child: Text(AppLocalizations.of(context).translate('back_to_sign_in')),
-            ),
-          ],
+  errorBuilder: (context, state) {
+      final uri = state.uri.toString();
+      
+      // Se for um deep link do AppsFlyer (boora://), redireciona para home
+      if (uri.contains('boora://') || uri.contains('boora%3A')) {
+        debugPrint('🔗 [GoRouter errorBuilder] Deep link AppsFlyer detectado: $uri');
+        // Usa WidgetsBinding para navegar após o frame atual
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            context.go(AppRoutes.home);
+          }
+        });
+        // Retorna um scaffold vazio enquanto redireciona
+        return const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+      
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('${AppLocalizations.of(context).translate('error')}: ${state.error}'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go(AppRoutes.signIn),
+                child: Text(AppLocalizations.of(context).translate('back_to_sign_in')),
+              ),
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 

@@ -625,8 +625,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
       (e) => e.id == eventId,
       orElse: () {
         debugPrint('⚠️ [GoogleMapView] Evento não encontrado na lista: $eventId');
-        // Se não encontrou, tentar recarregar eventos
-        widget.viewModel.loadNearbyEvents();
+        // Se não encontrou, forçar refresh dos bounds atuais
+        if (_lastRequestedQueryBounds != null) {
+          widget.viewModel.forceRefreshBounds(_lastRequestedQueryBounds!);
+        } else {
+          widget.viewModel.loadNearbyEvents();
+        }
         throw Exception('Evento não encontrado');
       },
     );

@@ -11,6 +11,9 @@ import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/features/notifications/services/fcm_token_service.dart';
 import 'package:partiu/features/subscription/services/simple_revenue_cat_service.dart';
+import 'package:partiu/core/services/location_background_updater.dart';
+import 'package:partiu/core/services/location_service.dart';
+import 'package:get_it/get_it.dart';
 
 /// Serviço de orquestração de autenticação que trabalha COM SessionManager.
 /// 
@@ -32,6 +35,7 @@ class AuthSyncService extends ChangeNotifier {
   bool _sessionReady = false;
   
   bool _notificationServiceInitialized = false; // Flag para inicializar apenas uma vez
+  bool _locationSyncSchedulerInitialized = false; // Flag para LocationSyncScheduler
   StreamSubscription<fire_auth.User?>? _authSubscription;
   StreamSubscription<DocumentSnapshot>? _userSubscription;
 
@@ -143,6 +147,18 @@ class AuthSyncService extends ChangeNotifier {
         } catch (e, stack) {
           _logError('❌ Erro ao fazer logout no RevenueCat', e, stack);
         }
+        
+        // 🌍 LOCATION SYNC SCHEDULER STOP
+        if (_locationSyncSchedulerInitialized) {
+          _log('🛑 Parando LocationSyncScheduler...');
+          try {
+            LocationSyncScheduler.stop();
+            _locationSyncSchedulerInitialized = false;
+            _log('✅ LocationSyncScheduler parado');
+          } catch (e, stack) {
+            _logError('❌ Erro ao parar LocationSyncScheduler', e, stack);
+          }
+        }
 
         await SessionManager.instance.logout();
         
@@ -252,6 +268,26 @@ class AuthSyncService extends ChangeNotifier {
             _notificationServiceInitialized = true;
             _log('📊 [INIT] Etapa 3/3: Marcando serviços como inicializados');
             _log('✅ [INIT] Etapa 3/3: Todos os serviços de notificação inicializados');
+            
+            // 🌍 Inicializar LocationSyncScheduler para atualização automática de localização
+            if (!_locationSyncSchedulerInitialized) {
+              _log('📊 [INIT] Etapa 4/4: Inicializando LocationSyncScheduler...');
+              try {
+                // ServiceLocator.init() já registrou o LocationService no GetIt no boot do app.
+                final locationService = GetIt.instance.get<LocationService>();
+                LocationSyncScheduler.start(
+                  locationService,
+                  config: LocationConfig.standard,
+                );
+                _locationSyncSchedulerInitialized = true;
+                _log('✅ [INIT] Etapa 4/4: LocationSyncScheduler iniciado');
+              } catch (e, stack) {
+                _logError('❌ Erro ao iniciar LocationSyncScheduler', e, stack);
+              }
+            } else {
+              _log('🌍 LocationSyncScheduler já foi inicializado anteriormente');
+            }
+            
             _log('🎉 [INIT] INICIALIZAÇÃO COMPLETA - Chamando notifyListeners()...');
           } else {
             _log('🔔 NotificationsCounterService já foi inicializado anteriormente');

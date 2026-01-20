@@ -11,10 +11,19 @@ export const onUserCreatedReferral = functions.firestore
     const userId = context.params.userId as string;
     const data = snap.data() || {};
 
+    console.log("[Referral] User created", {
+      userId,
+      referrerId: data.referrerId,
+      invitedBy: data.invitedBy,
+      referredBy: data.referredBy,
+      allFields: Object.keys(data),
+    });
+
     const referrerId =
       data.referrerId || data.invitedBy || data.referredBy || null;
 
     if (!referrerId || typeof referrerId !== "string") {
+      console.log("[Referral] No referrerId found, skipping", {userId});
       return;
     }
 
@@ -47,7 +56,8 @@ export const onUserCreatedReferral = functions.firestore
       const newRewardedCount = Math.floor(newCount / REFERRAL_REWARD_THRESHOLD);
       const rewardDelta = newRewardedCount - rewardedCount;
 
-      const updates: Record<string, unknown> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updates: Record<string, any> = {
         referralInstallCount: newCount,
         referralUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -55,23 +65,25 @@ export const onUserCreatedReferral = functions.firestore
       if (rewardDelta > 0) {
         const now = new Date();
         const existingVip = referrerData.vipExpiresAt;
-        const existingDate =
-          existingVip instanceof admin.firestore.Timestamp
-            ? existingVip.toDate()
-            : null;
+        const existingDate = existingVip instanceof admin.firestore.Timestamp ?
+          existingVip.toDate() : null;
 
-        const baseDate = existingDate && existingDate > now ? existingDate : now;
-        const addMs = REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000 * rewardDelta;
+        const baseDate =
+          existingDate && existingDate > now ? existingDate : now;
+        const addMs =
+          REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000 * rewardDelta;
         const newVipExpiresAt = new Date(baseDate.getTime() + addMs);
 
         updates.user_is_vip = true;
         updates.user_level = "vip";
         updates.vip_priority = 1;
-        updates.vipExpiresAt = admin.firestore.Timestamp.fromDate(newVipExpiresAt);
+        const ts = admin.firestore.Timestamp;
+        updates.vipExpiresAt = ts.fromDate(newVipExpiresAt);
         updates.vipUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
         updates.vipProductId = "referral_bonus_3m";
         updates.referralRewardedCount = newRewardedCount;
-        updates.referralRewardedAt = admin.firestore.FieldValue.serverTimestamp();
+        updates.referralRewardedAt =
+          admin.firestore.FieldValue.serverTimestamp();
       }
 
       tx.set(

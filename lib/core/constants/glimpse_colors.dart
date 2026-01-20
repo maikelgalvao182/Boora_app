@@ -32,6 +32,14 @@ class GlimpseColors {
   static const Color offerCardBlue = Color(0xFF2196F3);
   static const Color offerCardPurple = Color(0xFF9C27B0);
 
+  // Category cards palette
+  static const Color categoryCard1 = Color(0xFFE1F9CA);
+  static const Color categoryCard2 = Color(0xFFC3E6FD);
+  static const Color categoryCard3 = Color(0xFFFFD4AC);
+  static const Color categoryCard4 = Color(0xFFD5CDFD);
+  static const Color categoryCard5 = Color(0xFFCFEFF6);
+  static const Color categoryCard6 = Color(0xFFE1E9FF);
+
   // Estados / feedback
   static const Color dangerRed = Color(0xFFD32F2F);
   static const Color warningColor = Color(0xFFEF6C00);

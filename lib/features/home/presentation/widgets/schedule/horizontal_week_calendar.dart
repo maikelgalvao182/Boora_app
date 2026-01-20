@@ -72,12 +72,12 @@ class _DayCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 72,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        height: 72,
         decoration: BoxDecoration(
           color: isSelected
               ? GlimpseColors.primary
               : GlimpseColors.lightTextField,
-          borderRadius: BorderRadius.circular(12),
+          shape: BoxShape.circle,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -94,8 +94,6 @@ class _DayCard extends StatelessWidget {
                     : GlimpseColors.textSubTitle,
               ),
             ),
-
-            const SizedBox(height: 4),
 
             // Data
             Text(

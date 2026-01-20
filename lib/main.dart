@@ -18,8 +18,7 @@ import 'package:partiu/core/services/cache/cache_manager.dart';
 import 'package:partiu/core/services/google_maps_initializer.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
-import 'package:partiu/core/services/location_service.dart';
-import 'package:partiu/core/services/location_background_updater.dart'; // LocationSyncScheduler
+// LocationSyncScheduler agora é inicializado pelo AuthSyncService após login.
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/subscription/providers/simple_subscription_provider.dart';
 import 'package:partiu/services/appsflyer_service.dart';
@@ -107,16 +106,33 @@ Future<void> main() async {
     }
 
     // 📈 Inicializar AppsFlyer (Deep Linking + Referrals)
+    // Nota: usamos debugPrint aqui de propósito pra garantir que apareça no console
+    // mesmo se o AppLogger tiver alguma configuração/flag interferindo.
+    debugPrint('🧪 [AF_BOOT] entrando no init do AppsFlyer (main.dart)');
+    debugPrint('🧪 [AF_BOOT] APPSFLYER_DEV_KEY.isEmpty=${APPSFLYER_DEV_KEY.isEmpty}');
+    debugPrint('🧪 [AF_BOOT] APPSFLYER_APP_ID_IOS=$APPSFLYER_APP_ID_IOS');
+    debugPrint('🧪 [AF_BOOT] AppsflyerService.isInitialized(antes)=${AppsflyerService.instance.isInitialized}');
+    AppLogger.info('🧪 [BOOT] Entrou no bloco de init do AppsFlyer', tag: 'APPSFLYER');
+    AppLogger.info('🧪 [BOOT] APPSFLYER_DEV_KEY.isEmpty=${APPSFLYER_DEV_KEY.isEmpty}', tag: 'APPSFLYER');
+    AppLogger.info('🧪 [BOOT] APPSFLYER_APP_ID_IOS=$APPSFLYER_APP_ID_IOS', tag: 'APPSFLYER');
+    AppLogger.info('🧪 [BOOT] AppsflyerService.isInitialized(antes)=${AppsflyerService.instance.isInitialized}', tag: 'APPSFLYER');
+    final _afInitStart = DateTime.now();
     if (APPSFLYER_DEV_KEY.isNotEmpty) {
       await AppsflyerService.instance.initialize(
         devKey: APPSFLYER_DEV_KEY,
         appId: APPSFLYER_APP_ID_IOS,
       );
+      final _afInitMs = DateTime.now().difference(_afInitStart).inMilliseconds;
+      debugPrint('🧪 [AF_BOOT] AppsFlyer initialize() terminou em ${_afInitMs}ms');
+      debugPrint('🧪 [AF_BOOT] AppsflyerService.isInitialized(depois)=${AppsflyerService.instance.isInitialized}');
+      AppLogger.info('🧪 [BOOT] AppsFlyer initialize() terminou em ${_afInitMs}ms', tag: 'APPSFLYER');
+      AppLogger.info('🧪 [BOOT] AppsflyerService.isInitialized(depois)=${AppsflyerService.instance.isInitialized}', tag: 'APPSFLYER');
     } else {
       AppLogger.warning(
         'AppsFlyer não inicializado: APPSFLYER_DEV_KEY não configurada',
         tag: 'APPSFLYER',
       );
+      debugPrint('🧪 [AF_BOOT] AppsFlyer não inicializado: APPSFLYER_DEV_KEY vazia');
     }
 
     // 🔔 Inicializar Push Notification Manager (ANTES do runApp)
@@ -142,14 +158,8 @@ Future<void> main() async {
     final localeController = LocaleController();
     await localeController.load();
 
-    // Inicializar LocationSyncScheduler para atualização automática de localização
-    // Isso mantém o Firestore atualizado a cada 10 minutos automaticamente
-    final locationService = serviceLocator.get<LocationService>();
-    LocationSyncScheduler.start(
-      locationService,
-      config: LocationConfig.standard, // Usar configuração padrão (Uber/Tinder)
-    );
-    debugPrint('✅ LocationSyncScheduler iniciado');
+    // NOTA: LocationSyncScheduler agora é iniciado dentro do AuthSyncService
+    // após o login bem-sucedido, não mais aqui no main.dart
 
     runApp(
       MultiProvider(

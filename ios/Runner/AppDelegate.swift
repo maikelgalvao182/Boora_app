@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import GoogleMaps
 import FBSDKCoreKit
+import AppsFlyerLib
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -42,5 +43,33 @@ import FBSDKCoreKit
     }
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+  
+  // MARK: - AppsFlyer Universal Links (Deep Links)
+  // Necessário para capturar deep links quando o app já está instalado
+  override func application(
+    _ application: UIApplication,
+    continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+  ) -> Bool {
+    // Passa o Universal Link para o AppsFlyer SDK
+    AppsFlyerLib.shared().continue(userActivity, restorationHandler: nil)
+    
+    // Chama o handler padrão do Flutter
+    return super.application(application, continue: userActivity, restorationHandler: restorationHandler)
+  }
+  
+  // MARK: - AppsFlyer URI Scheme (Deep Links)
+  // Necessário para capturar deep links via URI scheme (boora://)
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey : Any] = [:]
+  ) -> Bool {
+    // Passa o URL scheme para o AppsFlyer SDK
+    AppsFlyerLib.shared().handleOpen(url, options: options)
+    
+    // Chama o handler padrão do Flutter (para Facebook, etc)
+    return super.application(app, open: url, options: options)
   }
 }

@@ -23,6 +23,9 @@ class EventCardController extends ChangeNotifier {
   StreamSubscription<QuerySnapshot>? _applicationSub;
   StreamSubscription<DocumentSnapshot>? _eventSub;
   StreamSubscription<QuerySnapshot>? _participantsSub;
+  // Stream do snapshot de participantes para reaproveitar em widgets sem criar
+  // listeners adicionais por card.
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _participantsSnapshotStream;
   StreamSubscription<User?>? _authSub;
   bool _listenersInitialized = false;
 
@@ -133,6 +136,13 @@ class EventCardController extends ChangeNotifier {
 
   List<Map<String, dynamic>> get approvedParticipants => _approvedParticipants;
   int get participantsCount => _approvedParticipants.length;
+  Stream<int> get participantsCountStream => (_participantsSnapshotStream ??
+    FirebaseFirestore.instance
+        .collection('EventApplications')
+        .where('eventId', isEqualTo: eventId)
+        .where('status', whereIn: ['approved', 'autoApproved'])
+        .snapshots())
+      .map((snapshot) => snapshot.docs.length);
   List<Map<String, dynamic>> get visibleParticipants => _approvedParticipants.take(5).toList();
   int get remainingParticipantsCount => participantsCount - visibleParticipants.length;
 
@@ -294,12 +304,13 @@ class EventCardController extends ChangeNotifier {
     
     // LISTENER DOS PARTICIPANTES APROVADOS
     // ✅ Escutar AMBOS 'approved' E 'autoApproved' para atualizar lista em tempo real
-    _participantsSub = FirebaseFirestore.instance
+  _participantsSnapshotStream ??= FirebaseFirestore.instance
         .collection('EventApplications')
         .where('eventId', isEqualTo: eventId)
         .where('status', whereIn: ['approved', 'autoApproved'])
-        .snapshots()
-        .listen((snapshot) async {
+    .snapshots();
+
+  _participantsSub = _participantsSnapshotStream!.listen((snapshot) async {
       // Guard duplo: antes e depois de operações async
       if (_disposed) return;
       
@@ -327,7 +338,7 @@ class EventCardController extends ChangeNotifier {
       // Guard pós-async: evita "used after disposed"
       if (_disposed) return;
       notifyListeners();
-    }, onError: _handleRealtimeStreamError);
+  }, onError: _handleRealtimeStreamError);
   }
 
   void _cancelRealtimeSubscriptions() {

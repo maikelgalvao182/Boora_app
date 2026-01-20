@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:partiu/core/services/cache/avatar_cache_service.dart';
+import 'package:partiu/core/services/cache/image_caches.dart';
 
 /// Estado do avatar
 enum AvatarState { loading, loaded, empty }
@@ -99,7 +101,15 @@ class AvatarStore {
   void _updateAvatar(String userId, String imageUrl) {
     if (!_avatarNotifiers.containsKey(userId)) return;
     
-    final provider = NetworkImage(imageUrl);
+    // ✅ Evita NetworkImage cru (cache só em memória). Vamos sempre para o
+    // cache em disco via CachedNetworkImageProvider + cache manager.
+    final provider = CachedNetworkImageProvider(
+      imageUrl,
+      cacheManager: AvatarImageCache.instance,
+      // Cache key estável por URL. Se a URL for versionada (recomendado),
+      // isso vira "immutable" na prática.
+      cacheKey: imageUrl,
+    );
     _avatarNotifiers[userId]!.value = AvatarEntry(
       state: AvatarState.loaded,
       provider: provider,

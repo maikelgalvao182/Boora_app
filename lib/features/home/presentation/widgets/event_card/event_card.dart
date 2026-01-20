@@ -120,6 +120,7 @@ class _EventCardState extends State<EventCard> {
                   
                   // Contador de participantes (stream)
                   ParticipantsCounter(
+                    controller: _controller,
                     eventId: _controller.eventId,
                     singularLabel: i18n.translate('participant_singular'),
                     pluralLabel: i18n.translate('participant_plural'),

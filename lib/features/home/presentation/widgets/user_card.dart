@@ -403,44 +403,45 @@ class _UserCardState extends State<UserCard> {
                     },
                   ),
 
-                  // Interesses em comum (linha de baixo)
-                  if (commonInterestsText.isNotEmpty) ...[
-                    commonInterestsEmojis.isEmpty
-                        ? Text(
-                            commonInterestsText,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: GlimpseColors.textSubTitle,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: commonInterestsText,
-                                  style: GoogleFonts.getFont(
-                                    FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: GlimpseColors.textSubTitle,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: commonInterestsEmojis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                  ],
+                  // Interesses em comum (linha de baixo) - DESABILITADO
+                  // TODO: Reativar quando necessário
+                  // if (commonInterestsText.isNotEmpty) ...[
+                  //   commonInterestsEmojis.isEmpty
+                  //       ? Text(
+                  //           commonInterestsText,
+                  //           style: GoogleFonts.getFont(
+                  //             FONT_PLUS_JAKARTA_SANS,
+                  //             fontSize: 13,
+                  //             fontWeight: FontWeight.w600,
+                  //             color: GlimpseColors.textSubTitle,
+                  //           ),
+                  //           maxLines: 1,
+                  //           overflow: TextOverflow.ellipsis,
+                  //         )
+                  //       : Text.rich(
+                  //           TextSpan(
+                  //             children: [
+                  //               TextSpan(
+                  //                 text: commonInterestsText,
+                  //                 style: GoogleFonts.getFont(
+                  //                   FONT_PLUS_JAKARTA_SANS,
+                  //                   fontSize: 13,
+                  //                   fontWeight: FontWeight.w600,
+                  //                   color: GlimpseColors.textSubTitle,
+                  //                 ),
+                  //               ),
+                  //               TextSpan(
+                  //                 text: commonInterestsEmojis,
+                  //                 style: const TextStyle(
+                  //                   fontSize: 16,
+                  //                 ),
+                  //               ),
+                  //             ],
+                  //           ),
+                  //           maxLines: 1,
+                  //           overflow: TextOverflow.ellipsis,
+                  //         ),
+                  // ],
                 ],
               ),
             ),

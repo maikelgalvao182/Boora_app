@@ -82,8 +82,9 @@ class EventApplicationRepository {
 
       debugPrint('✅ Aplicação criada: ${docRef.id} (status: ${status.value})');
       
-      // 🗑️ INVALIDAR cache de participantes do evento
+      // 🗑️ INVALIDAR caches relacionados
       _cache.remove('event_participants_$eventId');
+      _cache.remove('user_application_${eventId}_$userId');
       
       // ✅ Notificações agora são criadas via Cloud Functions:
       // - onActivityHeatingUp: monitora EventApplications e notifica usuários no raio
@@ -98,10 +99,21 @@ class EventApplicationRepository {
   }
 
   /// Busca aplicação de um usuário para um evento específico
+  /// 
+  /// Cache TTL: 60s para evitar re-fetch ao abrir o mesmo card
   Future<EventApplicationModel?> getUserApplication({
     required String eventId,
     required String userId,
   }) async {
+    final cacheKey = 'user_application_${eventId}_$userId';
+    
+    // 🚀 CACHE HIT
+    final cached = _cache.get<EventApplicationModel>(cacheKey);
+    if (cached != null) {
+      debugPrint('✅ [EventApplicationRepo] Cache HIT: userApplication $eventId');
+      return cached;
+    }
+    
     try {
       final querySnapshot = await _firestore
           .collection('EventApplications')
@@ -114,7 +126,12 @@ class EventApplicationRepository {
         return null;
       }
 
-      return EventApplicationModel.fromFirestore(querySnapshot.docs.first);
+      final application = EventApplicationModel.fromFirestore(querySnapshot.docs.first);
+      
+      // Cache por 60s
+      _cache.set(cacheKey, application, ttl: const Duration(seconds: 60));
+      
+      return application;
     } catch (e) {
       debugPrint('❌ Erro ao buscar aplicação: $e');
       return null;
@@ -148,6 +165,7 @@ class EventApplicationRepository {
       
       final appData = appDoc.data()!;
       final eventId = appData['eventId'] as String;
+      final userId = appData['userId'] as String?;
       
       // Atualizar status da aplicação
       await _firestore
@@ -160,8 +178,11 @@ class EventApplicationRepository {
 
       debugPrint('✅ Aplicação aprovada: $applicationId');
       
-      // 🗑️ INVALIDAR cache de participantes do evento
+      // 🗑️ INVALIDAR caches relacionados
       _cache.remove('event_participants_$eventId');
+      if (userId != null) {
+        _cache.remove('user_application_${eventId}_$userId');
+      }
       
       // ✅ Notificações agora são criadas via Cloud Functions:
       // - onApplicationApproved (index.ts): envia push de novo participante + atualiza chat
@@ -189,6 +210,7 @@ class EventApplicationRepository {
       
       final appData = appDoc.data()!;
       final eventId = appData['eventId'] as String;
+      final userId = appData['userId'] as String?;
       
       // Atualizar status da aplicação
       await _firestore
@@ -201,8 +223,11 @@ class EventApplicationRepository {
 
       debugPrint('❌ Aplicação rejeitada: $applicationId');
       
-      // 🗑️ INVALIDAR cache de participantes do evento
+      // 🗑️ INVALIDAR caches relacionados
       _cache.remove('event_participants_$eventId');
+      if (userId != null) {
+        _cache.remove('user_application_${eventId}_$userId');
+      }
       
       // ✅ Notificação de rejeição agora é criada via Cloud Function:
       // - onJoinDecisionNotification: detecta mudança de "pending" para "rejected"
@@ -515,8 +540,9 @@ class EventApplicationRepository {
       debugPrint('✅ Cloud Function executada com sucesso');
       debugPrint('   - resultado: ${result.data}');
       
-      // 🗑️ INVALIDAR cache de participantes do evento
+      // 🗑️ INVALIDAR caches relacionados
       _cache.remove('event_participants_$eventId');
+      _cache.remove('user_application_${eventId}_$userId');
       
     } catch (e) {
       debugPrint('❌ Erro ao chamar removeUserApplication: $e');

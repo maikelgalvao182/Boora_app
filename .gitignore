@@ -44,6 +44,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# iOS build artifacts
+ios/build/
+**/ios/**/build/
+ios/Pods/
+ios/.symlinks/
+ios/DerivedData/
+
 # Firestore Rules (gerado automaticamente via build-rules.sh)
 firestore.rules
 

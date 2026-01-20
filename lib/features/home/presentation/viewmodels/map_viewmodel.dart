@@ -14,7 +14,6 @@ import 'package:partiu/features/home/presentation/services/google_event_marker_s
 import 'package:partiu/services/location/location_stream_controller.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/core/services/block_service.dart';
-import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 
 /// ViewModel responsável por gerenciar o estado e lógica do mapa Google Maps
@@ -140,7 +139,7 @@ class MapViewModel extends ChangeNotifier {
   StreamSubscription<void>? _reloadSubscription;
   
   /// Subscription para stream de eventos em tempo real
-  StreamSubscription<List<EventModel>>? _eventsSubscription;
+  // (stream global removido)
 
   MapViewModel({
     EventMapRepository? eventRepository,
@@ -215,8 +214,6 @@ class MapViewModel extends ChangeNotifier {
   /// Isso evita erros de permission-denied quando o usuário é deslogado
   void cancelAllStreams() {
     debugPrint('🔌 MapViewModel: Cancelando todos os streams...');
-    _eventsSubscription?.cancel();
-    _eventsSubscription = null;
     _radiusSubscription?.cancel();
     _radiusSubscription = null;
     _reloadSubscription?.cancel();
@@ -259,62 +256,13 @@ class MapViewModel extends ChangeNotifier {
     // ⬅️ LISTENER REATIVO PARA BLOQUEIOS
     BlockService.instance.addListener(_onBlockedUsersChanged);
     
-    // ⬅️ STREAM DE EVENTOS EM TEMPO REAL
-    _initializeEventsStream();
+    // ✅ Importante: não iniciar mais um stream global de eventos aqui.
+    // A fonte de verdade para o mapa deve ser o viewport/bounds do GoogleMapView
+    // (loadEventsInBounds/forceRefreshBounds), para evitar churn e tráfego
+    // desnecessário.
   }
   
-  /// Inicializa stream de eventos em tempo real (reage a create/update/delete)
-  void _initializeEventsStream() {
-    AppLogger.stream('Iniciando stream de eventos em tempo real...', tag: 'MAP');
-    
-    _eventsSubscription = _eventRepository.getEventsStream().listen(
-      (events) async {
-        try {
-          // Garantir que temos localização para enriquecer (usa cache local; só busca 1x)
-          if (_lastLocation == null) {
-            final locationResult = await _locationService.getUserLocation();
-            _lastLocation = locationResult.location;
-          }
-
-          // Filtrar eventos de usuários bloqueados
-          final currentUserId = AppState.currentUserId;
-          if (currentUserId != null && currentUserId.isNotEmpty) {
-            _events = BlockService().filterBlocked<EventModel>(
-              currentUserId,
-              events,
-              (event) => event.createdBy,
-            );
-          } else {
-            _events = events;
-          }
-
-          // Enriquecer com distância/disponibilidade (lógica centralizada)
-          await _enrichEvents();
-
-          // Não gerar markers aqui: isso bloqueia UI e duplica trabalho com GoogleMapView.
-          _googleMarkers = {};
-
-          AppLogger.stream('Stream processado: ${_events.length} eventos', tag: 'MAP');
-          notifyListeners();
-        } catch (e, stack) {
-          AppLogger.error(
-            'Erro ao processar stream de eventos do mapa',
-            tag: 'MAP',
-            error: e,
-            stackTrace: stack,
-          );
-        }
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        AppLogger.error(
-          'Erro no stream de eventos do mapa',
-          tag: 'MAP',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      },
-    );
-  }
+  // (Stream global removido — ver comentário no construtor)
   
   /// Callback quando BlockService muda (via ChangeNotifier)
   void _onBlockedUsersChanged() {
@@ -362,12 +310,13 @@ class MapViewModel extends ChangeNotifier {
 
   /// Carrega eventos próximos à localização do usuário
   /// 
+  /// **REFATORADO (PR2):** Agora delega para o fluxo bounds-based, que é
+  /// otimizado com cache TTL e debounce. Não faz mais N+1 queries.
+  /// 
   /// Este método:
   /// 1. Obtém localização do usuário
-  /// 2. Busca eventos próximos (EventMapRepository - raio fixo ou dinâmico)
-  /// 3. Enriquece com distância e disponibilidade (_enrichEvents)
-  /// 4. Gera markers
-  /// 5. Atualiza estado
+  /// 2. Cria bounds de ~10km ao redor da localização
+  /// 3. Delega para loadEventsInBounds() (cache + debounce + sem N+1)
   Future<void> loadNearbyEvents() async {
     if (_isLoading) return;
 
@@ -378,38 +327,29 @@ class MapViewModel extends ChangeNotifier {
       final locationResult = await _locationService.getUserLocation();
       _lastLocation = locationResult.location;
 
-      // 2. Buscar eventos (EventMapRepository - raio fixo ou dinâmico)
-      final events = await _eventRepository.getEventsWithinRadius(_lastLocation!);
-      
-      // 3. Filtrar eventos de usuários bloqueados
-      final currentUserId = AppState.currentUserId;
-      if (currentUserId != null && currentUserId.isNotEmpty) {
-        _events = BlockService().filterBlocked<EventModel>(
-          currentUserId,
-          events,
-          (event) => event.createdBy,
-        );
-        
-        final filteredCount = events.length - _events.length;
-        if (filteredCount > 0) {
-          debugPrint('🚫 MapViewModel: $filteredCount eventos filtrados (bloqueados)');
-        }
-      } else {
-        _events = events;
+      if (_lastLocation == null) {
+        AppLogger.warning('Localização não disponível', tag: 'MAP');
+        return;
       }
 
-      // 4. Enriquecer com distância e disponibilidade (lógica centralizada)
-      await _enrichEvents();
-      
-      // 4. Não gerar markers aqui (evitar bloquear a tela e duplicar cálculo)
-      _googleMarkers = {};
+      // 2. Criar bounds de ~10km ao redor da localização
+      // (~0.09 graus ≈ 10km de raio)
+      const radiusDegrees = 0.09;
+      final bounds = MapBounds(
+        minLat: _lastLocation!.latitude - radiusDegrees,
+        maxLat: _lastLocation!.latitude + radiusDegrees,
+        minLng: _lastLocation!.longitude - radiusDegrees,
+        maxLng: _lastLocation!.longitude + radiusDegrees,
+      );
 
-      AppLogger.info('Eventos carregados: ${_events.length}', tag: 'MAP');
+      // 3. Delegar para fluxo bounds-based (cache TTL + debounce)
+      await loadEventsInBounds(bounds);
+      
+      AppLogger.info('Eventos carregados via bounds: ${_events.length}', tag: 'MAP');
       
       // SOMENTE AQUI o mapa está realmente pronto
       _setMapReady(true);
       
-      notifyListeners();
     } catch (e) {
       AppLogger.error('Erro ao carregar eventos do mapa', tag: 'MAP', error: e);
       // Erro será silencioso - markers continuam vazios
@@ -439,6 +379,12 @@ class MapViewModel extends ChangeNotifier {
 
   /// Enriquece eventos com distância e disponibilidade ANTES de criar markers
   /// 
+  /// ⚠️ **DEPRECATED (PR2):** Este método faz N+1 queries (busca creator, participants,
+  /// userApplication para CADA evento). Não deve ser usado no fluxo do mapa.
+  /// 
+  /// Se precisar de dados enriquecidos (ex: ao abrir EventCard), use um serviço
+  /// com cache TTL por eventId.
+  /// 
   /// IMPORTANTE: Esta é a ÚNICA fonte de verdade para calcular:
   /// - distanceKm: Distância do evento para o usuário
   /// - isAvailable: Se o usuário pode ver o evento (premium OU dentro de 30km)
@@ -446,6 +392,7 @@ class MapViewModel extends ChangeNotifier {
   /// 
   /// Os repositórios (EventMapRepository) NÃO devem incluir esses campos - 
   /// toda lógica de enriquecimento fica aqui no ViewModel
+  @Deprecated('Use cache por eventId ao abrir card. Não chamar no fluxo do mapa.')
   Future<void> _enrichEvents() async {
     if (_lastLocation == null || _events.isEmpty) return;
 
@@ -592,7 +539,7 @@ class MapViewModel extends ChangeNotifier {
   /// 
   /// Útil quando o usuário move o mapa manualmente
   /// 
-  /// Usa EventMapRepository (raio fixo/dinâmico, mesma lógica de loadNearbyEvents)
+  /// **REFATORADO (PR2):** Agora delega para o fluxo bounds-based.
   Future<void> loadEventsAt(LatLng location) async {
     if (_isLoading) return;
 
@@ -600,15 +547,17 @@ class MapViewModel extends ChangeNotifier {
     _lastLocation = location;
 
     try {
-      // Buscar eventos (EventMapRepository - raio fixo)
-      final events = await _eventRepository.getEventsWithinRadius(location);
-      _events = events;
+      // Criar bounds de ~10km ao redor da localização
+      const radiusDegrees = 0.09;
+      final bounds = MapBounds(
+        minLat: location.latitude - radiusDegrees,
+        maxLat: location.latitude + radiusDegrees,
+        minLng: location.longitude - radiusDegrees,
+        maxLng: location.longitude + radiusDegrees,
+      );
 
-      // Enriquecer com distância e disponibilidade (lógica centralizada em _enrichEvents)
-      await _enrichEvents();
-
-      // Gerar markers do Google Maps
-      await _generateGoogleMarkers();
+      // Delegar para fluxo bounds-based (cache TTL + debounce)
+      await loadEventsInBounds(bounds);
 
       notifyListeners();
     } catch (e) {
@@ -691,7 +640,8 @@ class MapViewModel extends ChangeNotifier {
   /// Chamado pelo GoogleMapView quando a câmera para de mover.
   /// Isso mantém os chips de categoria sincronizados com o viewport.
   Future<void> loadEventsInBounds(MapBounds bounds) async {
-    await _mapDiscoveryService.loadEventsInBounds(bounds);
+  await _mapDiscoveryService.loadEventsInBounds(bounds);
+  await _syncEventsFromBounds();
   }
 
   /// Força refresh imediato das categorias do drawer
@@ -699,6 +649,46 @@ class MapViewModel extends ChangeNotifier {
   /// Ignora cache e debounce. Usado na inicialização do mapa.
   Future<void> forceRefreshBounds(MapBounds bounds) async {
     await _mapDiscoveryService.forceRefresh(bounds);
+    await _syncEventsFromBounds();
+  }
+
+  Future<void> _syncEventsFromBounds() async {
+    final boundsEvents = _mapDiscoveryService.nearbyEvents.value;
+    if (boundsEvents.isEmpty) {
+      if (_events.isNotEmpty) {
+        _events = const [];
+        notifyListeners();
+      }
+      return;
+    }
+
+    // Converte EventLocation -> EventModel (subset usado pelo mapa/markers).
+    // Campos mais pesados (participants, userApplication, etc.) ficam fora desse fluxo.
+    final mapped = boundsEvents
+        .map(
+          (e) => EventModel(
+            id: e.eventId,
+            emoji: e.emoji,
+            createdBy: e.createdBy,
+            lat: e.latitude,
+            lng: e.longitude,
+            title: e.title,
+            category: e.category?.trim(),
+          ),
+        )
+        .toList(growable: false);
+
+    // Mantém o mesmo objeto se nada mudou (reduz rebuilds).
+    final sameLength = mapped.length == _events.length;
+    final sameIds = sameLength && _events.asMap().entries.every((entry) {
+      final i = entry.key;
+      return entry.value.id == mapped[i].id;
+    });
+
+    if (sameIds) return;
+
+    _events = mapped;
+    notifyListeners();
   }
 
   @override

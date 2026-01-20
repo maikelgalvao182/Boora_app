@@ -12,8 +12,10 @@ const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 
 /// APPSFLYER / ONE LINK
 /// Configure via --dart-define quando necessário
-const String APPSFLYER_DEV_KEY = String.fromEnvironment('APPSFLYER_DEV_KEY', defaultValue: '');
-const String APPSFLYER_APP_ID_IOS = String.fromEnvironment('APPSFLYER_APP_ID_IOS', defaultValue: '');
+/// Dev Key: Encontrado no Dashboard > App Settings
+/// App ID iOS: Apple App ID numérico - DEIXE VAZIO se o app ainda não está na App Store
+const String APPSFLYER_DEV_KEY = String.fromEnvironment('APPSFLYER_DEV_KEY', defaultValue: 'vNSZa9dsyauCnc6zZEdtnR');
+const String APPSFLYER_APP_ID_IOS = String.fromEnvironment('APPSFLYER_APP_ID_IOS', defaultValue: 'id6739085066');
 const String APPSFLYER_ONELINK_DOMAIN = 'boora.onelink.me';
 const String APPSFLYER_ONELINK_TEMPLATE_ID = 'bFrs';
 const String APPSFLYER_URI_SCHEME = 'boora';

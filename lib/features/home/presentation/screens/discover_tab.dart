@@ -226,15 +226,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
           key: _discoverKey,
           mapViewModel: widget.mapViewModel,
         ),
-        
-        // Botão "Ganhe 3 meses grátis" (canto superior esquerdo)
-        Positioned(
-          top: _peopleButtonTop,
-          left: _peopleButtonLeft,
-          child: _InviteOverlayButton(
-            onPressed: _showInviteDrawer,
-          ),
-        ),
 
         // Botão "Perto de você" (canto superior direito)
         Positioned(
@@ -355,42 +346,5 @@ class _DiscoverTabState extends State<DiscoverTab> {
       if (a[i] != b[i]) return false;
     }
     return true;
-  }
-}
-
-class _InviteOverlayButton extends StatelessWidget {
-  const _InviteOverlayButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.3),
-      borderRadius: BorderRadius.circular(100),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(100),
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: GlimpseColors.primary,
-            borderRadius: BorderRadius.circular(100),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'Ganhe 3 meses grátis',
-            style: GoogleFonts.getFont(
-              FONT_PLUS_JAKARTA_SANS,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

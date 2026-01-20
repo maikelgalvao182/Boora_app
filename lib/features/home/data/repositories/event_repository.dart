@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/core/services/global_cache_service.dart';
 
 /// Repository centralizado para queries da coleção events
 /// 
 /// Evita duplicação de código ao reutilizar queries comuns
 class EventRepository {
   final FirebaseFirestore _firestore;
+  final GlobalCacheService _cache = GlobalCacheService.instance;
 
   EventRepository([FirebaseFirestore? firestore])
       : _firestore = firestore ?? FirebaseFirestore.instance;
@@ -61,6 +63,8 @@ class EventRepository {
 
   /// Busca dados básicos de um evento (para cards, listas, etc)
   /// 
+  /// Cache TTL: 60s para evitar re-fetch ao reabrir o mesmo card
+  /// 
   /// IMPORTANTE: Filtra eventos cancelados (isCanceled=true) e inativos (isActive=false)
   /// 
   /// Retorna:
@@ -77,6 +81,15 @@ class EventRepository {
   /// - Evento está cancelado (isCanceled=true)
   /// - Evento está inativo (isActive=false)
   Future<Map<String, dynamic>?> getEventBasicInfo(String eventId) async {
+    final cacheKey = 'event_basic_info_$eventId';
+    
+    // 🚀 CACHE HIT
+    final cached = _cache.get<Map<String, dynamic>>(cacheKey);
+    if (cached != null) {
+      debugPrint('✅ [EventRepo] Cache HIT: basicInfo $eventId');
+      return cached;
+    }
+    
     try {
       final doc = await _eventsCollection.doc(eventId).get();
       
@@ -110,7 +123,7 @@ class EventRepository {
       final participantsData = data['participants'] as Map<String, dynamic>?;
       final dateTimestamp = scheduleData?['date'] as Timestamp?;
 
-      return {
+      final result = {
         'id': eventId,
         'emoji': data['emoji'] as String?,
         'activityText': data['activityText'] as String?,
@@ -121,6 +134,11 @@ class EventRepository {
         'privacyType': participantsData?['privacyType'] as String?,
         'createdBy': data['createdBy'] as String?,
       };
+      
+      // Cache por 60s
+      _cache.set(cacheKey, result, ttl: const Duration(seconds: 60));
+      
+      return result;
     } catch (e) {
       debugPrint('❌ Erro ao buscar info básica do evento $eventId: $e');
       return null;

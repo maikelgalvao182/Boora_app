@@ -953,7 +953,29 @@ match /reports/{reportId} {
 }
 
     // ======================================
-    // 🎭 Verificações Didit
+    // � Referral Installs (Sistema de Convites)
+    // ======================================
+/// 🎁 Coleção de instalações via referral/convite
+/// Path usado no app:
+/// - ReferralInstalls/{userId}
+///   - userId: string (ID do usuário que instalou via convite)
+///   - referrerId: string (ID do usuário que convidou)
+///   - createdAt: timestamp
+///   - source: string ("appsflyer" | "test")
+///   - deepLinkValue: string | null
+
+match /ReferralInstalls/{installId} {
+  // ✅ Usuário autenticado pode ler referrals onde ele é o referrer (quem convidou)
+  // Permite que o usuário veja quem ele convidou no InviteDrawer
+  allow read: if isSignedIn() && resource.data.referrerId == request.auth.uid;
+  
+  // ❌ Apenas Cloud Function pode criar/atualizar/deletar
+  // Os documentos são criados pela Cloud Function onUserCreatedReferral
+  allow create, update, delete: if false;
+}
+
+    // ======================================
+    // �🎭 Verificações Didit
     // ======================================
 /// 🎭 Coleção de verificações faciais/ID com Didit
 /// Path usado no app:

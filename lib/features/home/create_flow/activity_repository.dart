@@ -4,6 +4,7 @@ import 'package:partiu/features/home/create_flow/activity_draft.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_type_selector.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
 import 'package:partiu/features/home/presentation/widgets/category/activity_category.dart';
+import 'package:partiu/core/utils/geohash_helper.dart';
 
 /// Repositório para gerenciar atividades no Firestore
 /// 
@@ -58,6 +59,12 @@ class ActivityRepository {
         'locality': draft.location!.locality ?? '',
         'state': draft.location!.administrativeAreaLevel1?.shortName ?? '',
         'placeId': draft.location!.placeId,
+        // 🗺️ Geohash para queries geográficas mais eficientes (precision 7 = ~150m)
+        'geohash': GeohashHelper.encode(
+          draft.location!.latLng!.latitude,
+          draft.location!.latLng!.longitude,
+          precision: 7,
+        ),
       },
 
       // Fotos do lugar (opcional)
