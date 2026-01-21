@@ -75,6 +75,24 @@ class _HomeAppBarState extends State<HomeAppBar> {
               // Botão de dicas de segurança
               const SafetyTipsButton(),
               const SizedBox(width: 12),
+              // Botão do feed de fotos
+              SizedBox(
+                width: 28,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(
+                    IconsaxPlusLinear.gallery,
+                    size: 24,
+                    color: GlimpseColors.textSubTitle,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    context.push(AppRoutes.eventPhotoFeed);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
               // Botão de notificações (com badge reativo usando AppState)
               Builder(
                 builder: (context) {

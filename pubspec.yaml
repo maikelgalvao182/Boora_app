@@ -42,6 +42,7 @@ dependencies:
   # Utils
   provider: ^6.1.5+1
   get_it: ^9.1.1
+  flutter_riverpod: ^2.6.1
   shared_preferences: ^2.5.3
   device_info_plus: ^12.3.0
   path: ^1.9.0
@@ -114,9 +115,7 @@ dependencies:
   # flutter_app_badger 1.5.0 está descontinuado e quebra com AGP 8+ (namespace obrigatório).
   # Usamos um fork que adiciona `namespace` no módulo Android.
   flutter_app_badger:
-    git:
-      url: https://github.com/g123k/flutter_app_badger.git
-      ref: master
+    path: packages/flutter_app_badger
   fluster: ^1.2.0
 
 dev_dependencies:

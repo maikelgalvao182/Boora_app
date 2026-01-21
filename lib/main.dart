@@ -6,7 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_country_selector/flutter_country_selector.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' as provider;
 import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -27,6 +27,7 @@ import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart'
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/notifications/services/push_notification_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 bool _shouldSuppressPermissionDeniedAfterLogout(Object error) {
   if (FirebaseAuth.instance.currentUser != null) return false;
@@ -131,43 +132,45 @@ Future<void> main() async {
     // após o login bem-sucedido, não mais aqui no main.dart
 
     runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(
-            value: localeController,
+      ProviderScope(
+  child: provider.MultiProvider(
+          providers: [
+            provider.ChangeNotifierProvider.value(
+              value: localeController,
+            ),
+            // AuthSyncService como singleton - ÚNICA fonte de verdade para auth
+            provider.ChangeNotifierProvider(
+              create: (_) => AuthSyncService(),
+            ),
+            // MapViewModel
+            provider.ChangeNotifierProvider(
+              create: (_) => MapViewModel(),
+            ),
+            // PeopleRankingViewModel
+            provider.ChangeNotifierProvider(
+              create: (_) => PeopleRankingViewModel(),
+            ),
+            // RankingViewModel (Locations)
+            provider.ChangeNotifierProvider(
+              create: (_) => RankingViewModel(),
+            ),
+            // ConversationsViewModel - gerencia estado das conversas
+            provider.ChangeNotifierProvider(
+              create: (_) => ConversationsViewModel(),
+            ),
+            // SimpleSubscriptionProvider - gerencia estado de assinaturas VIP
+            provider.ChangeNotifierProvider(
+              create: (_) => SimpleSubscriptionProvider(),
+            ),
+            // DependencyProvider via Provider para compatibility
+            provider.Provider<ServiceLocator>.value(
+              value: serviceLocator,
+            ),
+          ],
+          child: DependencyProvider(
+            serviceLocator: serviceLocator,
+            child: const AppRoot(),
           ),
-          // AuthSyncService como singleton - ÚNICA fonte de verdade para auth
-          ChangeNotifierProvider(
-            create: (_) => AuthSyncService(),
-          ),
-          // MapViewModel
-          ChangeNotifierProvider(
-            create: (_) => MapViewModel(),
-          ),
-          // PeopleRankingViewModel
-          ChangeNotifierProvider(
-            create: (_) => PeopleRankingViewModel(),
-          ),
-          // RankingViewModel (Locations)
-          ChangeNotifierProvider(
-            create: (_) => RankingViewModel(),
-          ),
-          // ConversationsViewModel - gerencia estado das conversas
-          ChangeNotifierProvider(
-            create: (_) => ConversationsViewModel(),
-          ),
-          // SimpleSubscriptionProvider - gerencia estado de assinaturas VIP
-          ChangeNotifierProvider(
-            create: (_) => SimpleSubscriptionProvider(),
-          ),
-          // DependencyProvider via Provider para compatibility
-          Provider<ServiceLocator>.value(
-            value: serviceLocator,
-          ),
-        ],
-        child: DependencyProvider(
-          serviceLocator: serviceLocator,
-          child: const AppRoot(),
         ),
       ),
     );

@@ -1,0 +1,113 @@
+/// 🖼️ Feed de fotos de eventos (Event Photo Feed)
+/// Path usado no app:
+/// - EventPhotos/{photoId}
+///   - userId: string
+///   - status: string ('under_review' | 'active' | 'hidden_by_reports' | 'hidden_by_moderation')
+///   - createdAt: timestamp
+///   - eventId: string
+///   - eventCityId: string
+///   - commentsCount: number
+///   - likesCount: number
+///
+/// Subcoleções:
+/// - EventPhotos/{photoId}/comments/{commentId}
+/// - EventPhotos/{photoId}/likes/{userId}
+
+function _isOwnerByUserId(userId) {
+  return isSignedIn() && request.auth.uid == userId;
+}
+
+function _isActivePhoto() {
+  return resource.data.status == 'active';
+}
+
+function _isOwnPendingReviewPhoto() {
+  return isSignedIn() &&
+    resource.data.status == 'under_review' &&
+    resource.data.userId == request.auth.uid;
+}
+
+function _isFeedReadable() {
+  return isSignedIn() && (_isActivePhoto() || _isOwnPendingReviewPhoto());
+}
+
+match /EventPhotos/{photoId} {
+  // 📖 LEITURA:
+  // - autenticado pode ler fotos ativas
+  // - autor pode ler suas fotos em análise (under_review)
+  allow read: if _isFeedReadable();
+
+  // ✍️ CRIAR:
+  // - apenas autenticado
+  // - userId deve ser o próprio
+  // - status deve iniciar em under_review
+  allow create: if isSignedIn() &&
+    request.resource.data.userId == request.auth.uid &&
+    request.resource.data.status == 'under_review';
+
+  // ✏️ UPDATE:
+  // - só o autor pode atualizar
+  // - bloqueia mudança de userId
+  // - bloqueia promover status para active pelo client
+  allow update: if isSignedIn() &&
+    resource.data.userId == request.auth.uid &&
+    request.resource.data.userId == request.auth.uid &&
+    !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']));
+
+  // 🗑️ DELETE:
+  // - só autor
+  allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+  // 💬 Comentários
+  match /comments/{commentId} {
+    allow read: if isSignedIn() && (
+      get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.status == 'active' ||
+      (
+        get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.status == 'under_review' &&
+        get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.userId == request.auth.uid
+      )
+    );
+
+    // criar comentário:
+    // - userId do comentário precisa ser o próprio
+    // - status inicia active (o app lista comments onde status==active)
+    allow create: if isSignedIn() &&
+      request.resource.data.userId == request.auth.uid &&
+      request.resource.data.status == 'active';
+
+    // update/delete: só autor do comentário
+    allow update, delete: if isSignedIn() &&
+      resource.data.userId == request.auth.uid;
+
+    // 🧵 Replies (thread)
+    match /replies/{replyId} {
+      allow read: if isSignedIn() && (
+        get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.status == 'active' ||
+        (
+          get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.status == 'under_review' &&
+          get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.userId == request.auth.uid
+        )
+      );
+
+      // criar reply:
+      // - userId do reply precisa ser o próprio
+      // - status inicia active
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'active' &&
+  request.resource.data.commentId == commentId &&
+  request.resource.data.photoId == photoId;
+
+      // update/delete: só autor do reply
+      allow update, delete: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+    }
+  }
+
+  // ❤️ Likes
+  match /likes/{userId} {
+    allow read: if isSignedIn();
+    allow create, delete: if _isOwnerByUserId(userId);
+    allow update: if false;
+  }
+}

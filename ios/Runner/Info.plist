@@ -55,16 +55,14 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Precisamos acessar sua câmera para verificação facial de segurança.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Usamos o Face ID para login seguro e rápido.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localização mesmo em segundo plano para melhorar sua experiência.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localização para encontrar atividades perto de você.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Precisamos acessar seu microfone para verificação de segurança.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>$(PRODUCT_NAME) usa fotos</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Usamos o Face ID para login seguro e rápido.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

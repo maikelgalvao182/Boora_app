@@ -43,17 +43,18 @@ O sistema atual de reviews segue um fluxo bem estruturado:
 
 Um feed onde participantes podem compartilhar fotos dos eventos que participaram, criando um registro visual e social das experiências.
 
-### Regras de Negócio
+### 🧠 Regras de Negócio (Consolidadas)
 
 | Regra | Descrição |
-|-------|-----------|
-| **Quem pode postar** | Apenas usuários com `EventApplications.status` = `approved` ou `autoApproved` |
-| **Seleção obrigatória** | Usuário DEVE selecionar o evento ao qual a foto pertence |
-| **Eventos elegíveis** | Apenas eventos **passados** (já ocorreram) |
-| **Validação** | Backend verifica se usuário realmente participou do evento |
-| **Limite por evento** | Máx **3 fotos** por usuário por evento |
-| **Limite global** | Máx **20 fotos** no feed de um evento |
-| **Cooldown** | Mínimo **2 minutos** entre uploads do mesmo usuário |
+|------|-----------|
+| **Quem pode postar** | Apenas usuários com `EventApplications.status` ∈ {`approved`, `autoApproved`} |
+| **Seleção obrigatória** | Foto sempre vinculada a um evento (`eventId` obrigatório) |
+| **Eventos elegíveis** | Apenas eventos passados (já ocorreram) |
+| **Validação** | Backend valida participação **antes e depois** do upload |
+| **Limite por evento** | Máx 3 fotos por usuário por evento |
+| **Limite no feed do evento** | UI exibe apenas as 20 fotos mais recentes (não é hard limit no backend) |
+| **Cooldown** | 2 minutos entre uploads do mesmo usuário |
+| **Moderação** | Conteúdo começa em `under_review` e só fica público após validação (status `active`) |
 
 ---
 
@@ -63,51 +64,62 @@ Um feed onde participantes podem compartilhar fotos dos eventos que participaram
 
 ```typescript
 interface EventPhoto {
-  id: string;                    // Auto-generated (usado como nome no Storage)
-  eventId: string;               // Referência ao evento
-  userId: string;                // Quem postou
-  imageUrl: string;              // URL no Firebase Storage
-  thumbnailUrl?: string;         // Thumbnail otimizado (opcional)
-  caption?: string;              // Legenda (opcional, max 500 chars)
-  createdAt: Timestamp;          // Data de criação
-  
-  // Denormalizados para performance (evita joins) - ESTÁVEIS
-  eventTitle: string;            // Título do evento
-  eventEmoji: string;            // Emoji do evento
-  eventDate: Timestamp;          // Data do evento
-  eventCity?: string;            // Cidade do evento (para feed contextual)
-  userName: string;              // Nome de quem postou
-  userPhotoUrl: string;          // Foto de perfil de quem postou
-  
-  // Moderação (estados claros e auditáveis)
-  status: 'active' | 'under_review' | 'hidden_by_reports' | 'hidden_by_moderation';
-  reportCount: number;           // Contagem de denúncias
-  moderatedAt?: Timestamp;       // Quando foi moderado (se aplicável)
-  moderatedBy?: string;          // Quem moderou (admin userId)
-  
-  // Engajamento - VOLÁTEIS (apenas contadores, dados reais em subcoleções)
-  likesCount: number;            // Cache - fonte: EventPhotoLikes
-  commentsCount: number;         // Cache - fonte: EventPhotoComments
+  id: string;                 // doc.id (igual ao nome do arquivo no Storage)
+  eventId: string;
+  userId: string;
+
+  imageUrl: string;
+  thumbnailUrl?: string;
+
+  caption?: string;           // máx 500 chars
+  createdAt: Timestamp;
+
+  // Denormalizados (dados estáveis)
+  eventTitle: string;
+  eventEmoji: string;
+  eventDate: Timestamp;
+  eventCityId?: string;       // ex: "sao_paulo"
+  eventCityName?: string;     // ex: "São Paulo"
+
+  userName: string;
+  userPhotoUrl: string;
+
+  // Estado e moderação
+  status: 'under_review' | 'active' | 'hidden_by_reports' | 'hidden_by_moderation';
+  reportCount: number;
+
+  // Engajamento (cache)
+  likesCount: number;
+  commentsCount: number;
 }
 ```
 
-### Subcoleções de Engajamento (Fase 2)
+### ❤️ Engajamento (Subcoleções)
+
+#### Likes
+
+1 like por usuário garantido pelo ID:
+
+`EventPhotos/{photoId}/likes/{userId}`
 
 ```typescript
-// EventPhotoLikes/{photoId}_{oduserId} - Documento único por like
 interface EventPhotoLike {
-  odphotoId: string;
   userId: string;
   createdAt: Timestamp;
 }
+```
 
-// EventPhotoComments/{commentId}
+#### Comentários
+
+`EventPhotos/{photoId}/comments/{commentId}`
+
+```typescript
 interface EventPhotoComment {
   id: string;
   photoId: string;
   userId: string;
-  userName: string;              // Denormalizado
-  userPhotoUrl: string;          // Denormalizado
+  userName: string;
+  userPhotoUrl: string;
   text: string;
   createdAt: Timestamp;
   status: 'active' | 'hidden';
@@ -117,20 +129,20 @@ interface EventPhotoComment {
 ### Índices Necessários
 
 ```javascript
-// Para feed global (mais recentes)
-EventPhotos: createdAt DESC
+// Feed global
+EventPhotos: status ASC, createdAt DESC
 
-// Para feed de um evento específico
-EventPhotos: eventId ASC, createdAt DESC
+// Feed por evento
+EventPhotos: eventId ASC, status ASC, createdAt DESC
 
-// Para fotos de um usuário
+// Feed por cidade
+EventPhotos: eventCityId ASC, status ASC, createdAt DESC
+
+// Feed por usuário
 EventPhotos: userId ASC, createdAt DESC
 
-// Para moderação
+// Moderação
 EventPhotos: status ASC, reportCount DESC
-
-// Para feed por cidade (contextual)
-EventPhotos: eventCity ASC, createdAt DESC
 ```
 
 ---
@@ -148,13 +160,24 @@ O feed de fotos pode ter diferentes escopos dependendo do contexto:
 | **Feed do Evento** | Fotos específicas de um evento | Ao abrir detalhes do evento |
 | **Feed do Usuário** | Fotos postadas por um usuário | Ao visitar perfil |
 
-### Implementação do Feed Contextual
+### Tipos de Feed
+
+| Feed | Query |
+|------|------|
+| **Cidade (default)** | `where('eventCityId', isEqualTo: user.cityId)` |
+| **Global** | sem filtro de cidade |
+| **Evento** | `where('eventId', isEqualTo: X)` |
+| **Perfil** | `where('userId', isEqualTo: X)` |
+
+Todos os feeds sempre filtram `status == 'active'` e usam paginação (`limit` + `startAfter`).
+
+### Implementação do Feed (exemplo)
 
 ```dart
 // EventPhotoFeedScreen com toggle de escopo
 class EventPhotoFeedScreen extends HookConsumerWidget {
   Query<Map<String, dynamic>> _buildQuery(
-    String? userCity, 
+    String? userCityId,
     FeedScope scope,
   ) {
     final baseQuery = FirebaseFirestore.instance
@@ -165,8 +188,8 @@ class EventPhotoFeedScreen extends HookConsumerWidget {
     
     switch (scope) {
       case FeedScope.city:
-        if (userCity != null) {
-          return baseQuery.where('eventCity', isEqualTo: userCity);
+        if (userCityId != null) {
+          return baseQuery.where('eventCityId', isEqualTo: userCityId);
         }
         return baseQuery; // fallback para global
       case FeedScope.global:
@@ -180,19 +203,12 @@ class EventPhotoFeedScreen extends HookConsumerWidget {
 }
 ```
 
-### Campo Adicional Necessário
+### Nota sobre cidade
 
-Para suportar feed por cidade, o `EventPhoto` precisa armazenar a cidade do evento:
+Para suportar feed contextual (cidade), o documento armazena a cidade denormalizada em dois formatos:
 
-```typescript
-interface EventPhoto {
-  // ... campos existentes ...
-  eventCity?: string;            // Denormalizado do evento (ex: "São Paulo")
-  eventCountry?: string;         // Opcional, para escalar internacionalmente
-}
-```
-
-> **NOTA**: A cidade é denormalizada no momento da criação da foto, baseada na localização do evento. Isso evita joins e permite queries eficientes por localização.
+- `eventCityId` (estável/normalizado, ex: `sao_paulo`)
+- `eventCityName` (exibição, ex: `São Paulo`)
 
 ### Storage Path
 
@@ -250,10 +266,14 @@ functions/src/
 
 ## 🔒 Cloud Functions & Security
 
-### 1. `validateEventPhotoUpload` (Callable)
+### 🔐 Upload Seguro (Tokenizado)
+
+Objetivo: evitar criação de documentos inválidos/forjados e garantir que o arquivo no Storage e o doc no Firestore estejam vinculados 1:1.
+
+#### 1️⃣ Callable: `validateEventPhotoUpload`
 
 ```typescript
-// Valida ANTES do upload se usuário pode postar neste evento
+// Valida ANTES do upload se usuário pode postar neste evento e retorna um photoId + token.
 export const validateEventPhotoUpload = functions.https.onCall(async (data, context) => {
   const { eventId } = data;
   const userId = context.auth?.uid;
@@ -308,17 +328,54 @@ export const validateEventPhotoUpload = functions.https.onCall(async (data, cont
     }
   }
   
-  return { allowed: true, eventTitle: eventData.activityText, eventEmoji: eventData.emoji };
+  // 5. Gerar IDs/Token de upload
+  const photoId = db.collection('EventPhotos').doc().id;
+  const uploadToken = generateUploadToken({
+    userId,
+    eventId,
+    photoId,
+  });
+
+  return {
+    allowed: true,
+    photoId,
+    uploadToken,
+    eventTitle: eventData.activityText,
+    eventEmoji: eventData.emoji,
+  };
 });
 ```
 
-### 2. `onEventPhotoCreated` (Trigger)
+#### 2️⃣ Client (resumo)
+
+1. Faz upload do arquivo para:
+
+`event_photos/{eventId}/{photoId}.jpg`
+
+2. Cria `EventPhotos/{photoId}` com:
+
+- `status: 'under_review'`
+- `uploadToken`
+
+#### 3️⃣ Trigger: `onEventPhotoCreated`
 
 ```typescript
 export const onEventPhotoCreated = functions.firestore
   .document('EventPhotos/{photoId}')
   .onCreate(async (snapshot, context) => {
     const photoData = snapshot.data();
+
+    // 0. Validar token do upload (vínculo client -> callable)
+    // Se inválido → apagar documento + cleanup do Storage.
+    const tokenValid = await validateUploadToken(photoData.uploadToken, {
+      photoId: context.params.photoId,
+      userId: photoData.userId,
+      eventId: photoData.eventId,
+    });
+    if (!tokenValid) {
+      await snapshot.ref.delete();
+      return;
+    }
     
     // 1. Re-validar participação (segurança)
     const isParticipant = await validateParticipation(photoData.eventId, photoData.userId);
@@ -336,16 +393,19 @@ export const onEventPhotoCreated = functions.firestore
     const eventData = eventDoc.data();
     
     // 3. Extrair cidade do evento (para feed contextual)
-    // Pode vir de location.address ou de um campo específico
-    const eventCity = extractCityFromEvent(eventData);
+    const { cityId: eventCityId, cityName: eventCityName } = extractCityFromEvent(eventData);
     
     await snapshot.ref.update({
       eventTitle: eventData?.activityText || '',
       eventEmoji: eventData?.emoji || '📸',
       eventDate: eventData?.schedule?.startDate,
-      eventCity: eventCity,                        // Para feed contextual
+      eventCityId,
+      eventCityName,
       userName: userDoc.data()?.fullName || '',
       userPhotoUrl: userDoc.data()?.photoUrl || '',
+
+      // 4. Publicar
+      status: 'active',
     });
     
     // 4. Notificar outros participantes (opcional)
@@ -353,10 +413,11 @@ export const onEventPhotoCreated = functions.firestore
   });
 
 // Função helper para extrair cidade
-function extractCityFromEvent(eventData: any): string | null {
+function extractCityFromEvent(eventData: any): { cityId: string | null; cityName: string | null } {
   // Prioridade: campo específico > address parsing
   if (eventData?.location?.city) {
-    return eventData.location.city;
+  const name = String(eventData.location.city);
+  return { cityId: normalizeCityId(name), cityName: name };
   }
   
   // Fallback: extrair de formattedAddress
@@ -365,57 +426,41 @@ function extractCityFromEvent(eventData: any): string | null {
     // Simplificação - na prática pode usar regex ou geocoding reverso
     const parts = address.split(',');
     if (parts.length >= 2) {
-      return parts[parts.length - 2].trim();
+    const name = parts[parts.length - 2].trim();
+    return { cityId: normalizeCityId(name), cityName: name };
     }
   }
   
-  return null;
+  return { cityId: null, cityName: null };
 }
 ```
 
-### 3. Firestore Rules
+### 🔒 Firestore Rules (Revisadas)
 
 ```javascript
 match /EventPhotos/{photoId} {
-  // Leitura: qualquer autenticado pode ver fotos ativas
-  // (fotos escondidas por moderação não aparecem na query do app)
-  allow read: if request.auth != null;
-  
-  // Criação: usuário autenticado, é o dono do documento
-  allow create: if request.auth != null 
+  allow read: if request.auth != null
+    && resource.data.status == 'active';
+
+  allow create: if request.auth != null
     && request.auth.uid == request.resource.data.userId
-    && request.resource.data.status == 'active';
-  
-  // Update: apenas o dono (para caption/delete) ou Cloud Function (para status)
-  // NOTA: Mudança de status só via Cloud Functions (admin/moderação)
-  allow update: if request.auth != null 
-    && request.auth.uid == resource.data.userId
-    && request.resource.data.status == resource.data.status; // não pode mudar status
-  
-  // Delete: apenas o dono
-  allow delete: if request.auth != null 
+    && request.resource.data.status == 'under_review';
+
+  // Segurança: updates só via Cloud Functions
+  allow update: if false;
+
+  allow delete: if request.auth != null
     && request.auth.uid == resource.data.userId;
-  
-  // SUBCOLEÇÕES
-  
-  // Likes: cada usuário pode dar um like (documento com ID = userId)
-  match /EventPhotoLikes/{likeUserId} {
+
+  match /likes/{userId} {
     allow read: if request.auth != null;
-    allow create, delete: if request.auth != null 
-      && request.auth.uid == likeUserId;
-    allow update: if false; // likes são imutáveis
+    allow create, delete: if request.auth.uid == userId;
   }
-  
-  // Comentários
-  match /EventPhotoComments/{commentId} {
+
+  match /comments/{commentId} {
     allow read: if request.auth != null;
-    allow create: if request.auth != null 
-      && request.auth.uid == request.resource.data.userId;
-    allow update: if request.auth != null 
-      && request.auth.uid == resource.data.userId;
-    allow delete: if request.auth != null 
-      && (request.auth.uid == resource.data.userId 
-          || request.auth.uid == get(/databases/$(database)/documents/EventPhotos/$(photoId)).data.userId);
+    allow create: if request.auth.uid == request.resource.data.userId;
+    allow update, delete: if request.auth.uid == resource.data.userId;
   }
 }
 ```
@@ -471,21 +516,21 @@ class EventSelectorBottomSheet extends StatelessWidget {
 
 ## 🚀 Fases de Implementação
 
-### Fase 1: MVP (1-2 semanas)
+### Fase 1: MVP (Essencial)
 
 | Task | Prioridade | Estimativa |
 |------|------------|------------|
 | Criar modelo `EventPhotoModel` | Alta | 2h |
 | Criar `EventPhotoRepository` | Alta | 4h |
-| Cloud Function de validação | Alta | 4h |
+| Upload + validação tokenizada (callable + trigger) | Alta | 6h |
 | Firestore rules | Alta | 2h |
-| `EventSelectorBottomSheet` | Alta | 6h |
-| `UploadEventPhotoScreen` | Alta | 8h |
-| `EventPhotoFeedScreen` (lista simples) | Alta | 6h |
+| Feed por evento / cidade (status==active + paginação) | Alta | 6h |
+| `EventSelectorBottomSheet` (eventos elegíveis: passados + approved/autoApproved) | Alta | 6h |
+| `UploadEventPhotoScreen` (caption opcional) | Alta | 8h |
 | `EventPhotoCard` widget | Alta | 4h |
 | Integração no bottom nav / FAB | Alta | 2h |
 
-**Total Fase 1**: ~38h
+**Total Fase 1**: ~30h
 
 ### Fase 2: Engajamento (1 semana)
 
@@ -498,15 +543,15 @@ class EventSelectorBottomSheet extends StatelessWidget {
 
 **Total Fase 2**: ~20h
 
-### Fase 3: Feed Contextual & Melhorias (1 semana)
+### Fase 3: Qualidade & Moderação (1 semana)
 
 | Task | Prioridade | Estimativa |
 |------|------------|------------|
-| Feed por cidade (contextual) | Alta | 4h |
-| Toggle cidade/global | Alta | 2h |
 | Report de fotos impróprias | Média | 4h |
 | Galeria por evento | Média | 4h |
 | Moderação automática (Cloud Vision) | Baixa | 8h |
+
+**Nota**: feed por cidade/toggle entram como parte do MVP nesta versão (já que `eventCityId` faz parte do modelo e índices).
 
 **Total Fase 3**: ~22h
 

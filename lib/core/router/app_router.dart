@@ -26,6 +26,7 @@ import 'package:partiu/core/services/session_cleanup_service.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
 import 'package:partiu/features/notifications/widgets/simplified_notification_screen_wrapper.dart';
+import 'package:partiu/features/event_photo_feed/presentation/screens/event_photo_feed_screen.dart';
 
 /// Rotas da aplicação
 class AppRoutes {
@@ -48,6 +49,7 @@ class AppRoutes {
   static const String groupInfo = '/group-info';
   static const String splash = '/splash';
   static const String referralDebug = '/referral-debug';
+  static const String eventPhotoFeed = '/event-photo-feed';
 }
 
 /// Cria o GoRouter com proteção baseada no AuthSyncService
@@ -162,6 +164,12 @@ GoRouter createAppRouter(BuildContext context) {
       path: AppRoutes.signIn,
       name: 'signIn',
       builder: (context, state) => const SignInScreenRefactored(),
+    ),
+
+    GoRoute(
+      path: AppRoutes.eventPhotoFeed,
+      name: 'eventPhotoFeed',
+      builder: (context, state) => const EventPhotoFeedScreen(),
     ),
     
     // Tela de Email/Senha Auth
