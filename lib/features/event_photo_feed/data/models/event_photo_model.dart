@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 
 class EventPhotoModel {
   const EventPhotoModel({
@@ -20,6 +21,7 @@ class EventPhotoModel {
     required this.reportCount,
     required this.likesCount,
     required this.commentsCount,
+    this.taggedParticipants = const [],
   });
 
   final String id;
@@ -47,8 +49,22 @@ class EventPhotoModel {
   final int likesCount;
   final int commentsCount;
 
+  final List<TaggedParticipantModel> taggedParticipants;
+
   factory EventPhotoModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
+    
+    // Parse tagged participants com tratamento defensivo
+    List<TaggedParticipantModel> taggedList = [];
+    final rawTagged = data['taggedParticipants'];
+    if (rawTagged is List) {
+      for (final item in rawTagged) {
+        if (item is Map<String, dynamic>) {
+          taggedList.add(TaggedParticipantModel.fromMap(item));
+        }
+      }
+    }
+
     return EventPhotoModel(
       id: doc.id,
       eventId: (data['eventId'] as String?) ?? '',
@@ -68,6 +84,7 @@ class EventPhotoModel {
       reportCount: (data['reportCount'] as num?)?.toInt() ?? 0,
       likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
       commentsCount: (data['commentsCount'] as num?)?.toInt() ?? 0,
+      taggedParticipants: taggedList,
     );
   }
 
@@ -90,6 +107,7 @@ class EventPhotoModel {
       'reportCount': reportCount,
       'likesCount': likesCount,
       'commentsCount': commentsCount,
+      'taggedParticipants': taggedParticipants.map((p) => p.toMap()).toList(),
     };
   }
 }

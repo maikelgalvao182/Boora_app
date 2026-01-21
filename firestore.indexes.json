@@ -161,6 +161,24 @@
       ]
     },
     {
+      "collectionGroup": "EventApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "presence",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "PendingReviews",
       "queryScope": "COLLECTION",
       "fields": [

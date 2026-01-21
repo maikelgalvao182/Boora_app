@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
+import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_composer_service.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/recent_events_service.dart';
@@ -18,6 +19,7 @@ class EventPhotoComposerState {
     required this.progress,
     required this.isSubmitting,
     required this.error,
+    required this.taggedParticipants,
   });
 
   final EventModel? selectedEvent;
@@ -26,6 +28,7 @@ class EventPhotoComposerState {
   final double? progress;
   final bool isSubmitting;
   final String? error;
+  final List<TaggedParticipantModel> taggedParticipants;
 
   factory EventPhotoComposerState.initial() => const EventPhotoComposerState(
         selectedEvent: null,
@@ -34,6 +37,7 @@ class EventPhotoComposerState {
         progress: null,
         isSubmitting: false,
         error: null,
+        taggedParticipants: [],
       );
 
   EventPhotoComposerState copyWith({
@@ -43,15 +47,18 @@ class EventPhotoComposerState {
     double? progress,
     bool? isSubmitting,
     String? error,
+    List<TaggedParticipantModel>? taggedParticipants,
     bool clearImage = false,
+    bool clearEvent = false,
   }) {
     return EventPhotoComposerState(
-      selectedEvent: selectedEvent ?? this.selectedEvent,
+      selectedEvent: clearEvent ? null : (selectedEvent ?? this.selectedEvent),
       image: clearImage ? null : (image ?? this.image),
       caption: caption ?? this.caption,
       progress: progress,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       error: error,
+      taggedParticipants: taggedParticipants ?? this.taggedParticipants,
     );
   }
 }
@@ -77,7 +84,12 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
   EventPhotoComposerState build() => EventPhotoComposerState.initial();
 
   void setSelectedEvent(EventModel? event) {
-    state = state.copyWith(selectedEvent: event, error: null);
+    // Limpar participantes se o evento mudou
+    state = state.copyWith(selectedEvent: event, error: null, taggedParticipants: []);
+  }
+
+  void setTaggedParticipants(List<TaggedParticipantModel> participants) {
+    state = state.copyWith(taggedParticipants: participants, error: null);
   }
 
   void setCaption(String value) {
@@ -148,6 +160,7 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
         eventCityName: null,
         userName: userName,
         userPhotoUrl: userPhotoUrl,
+        taggedParticipants: state.taggedParticipants,
       );
 
       await FirebaseFirestore.instance.collection('EventPhotos').doc(photoId).set(payload);
@@ -178,6 +191,7 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
               reportCount: 0,
               likesCount: 0,
               commentsCount: 0,
+              taggedParticipants: state.taggedParticipants,
             ),
           );
 

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/event_photo_feed/presentation/controllers/event_photo_composer_controller.dart';
+import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_participant_selector_sheet.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 
 final recentEligibleEventsProvider = FutureProvider<List<EventModel>>((ref) async {
@@ -128,6 +129,16 @@ class EventPhotoEventSelectorSheet extends ConsumerWidget {
                           onTap: () {
                             ref.read(eventPhotoComposerControllerProvider.notifier).setSelectedEvent(e);
                             Navigator.of(context).pop();
+                            // Abrir segundo bottom sheet para selecionar participantes
+                            showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => EventPhotoParticipantSelectorSheet(
+                                eventId: e.id,
+                                eventTitle: '${e.emoji} ${e.title}',
+                              ),
+                            );
                           },
                         );
                       },

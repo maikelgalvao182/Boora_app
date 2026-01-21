@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
+import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 
 class EventPhotoUploadResult {
   const EventPhotoUploadResult({
@@ -116,6 +117,7 @@ class EventPhotoComposerService {
     required String? eventCityName,
     required String userName,
     required String userPhotoUrl,
+    List<TaggedParticipantModel> taggedParticipants = const [],
   }) {
     if (eventId.trim().isEmpty) throw Exception('eventId obrigatório');
     final safeCaption = (caption ?? '').trim();
@@ -139,6 +141,7 @@ class EventPhotoComposerService {
       'reportCount': 0,
       'likesCount': 0,
       'commentsCount': 0,
+      'taggedParticipants': taggedParticipants.map((p) => p.toMap()).toList(),
     };
   }
 }

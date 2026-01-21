@@ -6,6 +6,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
 import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_more_menu_button.dart';
+import 'package:partiu/features/event_photo_feed/presentation/widgets/tagged_participants_avatars.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 
 class EventPhotoFeedItem extends StatelessWidget {
@@ -69,7 +70,7 @@ class EventPhotoFeedItem extends StatelessWidget {
                           ),
                       ],
                     ),
-                    // Tag do evento logo abaixo do nome (dentro de Row)
+                    // Tag do evento + avatares dos participantes marcados
                     Row(
                       children: [
                         Container(
@@ -91,6 +92,18 @@ class EventPhotoFeedItem extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (item.taggedParticipants.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: TaggedParticipantsAvatars(
+                              participants: item.taggedParticipants,
+                              maxVisible: 3,
+                              avatarSize: 22,
+                              overlap: 8,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     if ((item.caption ?? '').trim().isNotEmpty) ...[

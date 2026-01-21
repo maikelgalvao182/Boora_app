@@ -261,6 +261,12 @@ const double FREE_ACCOUNT_MAX_EVENT_DISTANCE_KM = 30.0;
 /// - NÃO afeta busca de eventos diretamente
 const bool ENABLE_RADIUS_LIMIT = true;
 
+/// 🎯 Feature flag para exibir ícone do Feed de Fotos na Home AppBar
+/// - true: Exibe o ícone de galeria (feed de fotos do evento)
+/// - false: Oculta o ícone
+/// 📍 Usado em: HomeAppBar (home_app_bar.dart)
+const bool ENABLE_EVENT_PHOTO_FEED_ICON = false;
+
 /// ========================================
 /// === 3. LIMITES DO SLIDER DE RAIO ===
 /// ========================================
