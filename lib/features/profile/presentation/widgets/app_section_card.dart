@@ -184,7 +184,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
                 icon: Iconsax.share,
                 title: _tr(i18n, 'share_with_friends', 'Compartilhar com Amigos'),
                 onTap: () async {
-                  _appHelper.shareApp(context: context);
+                  await _appHelper.shareApp(context: context);
                 },
               ),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),

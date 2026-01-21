@@ -12,6 +12,7 @@ import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
+import 'package:partiu/shared/widgets/navigation_buttons.dart';
 
 /// Bottom sheet para seleção de data e horário da atividade
 class ScheduleDrawer extends StatefulWidget {
@@ -136,26 +137,18 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
 
                     const SizedBox(height: 16),
 
-                    // Header: Back + Título + Close
+                    // Header: Título + Close
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Botão voltar
-                        GlimpseBackButton(
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-
-                        // Título centralizado
-                        Expanded(
-                          child: Text(
-                            AppLocalizations.of(context).translate('when_activity_title'),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: GlimpseColors.primaryColorLight,
-                            ),
+                        // Título alinhado à esquerda
+                        Text(
+                          AppLocalizations.of(context).translate('when_activity_title'),
+                          style: GoogleFonts.getFont(
+                            FONT_PLUS_JAKARTA_SANS,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: GlimpseColors.primaryColorLight,
                           ),
                         ),
 
@@ -214,33 +207,11 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
 
               const SizedBox(height: 24),
 
-              // Texto informativo
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  AppLocalizations.of(context)
-                      .translate('activity_visible_until_midnight'),
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: GlimpseColors.textSubTitle,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Botão de continuar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: GlimpseButton(
-                  text: widget.editMode 
-                      ? AppLocalizations.of(context).translate('save')
-                      : AppLocalizations.of(context).translate('continue'),
-                  onPressed: _controller.canContinue ? _handleContinue : null,
-                ),
+              // Botões de navegação
+              NavigationButtons(
+                onBack: () => Navigator.of(context).pop(),
+                onContinue: _handleContinue,
+                canContinue: _controller.canContinue,
               ),
 
               // Padding bottom para safe area

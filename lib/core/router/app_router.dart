@@ -69,9 +69,9 @@ GoRouter createAppRouter(BuildContext context) {
         final currentPath = state.uri.path;
         final fullUri = state.uri.toString();
 
-        // Tratamento de deep links do AppsFlyer (boora://)
+        // Tratamento de deep links (boora://)
         if (fullUri.startsWith('boora://')) {
-          debugPrint('🔗 [GoRouter] Deep link AppsFlyer detectado: $fullUri');
+          debugPrint('🔗 [GoRouter] Deep link detectado: $fullUri');
           
           // Deep link para main = home
           if (fullUri.contains('boora://main')) {
@@ -348,9 +348,9 @@ GoRouter createAppRouter(BuildContext context) {
   errorBuilder: (context, state) {
       final uri = state.uri.toString();
       
-      // Se for um deep link do AppsFlyer (boora://), redireciona para home
+      // Se for um deep link (boora://), redireciona para home
       if (uri.contains('boora://') || uri.contains('boora%3A')) {
-        debugPrint('🔗 [GoRouter errorBuilder] Deep link AppsFlyer detectado: $uri');
+        debugPrint('🔗 [GoRouter errorBuilder] Deep link detectado: $uri');
         // Usa WidgetsBinding para navegar após o frame atual
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {

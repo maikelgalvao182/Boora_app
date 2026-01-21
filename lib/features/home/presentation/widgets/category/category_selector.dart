@@ -73,32 +73,36 @@ class _CategoryCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          // Mantém a cor de fundo original do card; a paleta fica só no emoji.
-          color: isSelected
-              ? GlimpseColors.primaryLight
-              : GlimpseColors.lightTextField,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? GlimpseColors.primary : GlimpseColors.lightTextField,
+            color: isSelected ? GlimpseColors.primary : Colors.transparent,
             width: 2,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             // Emoji dentro de container redondo à esquerda
             Container(
-              width: 44,
-              height: 44,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-        color: isSelected
-          ? GlimpseColors.primary.withValues(alpha: 0.12)
-          : baseColor,
+                color: isSelected
+                    ? GlimpseColors.primary.withValues(alpha: 0.12)
+                    : baseColor,
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
               child: Text(
                 categoryInfo.emoji,
-                style: const TextStyle(fontSize: 22),
+                style: const TextStyle(fontSize: 28),
               ),
             ),
             const SizedBox(width: 12),

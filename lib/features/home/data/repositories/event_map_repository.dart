@@ -84,6 +84,17 @@ class EventMapRepository {
             minAge: participantsData?['minAge'] as int?,
             maxAge: participantsData?['maxAge'] as int?,
           );
+          
+          // 🔍 DEBUG: Log campos críticos para diagnóstico
+          if (event.locationName == null || event.privacyType == null || event.title.isEmpty) {
+            debugPrint('⚠️ [EventMapRepository] Evento ${doc.id} com dados incompletos:');
+            debugPrint('   - activityText: ${data['activityText']}');
+            debugPrint('   - location keys: ${location.keys.toList()}');
+            debugPrint('   - location.locationName: ${location['locationName']}');
+            debugPrint('   - participants keys: ${participantsData?.keys.toList()}');
+            debugPrint('   - participants.privacyType: ${participantsData?['privacyType']}');
+          }
+          
           events.add(event);
         } catch (e) {
           debugPrint('⚠️ Erro ao processar evento ${doc.id}: $e');

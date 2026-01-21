@@ -27,30 +27,26 @@ class PrivacyTypeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _PrivacyTypeCard(
-            type: PrivacyType.open,
-            title: i18n.translate('privacy_type_open_title'),
-            subtitle: i18n.translate('privacy_type_open_subtitle'),
-            icon: IconsaxPlusLinear.people,
-            isSelected: selectedType == PrivacyType.open,
-            onTap: () => onTypeSelected(PrivacyType.open),
-          ),
+        _PrivacyTypeCard(
+          type: PrivacyType.open,
+          title: i18n.translate('privacy_type_open_title'),
+          subtitle: i18n.translate('privacy_type_open_subtitle'),
+          icon: IconsaxPlusLinear.people,
+          isSelected: selectedType == PrivacyType.open,
+          onTap: () => onTypeSelected(PrivacyType.open),
         ),
 
-        const SizedBox(width: 12),
+        const SizedBox(height: 12),
 
-        Expanded(
-          child: _PrivacyTypeCard(
-            type: PrivacyType.private,
-            title: i18n.translate('privacy_type_private_title'),
-            subtitle: i18n.translate('privacy_type_private_subtitle'),
-            icon: IconsaxPlusLinear.lock,
-            isSelected: selectedType == PrivacyType.private,
-            onTap: () => onTypeSelected(PrivacyType.private),
-          ),
+        _PrivacyTypeCard(
+          type: PrivacyType.private,
+          title: i18n.translate('privacy_type_private_title'),
+          subtitle: i18n.translate('privacy_type_private_subtitle'),
+          icon: IconsaxPlusLinear.lock,
+          isSelected: selectedType == PrivacyType.private,
+          onTap: () => onTypeSelected(PrivacyType.private),
         ),
       ],
     );
@@ -82,56 +78,77 @@ class _PrivacyTypeCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected
-              ? GlimpseColors.primaryLight
-              : GlimpseColors.lightTextField,
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
           border: isSelected
               ? Border.all(
                   color: GlimpseColors.primary,
                   width: 2,
                 )
-              : null,
+              : Border.all(
+                  color: Colors.transparent,
+                  width: 2,
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            // Ícone
-            Icon(
-              icon,
-              color: isSelected
-                  ? GlimpseColors.primary
-                  : GlimpseColors.textSubTitle,
-              size: 24,
+            // Ícone à esquerda
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? GlimpseColors.primaryLight
+                    : GlimpseColors.lightTextField,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: Colors.black,
+                  size: 24,
+                ),
+              ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(width: 12),
 
-            // Textos
-            Column(
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: GlimpseColors.primaryColorLight,
+            // Textos à direita
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: GlimpseColors.primaryColorLight,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: GlimpseColors.textSubTitle,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: GlimpseColors.textSubTitle,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

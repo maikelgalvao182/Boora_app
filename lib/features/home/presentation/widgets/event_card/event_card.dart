@@ -7,13 +7,12 @@ import 'package:partiu/features/home/presentation/widgets/event_card/widgets/eve
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/event_formatted_text.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_avatars_list.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_counter.dart';
+import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
-import 'package:partiu/shared/widgets/emoji_container.dart';
-import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/place_details_modal.dart';
 import 'package:partiu/shared/widgets/report_event_button.dart';
 
-/// Card de evento que exibe informações do criador e localização
+/// Bottom sheet de evento que exibe informações do criador e localização
 /// 
 /// Widget burro que apenas compõe widgets const baseado nos dados do controller
 class EventCard extends StatefulWidget {
@@ -25,6 +24,23 @@ class EventCard extends StatefulWidget {
 
   final EventCardController controller;
   final VoidCallback onActionPressed;
+
+  /// Exibe o EventCard como um bottom sheet
+  static Future<void> show({
+    required BuildContext context,
+    required EventCardController controller,
+    required VoidCallback onActionPressed,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => EventCard(
+        controller: controller,
+        onActionPressed: onActionPressed,
+      ),
+    );
+  }
 
   @override
   State<EventCard> createState() => _EventCardState();
@@ -64,160 +80,179 @@ class _EventCardState extends State<EventCard> {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final containerColor = MarkerColorHelper.getColorForId(_controller.eventId);
     
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        constraints: const BoxConstraints(
-          maxWidth: 500,
-          minWidth: 300,
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
         ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Stack(
-          clipBehavior: Clip.none,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 56),
-
-                // Error state
-                if (_controller.error != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text(
-                        _controller.error!,
-                        style: DialogStyles.messageStyle.copyWith(
-                          color: Colors.red,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-
-                // Success state
-                else if (_controller.hasData) ...[
-                  // Texto formatado
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: EventFormattedText(
-                      fullName: _controller.creatorFullName ?? '',
-                      activityText: _controller.activityText ?? '',
-                      locationName: _controller.locationName ?? '',
-                      dateText: _controller.formattedDate,
-                      timeText: _controller.formattedTime,
-                      onLocationTap: _showPlaceDetails,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Contador de participantes (stream)
-                  ParticipantsCounter(
-                    controller: _controller,
-                    eventId: _controller.eventId,
-                    singularLabel: i18n.translate('participant_singular'),
-                    pluralLabel: i18n.translate('participant_plural'),
-                  ),
-                  
-                  // Lista de avatares (preload + stream)
-                  ParticipantsAvatarsList(
-                    eventId: _controller.eventId,
-                    creatorId: _controller.creatorId,
-                    preloadedParticipants: _controller.approvedParticipants,
-                  ),
-                  
-                  const SizedBox(height: 24),
-
-                  // Botões de ação
-                  EventActionButtons(
-                    isApproved: _controller.isApproved,
-                    isCreator: _controller.isCreator,
-                    isEnabled: _controller.isButtonEnabled,
-                    buttonText: i18n.translate(_controller.buttonText),
-                    chatButtonText: _controller.chatButtonText,
-                    leaveButtonText: _controller.leaveButtonText,
-                    deleteButtonText: _controller.deleteButtonText,
-                    isApplying: _controller.isApplying,
-                    isLeaving: _controller.isLeaving,
-                    isDeleting: _controller.isDeleting,
-                    onChatPressed: () => EventCardHandler.handleButtonPress(
-                      context: context,
-                      controller: _controller,
-                      onActionSuccess: widget.onActionPressed,
-                    ),
-                    onLeavePressed: () => EventCardHandler.handleLeaveEvent(
-                      context: context,
-                      controller: _controller,
-                    ),
-                    onDeletePressed: () => EventCardHandler.handleDeleteEvent(
-                      context: context,
-                      controller: _controller,
-                    ),
-                    onSingleButtonPressed: () => EventCardHandler.handleButtonPress(
-                      context: context,
-                      controller: _controller,
-                      onActionSuccess: widget.onActionPressed,
-                    ),
-                  ),
-                ] else
-                  // No data state
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text(
-                        i18n.translate('no_data_available'),
-                        style: DialogStyles.messageStyle,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            
-            // Emoji no topo
-            Positioned(
-              top: -40,
-              left: 0,
-              right: 0,
+            // Handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12, left: 20, right: 20),
               child: Center(
-                child: _controller.emoji != null
-                    ? EmojiContainer(
-                        emoji: _controller.emoji!,
-                        size: 80,
-                        emojiSize: 40,
-                        borderWidth: 6,
-                        borderColor: Colors.white,
-                      )
-                    : const SizedBox(width: 80, height: 80),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: GlimpseColors.borderColorLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
             ),
-            
-            // Botões de ação no topo direito
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Row(
-                children: [
-                  ReportEventButton(eventId: _controller.eventId),
-                  const SizedBox(width: 8),
-                  GlimpseCloseButton(
-                    onPressed: () {
-                      if (Navigator.of(context).canPop()) {
-                        Navigator.of(context).pop();
-                      }
-                    },
+
+            const SizedBox(height: 12),
+
+            // Container com imagem de fundo (similar ao create_drawer)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  height: 120,
+                  color: containerColor,
+                  child: Stack(
+                    children: [
+                      // Imagem de fundo com scale maior
+                      Positioned.fill(
+                        child: Transform.scale(
+                          scale: 1.5,
+                          child: Image.asset(
+                            'assets/images/carnaval.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      // Botão de denúncia no topo direito
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: ReportEventButton(eventId: _controller.eventId),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Conteúdo principal
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _buildContent(i18n),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(AppLocalizations i18n) {
+    // Error state
+    if (_controller.error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Text(
+            _controller.error!,
+            style: DialogStyles.messageStyle.copyWith(
+              color: Colors.red,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    // Success state
+    if (_controller.hasData) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Texto formatado com emoji
+          EventFormattedText(
+            fullName: _controller.creatorFullName ?? '',
+            activityText: _controller.activityText ?? '',
+            locationName: _controller.locationName ?? '',
+            dateText: _controller.formattedDate,
+            timeText: _controller.formattedTime,
+            onLocationTap: _showPlaceDetails,
+            emoji: _controller.emoji,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Contador de participantes (stream)
+          ParticipantsCounter(
+            controller: _controller,
+            eventId: _controller.eventId,
+            singularLabel: i18n.translate('participant_singular'),
+            pluralLabel: i18n.translate('participant_plural'),
+          ),
+          
+          // Lista de avatares (preload + stream)
+          ParticipantsAvatarsList(
+            eventId: _controller.eventId,
+            creatorId: _controller.creatorId,
+            preloadedParticipants: _controller.approvedParticipants,
+          ),
+          
+          const SizedBox(height: 24),
+
+          // Botões de ação
+          EventActionButtons(
+            isApproved: _controller.isApproved,
+            isCreator: _controller.isCreator,
+            isEnabled: _controller.isButtonEnabled,
+            buttonText: i18n.translate(_controller.buttonText),
+            chatButtonText: _controller.chatButtonText,
+            leaveButtonText: _controller.leaveButtonText,
+            deleteButtonText: _controller.deleteButtonText,
+            isApplying: _controller.isApplying,
+            isLeaving: _controller.isLeaving,
+            isDeleting: _controller.isDeleting,
+            onChatPressed: () => EventCardHandler.handleButtonPress(
+              context: context,
+              controller: _controller,
+              onActionSuccess: widget.onActionPressed,
+            ),
+            onLeavePressed: () => EventCardHandler.handleLeaveEvent(
+              context: context,
+              controller: _controller,
+            ),
+            onDeletePressed: () => EventCardHandler.handleDeleteEvent(
+              context: context,
+              controller: _controller,
+            ),
+            onSingleButtonPressed: () => EventCardHandler.handleButtonPress(
+              context: context,
+              controller: _controller,
+              onActionSuccess: widget.onActionPressed,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // No data state
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Text(
+          i18n.translate('no_data_available'),
+          style: DialogStyles.messageStyle,
+          textAlign: TextAlign.center,
         ),
       ),
     );

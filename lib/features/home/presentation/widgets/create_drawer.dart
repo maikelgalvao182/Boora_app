@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -12,6 +14,7 @@ import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/shared/widgets/emoji_container.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
+import 'package:partiu/shared/widgets/navigation_buttons.dart';
 
 /// Bottom sheet para criar nova atividade
 class CreateDrawer extends StatefulWidget {
@@ -165,43 +168,59 @@ class _CreateDrawerState extends State<CreateDrawer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle e botão de fechar
+              // Handle
               Padding(
                 padding: EdgeInsets.only(
                   top: _controller.isSuggestionMode ? MediaQuery.of(context).padding.top + 12 : 12,
                   left: 20,
                   right: 20,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Handle centralizado (spacer para ocupar espaço)
-                    const SizedBox(width: 32),
-                    
-                    // Handle no centro
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: GlimpseColors.borderColorLight,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: GlimpseColors.borderColorLight,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    
-                    // Botão de fechar
-                    const GlimpseCloseButton(
-                      size: 32,
-                    ),
-                  ],
+                  ),
                 ),
               ),
 
+              const SizedBox(height: 12),
+
               // Container com emoji
-              EmojiContainer(
-                emoji: _controller.currentEmoji,
-                size: 80,
-                emojiSize: 40,
-                backgroundColor: _containerColor,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    height: 120,
+                    color: _containerColor,
+                    child: Stack(
+                      children: [
+                        // Imagem de fundo com scale maior
+                        Positioned.fill(
+                          child: Transform.scale(
+                            scale: 1.5,
+                            child: Image.asset(
+                              'assets/images/carnaval.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        // Emoji centralizado
+                        Center(
+                          child: Text(
+                            _controller.currentEmoji,
+                            style: const TextStyle(fontSize: 48),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -329,18 +348,12 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 ),
               ),
 
-              // Botão de criar (apenas visível se não estiver em modo sugestão)
+              // Botões de voltar e continuar (apenas visível se não estiver em modo sugestão)
               if (!_controller.isSuggestionMode)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: GlimpseButton(
-                    text: widget.editMode 
-                        ? AppLocalizations.of(context).translate('save')
-                        : AppLocalizations.of(context).translate('continue'),
-                    onPressed: _controller.canContinue
-                        ? _handleCreate
-                        : null,
-                  ),
+                NavigationButtons(
+                  onBack: () => Navigator.of(context).pop(),
+                  onContinue: _handleCreate,
+                  canContinue: _controller.canContinue,
                 ),
 
               // Padding bottom para safe area (apenas se não estiver em modo sugestão)

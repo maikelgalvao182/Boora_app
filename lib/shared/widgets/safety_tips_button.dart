@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
-import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -12,48 +11,13 @@ import 'package:url_launcher/url_launcher.dart';
 class SafetyTipsButton extends StatelessWidget {
   const SafetyTipsButton({super.key});
 
-  void _showSafetyDialog(BuildContext context) {
-    final i18n = AppLocalizations.of(context);
-    showGeneralDialog(
+  void _showSafetyBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: i18n.translate('close'),
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return const SizedBox.shrink();
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curvedAnimation = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(curvedAnimation),
-          child: FadeTransition(
-            opacity: curvedAnimation,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  margin: const EdgeInsets.all(20),
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const _SafetyDialogContent(),
-                ),
-              ),
-            ),
-          ),
-        );
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return const _SafetyTipsBottomSheet();
       },
     );
   }
@@ -70,14 +34,14 @@ class SafetyTipsButton extends StatelessWidget {
           size: 24,
           color: GlimpseColors.textSubTitle,
         ),
-        onPressed: () => _showSafetyDialog(context),
+        onPressed: () => _showSafetyBottomSheet(context),
       ),
     );
   }
 }
 
-class _SafetyDialogContent extends StatelessWidget {
-  const _SafetyDialogContent();
+class _SafetyTipsBottomSheet extends StatelessWidget {
+  const _SafetyTipsBottomSheet();
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
@@ -90,104 +54,112 @@ class _SafetyDialogContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Título
-          Text(
-            i18n.translate('safety_tips_title'),
-            style: GoogleFonts.getFont(
-              FONT_PLUS_JAKARTA_SANS,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: GlimpseColors.primaryColorLight,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            i18n.translate('safety_tips_subtitle'),
-            style: GoogleFonts.getFont(
-              FONT_PLUS_JAKARTA_SANS,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: GlimpseColors.primaryColorLight,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-
-          // Dicas
-          _SafetyTipItem(
-            icon: IconsaxPlusLinear.people,
-            title: i18n.translate('safety_tip_public_places_title'),
-            description: i18n.translate('safety_tip_public_places_description'),
-          ),
-          const SizedBox(height: 16),
-          _SafetyTipItem(
-            icon: IconsaxPlusLinear.car,
-            title: i18n.translate('safety_tip_transport_title'),
-            description: i18n.translate('safety_tip_transport_description'),
-          ),
-          const SizedBox(height: 16),
-          _SafetyTipItem(
-            icon: Iconsax.eye,
-            title: i18n.translate('safety_tip_drinks_title'),
-            description: i18n.translate('safety_tip_drinks_description'),
-          ),
-          const SizedBox(height: 16),
-          _SafetyTipItem(
-            icon: IconsaxPlusLinear.message_text,
-            title: i18n.translate('safety_tip_in_app_chat_title'),
-            description: i18n.translate('safety_tip_in_app_chat_description'),
-          ),
-          const SizedBox(height: 16),
-          _SafetyTipItem(
-            icon: IconsaxPlusLinear.user_tag,
-            title: i18n.translate('safety_tip_trusted_person_title'),
-            description: i18n.translate('safety_tip_trusted_person_description'),
-          ),
-          const SizedBox(height: 24),
-
-          // Link para mais informações
-          GestureDetector(
-            onTap: () => _launchUrl(BOORA_SAFETY_ETIQUETTE_URL),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  IconsaxPlusLinear.info_circle,
-                  size: 18,
-                  color: GlimpseColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  i18n.translate('safety_tips_learn_more'),
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: GlimpseColors.primary,
-                    decoration: TextDecoration.underline,
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 12, left: 20, right: 20),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: GlimpseColors.borderColorLight,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    i18n.translate('safety_tips_title'),
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: GlimpseColors.primaryColorLight,
+                    ),
+                    maxLines: 2,
+                    textAlign: TextAlign.left,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    i18n.translate('safety_tips_subtitle'),
+                    textAlign: TextAlign.left,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: GlimpseColors.textSubTitle,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // Botão Fechar
-          GlimpseButton(
-            text: i18n.translate('close'),
-            backgroundColor: GlimpseColors.primary,
-            height: 52,
-            noPadding: true,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    _SafetyTipItem(
+                      icon: IconsaxPlusLinear.verify,
+                      title: i18n.translate('onboarding_verified_title'),
+                      description: 'Prefira conversar e marcar encontros com perfis verificados. Se algo não bater, melhor não marcar e seguir em frente.',
+                    ),
+                    const SizedBox(height: 16),
+                    _SafetyTipItem(
+                      icon: IconsaxPlusLinear.star_1,
+                      title: i18n.translate('onboarding_reputation_title'),
+                      description: i18n.translate('onboarding_reputation_text'),
+                    ),
+                    const SizedBox(height: 16),
+                    _SafetyTipItem(
+                      icon: IconsaxPlusLinear.shield_tick,
+                      title: i18n.translate('onboarding_safety_title'),
+                      description: i18n.translate('onboarding_safety_text'),
+                    ),
+                    const SizedBox(height: 16),
+                    _SafetyTipItem(
+                      icon: IconsaxPlusLinear.flag_2,
+                      title: i18n.translate('onboarding_report_title'),
+                      description: 'Viu comportamento estranho, perfil suspeito ou algo inadequado no mapa ou nos chats? Denuncie e bloqueie pelo app.',
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GlimpseButton(
+                text: i18n.translate('safety_tips_learn_more'),
+                backgroundColor: GlimpseColors.primary,
+                height: 52,
+                noPadding: true,
+                onTap: () => _launchUrl(BOORA_SAFETY_ETIQUETTE_URL),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          ],
+        ),
       ),
     );
   }

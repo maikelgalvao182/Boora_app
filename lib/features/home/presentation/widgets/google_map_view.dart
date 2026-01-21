@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -86,6 +87,14 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
   /// Flag para evitar rebuild pesado enquanto o usuário move o mapa
   bool _isCameraMoving = false;
+
+  /// Controla o fluxo de expansão de cluster para manter coerência visual.
+  /// Quando true, o próximo onCameraIdle não deve refetch/rebuild (é apenas o término
+  /// da animação iniciada por um tap em cluster).
+  bool _isExpandingCluster = false;
+
+  /// Guarda o último cluster tocado (pelo conjunto de ids) para permitir “tap 2 abre lista”.
+  Set<String>? _lastTappedClusterEventIds;
 
   Timer? _cameraIdleDebounce;
   static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 200);
@@ -284,92 +293,89 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Callback quando cluster é tocado
   /// 
   /// Comportamento:
-  /// - Zoom in até desfazer o cluster (zoom > 11 desativa clustering)
-  /// - Se zoom já alto, mostra o primeiro evento
+  /// - Calcula bounds que enquadra todos os eventos do cluster
+  /// - Anima câmera para mostrar todos os markers no frame
+  /// - Mantém coerência visual evitando refetch/rebuild no 1º onCameraIdle após animação
   void _onClusterTap(List<EventModel> eventsInCluster) async {
     if (_mapController == null || eventsInCluster.isEmpty) return;
 
-    // Warmup: ao tocar no cluster, pré-carrega avatares dos criadores do cluster.
-    // Assim, quando o zoom in desfizer o cluster, os avatares tendem a já estar no cache.
-    // Timeout curto para não travar a interação.
-    try {
-      await _markerService
-          .preloadAvatarPinsForEvents(eventsInCluster, maxUsers: 30)
-          .timeout(const Duration(milliseconds: 900));
-    } catch (_) {
-      // Best-effort.
-    }
+    // Warmup em background (não bloqueia a interação)
+    _markerService
+        .preloadAvatarPinsForEvents(eventsInCluster, maxUsers: 30)
+        .timeout(const Duration(milliseconds: 900))
+        .catchError((_) => 0);
     
-    // Se zoom já está alto (>= 16), mostrar primeiro evento
-    if (_currentZoom >= 16) {
-      debugPrint('📍 Cluster tocado em zoom alto - mostrando primeiro evento');
-      _onMarkerTap(eventsInCluster.first);
-      return;
-    }
+    // Mantém referência do último cluster tocado (pode ser útil para ajustes futuros)
+    _lastTappedClusterEventIds = eventsInCluster.map((e) => e.id).toSet();
     
-    // ✅ Em vez de usar apenas média, usar bounds do cluster.
-    // Isso evita “cair” numa área vazia quando a posição do cluster/zoom está levemente defasada.
+    // 🎯 Calcular bounds que enquadra todos os eventos
     double minLat = eventsInCluster.first.lat;
     double maxLat = eventsInCluster.first.lat;
     double minLng = eventsInCluster.first.lng;
     double maxLng = eventsInCluster.first.lng;
-    for (final event in eventsInCluster.skip(1)) {
-      if (event.lat < minLat) minLat = event.lat;
-      if (event.lat > maxLat) maxLat = event.lat;
-      if (event.lng < minLng) minLng = event.lng;
-      if (event.lng > maxLng) maxLng = event.lng;
+    
+    for (final e in eventsInCluster) {
+      if (e.lat < minLat) minLat = e.lat;
+      if (e.lat > maxLat) maxLat = e.lat;
+      if (e.lng < minLng) minLng = e.lng;
+      if (e.lng > maxLng) maxLng = e.lng;
     }
-
-    final bounds = LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
-
-    debugPrint(
-      '🔍 Expandindo cluster: ${eventsInCluster.length} eventos, bounds=($minLat,$minLng)-($maxLat,$maxLng)',
-    );
     
     // Marcar que está animando para evitar rebuilds intermediários
     _isAnimating = true;
+
+    // Marcar que estamos expandindo cluster: o próximo onCameraIdle não deve refetch/rebuild.
+    _isExpandingCluster = true;
     
     try {
-      // Tenta enquadrar todos os eventos do cluster.
-      // Em clusters com um único ponto (bounds degenerado), dá fallback para zoom.
-      if (minLat == maxLat && minLng == maxLng) {
-        // 🎯 Calcular zoom para DESFAZER o cluster
-        // Clustering é ativado quando zoom <= 11, então precisamos ir para zoom > 11
-        final newZoom = (_currentZoom <= _clusterZoomThreshold)
-            ? (eventsInCluster.length > 5 ? 13.0 : 12.0)
-            : (_currentZoom + 2).clamp(3.0, 20.0);
-        debugPrint(
-          '🔍 Cluster em ponto único: zoom ${_currentZoom.toStringAsFixed(1)} → ${newZoom.toStringAsFixed(1)}',
-        );
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(LatLng(minLat, minLng), newZoom),
-        );
-      } else {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 80),
-        );
-      }
+      // Se todos os eventos estão no mesmo ponto (ou muito próximos), fazer zoom fixo
+      final latDiff = maxLat - minLat;
+      final lngDiff = maxLng - minLng;
       
-      // Aguardar animação completar
-      await Future.delayed(const Duration(milliseconds: 400));
+      if (latDiff < 0.0001 && lngDiff < 0.0001) {
+        // Eventos sobrepostos: zoom fixo no centro
+        final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+        final targetZoom = (_currentZoom + 2.0).clamp(14.0, 18.0);
+        
+        debugPrint(
+          '🔍 Expandindo cluster (sobrepostos): ${eventsInCluster.length} eventos, '
+          'zoom ${_currentZoom.toStringAsFixed(1)} -> ${targetZoom.toStringAsFixed(1)}',
+        );
+        
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(center, targetZoom),
+        );
+        
+        _currentZoom = targetZoom;
+      } else {
+        // Eventos espalhados: usar bounds para enquadrar todos
+        final bounds = LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        );
+        
+        debugPrint(
+          '🔍 Expandindo cluster: ${eventsInCluster.length} eventos, '
+          'bounds: SW(${minLat.toStringAsFixed(4)}, ${minLng.toStringAsFixed(4)}) '
+          'NE(${maxLat.toStringAsFixed(4)}, ${maxLng.toStringAsFixed(4)})',
+        );
+        
+        // Padding de 80px para não colar nos cantos
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 80.0),
+        );
+        
+        // Atualizar zoom atual após animação
+        final newPosition = await _mapController!.getVisibleRegion();
+        // Estimar zoom baseado no tamanho do bounds (aproximação)
+        _currentZoom = (_currentZoom + 2.0).clamp(12.0, 18.0);
+      }
       
     } finally {
       _isAnimating = false;
     }
     
-    // 🎯 Atualiza zoom real após animação (bounds define zoom automaticamente)
-    try {
-      _currentZoom = await _mapController!.getZoomLevel();
-    } catch (_) {}
-    
-    // Limpar cache de clusters para forçar recalculo com novo zoom
-    _markerService.clearClusterCache();
-    
-    debugPrint('🔄 Forçando rebuild de markers após zoom do cluster');
-    await _rebuildClusteredMarkers();
+    // O onCameraIdle vai disparar automaticamente e fazer o rebuild dos markers
   }
 
   /// Callback quando o mapa é criado
@@ -406,6 +412,21 @@ class GoogleMapViewState extends State<GoogleMapView> {
     _isCameraMoving = false;
 
     if (_mapController == null || _isAnimating) return;
+
+    // Se acabamos de animar por causa de um tap em cluster, não tratamos como navegação normal.
+    // Isso evita refetch/rebuild que mistura eventos “novos” e quebra a percepção do cluster.
+    if (_isExpandingCluster) {
+      _isExpandingCluster = false;
+
+      // Ainda assim, atualiza os markers para o novo zoom/bounds com o dataset já carregado.
+      // Isso dá a sensação correta de “expandiu o cluster” sem poluir com novos eventos.
+      _cameraIdleDebounce?.cancel();
+      _cameraIdleDebounce = Timer(_cameraIdleDebounceDuration, () {
+        if (!mounted) return;
+        unawaited(_rebuildClusteredMarkers());
+      });
+      return;
+    }
 
     _cameraIdleDebounce?.cancel();
     _cameraIdleDebounce = Timer(_cameraIdleDebounceDuration, () {
@@ -658,28 +679,108 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Callback quando usuário toca em um marker
   /// 
   /// [showConfetti] - Se true, mostra confetti ao abrir o card (usado após criar evento)
-  void _onMarkerTap(EventModel event, {bool showConfetti = false}) {
+  Future<void> _onMarkerTap(EventModel event, {bool showConfetti = false}) async {
     debugPrint('🔴🔴🔴 GoogleMapView._onMarkerTap CHAMADO! 🔴🔴🔴');
     debugPrint('🔴 GoogleMapView._onMarkerTap called for: ${event.id} - ${event.title}');
-    debugPrint('📦 EventModel pré-carregado:');
-    debugPrint('   - locationName: ${event.locationName}');
-    debugPrint('   - privacyType: ${event.privacyType}');
-    debugPrint('   - creatorFullName: ${event.creatorFullName}');
-    debugPrint('   - scheduleDate: ${event.scheduleDate}');
-    debugPrint('   - userApplication: ${event.userApplication?.status.value}');
-    debugPrint('   - participants: ${event.participants?.length ?? 0}');
     
-    // Criar controller com evento pré-carregado (evita query Firestore)
+    final firestore = FirebaseFirestore.instance;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    
+    // ✅ Pré-carregar TODOS os dados necessários em paralelo
+    String? creatorFullName = event.creatorFullName;
+    List<Map<String, dynamic>>? participants = event.participants;
+    dynamic userApplication = event.userApplication;
+    
+    try {
+      final futures = <Future>[];
+      
+      // 1. Buscar creatorFullName se necessário
+      if (creatorFullName == null && event.createdBy.isNotEmpty) {
+        futures.add(
+          firestore.collection('Users').doc(event.createdBy).get().then((doc) {
+            creatorFullName = doc.data()?['fullName'] as String?;
+            debugPrint('✅ creatorFullName: $creatorFullName');
+          }),
+        );
+      }
+      
+      // 2. Buscar participants se necessário
+      if (participants == null || participants!.isEmpty) {
+        futures.add(
+          firestore
+              .collection('EventApplications')
+              .where('eventId', isEqualTo: event.id)
+              .where('status', whereIn: ['approved', 'autoApproved'])
+              .get()
+              .then((snapshot) async {
+            final userIds = snapshot.docs.map((d) => d.data()['userId'] as String).toList();
+            if (userIds.isEmpty) {
+              participants = [];
+              return;
+            }
+            
+            // Buscar dados dos usuários em batch
+            final usersSnapshot = await firestore
+                .collection('Users')
+                .where(FieldPath.documentId, whereIn: userIds.take(10).toList())
+                .get();
+            
+            participants = usersSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {
+                'userId': doc.id,
+                'photoUrl': data['photoUrl'] as String?,
+                'fullName': data['fullName'] as String?,
+              };
+            }).toList();
+            debugPrint('✅ participants: ${participants?.length}');
+          }),
+        );
+      }
+      
+      // 3. Buscar userApplication se necessário
+      if (userApplication == null && currentUserId != null) {
+        futures.add(
+          firestore
+              .collection('EventApplications')
+              .where('eventId', isEqualTo: event.id)
+              .where('userId', isEqualTo: currentUserId)
+              .limit(1)
+              .get()
+              .then((snapshot) {
+            if (snapshot.docs.isNotEmpty) {
+              userApplication = snapshot.docs.first;
+              debugPrint('✅ userApplication: ${snapshot.docs.first.data()['status']}');
+            }
+          }),
+        );
+      }
+      
+      // Aguardar todas as queries terminarem
+      await Future.wait(futures);
+      
+    } catch (e) {
+      debugPrint('⚠️ Erro ao pré-carregar dados: $e');
+    }
+    
+    // Criar evento enriquecido com todos os dados
+    final enrichedEvent = event.copyWith(
+      creatorFullName: creatorFullName,
+      participants: participants,
+      // userApplication é tratado separadamente no controller
+    );
+    
+    debugPrint('📦 EventModel enriquecido:');
+    debugPrint('   - creatorFullName: ${enrichedEvent.creatorFullName}');
+    debugPrint('   - participants: ${enrichedEvent.participants?.length ?? 0}');
+    
+    // Criar controller com evento enriquecido
     final controller = EventCardController(
-      eventId: event.id,
-      preloadedEvent: event,
+      eventId: enrichedEvent.id,
+      preloadedEvent: enrichedEvent,
     );
     
     debugPrint('🔴 Controller criado com dados pré-carregados');
-    
-    // NÃO chamar load() aqui - deixar o EventCard chamar quando necessário
-    // O controller já tem todos os dados essenciais via preloadedEvent
-    
     debugPrint('🔴 Abrindo showModalBottomSheet');
     
     // Mostrar confetti se for evento recém-criado

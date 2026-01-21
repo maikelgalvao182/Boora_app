@@ -238,7 +238,7 @@
   "enter_your_profession": "Ingresa tu profesión",
   "field_school": "Escuela/Formación",
   "field_gender": "Género",
-  "sexual_orientation_label": "Orientación sexual",
+  "sexual_orientation_label": "Orientación",
   "sexual_orientation_hint": "Selecciona tu orientación sexual",
   "sexual_orientation_heterosexual": "Heterosexual",
   "sexual_orientation_homosexual": "Homosexual",
@@ -633,10 +633,10 @@
   "place_visited_by": "Visitado por ",
   "place_visited_by_others_singular": " & {count} otro",
   "place_visited_by_others_plural": " & {count} otros",
-  "privacy_type_open_title": "Abierto",
-  "privacy_type_open_subtitle": "Libre para participar",
-  "privacy_type_private_title": "Privado",
-  "privacy_type_private_subtitle": "Requiere aprobación",
+  "privacy_type_open_title": "Abierto para todos",
+  "privacy_type_open_subtitle": "Cualquiera puede unirse",
+  "privacy_type_private_title": "Solo invitados",
+  "privacy_type_private_subtitle": "Tú apruebas participantes",
   "edit_event_name": "Editar nombre del evento",
   "event_name": "Nombre del evento",
   "updating": "Actualizando...",
@@ -693,8 +693,8 @@
   "comments_count_plural": "{count} comentarios",
   "flexible_time": "Horario flexible",
   "specific_time": "Horario específico",
-  "time_type_flexible_subtitle": "A cualquier hora del día",
-  "time_type_specific_subtitle": "Elige la hora exacta",
+  "time_type_flexible_subtitle": "Acuerden el horario después en el chat",
+  "time_type_specific_subtitle": "Define un horario para el encuentro",
   "activity_visible_until_midnight": "Tu actividad seguirá visible en el mapa hasta la medianoche.",
   "unlock_with_vip": "Desbloquea con VIP",
   "delete_event_confirmation": "¿Estás seguro de que quieres eliminar el evento '{event}'? Esta acción no se puede deshacer.",
@@ -982,6 +982,7 @@
   "application_approved_redirect_to_chat": "¡Tu solicitud fue aprobada! ¿Quieres entrar al chat del evento?",
   "go_to_chat": "Ir al chat",
   "later": "Más tarde",
-  "actions": "Acciones"
+  "actions": "Acciones",
+  "share_app_message": "Crea cosas para hacer en el mapa de tu ciudad y mira quién quiere acompañarte."
 }
 

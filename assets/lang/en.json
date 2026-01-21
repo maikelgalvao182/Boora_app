@@ -212,7 +212,7 @@
   "gender_male": "Male",
   "gender_female": "Female",
   "gender_non_binary": "Non-binary",
-  "sexual_orientation_label": "Sexual Orientation",
+  "sexual_orientation_label": "Orientation",
   "sexual_orientation_hint": "Select your sexual orientation",
   "sexual_orientation_heterosexual": "Heterosexual",
   "sexual_orientation_homosexual": "Homosexual",
@@ -651,8 +651,8 @@
   "what_time": "What time?",
   "flexible_time": "Flexible time",
   "specific_time": "Specific time",
-  "time_type_flexible_subtitle": "Any time of day",
-  "time_type_specific_subtitle": "Choose the exact time",
+  "time_type_flexible_subtitle": "Arrange the time later in chat",
+  "time_type_specific_subtitle": "Set a time for the meetup",
   "flexible_time_description": "No set time, we'll arrange later",
   "specific_time_description": "Already have a time in mind",
   "activity_visible_until_midnight": "Your activity will stay visible on the map until midnight.",
@@ -662,10 +662,10 @@
   "years_old": "{age} years old",
   "age_range_from_to": "From {min} to {max} years",
   "privacy_type": "Privacy type",
-  "privacy_type_open_title": "Open",
-  "privacy_type_open_subtitle": "Free to join",
-  "privacy_type_private_title": "Private",
-  "privacy_type_private_subtitle": "Needs approval",
+  "privacy_type_open_title": "Open to everyone",
+  "privacy_type_open_subtitle": "Anyone can join",
+  "privacy_type_private_title": "Invite only",
+  "privacy_type_private_subtitle": "You approve participants",
   "private_event": "Private",
   "open_event_description": "Anyone can join automatically",
   "private_event_description": "You approve who can participate",
@@ -1121,6 +1121,7 @@
   "privacy_policy": "Privacy Policy",
   "terms_of_service": "Terms of Service",
   "distance_unit": "Distance Unit",
-  "actions": "Actions"
+  "actions": "Actions",
+  "share_app_message": "Create things to do on your city's map and see who wants to join you."
   
 }

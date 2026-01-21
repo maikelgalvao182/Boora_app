@@ -7,18 +7,11 @@ import 'package:flutter/material.dart';
 ///
 const String APP_NAME = 'Boora';
 const Color APP_PRIMARY_COLOR = GlimpseColors.primaryColorLight;
+const Color APP_SPLASH_BACKGROUND_COLOR = GlimpseColors.primary;
 const int ANDROID_APP_VERSION_NUMBER = 1; // Google Play Version Number
 const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 
-/// APPSFLYER / ONE LINK
-/// Configure via --dart-define quando necessário
-/// Dev Key: Encontrado no Dashboard > App Settings
-/// App ID iOS: Apple App ID numérico - DEIXE VAZIO se o app ainda não está na App Store
-const String APPSFLYER_DEV_KEY = String.fromEnvironment('APPSFLYER_DEV_KEY', defaultValue: 'vNSZa9dsyauCnc6zZEdtnR');
-const String APPSFLYER_APP_ID_IOS = String.fromEnvironment('APPSFLYER_APP_ID_IOS', defaultValue: 'id6739085066');
-const String APPSFLYER_ONELINK_DOMAIN = 'boora.onelink.me';
-const String APPSFLYER_ONELINK_TEMPLATE_ID = 'bFrs';
-const String APPSFLYER_URI_SCHEME = 'boora';
+/// REFERRAL CONSTANTS
 const String REFERRAL_DEEP_LINK_VALUE = 'invite';
 
 /// GOOGLE MAPS / PLACES API KEYS

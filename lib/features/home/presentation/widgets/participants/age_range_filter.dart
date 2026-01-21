@@ -25,150 +25,88 @@ class AgeRangeFilter extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: GlimpseColors.lightTextField,
-        borderRadius: BorderRadius.circular(12),
+        color: GlimpseColors.primaryLight,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Ícone + Título
+          // Ícone + Título + Range atual
           Row(
             children: [
-              Icon(
-                IconsaxPlusLinear.cake,
-                size: 24,
-                color: GlimpseColors.primaryColorLight,
+              // Ícone em container redondo
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: GlimpseColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    IconsaxPlusLinear.cake,
+                    size: 24,
+                    color: Colors.white,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
-              Text(
-                i18n.translate('age_range'),
-                style: GoogleFonts.getFont(
-                  FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: GlimpseColors.primaryColorLight,
+              // Título
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      i18n.translate('age_range'),
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: GlimpseColors.primaryColorLight,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${minAge.round()} - ${maxAge.round()} ${i18n.translate('years')}',
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: GlimpseColors.textSubTitle,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Range Slider com labels customizados
-          _AgeRangeSliderWithLabels(
-            minAge: minAge,
-            maxAge: maxAge,
-            onRangeChanged: onRangeChanged,
+          // Range Slider simplificado
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: GlimpseColors.primary,
+              inactiveTrackColor: GlimpseColors.borderColorLight,
+              thumbColor: GlimpseColors.primary,
+              overlayColor: GlimpseColors.primary.withOpacity(0.1),
+              rangeThumbShape: const RoundRangeSliderThumbShape(
+                enabledThumbRadius: 8,
+                elevation: 0,
+              ),
+              rangeTrackShape: const RoundedRectRangeSliderTrackShape(),
+              trackHeight: 4,
+            ),
+            child: RangeSlider(
+              values: RangeValues(minAge, maxAge),
+              min: 18,
+              max: 80,
+              divisions: 62,
+              onChanged: onRangeChanged,
+            ),
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Widget interno que gerencia o slider e os labels posicionados
-class _AgeRangeSliderWithLabels extends StatelessWidget {
-  const _AgeRangeSliderWithLabels({
-    required this.minAge,
-    required this.maxAge,
-    required this.onRangeChanged,
-  });
-
-  final double minAge;
-  final double maxAge;
-  final ValueChanged<RangeValues> onRangeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Calcula a posição dos thumbs baseado nos valores
-        const minValue = 18.0;
-        const maxValue = 80.0;
-        final range = maxValue - minValue;
-        
-        // O RangeSlider tem um padding interno de 24px de cada lado (overlay radius padrão)
-        const sliderPadding = 24.0;
-        final trackWidth = constraints.maxWidth - (sliderPadding * 2);
-        
-        // Posição relativa dos thumbs (0.0 a 1.0)
-        final minPosition = (minAge - minValue) / range;
-        final maxPosition = (maxAge - minValue) / range;
-        
-        // Posição absoluta do centro do thumb em pixels
-        final minThumbCenter = sliderPadding + (trackWidth * minPosition);
-        final maxThumbCenter = sliderPadding + (trackWidth * maxPosition);
-
-        return Column(
-          children: [
-            // Range Slider
-            SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: GlimpseColors.primary,
-                inactiveTrackColor: GlimpseColors.borderColorLight,
-                thumbColor: GlimpseColors.primary,
-                overlayColor: Colors.transparent,
-                rangeThumbShape: const RoundRangeSliderThumbShape(
-                  enabledThumbRadius: 10,
-                  elevation: 0,
-                ),
-                rangeTrackShape: const RoundedRectRangeSliderTrackShape(),
-              ),
-              child: RangeSlider(
-                values: RangeValues(minAge, maxAge),
-                min: minValue,
-                max: maxValue,
-                divisions: 62,
-                onChanged: onRangeChanged,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Labels posicionados sob os thumbs
-            SizedBox(
-              height: 20,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Label mínimo - centralizado sob o thumb
-                  Positioned(
-                    left: minThumbCenter,
-                    child: FractionalTranslation(
-                      translation: const Offset(-0.5, 0),
-                      child: Text(
-                        '${minAge.round()}',
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: GlimpseColors.textSubTitle,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Label máximo - centralizado sob o thumb
-                  Positioned(
-                    left: maxThumbCenter,
-                    child: FractionalTranslation(
-                      translation: const Offset(-0.5, 0),
-                      child: Text(
-                        '${maxAge.round()}',
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: GlimpseColors.textSubTitle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

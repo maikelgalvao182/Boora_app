@@ -31,9 +31,9 @@ class EventLocation {
   }
 
   /// Retorna dados essenciais do evento
-  String get title => eventData['title'] ?? '';
-  String get emoji => eventData['emoji'] ?? '🎉';
-  String get createdBy => eventData['createdBy'] ?? '';
+  String get title => eventData['activityText'] as String? ?? '';
+  String get emoji => eventData['emoji'] as String? ?? '🎉';
+  String get createdBy => eventData['createdBy'] as String? ?? '';
 
   String? get category {
     final raw = eventData['category'];

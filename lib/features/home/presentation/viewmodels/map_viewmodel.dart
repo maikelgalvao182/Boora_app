@@ -662,20 +662,82 @@ class MapViewModel extends ChangeNotifier {
       return;
     }
 
-    // Converte EventLocation -> EventModel (subset usado pelo mapa/markers).
-    // Campos mais pesados (participants, userApplication, etc.) ficam fora desse fluxo.
+    // Obter dados do usuário para calcular distância e verificar premium
+    final currentUserId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    bool isPremium = false;
+    
+    if (currentUserId != null) {
+      try {
+        final userDoc = await _userRepository.getUserById(currentUserId);
+        isPremium = userDoc?['hasPremium'] as bool? ?? false;
+      } catch (_) {}
+    }
+
+    // Converte EventLocation -> EventModel
+    // ✅ Agora extrai TODOS os campos necessários do eventData
     final mapped = boundsEvents
-        .map(
-          (e) => EventModel(
+        .map((e) {
+          final data = e.eventData;
+          final location = data['location'] as Map<String, dynamic>?;
+          final participantsData = data['participants'] as Map<String, dynamic>?;
+          final scheduleData = data['schedule'] as Map<String, dynamic>?;
+          
+          // Parse schedule date
+          DateTime? scheduleDate;
+          final dateField = scheduleData?['date'];
+          if (dateField != null) {
+            try {
+              scheduleDate = dateField.toDate();
+            } catch (_) {}
+          }
+          
+          // Parse photoReferences
+          List<String>? photoReferences;
+          final photoRefs = location?['photoReferences'] as List<dynamic>?;
+          if (photoRefs != null) {
+            photoReferences = photoRefs.map((ref) => ref.toString()).toList();
+          }
+          
+          // ✅ Calcular distância e disponibilidade
+          double? distanceKm;
+          bool isAvailable = true;
+          
+          if (_lastLocation != null) {
+            distanceKm = GeoDistanceHelper.distanceInKm(
+              _lastLocation!.latitude,
+              _lastLocation!.longitude,
+              e.latitude,
+              e.longitude,
+            );
+            
+            // Regra de negócio: Premium pode aplicar em qualquer evento,
+            // Free só pode aplicar em eventos dentro de 30km
+            isAvailable = isPremium || distanceKm <= FREE_ACCOUNT_MAX_EVENT_DISTANCE_KM;
+          }
+          
+          return EventModel(
             id: e.eventId,
             emoji: e.emoji,
             createdBy: e.createdBy,
             lat: e.latitude,
             lng: e.longitude,
-            title: e.title,
+            title: data['activityText'] as String? ?? e.title,
             category: e.category?.trim(),
-          ),
-        )
+            // ✅ Campos essenciais que estavam faltando:
+            locationName: location?['locationName'] as String?,
+            formattedAddress: location?['formattedAddress'] as String?,
+            placeId: location?['placeId'] as String?,
+            photoReferences: photoReferences,
+            scheduleDate: scheduleDate,
+            privacyType: participantsData?['privacyType'] as String? ?? 'open',
+            minAge: participantsData?['minAge'] as int?,
+            maxAge: participantsData?['maxAge'] as int?,
+            // ✅ Campos de distância e disponibilidade
+            distanceKm: distanceKm,
+            isAvailable: isAvailable,
+            // creatorFullName será buscado no EventCardController se necessário
+          );
+        })
         .toList(growable: false);
 
     // Mantém o mesmo objeto se nada mudou (reduz rebuilds).

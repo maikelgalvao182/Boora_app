@@ -15,6 +15,7 @@ class ConfettiCelebration extends StatefulWidget {
     this.emissionFrequency = 0.03,
     this.gravity = 0.3,
     this.autoPlay = true,
+    this.alignment = Alignment.bottomCenter,
   });
 
   final Duration duration;
@@ -24,6 +25,7 @@ class ConfettiCelebration extends StatefulWidget {
   final double emissionFrequency;
   final double gravity;
   final bool autoPlay;
+  final Alignment alignment;
 
   @override
   State<ConfettiCelebration> createState() => _ConfettiCelebrationState();
@@ -63,7 +65,7 @@ class _ConfettiCelebrationState extends State<ConfettiCelebration> {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.bottomCenter,
+      alignment: widget.alignment,
       child: ConfettiWidget(
         confettiController: _controller,
         blastDirectionality: BlastDirectionality.explosive,

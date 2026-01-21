@@ -60,6 +60,11 @@ android {
 
     buildTypes {
         release {
+            // Release builds must be signed with the upload keystore (Play Console upload key).
+            // If it's missing, fail fast instead of accidentally producing a debug-signed bundle.
+            check(keystorePropertiesFile.exists()) {
+                "Missing android/key.properties. Configure release signing (upload keystore) to build a Play-ready AAB."
+            }
             signingConfig = signingConfigs.getByName("release")
 
             // O Flutter (release) está gerando mapping.txt => R8 está ativo.

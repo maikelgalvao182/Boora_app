@@ -519,40 +519,45 @@ class GlimpseChatBubble extends StatelessWidget {
       color: GlimpseColors.textSubTitle,
     );
 
-    final resolvedFullName = fullName?.trim() ?? '';
-    if (resolvedFullName.isNotEmpty && !_isPlaceholderName(resolvedFullName)) {
-      return Text(resolvedFullName, style: style);
-    }
-
     final resolvedSenderId = senderId?.trim() ?? '';
     if (resolvedSenderId.isNotEmpty) {
       final notifier = UserStore.instance.getNameNotifier(resolvedSenderId);
       return ValueListenableBuilder<String?>(
         valueListenable: notifier,
         builder: (context, name, _) {
+          // Prioridade: display name resolvido (fonte única) via UserStore.
           final resolvedName = name?.trim() ?? '';
-          if (resolvedName.isEmpty) {
-            // Fallback raro: tenta query direta apenas se ainda não temos nada.
-            return FutureBuilder<Map<String, dynamic>?>(
-              future: UserRepository().getUserById(resolvedSenderId),
-              builder: (context, snapshot) {
-                final data = snapshot.data;
-                final fetched = (data?['fullName'] as String?)?.trim() ??
-                    (data?['fullname'] as String?)?.trim() ??
-                    '';
-                if (fetched.isEmpty) return const SizedBox.shrink();
-                return Text(fetched, style: style);
-              },
-            );
+          if (resolvedName.isNotEmpty && !_isPlaceholderName(resolvedName)) {
+            return Text(resolvedName, style: style);
           }
 
-          if (_isPlaceholderName(resolvedName)) {
-            return const SizedBox.shrink();
+          // Fallback 1 (se veio no payload local da msg, por ex. cache):
+          final resolvedFullName = fullName?.trim() ?? '';
+          if (resolvedFullName.isNotEmpty && !_isPlaceholderName(resolvedFullName)) {
+            return Text(resolvedFullName, style: style);
           }
 
-          return Text(resolvedName, style: style);
+          // Fallback 2 (raro): tenta query direta apenas se ainda não temos nada.
+          return FutureBuilder<Map<String, dynamic>?>(
+            future: UserRepository().getUserById(resolvedSenderId),
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+              final fetched = (data?['fullName'] as String?)?.trim() ??
+                  (data?['fullname'] as String?)?.trim() ??
+                  '';
+              if (fetched.isEmpty || _isPlaceholderName(fetched)) {
+                return const SizedBox.shrink();
+              }
+              return Text(fetched, style: style);
+            },
+          );
         },
       );
+    }
+
+    final resolvedFullName = fullName?.trim() ?? '';
+    if (resolvedFullName.isNotEmpty && !_isPlaceholderName(resolvedFullName)) {
+      return Text(resolvedFullName, style: style);
     }
     
     return const SizedBox.shrink();

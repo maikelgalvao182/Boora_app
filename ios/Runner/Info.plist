@@ -41,26 +41,12 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>fb3048490238689884</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
 				<string>boora</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>FacebookAppID</key>
-	<string>3048490238689884</string>
-	<key>FacebookClientToken</key>
-	<string>b37a1a8b581e360913aa2b5ae52b15a1</string>
-	<key>FacebookDisplayName</key>
-	<string>Boora</string>
 	<key>GIDClientID</key>
 	<string>13564294004-3edvbujvrqv197n6ttpbus2gibprqsr6.apps.googleusercontent.com</string>
 	<key>GIDServerClientID</key>
@@ -75,8 +61,10 @@
 	<string>Precisamos da sua localização para encontrar atividades perto de você.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Precisamos acessar seu microfone para verificação de segurança.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Usamos seu identificador para medir resultados de campanhas e melhorar sua experiência.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>$(PRODUCT_NAME) usa fotos</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Usamos o Face ID para login seguro e rápido.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

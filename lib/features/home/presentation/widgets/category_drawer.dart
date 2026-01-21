@@ -10,6 +10,7 @@ import 'package:partiu/features/home/presentation/widgets/schedule_drawer.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
+import 'package:partiu/shared/widgets/navigation_buttons.dart';
 
 /// Bottom sheet para seleção de categoria da atividade
 class CategoryDrawer extends StatefulWidget {
@@ -116,26 +117,18 @@ class _CategoryDrawerState extends State<CategoryDrawer> {
 
                 const SizedBox(height: 16),
 
-                // Header: Back + Título + Close
+                // Header: Título + Close
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Botão voltar
-                    GlimpseBackButton(
-                      onTap: () => Navigator.of(context).pop({'action': 'back'}),
-                    ),
-
-                    // Título centralizado
-                    Expanded(
-                      child: Text(
-                        AppLocalizations.of(context).translate('category_drawer_title'),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: GlimpseColors.primaryColorLight,
-                        ),
+                    // Título alinhado à esquerda
+                    Text(
+                      AppLocalizations.of(context).translate('category_drawer_title'),
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: GlimpseColors.primaryColorLight,
                       ),
                     ),
 
@@ -168,15 +161,11 @@ class _CategoryDrawerState extends State<CategoryDrawer> {
 
           const SizedBox(height: 24),
 
-          // Botão de continuar (fixo)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: GlimpseButton(
-              text: widget.editMode
-                  ? AppLocalizations.of(context).translate('save')
-                  : AppLocalizations.of(context).translate('continue'),
-              onPressed: _canContinue ? _handleContinue : null,
-            ),
+          // Botões de navegação (fixo)
+          NavigationButtons(
+            onBack: () => Navigator.of(context).pop({'action': 'back'}),
+            onContinue: _handleContinue,
+            canContinue: _canContinue,
           ),
 
           // Padding bottom para safe area

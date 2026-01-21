@@ -1,5 +1,6 @@
 /// Categorias de atividade para o fluxo de criação
 enum ActivityCategory {
+  carnaval,
   gastronomy,
   social,
   entertainment,
@@ -29,6 +30,12 @@ class ActivityCategoryInfo {
 
 /// Lista de categorias disponíveis
 const List<ActivityCategoryInfo> activityCategories = [
+  ActivityCategoryInfo(
+    category: ActivityCategory.carnaval,
+    emoji: '🎭',
+    titleKey: 'category_carnaval',
+    subtitleKey: 'category_carnaval_subtitle',
+  ),
   ActivityCategoryInfo(
     category: ActivityCategory.gastronomy,
     emoji: '🍽️',
@@ -94,6 +101,8 @@ const List<ActivityCategoryInfo> activityCategories = [
 /// Retorna o ID string da categoria para salvar no Firestore
 String categoryToString(ActivityCategory category) {
   switch (category) {
+    case ActivityCategory.carnaval:
+      return 'carnaval';
     case ActivityCategory.gastronomy:
       return 'gastronomy';
     case ActivityCategory.social:
@@ -121,6 +130,8 @@ String categoryToString(ActivityCategory category) {
 ActivityCategory? categoryFromString(String? value) {
   if (value == null) return null;
   switch (value) {
+    case 'carnaval':
+      return ActivityCategory.carnaval;
     case 'gastronomy':
       return ActivityCategory.gastronomy;
     case 'social':

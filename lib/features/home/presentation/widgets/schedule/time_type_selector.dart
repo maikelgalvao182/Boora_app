@@ -27,30 +27,26 @@ class TimeTypeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _TimeTypeCard(
-            type: TimeType.flexible,
-            title: i18n.translate('flexible_time'),
-            subtitle: i18n.translate('time_type_flexible_subtitle'),
-            icon: IconsaxPlusLinear.clock,
-            isSelected: selectedType == TimeType.flexible,
-            onTap: () => onTypeSelected(TimeType.flexible),
-          ),
+        _TimeTypeCard(
+          type: TimeType.flexible,
+          title: i18n.translate('flexible_time'),
+          subtitle: i18n.translate('time_type_flexible_subtitle'),
+          icon: IconsaxPlusLinear.clock,
+          isSelected: selectedType == TimeType.flexible,
+          onTap: () => onTypeSelected(TimeType.flexible),
         ),
-
-        const SizedBox(width: 12),
-
-        Expanded(
-          child: _TimeTypeCard(
-            type: TimeType.specific,
-            title: i18n.translate('specific_time'),
-            subtitle: i18n.translate('time_type_specific_subtitle'),
-            icon: IconsaxPlusLinear.timer,
-            isSelected: selectedType == TimeType.specific,
-            onTap: () => onTypeSelected(TimeType.specific),
-          ),
+        
+        const SizedBox(height: 12),
+        
+        _TimeTypeCard(
+          type: TimeType.specific,
+          title: i18n.translate('specific_time'),
+          subtitle: i18n.translate('time_type_specific_subtitle'),
+          icon: IconsaxPlusLinear.timer,
+          isSelected: selectedType == TimeType.specific,
+          onTap: () => onTypeSelected(TimeType.specific),
         ),
       ],
     );
@@ -80,58 +76,75 @@ class _TimeTypeCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? GlimpseColors.primaryLight
-              : GlimpseColors.lightTextField,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(
-                  color: GlimpseColors.primary,
-                  width: 2,
-                )
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Ícone
-            Icon(
-              icon,
-              color: isSelected
-                  ? GlimpseColors.primary
-                  : GlimpseColors.textSubTitle,
-              size: 24,
+          border: Border.all(
+            color: isSelected ? GlimpseColors.primary : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-
-            const SizedBox(height: 12),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Ícone dentro de container circular
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? GlimpseColors.primary.withValues(alpha: 0.12)
+                    : GlimpseColors.lightTextField,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                icon,
+                color: Colors.black,
+                size: 24,
+              ),
+            ),
+            
+            const SizedBox(width: 12),
 
             // Textos
-            Column(
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: GlimpseColors.primaryColorLight,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: GlimpseColors.primaryColorLight,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.getFont(
-                    FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: GlimpseColors.textSubTitle,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: GlimpseColors.textSubTitle,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

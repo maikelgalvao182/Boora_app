@@ -21,7 +21,6 @@ import 'package:partiu/core/services/auth_sync_service.dart';
 // LocationSyncScheduler agora é inicializado pelo AuthSyncService após login.
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/subscription/providers/simple_subscription_provider.dart';
-import 'package:partiu/services/appsflyer_service.dart';
 // import 'package:brazilian_locations/brazilian_locations.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
@@ -105,37 +104,7 @@ Future<void> main() async {
       debugPrint('Firebase já inicializado: $e');
     }
 
-    // 📈 Inicializar AppsFlyer (Deep Linking + Referrals)
-    // Nota: usamos debugPrint aqui de propósito pra garantir que apareça no console
-    // mesmo se o AppLogger tiver alguma configuração/flag interferindo.
-    debugPrint('🧪 [AF_BOOT] entrando no init do AppsFlyer (main.dart)');
-    debugPrint('🧪 [AF_BOOT] APPSFLYER_DEV_KEY.isEmpty=${APPSFLYER_DEV_KEY.isEmpty}');
-    debugPrint('🧪 [AF_BOOT] APPSFLYER_APP_ID_IOS=$APPSFLYER_APP_ID_IOS');
-    debugPrint('🧪 [AF_BOOT] AppsflyerService.isInitialized(antes)=${AppsflyerService.instance.isInitialized}');
-    AppLogger.info('🧪 [BOOT] Entrou no bloco de init do AppsFlyer', tag: 'APPSFLYER');
-    AppLogger.info('🧪 [BOOT] APPSFLYER_DEV_KEY.isEmpty=${APPSFLYER_DEV_KEY.isEmpty}', tag: 'APPSFLYER');
-    AppLogger.info('🧪 [BOOT] APPSFLYER_APP_ID_IOS=$APPSFLYER_APP_ID_IOS', tag: 'APPSFLYER');
-    AppLogger.info('🧪 [BOOT] AppsflyerService.isInitialized(antes)=${AppsflyerService.instance.isInitialized}', tag: 'APPSFLYER');
-    final _afInitStart = DateTime.now();
-    if (APPSFLYER_DEV_KEY.isNotEmpty) {
-      await AppsflyerService.instance.initialize(
-        devKey: APPSFLYER_DEV_KEY,
-        appId: APPSFLYER_APP_ID_IOS,
-      );
-      final _afInitMs = DateTime.now().difference(_afInitStart).inMilliseconds;
-      debugPrint('🧪 [AF_BOOT] AppsFlyer initialize() terminou em ${_afInitMs}ms');
-      debugPrint('🧪 [AF_BOOT] AppsflyerService.isInitialized(depois)=${AppsflyerService.instance.isInitialized}');
-      AppLogger.info('🧪 [BOOT] AppsFlyer initialize() terminou em ${_afInitMs}ms', tag: 'APPSFLYER');
-      AppLogger.info('🧪 [BOOT] AppsflyerService.isInitialized(depois)=${AppsflyerService.instance.isInitialized}', tag: 'APPSFLYER');
-    } else {
-      AppLogger.warning(
-        'AppsFlyer não inicializado: APPSFLYER_DEV_KEY não configurada',
-        tag: 'APPSFLYER',
-      );
-      debugPrint('🧪 [AF_BOOT] AppsFlyer não inicializado: APPSFLYER_DEV_KEY vazia');
-    }
-
-    // 🔔 Inicializar Push Notification Manager (ANTES do runApp)
+    //  Inicializar Push Notification Manager (ANTES do runApp)
     await PushNotificationManager.instance.initialize();
     debugPrint('✅ PushNotificationManager iniciado');
 

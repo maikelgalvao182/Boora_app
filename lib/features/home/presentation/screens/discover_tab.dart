@@ -15,6 +15,7 @@ import 'package:partiu/features/home/presentation/widgets/liquid_swipe_onboardin
 import 'package:partiu/features/home/presentation/widgets/navigate_to_user_button.dart';
 import 'package:partiu/features/home/presentation/widgets/people_button.dart';
 import 'package:partiu/features/home/presentation/widgets/invite_drawer.dart';
+import 'package:partiu/features/home/presentation/widgets/whatsapp_share_button.dart';
 import 'package:partiu/features/home/presentation/screens/find_people_screen.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -227,6 +228,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
           mapViewModel: widget.mapViewModel,
         ),
 
+        // Botão de compartilhar app (canto superior esquerdo)
+        Positioned(
+          top: _peopleButtonTop,
+          left: _peopleButtonLeft,
+          child: const WhatsAppShareButton(),
+        ),
+
         // Botão "Perto de você" (canto superior direito)
         Positioned(
           top: _peopleButtonTop,
@@ -237,6 +245,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
         ),
 
         // Filtro dinâmico por categoria (abaixo do PeopleButton)
+        // Só exibe se houver eventos no mapa E o mapa estiver pronto
         Positioned(
           top: _peopleButtonTop + _peopleButtonHeight + _filtersSpacing,
           left: 0,
@@ -244,18 +253,25 @@ class _DiscoverTabState extends State<DiscoverTab> {
           child: ListenableBuilder(
             listenable: widget.mapViewModel,
             builder: (context, _) {
-              final categories = widget.mapViewModel.availableCategories;
-              final allLabel = i18n.translate('notif_filter_all');
               final totalInBounds = widget.mapViewModel.eventsInBoundsCount;
+              
+              // Não renderiza se o mapa não estiver pronto ou não houver eventos
+              if (!widget.mapViewModel.mapReady || totalInBounds == 0) {
+                return const SizedBox.shrink();
+              }
+              
+              final categories = widget.mapViewModel.availableCategories;
+              final categoriesWithCarnaval = _withCarnavalCategory(categories);
+              final allLabel = i18n.translate('notif_filter_all');
               final countsByCategory = widget.mapViewModel.eventsInBoundsCountByCategory;
 
               final localeTag = Localizations.localeOf(context).toLanguageTag();
               if (_lastLocaleTag != localeTag ||
-                  _lastCategoryKeys.length != categories.length ||
-                  !_listsEqual(_lastCategoryKeys, categories)) {
+                  _lastCategoryKeys.length != categoriesWithCarnaval.length ||
+                  !_listsEqual(_lastCategoryKeys, categoriesWithCarnaval)) {
                 _lastLocaleTag = localeTag;
-                _lastCategoryKeys = List<String>.from(categories, growable: false);
-                _cachedCategoryLabels = categories
+                _lastCategoryKeys = List<String>.from(categoriesWithCarnaval, growable: false);
+                _cachedCategoryLabels = categoriesWithCarnaval
                     .map((key) {
                       final normalized = key.trim();
                       if (normalized.isEmpty) return key;
@@ -272,9 +288,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
               final items = <String>[
                 allItem,
                 ...List<String>.generate(
-                  categories.length,
+                  categoriesWithCarnaval.length,
                   (index) {
-                    final key = categories[index].trim();
+                    final key = categoriesWithCarnaval[index].trim();
                     final label = _cachedCategoryLabels[index];
                     final count = countsByCategory[key] ?? 0;
                     return '$label ($count)';
@@ -285,7 +301,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
               final selected = widget.mapViewModel.selectedCategory;
               final selectedCategoryIndex =
-                selected == null ? -1 : categories.indexOf(selected);
+                selected == null ? -1 : categoriesWithCarnaval.indexOf(selected);
               final selectedIndex =
                 selectedCategoryIndex >= 0 ? selectedCategoryIndex + 1 : 0;
 
@@ -296,7 +312,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   if (index == 0) {
                     widget.mapViewModel.setCategoryFilter(null);
                   } else {
-                    widget.mapViewModel.setCategoryFilter(categories[index - 1]);
+                    widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
                   }
                 },
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -346,5 +362,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
       if (a[i] != b[i]) return false;
     }
     return true;
+  }
+
+  static List<String> _withCarnavalCategory(List<String> categories) {
+    const carnavalKey = 'carnaval';
+    if (categories.contains(carnavalKey)) {
+      return <String>[carnavalKey, ...categories.where((c) => c != carnavalKey)];
+    }
+    return <String>[carnavalKey, ...categories];
   }
 }

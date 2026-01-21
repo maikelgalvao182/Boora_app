@@ -7,7 +7,6 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/services/referral_service.dart';
-import 'package:partiu/services/appsflyer_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -108,7 +107,7 @@ class _InviteDrawerState extends State<InviteDrawer> {
       _isGeneratingLink = true;
     });
 
-    // Tenta gerar via API do AppsFlyer primeiro
+    // Gera link de convite
     final link = await ReferralService.instance.generateInviteLinkForCurrentUserAsync();
     
     if (mounted) {
@@ -149,9 +148,6 @@ class _InviteDrawerState extends State<InviteDrawer> {
       _isLinkCopied = true;
     });
     
-    // Log evento af_invite conforme documentação AppsFlyer
-    _logInviteEvent();
-    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -179,18 +175,6 @@ class _InviteDrawerState extends State<InviteDrawer> {
         });
       }
     });
-  }
-
-  /// Loga evento af_invite no AppsFlyer quando o link é copiado
-  void _logInviteEvent() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
-    AppsflyerService.instance.logInvite(
-      channel: 'clipboard_copy',
-      referrerId: currentUser.uid,
-      campaign: 'user_invite',
-    );
   }
 
   @override

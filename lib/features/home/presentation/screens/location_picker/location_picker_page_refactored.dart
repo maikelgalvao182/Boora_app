@@ -9,10 +9,9 @@ import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_controller.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_map.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/place_service.dart';
-import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_search_bar.dart';
+import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_search_card.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_suggestions_overlay.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/map_center_pin.dart';
-import 'package:partiu/features/home/presentation/screens/location_picker/widgets/meeting_point_info_card.dart';
 import 'package:partiu/features/home/presentation/widgets/participants_drawer.dart';
 import 'package:partiu/plugins/locationpicker/entities/localization_item.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -379,35 +378,25 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
             top: MediaQuery.of(context).padding.top + 8,
             left: 16,
             right: 16,
-            child: Column(
-              children: [
-                // Barra de busca
-                KeyedSubtree(
-                  key: _searchBarKey,
-                  child: LocationSearchBar(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    onChanged: _onSearchChanged,
-                    onBack: () => Navigator.of(context).pop({'action': 'back'}), // Volta para ScheduleDrawer
-                    onClose: () {
-                      // Limpar o campo de busca e resetar seleção
-                      _isUpdatingSearchText = true; // Evitar que onChange seja disparado durante clear
-                      _searchController.clear();
-                      _isUpdatingSearchText = false;
-                      _clearOverlay();
-                      _controller.clearSearch(); // Limpa _previousSearchTerm para permitir nova busca
-                      _controller.unlockLocation(); // Isso limpa isLocationConfirmed e permite nova busca
-                      _controller.clearPhotos(); // Limpa as fotos do carousel
-                      FocusScope.of(context).unfocus();
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Card informativo
-                const MeetingPointInfoCard(),
-              ],
+            child: KeyedSubtree(
+              key: _searchBarKey,
+              child: LocationSearchCard(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onChanged: _onSearchChanged,
+                onBack: () => Navigator.of(context).pop({'action': 'back'}), // Volta para ScheduleDrawer
+                onClose: () {
+                  // Limpar o campo de busca e resetar seleção
+                  _isUpdatingSearchText = true; // Evitar que onChange seja disparado durante clear
+                  _searchController.clear();
+                  _isUpdatingSearchText = false;
+                  _clearOverlay();
+                  _controller.clearSearch(); // Limpa _previousSearchTerm para permitir nova busca
+                  _controller.unlockLocation(); // Isso limpa isLocationConfirmed e permite nova busca
+                  _controller.clearPhotos(); // Limpa as fotos do carousel
+                  FocusScope.of(context).unfocus();
+                },
+              ),
             ),
           ),
 

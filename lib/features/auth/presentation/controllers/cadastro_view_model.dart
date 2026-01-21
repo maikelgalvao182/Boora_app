@@ -241,9 +241,9 @@ class CadastroViewModel extends ChangeNotifier {
         'status': 'active',
         'isBlocked': false,
 
-        // Referral (AppsFlyer)
+        // Referral
         if (referrerId != null && referrerId.isNotEmpty) 'referrerId': referrerId,
-        if (referrerId != null && referrerId.isNotEmpty) 'referralSource': 'appsflyer',
+        if (referrerId != null && referrerId.isNotEmpty) 'referralSource': 'invite_link',
         if (referrerId != null && referrerId.isNotEmpty)
           'referralCapturedAt': FieldValue.serverTimestamp(),
       };

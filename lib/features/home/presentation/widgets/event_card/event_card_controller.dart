@@ -82,6 +82,9 @@ class EventCardController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   void _initializeFromPreload() {
+    debugPrint('🎫 [EventCard] _initializeFromPreload - eventId: $eventId');
+    debugPrint('🎫 [EventCard] _preloadedEvent: ${_preloadedEvent != null ? "EXISTS" : "NULL"}');
+    
     if (_preloadedEvent != null) {
       _emoji = _preloadedEvent!.emoji;
       _activityText = _preloadedEvent!.title;
@@ -102,9 +105,22 @@ class EventCardController extends ChangeNotifier {
         _approvedParticipants = _preloadedEvent!.participants!;
       }
 
+      debugPrint('🎫 [EventCard] Dados carregados:');
+      debugPrint('   - emoji: $_emoji');
+      debugPrint('   - activityText: $_activityText');
+      debugPrint('   - locationName: $_locationName');
+      debugPrint('   - creatorFullName: $_creatorFullName');
+      debugPrint('   - privacyType: $_privacyType');
+      debugPrint('   - creatorId: $_creatorId');
+
       if (_privacyType != null && _creatorId != null) {
         _loaded = true;
+        debugPrint('🎫 [EventCard] ✅ _loaded = true');
+      } else {
+        debugPrint('🎫 [EventCard] ⚠️ _loaded = false (privacyType ou creatorId é null)');
       }
+    } else {
+      debugPrint('🎫 [EventCard] ❌ _preloadedEvent é NULL - sem dados para carregar');
     }
   }
 
@@ -122,7 +138,17 @@ class EventCardController extends ChangeNotifier {
 
   bool get isLoading => !_loaded && _error == null;
   String? get error => _error;
-  bool get hasData => _error == null && _creatorFullName != null && _locationName != null && _activityText != null;
+  bool get hasData {
+    final result = _error == null && _creatorFullName != null && _locationName != null && _activityText != null;
+    if (!result) {
+      debugPrint('🎫 [EventCard] hasData = FALSE para eventId: $eventId');
+      debugPrint('   - _error: $_error');
+      debugPrint('   - _creatorFullName: $_creatorFullName');
+      debugPrint('   - _locationName: $_locationName');
+      debugPrint('   - _activityText: $_activityText');
+    }
+    return result;
+  }
 
   EventApplicationModel? get userApplication => _userApplication;
   bool get hasApplied => !_forceLeft && _userApplication != null;

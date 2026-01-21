@@ -149,6 +149,17 @@ class AppInitializerService {
         }
       }
       
+      // 2. ✅ PRÉ-CARREGAR EVENTOS DO MAPA (evita flash do filtro de categorias)
+      // Isso garante que eventsInBoundsCount > 0 antes do DiscoverTab montar
+      AppLogger.info('Pré-carregando eventos do mapa...', tag: 'INIT');
+      try {
+        if (!mapViewModel.mapReady && !mapViewModel.isLoading) {
+          await mapViewModel.initialize();
+        }
+      } catch (e) {
+        AppLogger.warning('Erro ao pré-carregar eventos do mapa: $e', tag: 'INIT');
+      }
+      
       AppLogger.success('Bootstrap crítico completo!', tag: 'INIT');
       AppLogger.info('Eventos carregados: ${mapViewModel.events.length}', tag: 'INIT');
       AppLogger.info('Markers gerados (cache): ${mapViewModel.googleMarkers.length}', tag: 'INIT');

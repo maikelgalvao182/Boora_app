@@ -470,8 +470,8 @@ class GoogleEventMarkerService {
           // Marker individual: emoji + avatar
           final event = cluster.firstEvent;
           
-          // Obter posição (com offset se houver sobreposição)
-          final position = _clusterService.getPositionForEvent(event, events, zoom);
+          // Usar posição do cluster (centro calculado pelo grid)
+          final position = cluster.center;
           
           // Z-index negativo para ficar ABAIXO do pin do usuário
           // Emoji usa índice base negativo, avatar usa base + 1
@@ -528,7 +528,7 @@ class GoogleEventMarkerService {
 
           markers.add(
             Marker(
-              markerId: MarkerId('cluster_${cluster.gridKey}'),
+              markerId: MarkerId(cluster.id),
               position: cluster.center,
               icon: clusterPin,
               anchor: const Offset(0.5, 0.5),

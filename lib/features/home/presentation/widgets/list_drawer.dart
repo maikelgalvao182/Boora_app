@@ -153,10 +153,16 @@ class _CategoryFilterBar extends StatelessWidget {
     return ListenableBuilder(
       listenable: mapViewModel,
       builder: (context, _) {
-        final categories = mapViewModel.availableCategories;
         final allLabel = i18n.translate('notif_filter_all');
         final totalInBounds = mapViewModel.eventsInBoundsCount;
         final countsByCategory = mapViewModel.eventsInBoundsCountByCategory;
+
+        // Não renderiza o filtro se não houver resultados no viewport.
+        if (totalInBounds == 0) {
+          return const SizedBox.shrink();
+        }
+
+        final categories = _withCarnavalCategory(mapViewModel.availableCategories);
 
         // Build labels for each category with counts
         final categoryLabels = categories.map((key) {
@@ -181,9 +187,9 @@ class _CategoryFilterBar extends StatelessWidget {
           ),
         ];
 
-        final selected = mapViewModel.selectedCategory;
-        final selectedCategoryIndex =
-            selected == null ? -1 : categories.indexOf(selected);
+    final selected = mapViewModel.selectedCategory;
+    final selectedCategoryIndex =
+      selected == null ? -1 : categories.indexOf(selected);
         final selectedIndex =
             selectedCategoryIndex >= 0 ? selectedCategoryIndex + 1 : 0;
 
@@ -202,6 +208,19 @@ class _CategoryFilterBar extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Garante que o filtro "Carnaval 2026" sempre exista no topo.
+  ///
+  /// Nota: as categorias do mapa usam chaves salvas no Firestore (ex: 'sports').
+  /// Para Carnaval, usamos a chave 'carnaval'.
+  static List<String> _withCarnavalCategory(List<String> categories) {
+    const carnavalKey = 'carnaval';
+    if (categories.contains(carnavalKey)) {
+      // Move para o topo
+      return <String>[carnavalKey, ...categories.where((c) => c != carnavalKey)];
+    }
+    return <String>[carnavalKey, ...categories];
   }
 }
 
@@ -304,8 +323,10 @@ class _ListDrawerContent extends StatelessWidget {
                           ),
                           _buildMyEventsList(context, myEventsList),
                         ],
-                        
-                        SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+
+                        // Espaço para o home indicator / safe area sem forçar overflow.
+                        // `SafeArea` usa padding 0 quando não há inset.
+                        const SafeArea(top: false, left: false, right: false, bottom: true, minimum: EdgeInsets.only(bottom: 16), child: SizedBox.shrink()),
                       ],
                     ),
                   ),

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
@@ -68,12 +69,66 @@ class AppHelper {
   /// Compartilha o app
   Future<void> shareApp({BuildContext? context}) async {
     const String appUrl = 'https://apps.apple.com/br/app/boora/id6755944656';
-    final String message = 'Conheça o $APP_NAME! O app para encontros e relacionamentos.';
+    
+    // Usa tradução i18n se contexto disponível, senão usa fallback
+    String shareMessage = 'Conheça o $APP_NAME! O app para encontros e relacionamentos.';
+    if (context != null) {
+      final i18n = AppLocalizations.of(context);
+      shareMessage = i18n.translate('share_app_message');
+    }
+    
+    final String message = '$shareMessage\n\n$appUrl';
+    
+    debugPrint('📤 [SHARE] Iniciando compartilhamento: $message');
     
     try {
-      await SharePlus.instance.share(ShareParams(text: '$message $appUrl'));
-    } catch (e) {
-      debugPrint('Erro ao compartilhar: $e');
+      // Obtém a posição do botão para o popover no iPad/iOS
+      Rect sharePositionOrigin;
+      
+      if (context != null) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize) {
+          final offset = box.localToGlobal(Offset.zero);
+          final size = box.size;
+          
+          // Valida se as coordenadas estão dentro da tela
+          if (offset.dx >= 0 && offset.dy >= 0 && size.width > 0 && size.height > 0) {
+            sharePositionOrigin = offset & size;
+            debugPrint('📤 [SHARE] sharePositionOrigin do botão: $sharePositionOrigin');
+          } else {
+            // Fallback: usa o centro da tela
+            final screenSize = MediaQuery.of(context).size;
+            sharePositionOrigin = Rect.fromCenter(
+              center: Offset(screenSize.width / 2, screenSize.height / 2),
+              width: 1,
+              height: 1,
+            );
+            debugPrint('📤 [SHARE] sharePositionOrigin fallback (centro): $sharePositionOrigin');
+          }
+        } else {
+          // Fallback: usa o centro da tela
+          final screenSize = MediaQuery.of(context).size;
+          sharePositionOrigin = Rect.fromCenter(
+            center: Offset(screenSize.width / 2, screenSize.height / 2),
+            width: 1,
+            height: 1,
+          );
+          debugPrint('📤 [SHARE] sharePositionOrigin fallback (centro): $sharePositionOrigin');
+        }
+      } else {
+        // Sem context, usa posição padrão
+        sharePositionOrigin = const Rect.fromLTWH(100, 100, 1, 1);
+        debugPrint('📤 [SHARE] sharePositionOrigin padrão: $sharePositionOrigin');
+      }
+      
+      final result = await Share.share(
+        message,
+        sharePositionOrigin: sharePositionOrigin,
+      );
+      debugPrint('📤 [SHARE] Resultado: $result');
+    } catch (e, stackTrace) {
+      debugPrint('📤 [SHARE] Erro ao compartilhar: $e');
+      debugPrint('📤 [SHARE] StackTrace: $stackTrace');
     }
   }
 

@@ -1198,14 +1198,6 @@ PODS:
     - GoogleUtilities/Environment (~> 8.0)
     - GoogleUtilities/UserDefaults (~> 8.0)
     - PromisesObjC (~> 2.4)
-  - appsflyer_sdk (6.17.8):
-    - appsflyer_sdk/Core (= 6.17.8)
-  - appsflyer_sdk/Core (6.17.8):
-    - AppsFlyerFramework (= 6.17.8)
-    - Flutter
-  - AppsFlyerFramework (6.17.8):
-    - AppsFlyerFramework/Main (= 6.17.8)
-  - AppsFlyerFramework/Main (6.17.8)
   - BoringSSL-GRPC (0.0.37):
     - BoringSSL-GRPC/Implementation (= 0.0.37)
     - BoringSSL-GRPC/Interface (= 0.0.37)
@@ -1222,15 +1214,6 @@ PODS:
     - Flutter
   - device_info_plus (0.0.1):
     - Flutter
-  - facebook_app_events (0.24.0):
-    - FBSDKCoreKit (~> 18.0)
-    - Flutter
-  - FBAEMKit (18.0.2):
-    - FBSDKCoreKit_Basics (= 18.0.2)
-  - FBSDKCoreKit (18.0.2):
-    - FBAEMKit (= 18.0.2)
-    - FBSDKCoreKit_Basics (= 18.0.2)
-  - FBSDKCoreKit_Basics (18.0.2)
   - Firebase/Auth (12.4.0):
     - Firebase/CoreOnly
     - FirebaseAuth (~> 12.4.0)
@@ -1570,11 +1553,9 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
-  - appsflyer_sdk (from `.symlinks/plugins/appsflyer_sdk/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - cloud_functions (from `.symlinks/plugins/cloud_functions/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
-  - facebook_app_events (from `.symlinks/plugins/facebook_app_events/ios`)
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
   - firebase_messaging (from `.symlinks/plugins/firebase_messaging/ios`)
@@ -1609,11 +1590,7 @@ SPEC REPOS:
     - abseil
     - AppAuth
     - AppCheckCore
-    - AppsFlyerFramework
     - BoringSSL-GRPC
-    - FBAEMKit
-    - FBSDKCoreKit
-    - FBSDKCoreKit_Basics
     - Firebase
     - FirebaseAppCheckInterop
     - FirebaseAuth
@@ -1652,16 +1629,12 @@ SPEC REPOS:
     - TOCropViewController
 
 EXTERNAL SOURCES:
-  appsflyer_sdk:
-    :path: ".symlinks/plugins/appsflyer_sdk/ios"
   cloud_firestore:
     :path: ".symlinks/plugins/cloud_firestore/ios"
   cloud_functions:
     :path: ".symlinks/plugins/cloud_functions/ios"
   device_info_plus:
     :path: ".symlinks/plugins/device_info_plus/ios"
-  facebook_app_events:
-    :path: ".symlinks/plugins/facebook_app_events/ios"
   firebase_auth:
     :path: ".symlinks/plugins/firebase_auth/ios"
   firebase_core:
@@ -1723,16 +1696,10 @@ SPEC CHECKSUMS:
   abseil: a05cc83bf02079535e17169a73c5be5ba47f714b
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
-  appsflyer_sdk: 219a6c5cb0343de60c7f259ecdb202084274359e
-  AppsFlyerFramework: 63577b60d6b9fcdab60135289979e7d1c9ec79b9
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
   cloud_firestore: 7a6d8a533ec7418a7fe46b3a5dabf55661a5b298
   cloud_functions: 56bcd60d299724f6366c2d95b706a003f0badcca
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
-  facebook_app_events: 58a1b62fd50f6009907bd167fc26b3d043e97197
-  FBAEMKit: 56a4f5a9607957b547b6458b17a98c5bb2736367
-  FBSDKCoreKit: 54f1240567e16862ab71c53c33dc347db5c524c5
-  FBSDKCoreKit_Basics: eb530cd6a79030dbb11df460aafb2767bcad9028
   Firebase: f07b15ae5a6ec0f93713e30b923d9970d144af3e
   firebase_auth: 9225db04db5d8e3b46dc8940e04bc6aec6833e27
   firebase_core: f1aafb21c14f497e5498f7ffc4dc63cbb52b2594
@@ -1753,7 +1720,7 @@ SPEC CHECKSUMS:
   FirebaseSharedSwift: 93426a1de92f19e1199fac5295a4f8df16458daa
   FirebaseStorage: 20d6b56fb8a40ebaa03d6a2889fe33dac64adb73
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_app_badger: 16b371e989d04cd265df85be2c3851b49cb68d18
+  flutter_app_badger: 2aa8087dbc93638dafeddaa5816532da229dfbaf
   flutter_image_compress_common: 1697a328fd72bfb335507c6bca1a65fa5ad87df1
   flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
   fluttertoast: 2c67e14dce98bbdb200df9e1acf610d7a6264ea1

@@ -13,6 +13,7 @@ class GlimpseColors {
   static const Color lightTextField = Color(0xFFF8F8F8);
   static const Color disabledButtonColorLight = Color(0xFFC2C2C2);
   static const Color bgColorLight = Color(0xFFFFFFFF);
+  static const Color carnaval = Color(0xFFFEDC57);
 
    // Cor de botões de ação 
   static const Color approveButtonColor = Color(0xFF5BAD46);

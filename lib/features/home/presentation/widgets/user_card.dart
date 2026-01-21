@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/core/constants/glimpse_variables.dart';
+// import 'package:partiu/core/constants/glimpse_variables.dart'; // DESABILITADO - usado para flags
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/features/home/domain/models/user_with_meta.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
@@ -12,7 +12,7 @@ import 'package:partiu/shared/widgets/star_badge.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/shared/stores/user_store.dart';
-import 'package:partiu/shared/widgets/country_flag_widget.dart';
+// import 'package:partiu/shared/widgets/country_flag_widget.dart'; // DESABILITADO - flag do avatar removido
 
 /// Card horizontal de usuário
 /// 
@@ -232,25 +232,26 @@ class _UserCardState extends State<UserCard> {
       fallback: fallbackLocation,
     );
 
-    // Process common interests
-    String commonInterestsText = '0 matchs ';
-    String commonInterestsEmojis = '🔍';
-    if (commonInterests.isNotEmpty) {
-      final count = commonInterests.length;
-      final emojis = commonInterests
-          .take(6)
-          .map((id) => getInterestById(id)?.icon ?? '')
-          .where((icon) => icon.isNotEmpty)
-          .join(' ');
-      
-      if (emojis.isNotEmpty) {
-        commonInterestsText = '$count matchs: ';
-        commonInterestsEmojis = emojis;
-      } else {
-        commonInterestsText = '$count matchs';
-        commonInterestsEmojis = '';
-      }
-    }
+    // Process common interests - DESABILITADO (matches removidos da UI)
+    // TODO: Reativar quando necessário
+    // String commonInterestsText = '0 matchs ';
+    // String commonInterestsEmojis = '🔍';
+    // if (commonInterests.isNotEmpty) {
+    //   final count = commonInterests.length;
+    //   final emojis = commonInterests
+    //       .take(6)
+    //       .map((id) => getInterestById(id)?.icon ?? '')
+    //       .where((icon) => icon.isNotEmpty)
+    //       .join(' ');
+    //   
+    //   if (emojis.isNotEmpty) {
+    //     commonInterestsText = '$count matchs: ';
+    //     commonInterestsEmojis = emojis;
+    //   } else {
+    //     commonInterestsText = '$count matchs';
+    //     commonInterestsEmojis = '';
+    //   }
+    // }
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -271,27 +272,28 @@ class _UserCardState extends State<UserCard> {
                 StableAvatar(
                   userId: widget.userId,
                   photoUrl: photoUrl ?? _controller?.photoUrl,
-                  size: 56,
+                  size: 48,
                   borderRadius: BorderRadius.circular(8),
                   enableNavigation: true,
                 ),
                 
-                // Country flag badge (parte inferior do avatar)
-                if ((countryName != null && countryName.isNotEmpty) ||
-                    (countryFlag != null && countryFlag.isNotEmpty))
-                  Positioned(
-                    bottom: -4,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: CountryFlagWidget(
-                        countryName: countryName,
-                        flag: countryFlag,
-                        size: 20,
-                        borderWidth: 2,
-                      ),
-                    ),
-                  ),
+                // Country flag badge (parte inferior do avatar) - DESABILITADO
+                // TODO: Reativar quando necessário
+                // if ((countryName != null && countryName.isNotEmpty) ||
+                //     (countryFlag != null && countryFlag.isNotEmpty))
+                //   Positioned(
+                //     bottom: -4,
+                //     left: 0,
+                //     right: 0,
+                //     child: Center(
+                //       child: CountryFlagWidget(
+                //         countryName: countryName,
+                //         flag: countryFlag,
+                //         size: 20,
+                //         borderWidth: 2,
+                //       ),
+                //     ),
+                //   ),
               ],
             ),
             

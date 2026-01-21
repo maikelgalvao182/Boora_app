@@ -132,7 +132,17 @@ class EventModel {
       privacyType: map['privacyType'] as String? ?? 'open',
       participants: null, // Não vem do map inicial
       isAgeRestricted: map['isAgeRestricted'] as bool? ?? false,
-    );
+    )..debugPrintFields(id);
+  }
+  
+  /// Debug: Imprime campos críticos para diagnóstico
+  void debugPrintFields(String id) {
+    debugPrint('📊 [EventModel] Criado evento $id:');
+    debugPrint('   - title (activityText): $title');
+    debugPrint('   - locationName: $locationName');
+    debugPrint('   - creatorFullName: $creatorFullName');
+    debugPrint('   - privacyType: $privacyType');
+    debugPrint('   - createdBy: $createdBy');
   }
 
   /// Cria uma cópia com campos atualizados

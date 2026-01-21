@@ -1,8 +1,9 @@
 import Flutter
 import UIKit
 import GoogleMaps
-import FBSDKCoreKit
-import AppsFlyerLib
+
+// Obs: FBSDKCoreKit pode não expor módulos Swift (dependendo da instalação via CocoaPods).
+// O SDK do Facebook normalmente é inicializado automaticamente via plugin.
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -10,11 +11,6 @@ import AppsFlyerLib
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    ApplicationDelegate.shared.application(
-      application,
-      didFinishLaunchingWithOptions: launchOptions
-    )
-    
     GeneratedPluginRegistrant.register(with: self)
 
     // Google Maps SDK API Key (iOS)
@@ -43,33 +39,5 @@ import AppsFlyerLib
     }
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-  }
-  
-  // MARK: - AppsFlyer Universal Links (Deep Links)
-  // Necessário para capturar deep links quando o app já está instalado
-  override func application(
-    _ application: UIApplication,
-    continue userActivity: NSUserActivity,
-    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
-  ) -> Bool {
-    // Passa o Universal Link para o AppsFlyer SDK
-    AppsFlyerLib.shared().continue(userActivity, restorationHandler: nil)
-    
-    // Chama o handler padrão do Flutter
-    return super.application(application, continue: userActivity, restorationHandler: restorationHandler)
-  }
-  
-  // MARK: - AppsFlyer URI Scheme (Deep Links)
-  // Necessário para capturar deep links via URI scheme (boora://)
-  override func application(
-    _ app: UIApplication,
-    open url: URL,
-    options: [UIApplication.OpenURLOptionsKey : Any] = [:]
-  ) -> Bool {
-    // Passa o URL scheme para o AppsFlyer SDK
-    AppsFlyerLib.shared().handleOpen(url, options: options)
-    
-    // Chama o handler padrão do Flutter (para Facebook, etc)
-    return super.application(app, open: url, options: options)
   }
 }

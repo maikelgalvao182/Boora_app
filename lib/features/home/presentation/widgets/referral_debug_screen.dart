@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_logger.dart';
-import 'package:partiu/services/appsflyer_service.dart';
 import 'package:partiu/services/referral_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -178,22 +177,6 @@ class _ReferralDebugScreenState extends State<ReferralDebugScreen> {
     }
   }
 
-  Future<void> _testAppsflyerId() async {
-    _addLog('🔍 Verificando AppsFlyer ID...');
-    
-    try {
-      final appsflyerId = await AppsflyerService.instance.getAppsFlyerId();
-      
-      if (appsflyerId != null) {
-        _addLog('✅ AppsFlyer ID: $appsflyerId');
-      } else {
-        _addLog('⚠️ AppsFlyer ID não disponível');
-      }
-    } catch (e) {
-      _addLog('❌ Erro: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,10 +242,6 @@ class _ReferralDebugScreenState extends State<ReferralDebugScreen> {
                 ElevatedButton(
                   onPressed: _testCheckFirestoreData,
                   child: const Text('Verificar Firestore'),
-                ),
-                ElevatedButton(
-                  onPressed: _testAppsflyerId,
-                  child: const Text('AppsFlyer ID'),
                 ),
                 ElevatedButton(
                   onPressed: () {

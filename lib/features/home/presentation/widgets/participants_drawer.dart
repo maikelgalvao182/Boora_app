@@ -11,10 +11,9 @@ import 'package:partiu/features/home/presentation/widgets/controllers/participan
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
-import 'package:partiu/shared/widgets/glimpse_back_button.dart';
-import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
+import 'package:partiu/shared/widgets/navigation_buttons.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
 
 /// Bottom sheet para seleção de participantes e privacidade da atividade
@@ -176,26 +175,18 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
 
                     const SizedBox(height: 16),
 
-                    // Header: Back + Título + Close
+                    // Header: Título + Close
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Botão voltar
-                        GlimpseBackButton(
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-
-                        // Título centralizado
-                        Expanded(
-                          child: Text(
-                            AppLocalizations.of(context).translate('participants_title'),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: GlimpseColors.primaryColorLight,
-                            ),
+                        // Título alinhado à esquerda
+                        Text(
+                          AppLocalizations.of(context).translate('participants_title'),
+                          style: GoogleFonts.getFont(
+                            FONT_PLUS_JAKARTA_SANS,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: GlimpseColors.primaryColorLight,
                           ),
                         ),
 
@@ -238,14 +229,11 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
 
               const SizedBox(height: 24),
 
-              // Botão de continuar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: GlimpseButton(
-                  text: AppLocalizations.of(context).translate('continue'),
-                  isProcessing: _isSaving,
-                  onPressed: _controller.canContinue ? _handleContinue : null,
-                ),
+              // Botões de navegação
+              NavigationButtons(
+                onBack: () => Navigator.of(context).pop(),
+                onContinue: _handleContinue,
+                canContinue: _controller.canContinue && !_isSaving,
               ),
 
               // Padding bottom para safe area

@@ -118,7 +118,9 @@ class ConversationTile extends StatelessWidget {
                   : cleanName(displayData.fullName)))
               : (otherNameFromSnap.isNotEmpty
                 ? otherNameFromSnap
-                : (otherNameFromRaw.isNotEmpty ? otherNameFromRaw : ''));
+                : (otherNameFromRaw.isNotEmpty
+                    ? otherNameFromRaw
+                    : (isPlaceholderName(displayData.fullName) ? '' : cleanName(displayData.fullName))));
 
             final emoji = data?['emoji']?.toString() ?? 
                          rawData['emoji']?.toString() ?? 

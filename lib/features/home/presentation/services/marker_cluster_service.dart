@@ -1,322 +1,334 @@
-import 'dart:math' as math;
-import 'dart:math' show Point;
-
-import 'package:flutter/material.dart';
+import 'package:fluster/fluster.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 
-/// Representa um cluster de eventos no mapa
-/// 
+/// Implementação de marker clusterizável para o Fluster.
+///
+/// Para markers individuais, [event] é o evento real.
+/// Para clusters, [event] é apenas um placeholder (não deve ser usado).
+class EventMapMarker extends Clusterable {
+  final EventModel event;
+
+  EventMapMarker({
+    required this.event,
+    bool? isCluster,
+    int? clusterId,
+    int? pointsSize,
+    String? markerId,
+    String? childMarkerId,
+    double? latitude,
+    double? longitude,
+  }) : super(
+          isCluster: isCluster,
+          clusterId: clusterId,
+          pointsSize: pointsSize,
+          markerId: markerId,
+          childMarkerId: childMarkerId,
+          latitude: latitude ?? event.lat,
+          longitude: longitude ?? event.lng,
+        );
+}
+
+/// Representa um cluster de eventos no mapa.
+///
 /// Pode conter:
 /// - 1 evento: renderiza marker individual
 /// - N eventos: renderiza cluster com badge
 class MarkerCluster {
-  /// Eventos agrupados neste cluster
   final List<EventModel> events;
-  
-  /// Posição central do cluster (média das coordenadas)
   final LatLng center;
-  
-  /// Chave do grid (ex: "123:456")
-  final String gridKey;
+  final String id;
+  final bool isCluster;
 
   MarkerCluster({
     required this.events,
     required this.center,
-    required this.gridKey,
+    required this.id,
+    required this.isCluster,
   });
 
-  /// Retorna true se cluster tem apenas 1 evento
   bool get isSingleEvent => events.length == 1;
-  
-  /// Retorna o primeiro evento (usado para clusters únicos)
   EventModel get firstEvent => events.first;
-  
-  /// Quantidade de eventos no cluster
   int get count => events.length;
-  
-  /// Emoji representativo do cluster (do primeiro evento)
   String get representativeEmoji => events.first.emoji;
+  String get clusterId => id; // back-compat
 }
 
-/// Serviço responsável por agrupar markers em clusters baseados em grid
-/// 
-/// Implementa clustering grid-based dependente de zoom:
-/// - Converte lat/lng → coordenadas de tela (Web Mercator)
-/// - Divide a tela em células (grid)
-/// - Agrupa eventos que caem na mesma célula
-/// - Separa eventos com coordenadas idênticas em zoom alto
-/// - Retorna clusters para renderização
-/// 
-/// PERFORMANCE:
-/// - Executa apenas em onCameraIdle (NUNCA em onCameraMove)
-/// - Grid simples O(n) - performa bem até milhares de pontos
-/// - Não usa quadtree para manter simplicidade
+/// Serviço responsável por agrupar markers em clusters usando Fluster.
+///
+/// Usa o algoritmo Supercluster (via Fluster) que é:
+/// - Performático: O(n log n) para criação, O(log n) para queries
+/// - Determinístico: mesmo zoom = mesmos clusters
+/// - Configurável: radius, extent, nodeSize
+///
+/// **Importante**: Não recrie o Fluster a cada movimento do mapa.
+/// Recrie apenas quando o dataset mudar (novos eventos do backend).
 class MarkerClusterService {
-  /// Cache de clusters por chave de zoom
-  final Map<String, List<MarkerCluster>> _clusterCache = {};
-  
-  /// Offset base em graus para separar markers sobrepostos
-  /// Aproximadamente 10 metros no equador
-  static const double _baseOffsetDegrees = 0.0001;
+  final Map<int, List<MarkerCluster>> _clusterCache = {};
+  final Map<String, List<MarkerCluster>> _boundsCache = {};
+  Fluster<EventMapMarker>? _fluster;
+  int? _eventsHash;
 
-  /// Zoom máximo para ativar clustering
-  /// Acima deste zoom (visão mais próxima), mostra apenas markers individuais
-  /// Abaixo ou igual (visão ampla), ativa o clustering
-  static const double _maxClusterZoom = 11.0;
+  static const int _minZoom = 0;
+  static const int _maxZoom = 20;
+  static const int _radiusPx = 140; // ajuste fino: 120-180 geralmente
+  static const int _extent = 2048;  // maior = mais precisão
+  static const int _nodeSize = 64;
 
-  /// Retorna tamanho do grid baseado no zoom atual
-  /// 
-  /// Quanto maior o zoom, menor o grid (menos clustering)
-  /// Quanto menor o zoom, maior o grid (mais clustering)
-  double _gridSizeForZoom(double zoom) {
-    if (zoom >= 17) return 30;   // Quase sem cluster
-    if (zoom >= 16) return 50;   // Mínimo clustering
-    if (zoom >= 15) return 70;   // Pouco clustering
-    if (zoom >= 14) return 100;  // Clustering médio-baixo
-    if (zoom >= 13) return 140;  // Clustering médio
-    if (zoom >= 12) return 180;  // Clustering médio-alto
-    if (zoom >= 10) return 250;  // Clustering alto
-    return 350;                   // Clusters grandes (visão continental)
-  }
-  
-  /// Zoom a partir do qual eventos sobrepostos devem ser separados
-  static const double _separationZoomThreshold = 15.0;
-
-  /// Converte LatLng para ponto de tela usando projeção Web Mercator (EPSG:3857)
-  /// 
-  /// Esta é a mesma projeção usada pelo Google Maps internamente.
-  /// Permite calcular posição de pixels consistente com o zoom.
-  Point<double> _latLngToPoint(LatLng latLng, double zoom) {
-    final scale = 256 * math.pow(2, zoom);
-    
-    // Longitude → X (linear)
-    final x = (latLng.longitude + 180) / 360 * scale;
-    
-    // Latitude → Y (Mercator)
-    final siny = math.sin(latLng.latitude * math.pi / 180);
-    // Clamp para evitar infinito nos polos
-    final clampedSiny = siny.clamp(-0.9999, 0.9999);
-    final y = (0.5 - math.log((1 + clampedSiny) / (1 - clampedSiny)) / (4 * math.pi)) * scale;
-    
-    return Point(x.toDouble(), y.toDouble());
-  }
-
-  /// Converte ponto de tela de volta para LatLng
-  /// 
-  /// Útil para calcular o centro de um cluster a partir de coordenadas de pixel.
-  LatLng _pointToLatLng(Point<double> point, double zoom) {
-    final scale = 256 * math.pow(2, zoom);
-    
-    // X → Longitude
-    final longitude = (point.x / scale) * 360 - 180;
-    
-    // Y → Latitude (inverso da projeção Mercator)
-    final n = math.pi - 2 * math.pi * point.y / scale;
-    final latitude = 180 / math.pi * math.atan(0.5 * (math.exp(n) - math.exp(-n)));
-    
-    return LatLng(latitude, longitude);
-  }
-
-  /// Separa eventos com coordenadas idênticas aplicando offset em espiral
-  /// 
-  /// Quando zoom está alto e eventos estão exatamente sobrepostos,
-  /// aplica um pequeno offset para que fiquem visíveis separadamente.
-  /// 
-  /// Parâmetros:
-  /// - [events]: Lista de eventos a processar
-  /// - [zoom]: Nível de zoom atual
-  /// 
-  /// Retorna:
-  /// - Mapa de eventId → LatLng (com ou sem offset)
-  Map<String, LatLng> _separateOverlappingEvents(List<EventModel> events, double zoom) {
-    final Map<String, LatLng> positions = {};
-    
-    // Se zoom baixo, não separar (deixar clustering agrupar)
-    if (zoom < _separationZoomThreshold) {
-      for (final event in events) {
-        positions[event.id] = LatLng(event.lat, event.lng);
-      }
-      return positions;
+  /// Constrói o Fluster com um novo dataset de eventos.
+  ///
+  /// Chame este método apenas quando:
+  /// - Novos eventos forem carregados do backend
+  /// - Filtros mudarem a lista de eventos
+  ///
+  /// **NÃO** chame a cada movimento do mapa!
+  void buildFluster(List<EventModel> events) {
+    if (events.isEmpty) {
+      _fluster = null;
+      _eventsHash = null;
+      _clusterCache.clear();
+      return;
     }
-    
-    // Agrupar eventos por coordenadas exatas
-    final Map<String, List<EventModel>> byCoordinate = {};
-    
-    for (final event in events) {
-      // Chave com precisão de 6 casas decimais (~10cm)
-      final coordKey = '${event.lat.toStringAsFixed(6)}_${event.lng.toStringAsFixed(6)}';
-      byCoordinate.putIfAbsent(coordKey, () => []).add(event);
-    }
-    
-    // Aplicar offset para eventos sobrepostos
-    for (final entry in byCoordinate.entries) {
-      final eventsAtCoord = entry.value;
-      
-      if (eventsAtCoord.length == 1) {
-        // Único evento nesta coordenada - sem offset
-        final event = eventsAtCoord.first;
-        positions[event.id] = LatLng(event.lat, event.lng);
-      } else {
-        // Múltiplos eventos - aplicar offset em espiral
-        debugPrint('🔄 [ClusterService] Separando ${eventsAtCoord.length} eventos sobrepostos');
-        
-        for (int i = 0; i < eventsAtCoord.length; i++) {
-          final event = eventsAtCoord[i];
-          
-          if (i == 0) {
-            // Primeiro evento fica no centro
-            positions[event.id] = LatLng(event.lat, event.lng);
-          } else {
-            // Demais eventos em espiral ao redor
-            // Ângulo baseado no índice (distribui uniformemente)
-            final angle = (2 * math.pi * i) / (eventsAtCoord.length - 1);
-            
-            // Distância aumenta com o zoom (mais zoom = mais separação visual)
-            final distance = _baseOffsetDegrees * (1 + (zoom - _separationZoomThreshold) * 0.3);
-            
-            final offsetLat = event.lat + distance * math.cos(angle);
-            final offsetLng = event.lng + distance * math.sin(angle);
-            
-            positions[event.id] = LatLng(offsetLat, offsetLng);
-          }
-        }
-      }
-    }
-    
-    return positions;
+
+    final ids = events.map((e) => e.id).toList()..sort();
+    final newHash = Object.hashAll(ids);
+
+    // Já está construído com o mesmo dataset
+    if (_fluster != null && _eventsHash == newHash) return;
+
+    _eventsHash = newHash;
+    _clusterCache.clear();
+
+    final points = events
+        .map(
+          (e) => EventMapMarker(
+            event: e,
+            markerId: e.id,
+            latitude: e.lat,
+            longitude: e.lng,
+          ),
+        )
+        .toList(growable: false);
+
+    final placeholderEvent = events.first;
+
+    _fluster = Fluster<EventMapMarker>(
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+      radius: _radiusPx,
+      extent: _extent,
+      nodeSize: _nodeSize,
+      points: points,
+      createCluster: (BaseCluster? cluster, double? lng, double? lat) {
+        return EventMapMarker(
+          event: placeholderEvent,
+          isCluster: true,
+          clusterId: cluster?.id,
+          pointsSize: cluster?.pointsSize,
+          latitude: lat,
+          longitude: lng,
+          childMarkerId: cluster?.childMarkerId,
+          markerId: 'cluster_${cluster?.id ?? 0}',
+        );
+      },
+    );
+
+    debugPrint('🔄 [ClusterService] Fluster construído: ${events.length} eventos');
   }
 
-  /// Agrupa eventos em clusters baseados no zoom atual
-  /// 
-  /// Parâmetros:
-  /// - [events]: Lista de eventos a serem agrupados
-  /// - [zoom]: Nível de zoom atual do mapa
-  /// - [useCache]: Se true, retorna cache se disponível (default: true)
-  /// 
-  /// Retorna:
-  /// - Lista de MarkerCluster (eventos agrupados ou individuais)
+  /// Cria ou reutiliza instância do Fluster (uso interno).
+  Fluster<EventMapMarker> _getFluster(List<EventModel> events) {
+    buildFluster(events);
+    return _fluster!;
+  }
+
+  /// Agrupa eventos em clusters baseado no zoom atual.
+  ///
+  /// Retorna lista de [MarkerCluster] que podem ser:
+  /// - Cluster com múltiplos eventos (isCluster = true)
+  /// - Marker individual (isCluster = false)
   List<MarkerCluster> clusterEvents({
     required List<EventModel> events,
     required double zoom,
     bool useCache = true,
   }) {
-    if (events.isEmpty) return [];
+    if (events.isEmpty) return const [];
+    final zoomInt = zoom.floor().clamp(_minZoom, _maxZoom);
 
-    // ⭐ Se zoom > 10, não fazer clustering (apenas markers individuais em visão próxima)
-    if (zoom > _maxClusterZoom) {
-      debugPrint('📍 [ClusterService] Zoom ${zoom.toStringAsFixed(1)} > $_maxClusterZoom - Sem clustering (${events.length} markers individuais)');
-      
-      return events.map((event) {
-        return MarkerCluster(
-          center: LatLng(event.lat, event.lng),
-          events: [event],
-          gridKey: 'single_${event.id}',
+    final ids = events.map((e) => e.id).toList()..sort();
+    final hashNow = Object.hashAll(ids);
+    if (useCache && _clusterCache.containsKey(zoomInt) && _eventsHash == hashNow) {
+      return _clusterCache[zoomInt]!;
+    }
+
+    final sw = Stopwatch()..start();
+    final fluster = _getFluster(events);
+    final items = fluster.clusters([-180, -85, 180, 85], zoomInt);
+
+    final out = <MarkerCluster>[];
+    for (final item in items) {
+      final lat = item.latitude;
+      final lng = item.longitude;
+      if (lat == null || lng == null) continue;
+
+      if ((item.isCluster ?? false) && item.clusterId != null) {
+        final childEvents = _collectChildEvents(fluster, item.clusterId!);
+        final safeEvents = childEvents.isEmpty ? <EventModel>[events.first] : childEvents;
+        out.add(
+          MarkerCluster(
+            events: safeEvents,
+            center: LatLng(lat, lng),
+            id: 'cluster_${item.clusterId}',
+            isCluster: safeEvents.length > 1,
+          ),
         );
-      }).toList();
-    }
-
-    // 🔲 Zoom <= 10: Ativar clustering (visão ampla do mapa)
-    debugPrint('🔲 [ClusterService] Zoom ${zoom.toStringAsFixed(1)} <= $_maxClusterZoom - Clustering ativado');
-
-    // Gerar chave de cache baseada no zoom (arredondado)
-    final cacheKey = 'z${zoom.round()}_${events.length}';
-    
-    // Verificar cache
-    if (useCache && _clusterCache.containsKey(cacheKey)) {
-      debugPrint('⚡ [ClusterService] Cache hit: $cacheKey');
-      return _clusterCache[cacheKey]!;
-    }
-
-    final stopwatch = Stopwatch()..start();
-    final gridSize = _gridSizeForZoom(zoom);
-    
-    debugPrint('🔲 [ClusterService] Clustering ${events.length} eventos (zoom: ${zoom.toStringAsFixed(1)}, grid: ${gridSize.toInt()}px)');
-
-    // Separar eventos sobrepostos (aplica offset em zoom alto)
-    final separatedPositions = _separateOverlappingEvents(events, zoom);
-
-    // Mapa de grid → eventos
-    final Map<String, List<EventModel>> gridMap = {};
-
-    // Agrupar eventos por célula do grid (usando posições separadas)
-    for (final event in events) {
-      final position = separatedPositions[event.id] ?? LatLng(event.lat, event.lng);
-      final point = _latLngToPoint(position, zoom);
-      
-      // Calcular índices do grid
-      final gridX = (point.x / gridSize).floor();
-      final gridY = (point.y / gridSize).floor();
-      final gridKey = '$gridX:$gridY';
-
-      gridMap.putIfAbsent(gridKey, () => []).add(event);
-    }
-
-    // Converter mapa de grid em lista de clusters
-    final clusters = gridMap.entries.map((entry) {
-      final eventsInCell = entry.value;
-      
-      // Calcular centro do cluster (usando posições separadas)
-      double avgLat = 0;
-      double avgLng = 0;
-      
-      for (final event in eventsInCell) {
-        final position = separatedPositions[event.id] ?? LatLng(event.lat, event.lng);
-        avgLat += position.latitude;
-        avgLng += position.longitude;
+      } else {
+        final e = (item as EventMapMarker).event;
+        out.add(
+          MarkerCluster(
+            events: [e],
+            center: LatLng(e.lat, e.lng),
+            id: 'marker_${e.id}',
+            isCluster: false,
+          ),
+        );
       }
-      
-      avgLat /= eventsInCell.length;
-      avgLng /= eventsInCell.length;
+    }
 
-      return MarkerCluster(
-        events: eventsInCell,
-        center: LatLng(avgLat, avgLng),
-        gridKey: entry.key,
-      );
-    }).toList();
+    _clusterCache[zoomInt] = out;
 
-    // Cachear resultado
-    _clusterCache[cacheKey] = clusters;
+    sw.stop();
+    debugPrint(
+      '✅ [ClusterService] ${events.length} eventos → ${out.length} clusters (zoom: $zoomInt, radius: ${_radiusPx}px) - ${sw.elapsedMilliseconds}ms',
+    );
 
-    stopwatch.stop();
-    
-    // Estatísticas de clustering
-    final singleCount = clusters.where((c) => c.isSingleEvent).length;
-    final groupedCount = clusters.length - singleCount;
-    
-    debugPrint('✅ [ClusterService] ${clusters.length} clusters criados ($singleCount individuais, $groupedCount agrupados) em ${stopwatch.elapsedMilliseconds}ms');
-
-    return clusters;
-  }
-  
-  /// Retorna a posição (com offset se necessário) para um evento específico
-  /// 
-  /// Usado pelo GoogleEventMarkerService para posicionar markers individuais
-  /// quando eventos sobrepostos são separados.
-  LatLng getPositionForEvent(EventModel event, List<EventModel> allEvents, double zoom) {
-    final positions = _separateOverlappingEvents(allEvents, zoom);
-    return positions[event.id] ?? LatLng(event.lat, event.lng);
+    return out;
   }
 
-  /// Limpa cache de clusters
-  /// 
-  /// Deve ser chamado quando:
-  /// - Eventos são adicionados/removidos
-  /// - Filtros mudam
+  /// Coleta recursivamente todos os eventos filhos de um cluster.
+  List<EventModel> _collectChildEvents(Fluster<EventMapMarker> fluster, int clusterId) {
+    final out = <EventModel>[];
+    final children = fluster.children(clusterId);
+    if (children == null) return out;
+
+    for (final child in children) {
+      if ((child.isCluster ?? false) && child.clusterId != null) {
+        out.addAll(_collectChildEvents(fluster, child.clusterId!));
+      } else {
+        out.add((child as EventMapMarker).event);
+      }
+    }
+
+    return out;
+  }
+
+  /// Retorna clusters/markers visíveis dentro dos bounds da câmera.
+  ///
+  /// Este é o método otimizado para usar no `onCameraMove`:
+  /// - Só processa a área visível (não o mundo todo)
+  /// - Usa cache por zoom
+  ///
+  /// Exemplo de uso no ViewModel:
+  /// ```dart
+  /// void onCameraMove(CameraPosition position, LatLngBounds bounds) {
+  ///   final clusters = _clusterService.clustersForView(
+  ///     bounds: bounds,
+  ///     zoom: position.zoom,
+  ///   );
+  ///   // Converte para Markers do Google Maps...
+  /// }
+  /// ```
+  List<MarkerCluster> clustersForView({
+    required LatLngBounds bounds,
+    required double zoom,
+  }) {
+    if (_fluster == null) return const [];
+
+    final zoomInt = zoom.floor().clamp(_minZoom, _maxZoom);
+
+    // Cache key inclui bounds arredondados + zoom
+    final boundsKey = '${bounds.southwest.latitude.toStringAsFixed(3)}_'
+        '${bounds.southwest.longitude.toStringAsFixed(3)}_'
+        '${bounds.northeast.latitude.toStringAsFixed(3)}_'
+        '${bounds.northeast.longitude.toStringAsFixed(3)}';
+    final cacheKey = '${zoomInt}_$boundsKey';
+
+    // Verifica cache de bounds (separado do cache por zoom)
+    if (_boundsCache.containsKey(cacheKey)) {
+      return _boundsCache[cacheKey]!;
+    }
+
+    final sw = Stopwatch()..start();
+
+    // Query Fluster apenas na área visível
+    final items = _fluster!.clusters(
+      [
+        bounds.southwest.longitude,
+        bounds.southwest.latitude,
+        bounds.northeast.longitude,
+        bounds.northeast.latitude,
+      ],
+      zoomInt,
+    );
+
+    final out = <MarkerCluster>[];
+    for (final item in items) {
+      final lat = item.latitude;
+      final lng = item.longitude;
+      if (lat == null || lng == null) continue;
+
+      if ((item.isCluster ?? false) && item.clusterId != null) {
+        final childEvents = _collectChildEvents(_fluster!, item.clusterId!);
+        if (childEvents.isNotEmpty) {
+          out.add(
+            MarkerCluster(
+              events: childEvents,
+              center: LatLng(lat, lng),
+              id: 'cluster_${item.clusterId}',
+              isCluster: childEvents.length > 1,
+            ),
+          );
+        }
+      } else {
+        final e = (item as EventMapMarker).event;
+        out.add(
+          MarkerCluster(
+            events: [e],
+            center: LatLng(e.lat, e.lng),
+            id: 'marker_${e.id}',
+            isCluster: false,
+          ),
+        );
+      }
+    }
+
+    // Cache com limite de tamanho
+    if (_boundsCache.length > 20) {
+      _boundsCache.remove(_boundsCache.keys.first);
+    }
+    _boundsCache[cacheKey] = out;
+
+    sw.stop();
+    debugPrint(
+      '📍 [ClusterService] View: ${out.length} clusters (zoom: $zoomInt, bounds query) - ${sw.elapsedMilliseconds}ms',
+    );
+
+    return out;
+  }
+
+  /// Limpa todo o cache de clusters.
   void clearCache() {
     _clusterCache.clear();
-    debugPrint('🗑️ [ClusterService] Cache limpo');
+    _boundsCache.clear();
+    _fluster = null;
+    _eventsHash = null;
   }
 
-  /// Remove cache de um zoom específico
+  /// Remove cache de um zoom específico.
   void clearCacheForZoom(double zoom) {
-    final keysToRemove = _clusterCache.keys
-        .where((key) => key.startsWith('z${zoom.round()}_'))
-        .toList();
-    
-    for (final key in keysToRemove) {
-      _clusterCache.remove(key);
-    }
+    _clusterCache.remove(zoom.floor());
+    // Limpa bounds cache também
+    _boundsCache.removeWhere((key, _) => key.startsWith('${zoom.floor()}_'));
   }
 }

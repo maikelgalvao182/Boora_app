@@ -75,23 +75,26 @@ class ReportEventButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: GlimpseColors.error.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        splashRadius: 18,
-        icon: const Icon(
-          IconsaxPlusLinear.warning_2,
-          size: 20,
-          color: GlimpseColors.error,
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFEBEE),
+          borderRadius: BorderRadius.circular(8),
         ),
-        onPressed: () => _showReportDialog(context),
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          splashRadius: 18,
+          icon: const Icon(
+            IconsaxPlusLinear.warning_2,
+            size: 20,
+            color: GlimpseColors.error,
+          ),
+          onPressed: () => _showReportDialog(context),
+        ),
       ),
     );
   }

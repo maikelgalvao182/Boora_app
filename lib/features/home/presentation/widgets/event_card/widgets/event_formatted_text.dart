@@ -7,7 +7,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Widget burro que exibe texto formatado de um evento
 /// 
-/// Exemplo: "João quer jogar futebol em Parque Ibirapuera dia 15/12 às 18:00"
+/// Exemplo: "João quer 🎉 jogar futebol em Parque Ibirapuera dia 15/12 às 18:00"
 class EventFormattedText extends StatelessWidget {
   const EventFormattedText({
     required this.fullName,
@@ -16,6 +16,7 @@ class EventFormattedText extends StatelessWidget {
     required this.dateText,
     required this.timeText,
     required this.onLocationTap,
+    this.emoji,
     super.key,
   });
 
@@ -25,6 +26,7 @@ class EventFormattedText extends StatelessWidget {
   final String dateText;
   final String timeText;
   final VoidCallback onLocationTap;
+  final String? emoji;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +51,11 @@ class EventFormattedText extends StatelessWidget {
           
           // Conectivo
           TextSpan(text: ' ${i18n.translate('event_formatted_wants')} '),
+          
+          // Emoji (se fornecido)
+          if (emoji != null) ...[
+            TextSpan(text: '$emoji '),
+          ],
           
           // Atividade
           TextSpan(
