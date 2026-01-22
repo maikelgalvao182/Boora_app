@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import GoogleMaps
+import flutter_local_notifications
 
 // Obs: FBSDKCoreKit pode não expor módulos Swift (dependendo da instalação via CocoaPods).
 // O SDK do Facebook normalmente é inicializado automaticamente via plugin.
@@ -11,7 +12,20 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    
+    // ✅ IMPORTANTE: Configurar flutter_local_notifications para receber cliques
+    // Isso é NECESSÁRIO para que o callback onDidReceiveNotificationResponse funcione no iOS
+    FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { (registry) in
+      GeneratedPluginRegistrant.register(with: registry)
+    }
+    
+    // Registrar plugins normalmente
     GeneratedPluginRegistrant.register(with: self)
+
+    // ✅ Configurar para receber notificações quando app está em foreground
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self
+    }
 
     // Google Maps SDK API Key (iOS)
     // Recebida do Dart via MethodChannel (fonte de verdade: constants.dart)

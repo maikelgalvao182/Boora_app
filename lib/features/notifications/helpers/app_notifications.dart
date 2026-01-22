@@ -33,17 +33,20 @@ class AppNotifications {
       return;
     }
     
-    /// Control notification type
+      /// Control notification type
     switch (nType) {
       case NOTIF_TYPE_MESSAGE:
       case 'new_message':
-        // Navigate to conversations tab
-        if (context.mounted) {
+      case 'chat_message':
+        // ✅ Navigate to specific chat using senderId
+        if (nSenderId.isNotEmpty && context.mounted) {
+          debugPrint('💬 [AppNotifications] Navegando para chat com sender: $nSenderId');
+          await _handleChatNotification(context, nSenderId);
+        } else if (context.mounted) {
+          debugPrint('⚠️ [AppNotifications] Sem senderId, indo para aba de conversas');
           _goToConversationsTab(context);
         }
-  break;
-
-      // Mensagem do chat de evento (push)
+        break;      // Mensagem do chat de evento (push)
       case 'event_chat_message':
         if (nRelatedId != null && nRelatedId.isNotEmpty) {
           await _handleEventChatNotification(context, nRelatedId);
@@ -278,17 +281,31 @@ class AppNotifications {
           .doc(otherUserId)
           .get();
 
-      if (!conversationDoc.exists) {
-        debugPrint('❌ [AppNotifications] Conversation not found for user: $otherUserId');
-        debugPrint('   - Path: Connections/$currentUserId/Conversations/$otherUserId');
-        return;
-      }
+      app_models.User user;
       
-      final data = conversationDoc.data() ?? {};
-      debugPrint('✅ [AppNotifications] Conversa encontrada, dados: ${data.keys}');
-
-      // Criar objeto User a partir dos dados da conversa
-      final user = _createUserFromData(data, otherUserId);
+      if (conversationDoc.exists) {
+        final data = conversationDoc.data() ?? {};
+        debugPrint('✅ [AppNotifications] Conversa encontrada, dados: ${data.keys}');
+        // Criar objeto User a partir dos dados da conversa
+        user = _createUserFromData(data, otherUserId);
+      } else {
+        debugPrint('⚠️ [AppNotifications] Conversation not found, trying Users collection...');
+        // Fallback: buscar diretamente na coleção Users
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(otherUserId)
+            .get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data() ?? {};
+          debugPrint('✅ [AppNotifications] User encontrado em Users collection');
+          user = _createUserFromData(userData, otherUserId);
+        } else {
+          debugPrint('⚠️ [AppNotifications] User não encontrado, criando user básico...');
+          // Criar user básico apenas com ID (chat vai funcionar)
+          user = _createUserFromData({}, otherUserId);
+        }
+      }
 
       // Navegar diretamente usando rootNavigatorKey (não precisa agendar)
       debugPrint('🚀 [AppNotifications] Navegando para ChatScreenRefactored...');
@@ -304,8 +321,9 @@ class AppNotifications {
     BuildContext context,
     app_models.User user,
     String currentUserId,
-    String otherUserId,
-  ) {
+    String otherUserId, {
+    int retryCount = 0,
+  }) {
     try {
       // Usar rootNavigatorKey para garantir acesso ao Navigator
       final navigator = rootNavigatorKey.currentState;
@@ -325,9 +343,15 @@ class AppNotifications {
         
         // Marcar como lido em background
         _markAsReadInBackground(currentUserId, otherUserId);
+      } else if (retryCount < 3) {
+        // Retry: Navigator ainda não está pronto (comum após cold start)
+        debugPrint('⚠️ [AppNotifications] rootNavigator null, retry ${retryCount + 1}/3 em 300ms...');
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _navigateToChat(context, user, currentUserId, otherUserId, retryCount: retryCount + 1);
+        });
       } else {
-        // Fallback: Tentar com context.mounted
-        debugPrint('⚠️ [AppNotifications] rootNavigator null, tentando com context...');
+        // Fallback: Tentar com context.mounted após retries
+        debugPrint('⚠️ [AppNotifications] rootNavigator ainda null após retries, tentando com context...');
         if (context.mounted) {
           final contextNavigator = Navigator.maybeOf(context);
           if (contextNavigator != null) {
@@ -342,18 +366,13 @@ class AppNotifications {
             );
             _markAsReadInBackground(currentUserId, otherUserId);
           } else {
-            _goToConversationsTab(context);
+            debugPrint('❌ [AppNotifications] Nenhum navigator disponível, desistindo');
           }
         }
       }
     } catch (e, stack) {
       debugPrint('❌ [AppNotifications] Error in _navigateToChat: $e');
       debugPrint('   Stack: $stack');
-      
-      // Fallback de emergência
-      try {
-        if (context.mounted) _goToConversationsTab(context);
-      } catch (_) {}
     }
   }
 
@@ -388,17 +407,35 @@ class AppNotifications {
           .doc(conversationId)
           .get();
 
-      if (!conversationDoc.exists) {
-        debugPrint('❌ [AppNotifications] Event conversation not found: $eventId');
-        debugPrint('   - Path: Connections/$currentUserId/Conversations/$conversationId');
-        return;
+      app_models.User user;
+      
+      if (conversationDoc.exists) {
+        final data = conversationDoc.data() ?? {};
+        debugPrint('✅ [AppNotifications] Event conversa encontrada, dados: ${data.keys}');
+        // Criar objeto User a partir dos dados da conversa (usa fullname do evento como nome)
+        user = _createUserFromData(data, conversationId);
+      } else {
+        debugPrint('⚠️ [AppNotifications] Event conversation not found, trying Events collection...');
+        // Fallback: buscar dados do evento diretamente
+        final eventDoc = await FirebaseFirestore.instance
+            .collection('Events')
+            .doc(eventId)
+            .get();
+        
+        if (eventDoc.exists) {
+          final eventData = eventDoc.data() ?? {};
+          debugPrint('✅ [AppNotifications] Evento encontrado em Events collection');
+          // Criar user com dados do evento
+          user = _createUserFromData({
+            'fullName': eventData['eventTitle'] ?? eventData['activityText'] ?? 'Evento',
+            'photoUrl': eventData['eventPhoto'] ?? '',
+          }, conversationId);
+        } else {
+          debugPrint('⚠️ [AppNotifications] Event não encontrado, criando user básico...');
+          // Criar user básico apenas com ID (chat vai funcionar)
+          user = _createUserFromData({'fullName': 'Evento'}, conversationId);
+        }
       }
-
-      final data = conversationDoc.data() ?? {};
-      debugPrint('✅ [AppNotifications] Event conversa encontrada, dados: ${data.keys}');
-
-      // Criar objeto User a partir dos dados da conversa (usa fullname do evento como nome)
-      final user = _createUserFromData(data, conversationId);
 
       // Navegar diretamente usando rootNavigatorKey (não precisa agendar)
       debugPrint('🚀 [AppNotifications] Navegando para ChatScreenRefactored (event chat)...');
@@ -415,8 +452,9 @@ class AppNotifications {
     app_models.User user,
     String eventId,
     String currentUserId,
-    String conversationId,
-  ) {
+    String conversationId, {
+    int retryCount = 0,
+  }) {
     try {
       // Usar rootNavigatorKey para garantir acesso ao Navigator
       final navigator = rootNavigatorKey.currentState;
@@ -436,9 +474,15 @@ class AppNotifications {
         
         // Marcar como lido em background
         _markAsReadInBackground(currentUserId, conversationId);
+      } else if (retryCount < 3) {
+        // Retry: Navigator ainda não está pronto (comum após cold start)
+        debugPrint('⚠️ [AppNotifications] rootNavigator null, retry ${retryCount + 1}/3 em 300ms...');
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _navigateToEventChat(context, user, eventId, currentUserId, conversationId, retryCount: retryCount + 1);
+        });
       } else {
         // Fallback: Navegar para home e usar MapNavigationService
-        debugPrint('⚠️ [AppNotifications] rootNavigator null, usando fallback via home...');
+        debugPrint('⚠️ [AppNotifications] rootNavigator ainda null após retries, usando fallback via home...');
         
         // Registrar navegação pendente para abrir o EventCard
         MapNavigationService.instance.navigateToEvent(eventId);

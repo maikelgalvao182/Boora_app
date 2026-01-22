@@ -143,9 +143,11 @@ export const onEventChatMessageCreated = functions.firestore
           sendPush({
             userId: participantId,
             event: "event_chat_message",
-            // ✅ iOS foreground: preferir DATA-ONLY para garantir entrega no onMessage
-            // e deixar o Flutter controlar a notificação local + clique.
-            dataOnly: true,
+            // NÃO usar dataOnly: iOS foreground precisa de alert push.
+            notification: {
+              title: `${emoji} ${activityText}`,
+              body: `${senderName}: ${messageText?.substring(0, 50) || ""}`,
+            },
             data: {
               n_type: "event_chat_message",
               sub_type: "event_chat_message",

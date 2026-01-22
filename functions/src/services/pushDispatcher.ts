@@ -314,10 +314,10 @@ export async function sendPush({
       };
     };
 
-  const notification = getNotificationContent();
+    const notification = getNotificationContent();
 
-  // Se for silent, sempre deve ser data-only.
-  const effectiveDataOnly = dataOnly || silent;
+    // Se for silent, sempre deve ser data-only.
+    const effectiveDataOnly = dataOnly || silent;
 
     const payload = {
       data: {
@@ -351,9 +351,8 @@ export async function sendPush({
         payload: {
           aps: {
             ...(effectiveDataOnly ? {
-              // data-only no iOS precisa ser background push type.
-              // Mesmo que o app esteja aberto, isso evita o iOS "engolir" o onMessage
-              // em alguns cenários com alert payload.
+              // data-only: background push com content-available.
+              // iOS entrega ao Flutter via onMessage.
               "content-available": 1,
             } : {
               alert: {

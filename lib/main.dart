@@ -195,8 +195,40 @@ Future<void> main() async {
   });
 }
 
-class AppRoot extends StatelessWidget {
+class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
+
+  @override
+  State<AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // ✅ Processa clique em notificação local/FCM em cold-start com Navigator pronto.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushNotificationManager.instance.handleInitialMessageAfterRunApp();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // ✅ Quando app volta do background, verifica se há notificação pendente
+      debugPrint('🔄 [AppRoot] App resumed - verificando payload pendente...');
+      PushNotificationManager.instance.checkPendingNotificationPayload();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

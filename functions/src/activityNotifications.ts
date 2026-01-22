@@ -560,7 +560,7 @@ export const onJoinDecisionNotification = functions.firestore
         if (creatorData) {
           senderName = creatorData.fullName || "Organizador";
           senderPhotoUrl = creatorData.profilePhoto || creatorData.photoUrl;
-          
+
           // Ignorar URLs do Google OAuth
           if (senderPhotoUrl && (
             senderPhotoUrl.includes("googleusercontent.com") ||

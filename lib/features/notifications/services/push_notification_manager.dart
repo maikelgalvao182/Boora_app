@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:ui'; // DartPluginRegistrant (background isolate)
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:partiu/features/notifications/helpers/app_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,10 +13,48 @@ import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/features/notifications/templates/notification_templates.dart';
+import 'package:partiu/core/router/app_router.dart'; // ✅ rootNavigatorKey
+
+/// 🔔 BACKGROUND NOTIFICATION TAP HANDLER (top-level, necessário para iOS/Android)
+/// Quando o usuário clica numa notificação local com app em background/killed,
+/// salvamos o payload e processamos quando o app voltar.
+@pragma('vm:entry-point')
+Future<void> notificationTapBackground(NotificationResponse response) async {
+  // Necessário no iOS para registrar plugins (SharedPreferences etc) no isolate.
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+
+  print('╔═══════════════════════════════════════════════════════');
+  print('║ 👆 NOTIFICATION TAP BACKGROUND CHAMADO!');
+  print('╠═══════════════════════════════════════════════════════');
+  print('║ Payload: ${response.payload}');
+  print('║ ActionId: ${response.actionId}');
+  print('║ NotificationResponseType: ${response.notificationResponseType}');
+  print('╚═══════════════════════════════════════════════════════');
+  
+  final payload = response.payload;
+  if (payload == null || payload.isEmpty) {
+    print('⚠️ [PushManager] Payload vazio no background tap');
+    return;
+  }
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pending_notification_payload', payload);
+  await prefs.setInt('pending_notification_payload_ts', DateTime.now().millisecondsSinceEpoch);
+    print('💾 [PushManager] Payload salvo: $payload');
+  } catch (e) {
+    print('❌ [PushManager] Erro ao salvar payload: $e');
+  }
+}
 
 /// 🔔 BACKGROUND MESSAGE HANDLER (top-level, necessário para iOS/Android)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Necessário no iOS para registrar plugins (SharedPreferences etc) no isolate.
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+
   print('╔═══════════════════════════════════════════════════════');
   print('║ 📨 BACKGROUND MESSAGE RECEBIDA');
   print('╠═══════════════════════════════════════════════════════');
@@ -23,6 +63,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('║ Data: ${message.data}');
   print('║ Notification: ${message.notification?.toMap()}');
   print('╚═══════════════════════════════════════════════════════');
+
+  // Dedup extra (handler): alguns iOS entregam o mesmo background message mais de uma vez.
+  // Usamos messageId (quando existir) para evitar chamar show() duas vezes.
+  final bgMessageId = message.messageId;
+  if (bgMessageId != null) {
+    if (PushNotificationManager._backgroundShownMessageIds.contains(bgMessageId)) {
+      print('⚠️ [PushManager] Background message duplicada (handler) - ignorando: $bgMessageId');
+      return;
+    }
+  }
 
   // 🔒 Evitar duplicação:
   // O backend (PushDispatcher) envia push híbrido com `notification` + `data`
@@ -331,6 +381,14 @@ class PushNotificationManager {
   final FlutterLocalNotificationsPlugin _localNotifications = 
       FlutterLocalNotificationsPlugin();
 
+  // iOS: evita processar o mesmo clique 2x (resume + launchDetails)
+  String? _lastProcessedPayload;
+
+  // iOS fallback: quando o iOS não entrega callback de clique de notificação local,
+  // persistimos o último payload exibido e tentamos navegar no próximo resume.
+  static const String _lastShownPayloadKey = 'last_shown_local_notification_payload';
+  static const String _lastShownPayloadTsKey = 'last_shown_local_notification_payload_ts';
+
   // Channel Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'boora_high_importance',
@@ -345,6 +403,9 @@ class PushNotificationManager {
   String _currentConversationId = '';
   final Set<String> _processedMessageIds = {};
   String? _pendingToken;
+
+  // Background isolate: evita duplicar notificações locais (mesma mensagem chegando 2x)
+  static final Set<String> _backgroundShownMessageIds = <String>{};
   
   // ✅ Armazena última mensagem recebida em foreground para navegação
   // No iOS, quando o SO exibe a notificação em foreground, onMessageOpenedApp
@@ -354,15 +415,16 @@ class PushNotificationManager {
   // Limpar cache de IDs processados a cada 5 minutos
   Timer? _cleanupTimer;
   
-  /// GlobalKey para acessar o contexto do Navigator
-  /// Deve ser setado pelo main.dart ou AppRoot
+  /// @deprecated Use rootNavigatorKey diretamente do app_router.dart
+  /// Mantido apenas para compatibilidade temporária
+  @Deprecated('Use rootNavigatorKey from app_router.dart instead')
   BuildContext? _appContext;
   
-  /// Seta o contexto do app para navegação
-  /// Deve ser chamado após o MaterialApp estar construído
+  /// @deprecated Use rootNavigatorKey diretamente
+  @Deprecated('Use rootNavigatorKey from app_router.dart instead')
   void setAppContext(BuildContext context) {
     _appContext = context;
-    print('✅ [PushManager] App context setado');
+    print('⚠️ [PushManager] setAppContext() é deprecated - use rootNavigatorKey');
   }
   
   /// Define qual conversa está aberta no momento
@@ -378,6 +440,116 @@ class PushNotificationManager {
     _processedMessageIds.clear();
     _pendingToken = null;
     _cleanupTimer?.cancel();
+  }
+  
+  /// ✅ Chame este método quando o app voltar do background (AppLifecycleState.resumed)
+  /// para verificar se há payload pendente de notificação clicada
+  Future<void> checkPendingNotificationPayload() async {
+    // Tentar múltiplas vezes com delay, pois o SharedPreferences pode não estar sincronizado
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        // Pequeno delay para garantir que SharedPreferences esteja sincronizado
+        if (attempt > 0) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+        
+        final prefs = await SharedPreferences.getInstance();
+        // Recarregar para pegar mudanças de outro isolate
+        await prefs.reload();
+        
+        final pending = prefs.getString('pending_notification_payload');
+        final ts = prefs.getInt('pending_notification_payload_ts');
+        print('🔍 [PushManager] Verificando payload pendente (tentativa ${attempt + 1}): ${pending != null ? "ENCONTRADO" : "vazio"}');
+        
+        if (pending != null && pending.isNotEmpty) {
+          print('📬 [PushManager] Payload pendente encontrado no resume!');
+          print('   - Payload: $pending');
+          if (ts != null) {
+            print('   - SavedAt(ms): $ts');
+          }
+          await prefs.remove('pending_notification_payload');
+          await prefs.remove('pending_notification_payload_ts');
+          
+          final data = (json.decode(pending) as Map).map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          );
+          await Future.delayed(const Duration(milliseconds: 300));
+          navigateFromNotificationData(data);
+          return; // Sucesso, sair do loop
+        }
+      } catch (e) {
+        print('⚠️ [PushManager] Erro ao verificar payload pendente (tentativa ${attempt + 1}): $e');
+      }
+    }
+
+    // iOS fallback: quando o callback de background do plugin não dispara,
+    // ainda dá para capturar clique via launchDetails.
+    try {
+      final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+    print('🍎 [PushManager] checkPending launchDetails: '
+      'exists=${launchDetails != null} '
+      'didLaunch=${launchDetails?.didNotificationLaunchApp} '
+      'hasResponse=${launchDetails?.notificationResponse != null}');
+      if (launchDetails != null &&
+          launchDetails.didNotificationLaunchApp &&
+          launchDetails.notificationResponse?.payload != null &&
+          launchDetails.notificationResponse!.payload!.isNotEmpty) {
+        final payload = launchDetails.notificationResponse!.payload!;
+
+        if (_lastProcessedPayload == payload) {
+          return;
+        }
+        _lastProcessedPayload = payload;
+
+        print('🚀 [PushManager] checkPending: App aberto via notificação local (launchDetails)');
+        print('   - Payload: $payload');
+
+        final data = (json.decode(payload) as Map).map(
+          (k, v) => MapEntry(k.toString(), v.toString()),
+        );
+        await Future.delayed(const Duration(milliseconds: 300));
+        navigateFromNotificationData(data);
+      }
+    } catch (e) {
+      print('⚠️ [PushManager] Erro ao ler launchDetails: $e');
+    }
+
+    // Último fallback (iOS): se nada acima funcionou, mas temos um payload de notificação
+    // local exibida recentemente, tentamos navegar. Isso cobre casos onde o iOS não
+    // entrega o callback nem preenche didNotificationLaunchApp.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+
+      final lastShownPayload = prefs.getString(_lastShownPayloadKey);
+      final lastShownTs = prefs.getInt(_lastShownPayloadTsKey);
+
+      if (lastShownPayload != null && lastShownPayload.isNotEmpty) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final ageMs = lastShownTs != null ? (now - lastShownTs) : null;
+
+        // Só considera se foi exibida há pouco (evita navegação fantasma dias depois).
+        final isRecent = ageMs == null || ageMs < 2 * 60 * 1000; // 2 min
+        if (isRecent && _lastProcessedPayload != lastShownPayload) {
+          _lastProcessedPayload = lastShownPayload;
+          print('🧯 [PushManager] FALLBACK iOS: usando lastShown payload para navegar');
+          print('   - ageMs: ${ageMs ?? -1}');
+          print('   - Payload: $lastShownPayload');
+
+          // Consome para não repetir.
+          await prefs.remove(_lastShownPayloadKey);
+          await prefs.remove(_lastShownPayloadTsKey);
+
+          final data = (json.decode(lastShownPayload) as Map).map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          );
+          await Future.delayed(const Duration(milliseconds: 300));
+          navigateFromNotificationData(data);
+        }
+      }
+    } catch (e) {
+      print('⚠️ [PushManager] Erro no fallback lastShown payload: $e');
+    }
   }
   
   /// Inicia timer para limpar cache de IDs processados
@@ -414,13 +586,12 @@ class PushNotificationManager {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       // iOS: apresentação em foreground
-      // ⚠️ badge: false aqui porque o app controla via BadgeService
-      // (evita que push sobrescreva o contador correto)
+      // ✅ Habilitar banner nativo do iOS para notificações em foreground
       if (Platform.isIOS) {
         await _messaging.setForegroundNotificationPresentationOptions(
-          alert: false,
+          alert: true,  // ✅ Mostrar banner
           badge: false, // App controla via BadgeService
-          sound: false,
+          sound: true,  // ✅ Tocar som
         );
       }
 
@@ -449,18 +620,59 @@ class PushNotificationManager {
   /// Deve ser chamado APÓS o runApp, quando o contexto de navegação já existe
   Future<void> handleInitialMessageAfterRunApp() async {
     try {
+      // 1) FCM initial message (quando é notificação do FCM mesmo)
       final initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) {
-        print('🚀 [PushManager] Initial message detectada (app aberto via notificação)');
+        print('🚀 [PushManager] Initial message detectada (app aberto via notificação FCM)');
         print('   - data: ${initialMessage.data}');
-        
-        // Aguarda um pouco para garantir que o contexto está disponível
         await Future.delayed(const Duration(milliseconds: 500));
-        
         navigateFromNotificationData(initialMessage.data);
+        return; // ✅ Não processa payload local se já tem FCM
+      }
+
+      // 2) Local notification pendente (quando mostrou via flutter_local_notifications)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload(); // ✅ Recarregar para pegar mudanças de outro isolate
+      final pending = prefs.getString('pending_notification_payload');
+      
+      print('🔍 [PushManager] handleInitialMessage - payload pendente: ${pending != null ? "ENCONTRADO" : "vazio"}');
+      
+      if (pending != null && pending.isNotEmpty) {
+        print('📬 [PushManager] Payload local pendente encontrado');
+        print('   - Payload: $pending');
+        await prefs.remove('pending_notification_payload');
+        
+        final data = (json.decode(pending) as Map).map(
+          (k, v) => MapEntry(k.toString(), v.toString()),
+        );
+        await Future.delayed(const Duration(milliseconds: 300));
+        navigateFromNotificationData(data);
+        return;
+      }
+      
+      // 3) Verificar também o launchDetails do flutter_local_notifications
+      final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+      if (launchDetails != null && 
+          launchDetails.didNotificationLaunchApp && 
+          launchDetails.notificationResponse != null) {
+        print('🚀 [PushManager] App aberto via notificação local!');
+        final response = launchDetails.notificationResponse!;
+        print('   - Payload: ${response.payload}');
+        
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          if (_lastProcessedPayload == response.payload) {
+            return;
+          }
+          _lastProcessedPayload = response.payload;
+          final data = (json.decode(response.payload!) as Map).map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          );
+          await Future.delayed(const Duration(milliseconds: 300));
+          navigateFromNotificationData(data);
+        }
       }
     } catch (e) {
-      print('⚠️ [PushManager] Erro ao processar initial message: $e');
+      print('⚠️ [PushManager] Erro ao processar initial/local payload: $e');
     }
   }
 
@@ -476,21 +688,43 @@ class PushNotificationManager {
       print('║ Notification: ${message.notification?.toMap()}');
       print('╚═══════════════════════════════════════════════════════');
 
-      // 🔒 GUARD CLAUSE: Evitar duplicação de notificação
-      // O pushDispatcher SEMPRE envia com notification payload (android.notification + apns.alert)
-      // Isso faz o SO exibir automaticamente. Se criarmos notificação local, haverá DUAS.
-      final origin = message.data['n_origin'] ?? '';
+      // Verificar flag de silencioso PRIMEIRO
+      final silentFlag = (message.data['n_silent'] ?? '').toString().toLowerCase();
+      final isSilent = ['1', 'true', 'yes'].contains(silentFlag);
+      if (isSilent) {
+        print('🔇 [PushManager] Mensagem silenciosa, não exibindo notificação');
+        return;
+      }
 
-      if (origin == 'push') {
-        // ✅ iOS com app aberto: NÃO confiar no banner do SO para clique.
-        // Exibir SEMPRE notificação local para capturar click via plugin.
-        print(
-          '🔔 [PushManager] Foreground push do servidor (n_origin=push). '
-          'Exibindo notificação local para capturar click.'
-        );
+      // Não mostra notificação se está na conversa atual
+      final conversationId = message.data['conversationId'] ?? 
+                            message.data['n_related_id'] ?? 
+                            message.data['relatedId'] ??
+                            message.data['eventId'];
+      final nType = message.data['n_type'] ?? message.data['type'] ?? '';
+      
+      if (nType == NOTIF_TYPE_MESSAGE && conversationId == _currentConversationId && _currentConversationId.isNotEmpty) {
+        print('💬 [PushManager] Mensagem da conversa atual, não exibindo notificação');
+        return;
+      }
 
+      // ✅ iOS: Com alert:true no setForegroundNotificationPresentationOptions,
+      // o SO mostra o banner automaticamente para notificações com `notification` payload.
+      // Para data-only (n_origin=data), mostramos notificação local que também aparece como banner.
+      if (Platform.isIOS) {
+        print('🍎 [PushManager] iOS foreground: exibindo notificação local');
         _lastForegroundMessage = message;
+        final translatedMessage = await _translateMessage(message);
+        await _showLocalNotification(translatedMessage);
+        return;
+      }
 
+      // Android: mantém lógica de verificar n_origin para evitar duplicação
+      // (porque no Android o SO pode exibir o banner automaticamente)
+      final origin = (message.data['n_origin'] ?? '').toString();
+      if (origin == 'push') {
+        print('🤖 [PushManager] Android foreground (n_origin=push): exibindo local');
+        _lastForegroundMessage = message;
         final translatedMessage = await _translateMessage(message);
         await _showLocalNotification(translatedMessage);
         return;
@@ -504,39 +738,14 @@ class PushNotificationManager {
       }
       if (messageId != null) {
         _processedMessageIds.add(messageId);
-        // Limitar tamanho do Set para não crescer infinitamente
         if (_processedMessageIds.length > 100) {
           final oldIds = _processedMessageIds.take(50).toList();
           _processedMessageIds.removeAll(oldIds);
         }
       }
 
-      // Não mostra notificação se está na conversa atual
-      final conversationId = message.data['conversationId'] ?? 
-                            message.data['n_related_id'] ?? 
-                            message.data['relatedId'];
-
-      final nType = message.data['n_type'] ?? message.data['type'] ?? '';
-      
-      if (nType == NOTIF_TYPE_MESSAGE && conversationId == _currentConversationId) {
-        print('💬 [PushManager] Mensagem da conversa atual, não exibindo notificação');
-        return;
-      }
-
-      // Verificar flag de silencioso
-      final silentFlag = (message.data['n_silent'] ?? '').toString().toLowerCase();
-      final isSilent = ['1', 'true', 'yes'].contains(silentFlag);
-
-      if (isSilent) {
-        print('🔇 [PushManager] Mensagem silenciosa, não exibindo notificação');
-        return;
-      }
-
-      // ⚠️ SOMENTE se for DATA-ONLY (sem notification payload do SO)
-      // Traduzir mensagem
+      // Data-only no Android: traduzir e exibir local
       final translatedMessage = await _translateMessage(message);
-
-      // Exibir notificação local
       await _showLocalNotification(translatedMessage);
     });
   }
@@ -580,86 +789,107 @@ class PushNotificationManager {
 
     await _localNotifications.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-  onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // No iOS, esse callback também pode ser invocado quando o app estava em background
+        // e o usuário toca a notificação local.
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          _lastProcessedPayload = response.payload;
+        }
+        _onNotificationTapped(response);
+      },
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
     print('✅ [PushManager] Notificações locais configuradas');
   }
 
-  /// Callback quando notificação local é tocada
+  /// Callback quando notificação local é tocada (app em foreground)
   void _onNotificationTapped(NotificationResponse response) {
-    print('👆 [PushManager] Notificação local clicada');
-    print('   - payload: ${response.payload}');
-    print('   - actionId: ${response.actionId}');
+    print('╔═══════════════════════════════════════════════════════');
+    print('║ 👆 NOTIFICAÇÃO LOCAL CLICADA (FOREGROUND)');
+    print('╠═══════════════════════════════════════════════════════');
+    print('║ Payload: ${response.payload}');
+    print('║ ActionId: ${response.actionId}');
+    print('║ NotificationResponseType: ${response.notificationResponseType}');
+    print('╚═══════════════════════════════════════════════════════');
     
-    if (response.payload != null) {
+    if (response.payload != null && response.payload!.isNotEmpty) {
       try {
         final data = json.decode(response.payload!) as Map<String, dynamic>;
-        print('🧭 [PushManager] (local) convert payload -> data: $data');
-        // ✅ No iOS com app em foreground, este é o caminho mais confiável.
-        // Convertemos valores para string para manter compatibilidade.
+        print('✅ [PushManager] Payload decodificado: $data');
+
+        // ✅ Também salva como pendente para cobrir cenários onde a navegação ainda não está pronta
+        // (ex.: cold-start/resume com Navigator ainda null).
+        SharedPreferences.getInstance().then((prefs) async {
+          try {
+            await prefs.setString('pending_notification_payload', response.payload!);
+            await prefs.setInt('pending_notification_payload_ts', DateTime.now().millisecondsSinceEpoch);
+          } catch (_) {}
+        });
+
+        // ✅ Convertemos valores para string para manter compatibilidade.
         navigateFromNotificationData(
           data.map((k, v) => MapEntry(k, v.toString())),
         );
       } catch (e) {
-        print('⚠️ [PushManager] Erro ao processar payload: $e');
+        print('❌ [PushManager] Erro ao processar payload: $e');
       }
+    } else {
+      print('⚠️ [PushManager] Payload vazio ou nulo');
     }
   }
 
-  @pragma('vm:entry-point')
-  static void _onBackgroundNotificationTapped(NotificationResponse response) {
-    // No background, aqui não temos acesso fácil a instâncias/singletons.
-    // Mantemos o hook registrado para iOS/Android não falharem silenciosamente.
-    print('👆 [PushManager] Notificação local clicada (background callback)');
-    print('   - payload: ${response.payload}');
-    print('   - actionId: ${response.actionId}');
-  }
-
   /// Navega baseado nos dados da notificação
+  /// ✅ Usa rootNavigatorKey para navegação estável (não depende de BuildContext frágil)
   void navigateFromNotificationData(Map<String, dynamic> data) {
-    print('🧭 [PushManager] Navegando baseado em notificação');
-    print('   - data: $data');
+    print('╔═══════════════════════════════════════════════════════');
+    print('║ 🧭 NAVEGANDO BASEADO EM NOTIFICAÇÃO');
+    print('╠═══════════════════════════════════════════════════════');
+    print('║ Data keys: ${data.keys.toList()}');
+    print('║ Full data: $data');
+    print('╚═══════════════════════════════════════════════════════');
     
     final nType = data['n_type'] ?? data['type'] ?? '';
     final nSenderId = data['n_sender_id'] ?? data['senderId'] ?? '';
-  // Alguns pushes (ex: event_chat_message) usam eventId ao invés de n_related_id.
-  final nRelatedId =
-    data['n_related_id'] ?? data['relatedId'] ?? data['eventId'] ?? '';
+    // ✅ Prioriza conversationId, depois eventId, depois fallbacks
+    final nRelatedId =
+      data['conversationId'] ??
+      data['n_conversation_id'] ??
+      data['eventId'] ??
+      data['n_related_id'] ??
+      data['relatedId'] ??
+      '';
     final deepLink = data['deepLink'] ?? data['deep_link'] ?? '';
     final screen = data['screen'] ?? '';
 
-    // Agenda para próximo frame quando contexto estará disponível
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Usar o contexto salvo (que tem acesso aos Providers)
-      // ou fallback para renderViewElement
-      BuildContext? context = _appContext;
-      
-      if (context == null || !context.mounted) {
-        print('⚠️ [PushManager] _appContext não disponível, tentando renderViewElement...');
-        context = WidgetsBinding.instance.renderViewElement;
-      }
-      
-      if (context == null || !context.mounted) {
-        print('⚠️ [PushManager] Contexto não disponível ainda, tentando novamente em 500ms...');
-        Future.delayed(const Duration(milliseconds: 500), () {
-          navigateFromNotificationData(data);
-        });
-        return;
-      }
-      
-      print('✅ [PushManager] Contexto disponível, chamando AppNotifications...');
+    print('🧭 [PushManager] Parsed values:');
+    print('   - nType: $nType');
+    print('   - nSenderId: $nSenderId');
+    print('   - nRelatedId: $nRelatedId');
+    print('   - deepLink: $deepLink');
+    print('   - screen: $screen');
 
-      AppNotifications().onNotificationClick(
-        context,
-        nType: nType,
-        nSenderId: nSenderId,
-        nRelatedId: nRelatedId,
-        deepLink: deepLink,
-        screen: screen,
-      );
-    });
+    // ✅ Usar rootNavigatorKey para navegação estável
+    final navigator = rootNavigatorKey.currentState;
+    
+    if (navigator == null) {
+      print('⚠️ [PushManager] Navigator ainda não disponível, tentando novamente em 300ms...');
+      Future.delayed(const Duration(milliseconds: 300), () {
+        navigateFromNotificationData(data);
+      });
+      return;
+    }
+    
+    print('✅ [PushManager] Navigator disponível, chamando AppNotifications.onNotificationClick...');
+
+    AppNotifications().onNotificationClick(
+      navigator.context,
+      nType: nType,
+      nSenderId: nSenderId,
+      nRelatedId: nRelatedId,
+      deepLink: deepLink,
+      screen: screen,
+    );
   }
 
   /// 🔔 Solicita permissões (iOS principalmente)
@@ -788,23 +1018,27 @@ class PushNotificationManager {
   static Future<void> showBackgroundNotification(RemoteMessage message) async {
     try {
       print('📨 [PushManager] Exibindo notificação background');
+
+      // Dedup (background): se o Firebase entregar o mesmo messageId mais de uma vez,
+      // evita criar 2 notificações iguais.
+      final messageId = message.messageId;
+      if (messageId != null) {
+        if (_backgroundShownMessageIds.contains(messageId)) {
+          print('⚠️ [PushManager] Background notif duplicada (messageId já exibido): $messageId');
+          return;
+        }
+        _backgroundShownMessageIds.add(messageId);
+        if (_backgroundShownMessageIds.length > 200) {
+          _backgroundShownMessageIds.remove(_backgroundShownMessageIds.first);
+        }
+      }
       
+      // IMPORTANTE:
+      // Não inicialize o FlutterLocalNotificationsPlugin dentro do background isolate.
+      // Em iOS, isso normalmente faz o callback de clique não ser entregue ao isolate
+      // principal (onde o app realmente navega) e o payload nunca chega no resume.
+      // A inicialização correta já acontece em _setupLocalNotifications() no isolate principal.
       final plugin = FlutterLocalNotificationsPlugin();
-      
-      // Configurar plugin
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      );
-      
-      await plugin.initialize(
-        const InitializationSettings(
-          android: androidSettings,
-          iOS: iosSettings,
-        ),
-      );
       
       // Criar channel (Android)
       if (Platform.isAndroid) {
@@ -813,10 +1047,39 @@ class PushNotificationManager {
             ?.createNotificationChannel(_channel);
       }
       
-      // Exibir notificação
+      // ✅ Para data-only messages, não temos message.notification
+      // Precisamos usar os dados do message.data diretamente
       final notification = message.notification;
-      if (notification == null) {
-        print('⚠️ [PushManager] Background notification sem payload');
+      final data = message.data;
+      
+      // Extrair título e corpo do notification OU dos data fields
+      String? title = notification?.title;
+      String? body = notification?.body;
+      
+      // Fallback para campos do data se notification estiver vazio
+      if (title == null || title.isEmpty) {
+        title = data['eventName'] as String? ?? 
+                data['eventTitle'] as String? ?? 
+                data['activityText'] as String? ??
+                data['title'] as String?;
+        final emoji = data['emoji'] as String? ?? data['eventEmoji'] as String? ?? '';
+        if (title != null && emoji.isNotEmpty) {
+          title = '$title $emoji';
+        }
+      }
+      
+      if (body == null || body.isEmpty) {
+        final senderName = data['n_sender_name'] as String? ?? data['senderName'] as String? ?? '';
+        final messagePreview = data['n_message'] as String? ?? data['messagePreview'] as String? ?? '';
+        if (senderName.isNotEmpty && messagePreview.isNotEmpty) {
+          body = '$senderName: $messagePreview';
+        } else {
+          body = data['body'] as String? ?? messagePreview;
+        }
+      }
+      
+      if (title == null || title.isEmpty) {
+        print('⚠️ [PushManager] Background notification sem título, não exibindo');
         return;
       }
 
@@ -837,18 +1100,38 @@ class PushNotificationManager {
         presentSound: true,
       );
 
+      // ✅ Usar ID estável para evitar duplicatas
+      final stableKey = (data['eventId'] ?? data['n_related_id'] ?? data['relatedId'] ?? '')
+        .toString();
+      final notificationId = stableKey.isNotEmpty
+        ? (stableKey.hashCode.abs() % 100000)
+        : (DateTime.now().millisecondsSinceEpoch % 100000);
+
+      // 🔐 FALLBACK: persistir o payload exibido. Em alguns iOS, o callback de clique
+      // (onDidReceiveBackgroundNotificationResponse) não é entregue.
+      // Nesse caso, no próximo resume usamos esse payload para navegar.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_lastShownPayloadKey, json.encode(data));
+        await prefs.setInt(_lastShownPayloadTsKey, DateTime.now().millisecondsSinceEpoch);
+      } catch (_) {
+        // ignore
+      }
+
       await plugin.show(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        notification.title ?? APP_NAME,
-        notification.body ?? '',
+        notificationId,
+        title,
+        body ?? '',
         NotificationDetails(
           android: androidDetails,
           iOS: iosDetails,
         ),
-        payload: json.encode(message.data),
+        payload: json.encode(data),
       );
       
       print('✅ [PushManager] Background notification exibida');
+      print('   - Título: $title');
+      print('   - Corpo: $body');
     } catch (e, stackTrace) {
       print('❌ [PushManager] Erro ao exibir background notification: $e');
       print('Stack: $stackTrace');
