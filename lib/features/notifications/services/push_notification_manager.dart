@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/features/conversations/state/conversation_activity_bus.dart';
 import 'package:partiu/features/notifications/templates/notification_templates.dart';
 import 'package:partiu/core/router/app_router.dart'; // ✅ rootNavigatorKey
 
@@ -702,6 +703,16 @@ class PushNotificationManager {
                             message.data['relatedId'] ??
                             message.data['eventId'];
       final nType = message.data['n_type'] ?? message.data['type'] ?? '';
+
+      // ✅ Padronização UI: força feedback visual no inbox para chat de evento.
+      // O doc de Conversations pode ficar com unread_count=0 (ex.: mensagens system)
+      // ou demorar, então marcamos a conversa como "touched" assim que o push chega.
+      if (nType == 'event_chat_message') {
+        final eventId = (message.data['eventId'] ?? '').toString();
+        if (eventId.isNotEmpty) {
+          ConversationActivityBus.instance.touch('event_$eventId');
+        }
+      }
       
       if (nType == NOTIF_TYPE_MESSAGE && conversationId == _currentConversationId && _currentConversationId.isNotEmpty) {
         print('💬 [PushManager] Mensagem da conversa atual, não exibindo notificação');

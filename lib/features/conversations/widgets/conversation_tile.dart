@@ -6,6 +6,7 @@ import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
 import 'package:partiu/features/conversations/services/conversation_data_processor.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
+import 'package:partiu/features/conversations/state/conversation_activity_bus.dart';
 import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:partiu/features/events/state/event_store.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
@@ -53,6 +54,9 @@ class ConversationTile extends StatelessWidget {
     return ValueListenableBuilder<ConversationDisplayData>(
       valueListenable: notifier,
       builder: (context, displayData, _) {
+        return ValueListenableBuilder<Set<String>>(
+          valueListenable: ConversationActivityBus.instance.touchedConversationIds,
+          builder: (context, touchedIds, __) {
         // 🔥 UMA ÚNICA STREAM compartilhada por todo o tile
         // ✅ FIX: Usar conversationId (não otherUserId) para escutar o documento correto
         // - Chat 1-1: conversationId = otherUserId
@@ -72,13 +76,21 @@ class ConversationTile extends StatelessWidget {
               debugPrint('🔵 [ConversationTile] Stream: hasData=${snap.hasData}, exists=${snap.data?.exists}, connectionState=${snap.connectionState}');
               if (snap.hasData && snap.data?.exists == true) {
                 final snapData = snap.data?.data();
-                debugPrint('🔵 [ConversationTile] Stream Data: unread=${snapData?['unread_count']}, read=${snapData?['message_read']}, msg=${snapData?['last_message']}');
+                debugPrint('🔵 [ConversationTile] Stream Data FULL: $snapData');
+                debugPrint('🔵 [ConversationTile] Stream Data: unread=${snapData?['unread_count']} (${snapData?['unread_count']?.runtimeType}), read=${snapData?['message_read']} (${snapData?['message_read']?.runtimeType}), msg=${snapData?['last_message']}');
               }
             }
             
             // Extrair dados frescos do snapshot (com fallback para rawData)
             final data = snap.data?.data();
             final hasStreamData = snap.hasData && snap.data?.exists == true && data != null;
+
+            // ✅ Feedback visual: se ainda estamos aguardando o primeiro snapshot,
+            // mostramos um indicador sutil de "atualizando" no tile.
+            // Isso cobre o caso em que chega push, o usuário olha a lista e parece que
+            // "nada aconteceu" enquanto o stream ainda está em ConnectionState.waiting.
+            final isStreamWaiting = snap.connectionState == ConnectionState.waiting;
+            final showUpdatingIndicator = isStreamWaiting && !hasStreamData;
 
             bool isPlaceholderName(String value) {
               final normalized = value.trim().toLowerCase();
@@ -96,14 +108,58 @@ class ConversationTile extends StatelessWidget {
               return text;
             }
 
+            int toIntSafe(dynamic value) {
+              if (value == null) return 0;
+              if (value is int) return value;
+              if (value is num) return value.toInt();
+              if (value is String) return int.tryParse(value) ?? 0;
+              return 0;
+            }
+
+            bool toBoolSafe(dynamic value, {required bool defaultValue}) {
+              if (value == null) return defaultValue;
+              if (value is bool) return value;
+              if (value is int) return value != 0;
+              if (value is String) {
+                final v = value.trim().toLowerCase();
+                if (v.isEmpty) return defaultValue;
+                if (['1', 'true', 'yes', 'y'].contains(v)) return true;
+                if (['0', 'false', 'no', 'n'].contains(v)) return false;
+              }
+              return defaultValue;
+            }
+
             // Calcular estado derivado UMA VEZ (com fallback para rawData)
-            final unreadCount = hasStreamData 
-                ? (data?['unread_count'] as int? ?? 0)
-                : (rawData['unread_count'] as int? ?? 0);
-            final messageRead = hasStreamData 
-                ? (data?['message_read'] as bool? ?? true)
-                : (rawData[MESSAGE_READ] as bool? ?? true);
+      final unreadCount = hasStreamData
+        ? toIntSafe(data['unread_count'] ?? data['unreadCount'])
+        : toIntSafe(rawData['unread_count'] ?? rawData['unreadCount']);
+
+            // message_read pode vir como bool/int/string e em chaves diferentes.
+            // Fallback: se unreadCount>0, consideramos como não lido.
+      final messageRead = hasStreamData
+        ? toBoolSafe(
+          data['message_read'] ??
+            data[MESSAGE_READ] ??
+            data['isRead'],
+                    defaultValue: unreadCount == 0,
+                  )
+        : toBoolSafe(
+          rawData['message_read'] ??
+            rawData[MESSAGE_READ] ??
+            rawData['isRead'],
+                    defaultValue: unreadCount == 0,
+                  );
             final hasUnread = unreadCount > 0 || !messageRead;
+
+            // ✅ Padronização com 1x1: se chegou push e o backend ainda não refletiu
+            // (unread_count permanece 0), ainda assim mostramos feedback visual.
+            final hasActivityTouch = touchedIds.contains(conversationId);
+            final showAttention = hasUnread || hasActivityTouch;
+
+            // DEBUG: Log valores calculados para chat de evento
+            if (isEventChatFromRaw) {
+              debugPrint('🟡 [ConversationTile] CALC: hasStreamData=$hasStreamData, unreadCount=$unreadCount, messageRead=$messageRead, hasUnread=$hasUnread');
+            }
 
             final isEventChat =
                 data?['is_event_chat'] == true ||
@@ -143,29 +199,29 @@ class ConversationTile extends StatelessWidget {
                     ? otherNameFromRaw
                     : (isPlaceholderName(displayData.fullName) ? '' : cleanName(displayData.fullName))));
 
-            final emoji = data?['emoji']?.toString() ?? 
-                         rawData['emoji']?.toString() ?? 
+            final emoji = data?['emoji']?.toString() ??
+                         rawData['emoji']?.toString() ??
                          EventEmojiAvatar.defaultEmoji;
 
-            final eventId = data?['event_id']?.toString() ?? 
-                           rawData['event_id']?.toString() ?? 
+            final eventId = data?['event_id']?.toString() ??
+                           rawData['event_id']?.toString() ??
                            '';
 
             // Timestamp: preferir stream, fallback para rawData
             final dynamic timestampValue;
             if (hasStreamData) {
-              timestampValue = data?['last_message_timestamp'] ??
-                   data?['last_message_at'] ??
-                   data?['lastMessageAt'] ??
-                   data?[TIMESTAMP] ??
-                   data?['timestamp'];
+        timestampValue = data['last_message_timestamp'] ??
+          data['last_message_at'] ??
+          data['lastMessageAt'] ??
+          data[TIMESTAMP] ??
+          data['timestamp'];
             } else {
               timestampValue = rawData[TIMESTAMP];
             }
 
             final String? messageType;
             if (hasStreamData) {
-              messageType = data?[MESSAGE_TYPE]?.toString();
+              messageType = data[MESSAGE_TYPE]?.toString();
             } else {
               messageType = rawData[MESSAGE_TYPE]?.toString();
             }
@@ -176,9 +232,9 @@ class ConversationTile extends StatelessWidget {
             } else {
               // Preferir dados do stream, fallback para rawData
               final rawMessage = hasStreamData 
-                  ? (data?['last_message'] ??
-                     data?['lastMessage'] ??
-                     data?[LAST_MESSAGE] ??
+            ? (data['last_message'] ??
+              data['lastMessage'] ??
+              data[LAST_MESSAGE] ??
                      '').toString()
                   : (rawData['last_message'] ??
                      rawData['lastMessage'] ??
@@ -234,7 +290,8 @@ class ConversationTile extends StatelessWidget {
                     context,
                     displayData,
                     i18n,
-                    hasUnread: hasUnread,
+                    hasUnread: showAttention,
+                    showUpdatingIndicator: showUpdatingIndicator,
                     displayName: effectiveDisplayName,
                     lastMessage: lastMessageText,
                     timeAgo: timeAgoText,
@@ -249,13 +306,16 @@ class ConversationTile extends StatelessWidget {
               context,
               displayData,
               i18n,
-              hasUnread: hasUnread,
+              hasUnread: showAttention,
+              showUpdatingIndicator: showUpdatingIndicator,
               displayName: displayName,
               lastMessage: lastMessageText,
               timeAgo: timeAgoText,
               emoji: emoji,
               eventId: eventId,
             );
+          },
+        );
           },
         );
       },
@@ -267,6 +327,7 @@ class ConversationTile extends StatelessWidget {
     ConversationDisplayData displayData,
     AppLocalizations i18n, {
     required bool hasUnread,
+  required bool showUpdatingIndicator,
     required String displayName,
     required String lastMessage,
     required String timeAgo,
@@ -376,9 +437,16 @@ class ConversationTile extends StatelessWidget {
           extensionSet: md.ExtensionSet.gitHubFlavored,
         ),
       ),
-      trailing: null,
+      trailing: showUpdatingIndicator
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CupertinoActivityIndicator(radius: 8),
+            )
+          : null,
       onTap: () {
         HapticFeedback.lightImpact();
+  ConversationActivityBus.instance.clear(conversationId);
         onTap();
       },
     );

@@ -11,6 +11,7 @@ import 'package:partiu/features/conversations/services/conversation_data_process
 import 'package:partiu/features/conversations/services/conversation_navigation_service.dart';
 import 'package:partiu/features/conversations/services/conversation_pagination_service.dart';
 import 'package:partiu/features/conversations/services/conversation_state_service.dart';
+import 'package:partiu/features/conversations/state/conversation_activity_bus.dart';
 import 'package:partiu/features/conversations/state/optimistic_removal_bus.dart';
 import 'package:partiu/core/services/auth_state_service.dart';
 import 'package:partiu/core/services/block_service.dart';
@@ -46,6 +47,8 @@ class ConversationsViewModel extends ChangeNotifier {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _firestoreSubscription;
 
   StreamSubscription<User?>? _authSubscription;
+
+  VoidCallback? _activityBusListener;
   
   // ValueNotifier para badge de conversas não lidas (apenas visíveis)
   final ValueNotifier<int> visibleUnreadCount = ValueNotifier<int>(0);
@@ -154,6 +157,12 @@ class ConversationsViewModel extends ChangeNotifier {
     
     // Listen to global removal bus for instant UI updates
     ConversationRemovalBus.instance.hiddenUserIds.addListener(_onRemovalBusChanged);
+
+    // Also reflect recent push activity in the bottom-nav badge count.
+    _activityBusListener = () {
+      _updateVisibleUnreadCount();
+    };
+    ConversationActivityBus.instance.touchedConversationIds.addListener(_activityBusListener!);
     _log('🟢 [ConversationsViewModel] _initialize concluído');
   }
 
@@ -300,13 +309,21 @@ class ConversationsViewModel extends ChangeNotifier {
 
         final unreadFlag = data[MESSAGE_READ];
         final isRead = unreadFlag == true || unreadFlag == 1;
-        final unreadCount = (data['unread_count'] as int?) ?? (isRead ? 0 : 1);
+        // ✅ FIX: Converter unread_count de forma segura (pode vir como num de FieldValue.increment)
+        final rawUnreadCount = data['unread_count'];
+        final unreadCount = (rawUnreadCount is num) 
+            ? rawUnreadCount.toInt() 
+            : (isRead ? 0 : 1);
         
         final isEventChat = data['is_event_chat'] == true;
         final eventId = data['event_id'] as String?;
         final emoji = data['emoji'] as String?;
         
         _log('   📄 Doc ${doc.id}: isEventChat=$isEventChat, eventId=$eventId, name=$name, emoji=$emoji');
+        // DEBUG: Log detalhado para chats de evento
+        if (isEventChat) {
+          _log('   🔵 EVENT CHAT DEBUG: rawUnreadCount=$rawUnreadCount (${rawUnreadCount?.runtimeType}), unreadCount=$unreadCount, unreadFlag=$unreadFlag (${unreadFlag?.runtimeType}), isRead=$isRead');
+        }
 
         items.add(ConversationItem(
           id: doc.id,
@@ -436,7 +453,12 @@ class ConversationsViewModel extends ChangeNotifier {
   /// Usa a mesma lógica da UI para consistência
   void _updateVisibleUnreadCount() {
     final visible = filteredWsConversations;
-    final unread = visible.where((c) => !c.isRead || c.unreadCount > 0).length;
+    final touchedIds = ConversationActivityBus.instance.touchedConversationIds.value;
+    final unread = visible.where((c) {
+      final isUnreadByFirestore = !c.isRead || c.unreadCount > 0;
+      final isTouched = touchedIds.contains(c.id);
+      return isUnreadByFirestore || isTouched;
+    }).length;
     visibleUnreadCount.value = unread;
     _log('📊 Conversas não lidas visíveis: $unread de ${visible.length}');
   }
@@ -931,6 +953,10 @@ class ConversationsViewModel extends ChangeNotifier {
     _authSubscription?.cancel();
     _firestoreSubscription?.cancel(); // ✅ Cancelar stream do Firestore
     BlockService.instance.removeListener(_onBlockedUsersChanged);
+    if (_activityBusListener != null) {
+      ConversationActivityBus.instance.touchedConversationIds.removeListener(_activityBusListener!);
+      _activityBusListener = null;
+    }
     _paginationService.removeListener(_onPaginationChanged);
     _paginationService.dispose();
     _cacheService.dispose();
