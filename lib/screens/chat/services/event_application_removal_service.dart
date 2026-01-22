@@ -7,6 +7,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/dialogs/common_dialogs.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 
 /// Serviço responsável por remover aplicações de usuários em eventos
 /// 
@@ -75,6 +76,9 @@ class EventApplicationRemovalService {
   }
 
   /// Remove o próprio usuário do evento (sair do evento)
+  /// 
+  /// IMPORTANTE: Se o usuário for o criador do evento, mostra diálogo para
+  /// DELETAR o evento em vez de sair. O criador não pode abandonar seu próprio evento.
   Future<void> handleLeaveEvent({
     required BuildContext context,
     required String eventId,
@@ -87,6 +91,34 @@ class EventApplicationRemovalService {
       ToastService.showError(
         message: i18n.translate('user_not_authenticated',
       ),
+      );
+      return;
+    }
+
+    // Busca dados do evento para verificar se é o criador
+    final eventDoc = await _firestore.collection('events').doc(eventId).get();
+    
+    if (!eventDoc.exists) {
+      ToastService.showError(
+        message: i18n.translate('event_not_found'),
+      );
+      return;
+    }
+    
+    final eventData = eventDoc.data();
+    final createdBy = eventData?['createdBy'] as String?;
+    final eventName = eventData?['activityText'] as String? ?? 
+                      i18n.translate('this_event');
+    
+    // 🔥 Se é o criador, redirecionar para deletar evento
+    if (createdBy == currentUserId) {
+      await _handleOwnerLeaveEventWithProgress(
+        context: context,
+        eventId: eventId,
+        eventName: eventName,
+        i18n: i18n,
+        progressDialog: progressDialog,
+        onSuccess: onSuccess,
       );
       return;
     }
@@ -107,11 +139,6 @@ class EventApplicationRemovalService {
       return;
     }
 
-    // Busca dados do evento para exibir nome
-    final eventDoc = await _firestore.collection('events').doc(eventId).get();
-    final eventName = eventDoc.data()?['activityText'] as String? ?? 
-                      i18n.translate('this_event');
-
     // Exibe confirmação antes de sair
     await _showLeaveConfirmation(
       context: context,
@@ -122,6 +149,225 @@ class EventApplicationRemovalService {
       progressDialog: progressDialog,
       onSuccess: onSuccess,
     );
+  }
+  
+  /// Handler especial quando o OWNER tenta sair do evento (versão com ProgressDialog)
+  Future<void> _handleOwnerLeaveEventWithProgress({
+    required BuildContext context,
+    required String eventId,
+    required String eventName,
+    required AppLocalizations i18n,
+    required ProgressDialog progressDialog,
+    required VoidCallback onSuccess,
+  }) async {
+    confirmDialog(
+      context,
+      title: i18n.translate('delete_event'),
+      message: i18n.translate('owner_cannot_leave_must_delete')
+          .replaceAll('{event}', eventName),
+      positiveText: i18n.translate('delete'),
+      negativeAction: () => _safePopDialog(context),
+      positiveAction: () async {
+        _safePopDialog(context);
+        progressDialog.show(i18n.translate('deleting_event'));
+        
+        final success = await _deleteEvent(eventId: eventId);
+        
+        await progressDialog.hide();
+        
+        if (success && context.mounted) {
+          ToastService.showSuccess(
+            message: i18n.translate('event_deleted_successfully'),
+          );
+          onSuccess();
+        } else if (context.mounted) {
+          ToastService.showError(
+            message: i18n.translate('failed_to_delete_event'),
+          );
+        }
+      },
+    );
+  }
+
+  /// Remove o próprio usuário do evento (sair do evento)
+  /// 
+  /// Versão com callbacks para controle de UI externo (ex: overlay no avatar)
+  /// - [onConfirmed]: chamado quando usuário confirma a ação (antes de executar)
+  /// - [onComplete]: chamado quando a operação termina (success: bool)
+  /// 
+  /// IMPORTANTE: Se o usuário for o criador do evento, mostra diálogo para
+  /// DELETAR o evento em vez de sair. O criador não pode abandonar seu próprio evento.
+  Future<void> handleLeaveEventWithCallback({
+    required BuildContext context,
+    required String eventId,
+    required AppLocalizations i18n,
+    required VoidCallback onConfirmed,
+    required void Function(bool success) onComplete,
+  }) async {
+    final currentUserId = AppState.currentUserId;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      ToastService.showError(
+        message: i18n.translate('user_not_authenticated'),
+      );
+      onComplete(false);
+      return;
+    }
+
+    // Busca dados do evento para verificar se é o criador
+    final eventDoc = await _firestore.collection('events').doc(eventId).get();
+    
+    if (!eventDoc.exists) {
+      ToastService.showError(
+        message: i18n.translate('event_not_found'),
+      );
+      onComplete(false);
+      return;
+    }
+    
+    final eventData = eventDoc.data();
+    final createdBy = eventData?['createdBy'] as String?;
+    final eventName = eventData?['activityText'] as String? ?? 
+                      i18n.translate('this_event');
+    
+    // 🔥 Se é o criador, redirecionar para deletar evento
+    if (createdBy == currentUserId) {
+      await _handleOwnerLeaveEvent(
+        context: context,
+        eventId: eventId,
+        eventName: eventName,
+        i18n: i18n,
+        onConfirmed: onConfirmed,
+        onComplete: onComplete,
+      );
+      return;
+    }
+
+    // Busca a aplicação do usuário
+    final applicationSnapshot = await _firestore
+        .collection('EventApplications')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: currentUserId)
+        .limit(1)
+        .get();
+
+    if (applicationSnapshot.docs.isEmpty) {
+      ToastService.showError(
+        message: i18n.translate('application_not_found'),
+      );
+      onComplete(false);
+      return;
+    }
+
+    final applicationId = applicationSnapshot.docs.first.id;
+
+    // Exibe confirmação antes de sair
+    confirmDialog(
+      context,
+      title: i18n.translate('leave_event'),
+      message: i18n.translate('leave_event_confirmation')
+          .replaceAll('{event}', eventName),
+      positiveText: i18n.translate('leave'),
+      negativeAction: () => _safePopDialog(context),
+      positiveAction: () async {
+        _safePopDialog(context);
+        
+        // Callback: usuário confirmou, iniciar loading
+        onConfirmed();
+        
+        final success = await _removeApplicationData(
+          eventId: eventId,
+          applicationId: applicationId,
+        );
+        
+        if (success && context.mounted) {
+          ToastService.showSuccess(
+            message: i18n.translate('left_event_successfully')
+                .replaceAll('{event}', eventName),
+          );
+        } else if (context.mounted) {
+          ToastService.showError(
+            message: i18n.translate('failed_to_leave_event'),
+          );
+        }
+        
+        // Callback: operação completa
+        onComplete(success);
+      },
+    );
+  }
+  
+  /// Handler especial quando o OWNER tenta sair do evento
+  /// 
+  /// O criador não pode simplesmente "sair" - ele deve DELETAR o evento.
+  /// Mostra diálogo explicando que o evento será deletado para todos.
+  Future<void> _handleOwnerLeaveEvent({
+    required BuildContext context,
+    required String eventId,
+    required String eventName,
+    required AppLocalizations i18n,
+    required VoidCallback onConfirmed,
+    required void Function(bool success) onComplete,
+  }) async {
+    confirmDialog(
+      context,
+      title: i18n.translate('delete_event'),
+      message: i18n.translate('owner_cannot_leave_must_delete')
+          .replaceAll('{event}', eventName),
+      positiveText: i18n.translate('delete'),
+      negativeAction: () => _safePopDialog(context),
+      positiveAction: () async {
+        _safePopDialog(context);
+        
+        // Callback: usuário confirmou, iniciar loading
+        onConfirmed();
+        
+        final success = await _deleteEvent(eventId: eventId);
+        
+        if (success && context.mounted) {
+          ToastService.showSuccess(
+            message: i18n.translate('event_deleted_successfully'),
+          );
+        } else if (context.mounted) {
+          ToastService.showError(
+            message: i18n.translate('failed_to_delete_event'),
+          );
+        }
+        
+        // Callback: operação completa
+        onComplete(success);
+      },
+    );
+  }
+  
+  /// Deleta o evento via Cloud Function
+  Future<bool> _deleteEvent({required String eventId}) async {
+    try {
+      debugPrint('🔥 Calling Cloud Function: deleteEvent');
+      
+      final result = await _functions.httpsCallable('deleteEvent').call({
+        'eventId': eventId,
+      });
+
+      final success = result.data['success'] as bool? ?? false;
+      
+      if (success) {
+        debugPrint('✅ Event deleted via Cloud Function');
+        
+        // ✅ Remover marker do mapa instantaneamente
+        MapViewModel.instance?.removeEvent(eventId);
+        debugPrint('✅ Marker removido do mapa');
+      } else {
+        debugPrint('❌ Cloud Function returned success=false');
+      }
+
+      return success;
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('❌ Cloud Function error: ${e.code} - ${e.message}');
+      return false;
+    } catch (e) {
+      debugPrint('❌ Unexpected error calling Cloud Function: $e');
+      return false;
+    }
   }
 
   /// Exibe dialog de confirmação para sair do evento

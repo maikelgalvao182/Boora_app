@@ -24,6 +24,7 @@ class UserEntry {
     this.bio,
     this.jobTitle,
     this.isVerified = false,
+    this.isVip = false,
     this.isOnline = false,
     this.lastSeen,
     this.city,
@@ -51,6 +52,7 @@ class UserEntry {
   
   // Status e verificação
   bool isVerified;
+  bool isVip;
   bool isOnline;
   DateTime? lastSeen;
   
@@ -118,6 +120,7 @@ class UserStore {
   final Map<String, ValueNotifier<String?>> _nameNotifiers = {};
   final Map<String, ValueNotifier<int?>> _ageNotifiers = {};
   final Map<String, ValueNotifier<bool>> _verifiedNotifiers = {};
+  final Map<String, ValueNotifier<bool>> _vipNotifiers = {};
   final Map<String, ValueNotifier<bool>> _onlineNotifiers = {};
   final Map<String, ValueNotifier<String?>> _bioNotifiers = {};
   final Map<String, ValueNotifier<String?>> _cityNotifiers = {};
@@ -278,6 +281,15 @@ class UserStore {
     _ensureListening(userId);
     return _verifiedNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(_users[userId]?.isVerified ?? false);
+    });
+  }
+
+  /// ✅ VIP (assinante)
+  ValueNotifier<bool> getVipNotifier(String userId) {
+    if (userId.isEmpty) return ValueNotifier<bool>(false);
+    _ensureListening(userId);
+    return _vipNotifiers.putIfAbsent(userId, () {
+      return ValueNotifier<bool>(_users[userId]?.isVip ?? false);
     });
   }
 
@@ -697,6 +709,15 @@ class UserStore {
       isVerified = rawVerified.toLowerCase() == 'true';
     }
 
+    // VIP status (user_is_vip)
+    dynamic rawVip = userData['user_is_vip'];
+    bool isVip = false;
+    if (rawVip is bool) {
+      isVip = rawVip;
+    } else if (rawVip is String) {
+      isVip = rawVip.toLowerCase() == 'true';
+    }
+
     // Online status
     dynamic rawOnline = userData['isOnline'];
     bool isOnline = false;
@@ -792,6 +813,7 @@ class UserStore {
       avatarUrl: effectiveAvatarUrl,
       avatarProvider: newAvatarProvider,
       isVerified: isVerified,
+      isVip: isVip,
       isOnline: isOnline,
       city: city,
       state: state,
@@ -851,6 +873,10 @@ class UserStore {
 
       if (oldEntry == null || oldEntry.isVerified != newEntry.isVerified) {
         _verifiedNotifiers[userId]?.value = newEntry.isVerified;
+      }
+
+      if (oldEntry == null || oldEntry.isVip != newEntry.isVip) {
+        _vipNotifiers[userId]?.value = newEntry.isVip;
       }
 
       if (oldEntry == null || oldEntry.isOnline != newEntry.isOnline) {
@@ -959,6 +985,9 @@ class UserStore {
     _verifiedNotifiers[userId]?.dispose();
     _verifiedNotifiers.remove(userId);
     
+    _vipNotifiers[userId]?.dispose();
+    _vipNotifiers.remove(userId);
+    
     _onlineNotifiers[userId]?.dispose();
     _onlineNotifiers.remove(userId);
     
@@ -1021,6 +1050,11 @@ class UserStore {
       notifier.dispose();
     }
     _verifiedNotifiers.clear();
+
+    for (final notifier in _vipNotifiers.values) {
+      notifier.dispose();
+    }
+    _vipNotifiers.clear();
 
     for (final notifier in _onlineNotifiers.values) {
       notifier.dispose();

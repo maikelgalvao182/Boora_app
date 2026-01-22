@@ -219,6 +219,16 @@ class AppRoot extends StatelessWidget {
       
       // Configuração de rotas com go_router protegido por AuthSyncService
       routerConfig: router,
+      
+      // Builder para setar o contexto no PushNotificationManager
+      builder: (context, child) {
+        // Setar contexto para navegação de notificações push
+        // Isso garante que o contexto tenha acesso aos Providers
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          PushNotificationManager.instance.setAppContext(context);
+        });
+        return child ?? const SizedBox.shrink();
+      },
         
       // Configuração de localização
       localizationsDelegates: const [

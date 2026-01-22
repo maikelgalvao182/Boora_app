@@ -10,7 +10,6 @@ import 'package:partiu/features/home/create_flow/activity_repository.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/participants_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
-import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
 import 'package:partiu/shared/widgets/navigation_buttons.dart';
@@ -94,14 +93,17 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
           // Injetar evento no ViewModel para garantir navegação imediata
           await widget.coordinator!.loadDraftEventIntoViewModel(activityId);
 
-          // Solicitar navegação com confetti (será processada quando o mapa aparecer)
-          MapNavigationService.instance.navigateToEvent(activityId, showConfetti: true);
+          // ✅ NÃO chamar navigateToEvent aqui! 
+          // O problema é que os drawers ainda estão na pilha de navegação,
+          // então se navegarmos agora, o EventCard abre "embaixo" do LocationPicker.
+          // A navegação será feita pelo DiscoverTab após todos os drawers fecharem.
 
           if (mounted) {
-            // Retornar sucesso
+            // Retornar sucesso com activityId para que o DiscoverTab navegue após fechar tudo
             Navigator.of(context).pop({
               'success': true,
               'activityId': activityId,
+              'navigateToEvent': true, // Flag para DiscoverTab saber que deve navegar
               ..._controller.getParticipantsData(),
             });
           }

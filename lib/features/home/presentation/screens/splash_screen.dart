@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               opacity: _fadeAnimation,
               child: Image.asset(
                 'assets/images/boora_carnaval2.png',
-                width: screenWidth * 2.9, // Vaza pelas laterais
+                width: screenWidth * 0.5,
                 fit: BoxFit.contain,
                 gaplessPlayback: true,
               ),

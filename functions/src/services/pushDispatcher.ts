@@ -81,6 +81,12 @@ export interface SendPushParams {
     body: string;
   };
   silent?: boolean;
+  /**
+   * Quando true, envia APENAS data (sem notification/aps.alert).
+   * Útil para garantir que o app em foreground receba via onMessage
+   * e o cliente mostre uma local notification controlada.
+   */
+  dataOnly?: boolean;
   context?: {
     groupId?: string;
   };
@@ -108,6 +114,7 @@ export async function sendPush({
   data,
   notification: explicitNotification,
   silent = false,
+  dataOnly = false,
   context,
 }: SendPushParams): Promise<void> {
   try {
@@ -307,7 +314,10 @@ export async function sendPush({
       };
     };
 
-    const notification = getNotificationContent();
+  const notification = getNotificationContent();
+
+  // Se for silent, sempre deve ser data-only.
+  const effectiveDataOnly = dataOnly || silent;
 
     const payload = {
       data: {
@@ -316,19 +326,22 @@ export async function sendPush({
         // Garante que n_type sempre existe
         n_type: stringData.n_type || event,
         // 🔒 MARCA ORIGEM PARA PREVENIR LOOP INFINITO
-        n_origin: "push",
-        // Metadados de roteamento
+        // "push" = payload com notificação; "data" = data-only
+        n_origin: effectiveDataOnly ? "data" : "push",
+        // Metadados de roteamento (mais relevante pro Android)
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
       // 🤖 Android
       android: {
         priority: (shouldPlaySound ? "high" : "normal") as "high" | "normal",
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          ...(shouldPlaySound ? {sound: "default"} : {}),
-          clickAction: "FLUTTER_NOTIFICATION_CLICK",
-        },
+        ...(effectiveDataOnly ? {} : {
+          notification: {
+            title: notification.title,
+            body: notification.body,
+            ...(shouldPlaySound ? {sound: "default"} : {}),
+            clickAction: "FLUTTER_NOTIFICATION_CLICK",
+          },
+        }),
       },
       // 🍎 iOS (APNs)
       // ⚠️ BADGE: NÃO definido aqui!
@@ -337,17 +350,25 @@ export async function sendPush({
       apns: {
         payload: {
           aps: {
-            alert: {
-              title: notification.title,
-              body: notification.body,
-            },
-            ...(shouldPlaySound ? {sound: "default"} : {}),
+            ...(effectiveDataOnly ? {
+              // data-only no iOS precisa ser background push type.
+              // Mesmo que o app esteja aberto, isso evita o iOS "engolir" o onMessage
+              // em alguns cenários com alert payload.
+              "content-available": 1,
+            } : {
+              alert: {
+                title: notification.title,
+                body: notification.body,
+              },
+              ...(shouldPlaySound ? {sound: "default"} : {}),
+            }),
             // badge: NÃO ENVIAR - Flutter controla via BadgeService
           },
         },
         headers: {
-          "apns-priority": "10",
-          "apns-push-type": "alert",
+          // background = prioridade menor; alert = 10
+          "apns-priority": effectiveDataOnly ? "5" : "10",
+          "apns-push-type": effectiveDataOnly ? "background" : "alert",
         },
       },
     };

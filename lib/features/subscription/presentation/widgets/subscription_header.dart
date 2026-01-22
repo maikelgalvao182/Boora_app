@@ -30,7 +30,6 @@ class SubscriptionHeader extends StatelessWidget {
       children: [
         // Container sem imagem de fundo
         Container(
-          height: 170,
           width: double.infinity,
           color: Colors.white,
           child: Column(
@@ -38,7 +37,7 @@ class SubscriptionHeader extends StatelessWidget {
             children: [
               // Logo
               Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Image.asset(
                   'assets/images/simbolo.png',
                   height: 70,
@@ -62,7 +61,7 @@ class SubscriptionHeader extends StatelessWidget {
                 ),
               ),
               
-              const SizedBox(height: 0),
+              const SizedBox(height: 8),
               
               // Subtítulo
               Padding(
@@ -71,12 +70,14 @@ class SubscriptionHeader extends StatelessWidget {
                   i18n.translate('take_advantage_of_the_benefits_of_being_a_pro'),
                   style: const TextStyle(
                     fontFamily: FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 16,
-                    color: Colors.black87,
+                    fontSize: 14,
+                    color: Colors.black54,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
+              
+              const SizedBox(height: 8),
             ],
           ),
         ),

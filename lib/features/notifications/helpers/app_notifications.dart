@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/notifications/models/activity_notification_types.dart';
 import 'package:partiu/features/subscription/services/vip_access_service.dart';
-import 'package:partiu/features/conversations/services/conversation_navigation_service.dart';
-import 'package:partiu/core/services/auth_sync_service.dart';
+import 'package:partiu/screens/chat/chat_screen_refactored.dart';
+import 'package:partiu/core/models/user.dart' as app_models;
 
 /// Helper para navegação baseada em notificações
 /// 
@@ -41,6 +41,16 @@ class AppNotifications {
         if (context.mounted) {
           _goToConversationsTab(context);
         }
+  break;
+
+      // Mensagem do chat de evento (push)
+      case 'event_chat_message':
+        if (nRelatedId != null && nRelatedId.isNotEmpty) {
+          await _handleEventChatNotification(context, nRelatedId);
+        } else {
+          debugPrint('⚠️ [AppNotifications] event_chat_message sem relatedId');
+        }
+        break;
       
       case 'alert':
         // Alertas não precisam de ação específica aqui
@@ -245,19 +255,22 @@ class AppNotifications {
   }
 
   /// Handle chat 1x1 navigation
+  /// 
+  /// Navega diretamente para o ChatScreenRefactored sem depender de Providers
+  /// 
+  /// NOTA: Usa rootNavigatorKey para garantir acesso ao Navigator global.
   Future<void> _handleChatNotification(BuildContext context, String otherUserId) async {
+    debugPrint('💬 [AppNotifications] _handleChatNotification iniciado para: $otherUserId');
     try {
-      if (!context.mounted) return;
-
-      final conversationService = Provider.of<ConversationNavigationService>(context, listen: false);
-      final currentUserId = Provider.of<AuthSyncService>(context, listen: false).firebaseUser?.uid;
-
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) {
         debugPrint('❌ [AppNotifications] User not logged in');
         return;
       }
+      debugPrint('✅ [AppNotifications] currentUserId: $currentUserId');
 
       // Buscar conversa do Firestore para obter dados do usuário
+      debugPrint('🔍 [AppNotifications] Buscando conversa em Connections/$currentUserId/Conversations/$otherUserId');
       final conversationDoc = await FirebaseFirestore.instance
           .collection('Connections')
           .doc(currentUserId)
@@ -267,61 +280,238 @@ class AppNotifications {
 
       if (!conversationDoc.exists) {
         debugPrint('❌ [AppNotifications] Conversation not found for user: $otherUserId');
+        debugPrint('   - Path: Connections/$currentUserId/Conversations/$otherUserId');
         return;
       }
+      
+      final data = conversationDoc.data() ?? {};
+      debugPrint('✅ [AppNotifications] Conversa encontrada, dados: ${data.keys}');
 
-      // Usar ConversationNavigationService para abrir o chat
-      if (context.mounted) {
-        await conversationService.handleConversationTap(
-          context: context,
-          doc: null,
-          data: conversationDoc.data() ?? {},
-          conversationId: otherUserId,
-        );
-      }
-    } catch (e) {
+      // Criar objeto User a partir dos dados da conversa
+      final user = _createUserFromData(data, otherUserId);
+
+      // Navegar diretamente usando rootNavigatorKey (não precisa agendar)
+      debugPrint('🚀 [AppNotifications] Navegando para ChatScreenRefactored...');
+      _navigateToChat(context, user, currentUserId, otherUserId);
+    } catch (e, stack) {
       debugPrint('❌ [AppNotifications] Error opening chat: $e');
+      debugPrint('   Stack: $stack');
+    }
+  }
+  
+  /// Navega para o chat 1-1 usando o rootNavigatorKey global
+  void _navigateToChat(
+    BuildContext context,
+    app_models.User user,
+    String currentUserId,
+    String otherUserId,
+  ) {
+    try {
+      // Usar rootNavigatorKey para garantir acesso ao Navigator
+      final navigator = rootNavigatorKey.currentState;
+      
+      if (navigator != null) {
+        debugPrint('✅ [AppNotifications] rootNavigator encontrado, navegando...');
+        navigator.push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreenRefactored(
+              user: user,
+              isEvent: false,
+              eventId: null,
+            ),
+          ),
+        );
+        debugPrint('✅ [AppNotifications] Navegação para chat completada');
+        
+        // Marcar como lido em background
+        _markAsReadInBackground(currentUserId, otherUserId);
+      } else {
+        // Fallback: Tentar com context.mounted
+        debugPrint('⚠️ [AppNotifications] rootNavigator null, tentando com context...');
+        if (context.mounted) {
+          final contextNavigator = Navigator.maybeOf(context);
+          if (contextNavigator != null) {
+            contextNavigator.push(
+              MaterialPageRoute(
+                builder: (_) => ChatScreenRefactored(
+                  user: user,
+                  isEvent: false,
+                  eventId: null,
+                ),
+              ),
+            );
+            _markAsReadInBackground(currentUserId, otherUserId);
+          } else {
+            _goToConversationsTab(context);
+          }
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ [AppNotifications] Error in _navigateToChat: $e');
+      debugPrint('   Stack: $stack');
+      
+      // Fallback de emergência
+      try {
+        if (context.mounted) _goToConversationsTab(context);
+      } catch (_) {}
     }
   }
 
   /// Handle event chat navigation
+  /// 
+  /// Navega diretamente para o ChatScreenRefactored sem depender de Providers
+  /// 
+  /// NOTA: Usa SchedulerBinding para garantir que a navegação aconteça
+  /// após o frame atual, quando o Navigator estiver disponível.
   Future<void> _handleEventChatNotification(BuildContext context, String eventId) async {
+    debugPrint('💬 [AppNotifications] _handleEventChatNotification iniciado para: $eventId');
     try {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        debugPrint('❌ [AppNotifications] Context not mounted!');
+        return;
+      }
 
-      final conversationService = Provider.of<ConversationNavigationService>(context, listen: false);
-      final currentUserId = Provider.of<AuthSyncService>(context, listen: false).firebaseUser?.uid;
-
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) {
         debugPrint('❌ [AppNotifications] User not logged in');
         return;
       }
+      debugPrint('✅ [AppNotifications] currentUserId: $currentUserId');
 
       // Buscar conversa do evento do Firestore
+      final conversationId = 'event_$eventId';
+      debugPrint('🔍 [AppNotifications] Buscando conversa em Connections/$currentUserId/Conversations/$conversationId');
       final conversationDoc = await FirebaseFirestore.instance
           .collection('Connections')
           .doc(currentUserId)
           .collection('Conversations')
-          .doc('event_$eventId')
+          .doc(conversationId)
           .get();
 
       if (!conversationDoc.exists) {
         debugPrint('❌ [AppNotifications] Event conversation not found: $eventId');
+        debugPrint('   - Path: Connections/$currentUserId/Conversations/$conversationId');
         return;
       }
 
-      // Usar ConversationNavigationService para abrir o chat do evento
-      if (context.mounted) {
-        await conversationService.handleConversationTap(
-          context: context,
-          doc: null,
-          data: conversationDoc.data() ?? {},
-          conversationId: 'event_$eventId',
-        );
-      }
-    } catch (e) {
+      final data = conversationDoc.data() ?? {};
+      debugPrint('✅ [AppNotifications] Event conversa encontrada, dados: ${data.keys}');
+
+      // Criar objeto User a partir dos dados da conversa (usa fullname do evento como nome)
+      final user = _createUserFromData(data, conversationId);
+
+      // Navegar diretamente usando rootNavigatorKey (não precisa agendar)
+      debugPrint('🚀 [AppNotifications] Navegando para ChatScreenRefactored (event chat)...');
+      _navigateToEventChat(context, user, eventId, currentUserId, conversationId);
+    } catch (e, stack) {
       debugPrint('❌ [AppNotifications] Error opening event chat: $e');
+      debugPrint('   Stack: $stack');
     }
+  }
+  
+  /// Navega para o chat do evento usando rootNavigatorKey global
+  void _navigateToEventChat(
+    BuildContext context,
+    app_models.User user,
+    String eventId,
+    String currentUserId,
+    String conversationId,
+  ) {
+    try {
+      // Usar rootNavigatorKey para garantir acesso ao Navigator
+      final navigator = rootNavigatorKey.currentState;
+      
+      if (navigator != null) {
+        debugPrint('✅ [AppNotifications] rootNavigator encontrado, navegando...');
+        navigator.push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreenRefactored(
+              user: user,
+              isEvent: true,
+              eventId: eventId,
+            ),
+          ),
+        );
+        debugPrint('✅ [AppNotifications] Navegação para event chat completada');
+        
+        // Marcar como lido em background
+        _markAsReadInBackground(currentUserId, conversationId);
+      } else {
+        // Fallback: Navegar para home e usar MapNavigationService
+        debugPrint('⚠️ [AppNotifications] rootNavigator null, usando fallback via home...');
+        
+        // Registrar navegação pendente para abrir o EventCard
+        MapNavigationService.instance.navigateToEvent(eventId);
+        
+        // Navegar para home onde o mapa vai processar a navegação pendente
+        if (context.mounted) {
+          context.go(AppRoutes.home);
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ [AppNotifications] Error in _navigateToEventChat: $e');
+      debugPrint('   Stack: $stack');
+      
+      // Fallback de emergência
+      try {
+        MapNavigationService.instance.navigateToEvent(eventId);
+        if (context.mounted) context.go(AppRoutes.home);
+      } catch (_) {}
+    }
+  }
+
+  /// Cria um objeto User a partir dos dados da conversa
+  app_models.User _createUserFromData(Map<String, dynamic> data, String odString) {
+    final rawName = data['fullName'] ?? data['fullname'] ?? data['full_name'] ?? data['name'] ?? '';
+    final userName = (rawName is String) ? rawName.trim() : '';
+    final rawPhoto = data['photoUrl'] ?? data['photo_url'] ?? data['avatarUrl'] ?? data['avatar_url'] ?? '';
+    final userPhoto = (rawPhoto is String) ? rawPhoto : '';
+    
+    debugPrint('✅ [AppNotifications] User criado: name="$userName", photo="$userPhoto"');
+    
+    return app_models.User.fromDocument({
+      'userId': odString,
+      'fullName': userName,
+      'photoUrl': userPhoto,
+      'gender': '',
+      'birthDay': 1,
+      'birthMonth': 1,
+      'birthYear': 2000,
+      'jobTitle': '',
+      'bio': '',
+      'country': '',
+      'locality': '',
+      'latitude': 0.0,
+      'longitude': 0.0,
+      'status': 'active',
+      'level': '',
+      'isVerified': false,
+      'registrationDate': DateTime.now().toIso8601String(),
+      'lastLoginDate': DateTime.now().toIso8601String(),
+      'totalLikes': 0,
+      'totalVisits': 0,
+      'isOnline': false,
+    });
+  }
+
+  /// Marca a conversa como lida em background
+  void _markAsReadInBackground(String currentUserId, String conversationId) {
+    Future.microtask(() {
+      try {
+        FirebaseFirestore.instance
+            .collection('Connections')
+            .doc(currentUserId)
+            .collection('Conversations')
+            .doc(conversationId)
+            .update({
+          'message_read': true,
+          'unread_count': 0,
+        });
+        debugPrint('✅ [AppNotifications] Marcado como lido: $conversationId');
+      } catch (e) {
+        debugPrint('⚠️ [AppNotifications] Erro ao marcar como lido: $e');
+      }
+    });
   }
 
   /// Handle screen navigation by name

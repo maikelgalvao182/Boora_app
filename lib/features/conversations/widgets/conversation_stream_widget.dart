@@ -74,7 +74,7 @@ class ConversationStreamWidget extends StatelessWidget {
           'activityText': item.userFullname, // For event chats
           'photoUrl': item.userPhotoUrl,
           'profileImageURL': item.userPhotoUrl,
-          'emoji': item.userPhotoUrl, // For event emoji avatars
+          'emoji': item.emoji, // For event emoji avatars
           LAST_MESSAGE: item.lastMessage ?? '',
           MESSAGE_READ: item.isRead,
           'unread_count': item.unreadCount,

@@ -217,6 +217,23 @@ class MapDiscoveryService {
   await _executeQuery(bounds, requestId);
   }
 
+  /// Remove um evento específico do cache (usado após deleção)
+  /// 
+  /// Isso permite atualização instantânea do mapa sem esperar o TTL expirar.
+  void removeEvent(String eventId) {
+    final sizeBefore = _cachedEvents.length;
+    _cachedEvents = _cachedEvents.where((e) => e.eventId != eventId).toList();
+    
+    if (_cachedEvents.length < sizeBefore) {
+      debugPrint('🗑️ MapDiscoveryService: Evento $eventId removido do cache');
+      // Atualizar os listeners
+      nearbyEvents.value = _cachedEvents;
+      _eventsController.add(_cachedEvents);
+    } else {
+      debugPrint('⚠️ MapDiscoveryService: Evento $eventId não encontrado no cache');
+    }
+  }
+
   /// Limpa o cache
   void clearCache() {
     _cachedEvents = [];

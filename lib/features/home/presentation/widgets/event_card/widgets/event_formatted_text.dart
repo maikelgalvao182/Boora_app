@@ -43,18 +43,20 @@ class EventFormattedText extends StatelessWidget {
       text: TextSpan(
         style: baseStyle.copyWith(color: GlimpseColors.textSubTitle),
         children: [
-          // Nome do criador
-          TextSpan(
-            text: fullName,
-            style: baseStyle.copyWith(color: GlimpseColors.primary),
-          ),
+          // Nome do criador (só se não vazio)
+          if (fullName.isNotEmpty) ...[
+            TextSpan(
+              text: fullName,
+              style: baseStyle.copyWith(color: GlimpseColors.primary),
+            ),
+            
+            // Conectivo
+            TextSpan(text: ' ${i18n.translate('event_formatted_wants')} '),
+          ],
           
-          // Conectivo
-          TextSpan(text: ' ${i18n.translate('event_formatted_wants')} '),
-          
-          // Emoji (se fornecido)
-          if (emoji != null) ...[
-            TextSpan(text: '$emoji '),
+          // "quer" quando fullName está vazio (nome no header)
+          if (fullName.isEmpty) ...[
+            TextSpan(text: '${i18n.translate('event_formatted_wants')} '),
           ],
           
           // Atividade
@@ -62,6 +64,11 @@ class EventFormattedText extends StatelessWidget {
             text: activityText,
             style: baseStyle.copyWith(color: GlimpseColors.primaryColorLight),
           ),
+          
+          // Emoji à direita do activity (se fornecido)
+          if (emoji != null) ...[
+            TextSpan(text: ' $emoji'),
+          ],
           
           // Local (clicável, sem sublinhado)
           if (locationName.isNotEmpty) ...[

@@ -136,7 +136,7 @@ class NotificationItemWidget extends StatelessWidget {
             );
           },
           child: Container(
-            color: isUnread ? GlimpseColors.lightTextField : Colors.white,
+            color: isUnread ? GlimpseColors.primaryLight : Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -52,6 +52,10 @@ class AppRoutes {
   static const String eventPhotoFeed = '/event-photo-feed';
 }
 
+/// GlobalKey para acessar o Navigator root do app
+/// Usado para navegação de push notifications quando o context não tem Navigator
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// Cria o GoRouter com proteção baseada no AuthSyncService
 GoRouter createAppRouter(BuildContext context) {
   debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -61,6 +65,7 @@ GoRouter createAppRouter(BuildContext context) {
   final authSync = Provider.of<AuthSyncService>(context, listen: false);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey, // Usar GlobalKey para navegação externa
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     refreshListenable: authSync, // Ouve mudanças no AuthSyncService

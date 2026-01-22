@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:partiu/core/constants/constants.dart';
-import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
+import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/home/presentation/services/onboarding_service.dart';
 import 'package:partiu/features/home/presentation/widgets/category_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/create_button.dart';
@@ -14,8 +12,10 @@ import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/liquid_swipe_onboarding.dart';
 import 'package:partiu/features/home/presentation/widgets/navigate_to_user_button.dart';
 import 'package:partiu/features/home/presentation/widgets/people_button.dart';
-import 'package:partiu/features/home/presentation/widgets/invite_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/whatsapp_share_button.dart';
+import 'package:partiu/features/home/presentation/widgets/vip_event_promo_overlay.dart';
+import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
+import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
 import 'package:partiu/features/home/presentation/screens/find_people_screen.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -53,6 +53,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
   void _showCreateDrawer() async {
     final coordinator = CreateFlowCoordinator(mapViewModel: widget.mapViewModel);
     
+    // Variável para armazenar resultado final com activityId se criação bem-sucedida
+    Map<String, dynamic>? finalResult;
+    
     // Loop para gerenciar navegação entre drawers
     while (true) {
       // Mostra CreateDrawer (nunca em editMode no fluxo de criação)
@@ -83,11 +86,32 @@ class _DiscoverTabState extends State<DiscoverTab> {
           continue;
         }
         
+        // Verificar se completou o fluxo com sucesso
+        if (categoryResult != null && categoryResult['participants'] != null) {
+          final participants = categoryResult['participants'] as Map<String, dynamic>;
+          if (participants['success'] == true && participants['navigateToEvent'] == true) {
+            finalResult = participants;
+          }
+        }
+        
         // Se completou o fluxo ou fechou, sair
         break;
       }
       
       break;
+    }
+    
+    // ✅ Após todos os drawers fecharem, navegar para o evento se criação foi bem-sucedida
+    if (finalResult != null && finalResult['activityId'] != null && mounted) {
+      // Pequeno delay para garantir que a UI está estável
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      if (mounted) {
+        MapNavigationService.instance.navigateToEvent(
+          finalResult['activityId'] as String,
+          showConfetti: true,
+        );
+      }
     }
   }
 
@@ -160,15 +184,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
       MaterialPageRoute(
         builder: (context) => const FindPeopleScreen(),
       ),
-    );
-  }
-
-  void _showInviteDrawer() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const InviteDrawer(),
     );
   }
 
@@ -257,7 +272,10 @@ class _DiscoverTabState extends State<DiscoverTab> {
               
               // Não renderiza se o mapa não estiver pronto ou não houver eventos
               if (!widget.mapViewModel.mapReady || totalInBounds == 0) {
-                return const SizedBox.shrink();
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: const SizedBox.shrink(),
+                );
               }
               
               final categories = widget.mapViewModel.availableCategories;
@@ -305,18 +323,57 @@ class _DiscoverTabState extends State<DiscoverTab> {
               final selectedIndex =
                 selectedCategoryIndex >= 0 ? selectedCategoryIndex + 1 : 0;
 
-              return NotificationHorizontalFilters(
-                items: items,
-                selectedIndex: selectedIndex,
-                onSelected: (index) {
-                  if (index == 0) {
-                    widget.mapViewModel.setCategoryFilter(null);
-                  } else {
-                    widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
-                  }
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: NotificationHorizontalFilters(
+                  key: ValueKey('filters_$totalInBounds'),
+                  items: items,
+                  selectedIndex: selectedIndex,
+                  onSelected: (index) {
+                    if (index == 0) {
+                      widget.mapViewModel.setCategoryFilter(null);
+                    } else {
+                      widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
+                    }
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  unselectedBackgroundColor: Colors.white,
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Promo horizontal do(s) evento(s) de criadores VIP (abaixo do filtro)
+        Positioned(
+          top: _peopleButtonTop + _peopleButtonHeight + _filtersSpacing + 54,
+          left: 16,
+          right: 0,
+          child: ListenableBuilder(
+            listenable: widget.mapViewModel,
+            builder: (context, _) {
+              if (!widget.mapViewModel.mapReady) {
+                return const SizedBox.shrink();
+              }
+
+              return VipEventPromoOverlay(
+                events: widget.mapViewModel.events,
+                visibleBounds: widget.mapViewModel.visibleBounds,
+                onEventTap: (event) {
+                  // Reusar o mesmo fluxo do marker: abrir EventCard.
+                  // (O handler faz preload/stream via EventCardController)
+                  final controller = EventCardController(
+                    eventId: event.id,
+                    preloadedEvent: event,
+                  );
+                  // Carrega dados adicionais (creatorFullName, locationName, etc.)
+                  controller.load();
+                  EventCard.show(
+                    context: context,
+                    controller: controller,
+                    onActionPressed: () {},
+                  );
                 },
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                unselectedBackgroundColor: Colors.white,
               );
             },
           ),

@@ -166,6 +166,9 @@ class EventCardHandler {
   }
 
   /// Lida com a saída do evento
+  /// 
+  /// NOTA: Este método só deve ser chamado para participantes (não criadores).
+  /// O criador tem botão "Delete" ao invés de "Leave" no EventCard.
   static Future<void> handleLeaveEvent({
     required BuildContext context,
     required EventCardController controller,
@@ -174,7 +177,15 @@ class EventCardHandler {
     debugPrint('📋 EventId: ${controller.eventId}');
     debugPrint('👤 Has Applied: ${controller.hasApplied}');
     debugPrint('👤 Is Approved: ${controller.isApproved}');
+    debugPrint('👤 Is Creator: ${controller.isCreator}');
     debugPrint('🔄 Is Leaving: ${controller.isLeaving}');
+    
+    // Segurança: se for o criador, redirecionar para deletar
+    if (controller.isCreator) {
+      debugPrint('⚠️ Criador tentando sair - redirecionando para delete');
+      await handleDeleteEvent(context: context, controller: controller);
+      return;
+    }
     
     final i18n = AppLocalizations.of(context);
     final eventName = controller.activityText ?? i18n.translate('this_event');

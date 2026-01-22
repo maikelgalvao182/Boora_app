@@ -81,7 +81,7 @@ class ReportEventButton extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: const Color(0xFFFFEBEE),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(8),
         ),
         child: IconButton(

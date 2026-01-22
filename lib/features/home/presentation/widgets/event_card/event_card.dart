@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
@@ -7,7 +9,6 @@ import 'package:partiu/features/home/presentation/widgets/event_card/widgets/eve
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/event_formatted_text.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_avatars_list.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_counter.dart';
-import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:partiu/shared/widgets/place_details_modal.dart';
 import 'package:partiu/shared/widgets/report_event_button.dart';
@@ -80,7 +81,6 @@ class _EventCardState extends State<EventCard> {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final containerColor = MarkerColorHelper.getColorForId(_controller.eventId);
     
     return Container(
       decoration: const BoxDecoration(
@@ -112,40 +112,35 @@ class _EventCardState extends State<EventCard> {
 
             const SizedBox(height: 12),
 
-            // Container com imagem de fundo (similar ao create_drawer)
+            // Header: Nome do criador centralizado + Report Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  height: 120,
-                  color: containerColor,
-                  child: Stack(
-                    children: [
-                      // Imagem de fundo com scale maior
-                      Positioned.fill(
-                        child: Transform.scale(
-                          scale: 1.5,
-                          child: Image.asset(
-                            'assets/images/carnaval.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Nome centralizado
+                  Center(
+                    child: Text(
+                      _controller.creatorFullName ?? '',
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: GlimpseColors.primaryColorLight,
                       ),
-                      // Botão de denúncia no topo direito
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: ReportEventButton(eventId: _controller.eventId),
-                      ),
-                    ],
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
+                  // Botão de denúncia à direita
+                  Positioned(
+                    right: 0,
+                    child: ReportEventButton(eventId: _controller.eventId),
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
             // Conteúdo principal
             Padding(
@@ -180,9 +175,9 @@ class _EventCardState extends State<EventCard> {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Texto formatado com emoji
+          // Texto formatado com emoji (sem fullName, está no header)
           EventFormattedText(
-            fullName: _controller.creatorFullName ?? '',
+            fullName: '',
             activityText: _controller.activityText ?? '',
             locationName: _controller.locationName ?? '',
             dateText: _controller.formattedDate,

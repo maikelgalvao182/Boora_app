@@ -540,14 +540,42 @@ export const onJoinDecisionNotification = functions.firestore
 
       const eventData = eventDoc.data();
       if (!eventData) {
+        console.error("❌ [JoinDecision] Evento não encontrado:", eventId);
         return;
       }
 
-      // 2. Dados da atividade
+      // 2. Buscar dados do criador (sender da notificação)
+      const creatorId = eventData.createdBy;
+      let senderName: string | undefined;
+      let senderPhotoUrl: string | undefined;
+
+      if (creatorId) {
+        const creatorDoc = await admin
+          .firestore()
+          .collection("Users")
+          .doc(creatorId)
+          .get();
+
+        const creatorData = creatorDoc.data();
+        if (creatorData) {
+          senderName = creatorData.fullName || "Organizador";
+          senderPhotoUrl = creatorData.profilePhoto || creatorData.photoUrl;
+          
+          // Ignorar URLs do Google OAuth
+          if (senderPhotoUrl && (
+            senderPhotoUrl.includes("googleusercontent.com") ||
+            senderPhotoUrl.includes("lh3.google")
+          )) {
+            senderPhotoUrl = undefined;
+          }
+        }
+      }
+
+      // 3. Dados da atividade
       const activityName = eventData.activityText || eventData.name || "Evento";
       const emoji = eventData.emoji || "🎉";
 
-      // 3. Criar notificação
+      // 4. Criar notificação
       const type = isApproved ?
         "activity_join_approved" :
         "activity_join_rejected";
@@ -564,6 +592,9 @@ export const onJoinDecisionNotification = functions.firestore
         activityId: eventId,
         activityName: activityName,
         emoji: emoji,
+        senderId: creatorId,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl,
       });
 
       console.log(`✅ [JoinDecision] Notificação ${type} criada para ${userId}`);

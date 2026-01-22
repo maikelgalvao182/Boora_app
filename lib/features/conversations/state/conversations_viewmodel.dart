@@ -304,8 +304,9 @@ class ConversationsViewModel extends ChangeNotifier {
         
         final isEventChat = data['is_event_chat'] == true;
         final eventId = data['event_id'] as String?;
+        final emoji = data['emoji'] as String?;
         
-        _log('   📄 Doc ${doc.id}: isEventChat=$isEventChat, eventId=$eventId, name=$name');
+        _log('   📄 Doc ${doc.id}: isEventChat=$isEventChat, eventId=$eventId, name=$name, emoji=$emoji');
 
         items.add(ConversationItem(
           id: doc.id,
@@ -318,6 +319,7 @@ class ConversationsViewModel extends ChangeNotifier {
           unreadCount: unreadCount,
           isEventChat: isEventChat,
           eventId: eventId,
+          emoji: emoji,
         ));
       } catch (e) {
         _log('⚠️ Erro ao processar conversa ${doc.id}: $e');
@@ -512,6 +514,7 @@ class ConversationsViewModel extends ChangeNotifier {
 
           final isEventChat = data['is_event_chat'] == true;
           final eventId = data['event_id']?.toString();
+          final emoji = data['emoji'] as String?;
 
           items.add(
             ConversationItem(
@@ -526,6 +529,7 @@ class ConversationsViewModel extends ChangeNotifier {
               isRead: isRead,
               isEventChat: isEventChat,
               eventId: eventId,
+              emoji: emoji,
             ),
           );
         } catch (e) {
@@ -610,6 +614,7 @@ class ConversationsViewModel extends ChangeNotifier {
           final isRead = (unreadFlag is bool) ? unreadFlag : unreadCount == 0;
           final isEventChat = data['is_event_chat'] == true;
           final eventId = data['event_id']?.toString();
+          final emoji = data['emoji'] as String?;
 
           items.add(
             ConversationItem(
@@ -624,6 +629,7 @@ class ConversationsViewModel extends ChangeNotifier {
               isRead: isRead,
               isEventChat: isEventChat,
               eventId: eventId,
+              emoji: emoji,
             ),
           );
         } catch (_) {

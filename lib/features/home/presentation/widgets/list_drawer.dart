@@ -271,17 +271,14 @@ class _ListDrawerContent extends StatelessWidget {
           builder: (context, isLoading, _) {
             // Loading state inicial
             if (isLoading && controller.myEvents.value.isEmpty) {
-              return Padding(
+              return ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    SizedBox(height: 20),
-                    ListCardShimmer(),
-                    ListCardShimmer(),
-                    ListCardShimmer(),
-                  ],
-                ),
+                children: const [
+                  SizedBox(height: 20),
+                  ListCardShimmer(),
+                  ListCardShimmer(),
+                  ListCardShimmer(),
+                ],
               );
             }
 
@@ -300,36 +297,60 @@ class _ListDrawerContent extends StatelessWidget {
                 }
 
                 // Content with data
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // SEÇÃO: Atividades próximas (do mapa)
-                        if (hasNearbyEvents) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 24, bottom: 16),
-                            child: _buildSectionLabel(i18n.translate('nearby_activities')),
-                          ),
-                          _buildNearbyEventsList(context, filteredNearbyEvents),
-                        ],
+                // Usa uma ListView única (scrollável) para evitar overflow e nested scroll.
+                return ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: [
+                    // SEÇÃO: Atividades próximas (do mapa)
+                    if (hasNearbyEvents) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24, bottom: 16),
+                        child: _buildSectionLabel(i18n.translate('nearby_activities')),
+                      ),
+                      ...List<Widget>.generate(
+                        filteredNearbyEvents.length,
+                        (index) {
+                          final event = filteredNearbyEvents[index];
+                          return _EventCardWrapper(
+                            key: ValueKey('nearby_${event.eventId}'),
+                            eventId: event.eventId,
+                            onEventTap: () => _handleEventTap(context, event.eventId),
+                          );
+                        },
+                        growable: false,
+                      ),
+                    ],
 
-                        // SEÇÃO: Minhas atividades
-                        if (hasMyEvents) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16, bottom: 16),
-                            child: _buildSectionLabel(i18n.translate('my_activities')),
-                          ),
-                          _buildMyEventsList(context, myEventsList),
-                        ],
+                    // SEÇÃO: Minhas atividades
+                    if (hasMyEvents) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 16),
+                        child: _buildSectionLabel(i18n.translate('my_activities')),
+                      ),
+                      ...List<Widget>.generate(
+                        myEventsList.length,
+                        (index) {
+                          final eventDoc = myEventsList[index];
+                          return _EventCardWrapper(
+                            key: ValueKey('my_${eventDoc.id}'),
+                            eventId: eventDoc.id,
+                            onEventTap: () => _handleEventTap(context, eventDoc.id),
+                          );
+                        },
+                        growable: false,
+                      ),
+                    ],
 
-                        // Espaço para o home indicator / safe area sem forçar overflow.
-                        // `SafeArea` usa padding 0 quando não há inset.
-                        const SafeArea(top: false, left: false, right: false, bottom: true, minimum: EdgeInsets.only(bottom: 16), child: SizedBox.shrink()),
-                      ],
+                    // Espaço para o home indicator / safe area
+                    const SafeArea(
+                      top: false,
+                      left: false,
+                      right: false,
+                      bottom: true,
+                      minimum: EdgeInsets.only(bottom: 16),
+                      child: SizedBox.shrink(),
                     ),
-                  ),
+                  ],
                 );
               },
             );
@@ -354,49 +375,17 @@ class _ListDrawerContent extends StatelessWidget {
     );
   }
 
-  /// Constrói lista de eventos criados pelo usuário
-  Widget _buildMyEventsList(BuildContext context, List<QueryDocumentSnapshot<Map<String, dynamic>>> myEventsList) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: myEventsList.length,
-      itemBuilder: (context, index) {
-        final eventDoc = myEventsList[index];
-        return _EventCardWrapper(
-          key: ValueKey('my_${eventDoc.id}'),
-          eventId: eventDoc.id,
-          onEventTap: () => _handleEventTap(context, eventDoc.id),
-        );
-      },
-    );
-  }
-
-  /// Constrói lista de eventos próximos (do mapa)
-  Widget _buildNearbyEventsList(BuildContext context, List<EventLocation> events) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: events.length,
-      itemBuilder: (context, index) {
-        final event = events[index];
-        return _EventCardWrapper(
-          key: ValueKey('nearby_${event.eventId}'),
-          eventId: event.eventId,
-          onEventTap: () => _handleEventTap(context, event.eventId),
-        );
-      },
-    );
-  }
-
   /// Manipula tap em um evento
   void _handleEventTap(BuildContext context, String eventId) {
-    // Fechar o bottom sheet
+    // Fechar o bottom sheet primeiro
     Navigator.of(context).pop();
     
-    // Navegar para o marker no mapa
-    MapNavigationService.instance.navigateToEvent(eventId);
+    // Pequeno delay para garantir que o drawer fechou completamente
+    // antes de iniciar a navegação
+    Future.delayed(const Duration(milliseconds: 150), () {
+      // Navegar para o marker no mapa
+      MapNavigationService.instance.navigateToEvent(eventId);
+    });
   }
 }
 

@@ -38,25 +38,32 @@ class SubscriptionBenefitsList extends StatelessWidget {
 
   List<_Benefit> _getBenefits(AppLocalizations i18n) {
     return [
-      // Desbloqueie a lista completa de pessoas
+      // 👀 Veja quem se interessou por você
+      _Benefit(
+        icon: IconsaxPlusLinear.eye,
+        title: i18n.translate('subscription_benefit_profile_visits_title'),
+        subtitle: i18n.translate('subscription_benefit_profile_visits_subtitle'),
+      ),
+
+      // ⭐ Apareça primeiro no mapa
+      _Benefit(
+        icon: IconsaxPlusLinear.star,
+        title: i18n.translate('subscription_benefit_more_visibility_title'),
+        subtitle: i18n.translate('subscription_benefit_more_visibility_subtitle'),
+      ),
+
+      // 🗺️ Acesse todos os perfis da área
       _Benefit(
         icon: IconsaxPlusLinear.people,
         title: i18n.translate('subscription_benefit_unlock_people_list_title'),
         subtitle: i18n.translate('subscription_benefit_unlock_people_list_subtitle'),
       ),
 
-      // Mais visibilidade no app
+      // 🚀 Destaque seus eventos no topo do mapa
       _Benefit(
-        icon: IconsaxPlusLinear.chart,
-        title: i18n.translate('subscription_benefit_more_visibility_title'),
-        subtitle: i18n.translate('subscription_benefit_more_visibility_subtitle'),
-      ),
-
-      // Veja quem visitou seu perfil
-      _Benefit(
-        icon: IconsaxPlusLinear.eye,
-        title: i18n.translate('subscription_benefit_profile_visits_title'),
-        subtitle: i18n.translate('subscription_benefit_profile_visits_subtitle'),
+        icon: IconsaxPlusLinear.map,
+        title: i18n.translate('subscription_benefit_event_promo_title'),
+        subtitle: i18n.translate('subscription_benefit_event_promo_subtitle'),
       ),
     ];
   }

@@ -57,11 +57,28 @@ class ConversationTile extends StatelessWidget {
         // ✅ FIX: Usar conversationId (não otherUserId) para escutar o documento correto
         // - Chat 1-1: conversationId = otherUserId
         // - Chat evento: conversationId = "event_${eventId}"
+        
+        // DEBUG: Log para identificar o problema de chat de grupo
+        final isEventChatFromRaw = rawData['is_event_chat'] == true || rawData['event_id'] != null;
+        if (isEventChatFromRaw) {
+          debugPrint('🔵 [ConversationTile] EVENT CHAT - conversationId=$conversationId, eventId=${rawData['event_id']}');
+        }
+        
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: chatService.getConversationSummaryById(conversationId),
           builder: (context, snap) {
-            // Extrair dados frescos do snapshot
+            // DEBUG: Log para chat de evento
+            if (isEventChatFromRaw) {
+              debugPrint('🔵 [ConversationTile] Stream: hasData=${snap.hasData}, exists=${snap.data?.exists}, connectionState=${snap.connectionState}');
+              if (snap.hasData && snap.data?.exists == true) {
+                final snapData = snap.data?.data();
+                debugPrint('🔵 [ConversationTile] Stream Data: unread=${snapData?['unread_count']}, read=${snapData?['message_read']}, msg=${snapData?['last_message']}');
+              }
+            }
+            
+            // Extrair dados frescos do snapshot (com fallback para rawData)
             final data = snap.data?.data();
+            final hasStreamData = snap.hasData && snap.data?.exists == true && data != null;
 
             bool isPlaceholderName(String value) {
               final normalized = value.trim().toLowerCase();
@@ -79,9 +96,13 @@ class ConversationTile extends StatelessWidget {
               return text;
             }
 
-            // Calcular estado derivado UMA VEZ
-            final unreadCount = data?['unread_count'] as int? ?? 0;
-            final messageRead = data?['message_read'] as bool? ?? true;
+            // Calcular estado derivado UMA VEZ (com fallback para rawData)
+            final unreadCount = hasStreamData 
+                ? (data?['unread_count'] as int? ?? 0)
+                : (rawData['unread_count'] as int? ?? 0);
+            final messageRead = hasStreamData 
+                ? (data?['message_read'] as bool? ?? true)
+                : (rawData[MESSAGE_READ] as bool? ?? true);
             final hasUnread = unreadCount > 0 || !messageRead;
 
             final isEventChat =
@@ -130,22 +151,49 @@ class ConversationTile extends StatelessWidget {
                            rawData['event_id']?.toString() ?? 
                            '';
 
-            final timestampValue = data?['last_message_timestamp'] ??
-                                  data?['last_message_at'] ??
-                                  data?['lastMessageAt'] ??
-                                  data?[TIMESTAMP] ??
-                                  data?['timestamp'];
+            // Timestamp: preferir stream, fallback para rawData
+            final dynamic timestampValue;
+            if (hasStreamData) {
+              timestampValue = data?['last_message_timestamp'] ??
+                   data?['last_message_at'] ??
+                   data?['lastMessageAt'] ??
+                   data?[TIMESTAMP] ??
+                   data?['timestamp'];
+            } else {
+              timestampValue = rawData[TIMESTAMP];
+            }
 
-            final messageType = data?[MESSAGE_TYPE]?.toString();
+            final String? messageType;
+            if (hasStreamData) {
+              messageType = data?[MESSAGE_TYPE]?.toString();
+            } else {
+              messageType = rawData[MESSAGE_TYPE]?.toString();
+            }
 
             String lastMessageText;
             if (messageType == 'image') {
               lastMessageText = i18n.translate('you_received_an_image');
             } else {
-              final rawMessage = (data?['last_message'] ??
-                                 data?['lastMessage'] ??
-                                 data?[LAST_MESSAGE] ??
-                                 '').toString();
+              // Preferir dados do stream, fallback para rawData
+              final rawMessage = hasStreamData 
+                  ? (data?['last_message'] ??
+                     data?['lastMessage'] ??
+                     data?[LAST_MESSAGE] ??
+                     '').toString()
+                  : (rawData['last_message'] ??
+                     rawData['lastMessage'] ??
+                     rawData[LAST_MESSAGE] ??
+                     '').toString();
+
+              // DEBUG: Log para chat de evento
+              if (isEventChat) {
+                debugPrint('🟢 [ConversationTile] EVENT lastMessage:');
+                debugPrint('   hasStreamData=$hasStreamData');
+                debugPrint('   stream last_message=${data?['last_message']}');
+                debugPrint('   rawData last_message=${rawData['last_message']}');
+                debugPrint('   rawData LAST_MESSAGE=${rawData[LAST_MESSAGE]}');
+                debugPrint('   rawMessage=$rawMessage');
+              }
 
               if (rawMessage == 'welcome_bride_short' || rawMessage == 'welcome_vendor_short') {
                 final senderName = data?['sender_name']?.toString() ??
@@ -270,7 +318,7 @@ class ConversationTile extends StatelessWidget {
       visualDensity: VisualDensity.standard,
       dense: false,
       tileColor: hasUnread 
-          ? GlimpseColors.lightTextField
+          ? GlimpseColors.primaryLight
           : null,
       leading: leading,
       title: Row(

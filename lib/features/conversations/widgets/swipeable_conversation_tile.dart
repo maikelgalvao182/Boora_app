@@ -4,7 +4,6 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/services/toast_service.dart';
-import 'package:partiu/dialogs/progress_dialog.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
 import 'package:partiu/screens/chat/services/event_application_removal_service.dart';
 import 'package:partiu/features/conversations/widgets/conversation_tile.dart';
@@ -60,6 +59,10 @@ class SwipeableConversationTile extends StatefulWidget {
 
 class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
   bool _isDeletingConversation = false;
+  bool _isLeavingEvent = false;
+
+  /// Retorna true se está em processo de loading (deletar ou sair)
+  bool get _isLoading => _isDeletingConversation || _isLeavingEvent;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +131,7 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
         isLast: widget.isLast,
         onTap: widget.onTap,
         chatService: widget.chatService,
-        showAvatarLoadingOverlay: _isDeletingConversation,
+        showAvatarLoadingOverlay: _isLoading,
       ),
     );
   }
@@ -143,17 +146,37 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
   }
 
   /// Sai do evento (para chats de grupo)
-  void _handleLeaveEvent(BuildContext context) {
+  /// 
+  /// Usa overlay no avatar ao invés de ProgressDialog
+  Future<void> _handleLeaveEvent(BuildContext context) async {
     final i18n = AppLocalizations.of(context);
-    final progressDialog = ProgressDialog(context);
-    final removalService = EventApplicationRemovalService();
 
-    removalService.handleLeaveEvent(
+    if (_isLeavingEvent) return;
+
+    final removalService = EventApplicationRemovalService();
+    
+    // Chama o método que já cuida da confirmação e execução
+    await removalService.handleLeaveEventWithCallback(
       context: context,
       eventId: widget.eventId!,
       i18n: i18n,
-      progressDialog: progressDialog,
-      onSuccess: widget.onDeleted,
+      onConfirmed: () {
+        if (mounted) {
+          setState(() {
+            _isLeavingEvent = true;
+          });
+        }
+      },
+      onComplete: (success) {
+        if (mounted) {
+          setState(() {
+            _isLeavingEvent = false;
+          });
+        }
+        if (success) {
+          widget.onDeleted();
+        }
+      },
     );
   }
 

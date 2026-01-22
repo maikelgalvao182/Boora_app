@@ -85,6 +85,20 @@ class MapViewModel extends ChangeNotifier {
   List<EventModel> _events = [];
   List<EventModel> get events => _events;
 
+  /// Último bounds VISÍVEL (frame atual do mapa) conhecido pelo app.
+  ///
+  /// Importante: isso é o *frame* (LatLngBounds do GoogleMapView) e NÃO o bounds
+  /// expandido usado para reduzir churn de render.
+  LatLngBounds? _visibleBounds;
+  LatLngBounds? get visibleBounds => _visibleBounds;
+
+  /// Atualiza o snapshot do bounds visível.
+  /// Chamado pelo GoogleMapView sempre que o viewport muda.
+  void setVisibleBounds(LatLngBounds bounds) {
+    _visibleBounds = bounds;
+    notifyListeners();
+  }
+
   /// Versão monotônica do dataset de eventos exposto ao mapa.
   ///
   /// Motivo: evitar o gap "ids iguais -> não notifica" + permitir que a UI
@@ -622,13 +636,20 @@ class MapViewModel extends ChangeNotifier {
 
   /// Injeta um evento manualmente na lista (usado após criação)
   Future<void> injectEvent(EventModel event) async {
+    // Criar uma nova lista mutável a partir da lista atual
+    // (necessário porque _events pode ser uma lista imutável como const [])
+    final mutableEvents = List<EventModel>.from(_events);
+    
     // Verificar se já existe
-    final index = _events.indexWhere((e) => e.id == event.id);
+    final index = mutableEvents.indexWhere((e) => e.id == event.id);
     if (index >= 0) {
-      _events[index] = event;
+      mutableEvents[index] = event;
     } else {
-      _events.insert(0, event);
+      mutableEvents.insert(0, event);
     }
+    
+    // Atribuir a nova lista
+    _events = mutableEvents;
     
     // Enriquecer este evento específico
     await _enrichEvents(); // Idealmente enriquecer só este, mas por segurança re-enriquecemos tudo
@@ -637,6 +658,34 @@ class MapViewModel extends ChangeNotifier {
     await _generateGoogleMarkers();
     
     notifyListeners();
+  }
+
+  /// Remove um evento da lista e do cache (usado após deleção)
+  /// 
+  /// Isso permite atualização instantânea do mapa sem esperar reload.
+  void removeEvent(String eventId) {
+    debugPrint('🗑️ [MapViewModel] Removendo evento: $eventId');
+    
+    // 1. Remover do cache do MapDiscoveryService
+    _mapDiscoveryService.removeEvent(eventId);
+    
+    // 2. Remover da lista local
+    final sizeBefore = _events.length;
+    _events = _events.where((e) => e.id != eventId).toList();
+    
+    if (_events.length < sizeBefore) {
+      debugPrint('✅ [MapViewModel] Evento $eventId removido da lista local');
+      
+      // 3. Incrementar versão para forçar rebuild dos markers
+      eventsVersion.value = (eventsVersion.value + 1).clamp(0, 1 << 30);
+      
+      // 4. Limpar cache de clusters (importante!)
+      _googleMarkerService.clearClusterCache();
+      
+      notifyListeners();
+    } else {
+      debugPrint('⚠️ [MapViewModel] Evento $eventId não encontrado na lista local');
+    }
   }
 
   /// Define estado de carregamento

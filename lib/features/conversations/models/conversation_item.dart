@@ -10,6 +10,7 @@ class ConversationItem {
   final bool isRead;
   final bool isEventChat; // Se é um chat de evento
   final String? eventId; // ID do evento (quando isEventChat = true)
+  final String? emoji; // Emoji do evento (quando isEventChat = true)
 
   ConversationItem({
     required this.id,
@@ -23,6 +24,7 @@ class ConversationItem {
     this.isRead = true,
     this.isEventChat = false,
     this.eventId,
+    this.emoji,
   });
 
   ConversationItem copyWith({
@@ -37,6 +39,7 @@ class ConversationItem {
     bool? isRead,
     bool? isEventChat,
     String? eventId,
+    String? emoji,
   }) {
     return ConversationItem(
       id: id ?? this.id,
@@ -50,6 +53,7 @@ class ConversationItem {
       isRead: isRead ?? this.isRead,
       isEventChat: isEventChat ?? this.isEventChat,
       eventId: eventId ?? this.eventId,
+      emoji: emoji ?? this.emoji,
     );
   }
 
@@ -119,6 +123,7 @@ class ConversationItem {
     // Event chat fields
     final isEventChat = json['is_event_chat'] == true || json['isEventChat'] == true;
     final eventId = (json['event_id'] ?? json['eventId'])?.toString();
+    final emoji = (json['emoji'])?.toString();
 
     return ConversationItem(
       id: id,
@@ -132,6 +137,7 @@ class ConversationItem {
       isRead: isRead,
       isEventChat: isEventChat,
       eventId: eventId,
+      emoji: emoji,
     );
   }
 
@@ -148,6 +154,7 @@ class ConversationItem {
       'isRead': isRead,
       'isEventChat': isEventChat,
       'eventId': eventId,
+      'emoji': emoji,
     };
   }
 }

@@ -1,12 +1,13 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/list_emoji_avatar.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card/list_card_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card_shimmer.dart';
 
@@ -53,9 +54,6 @@ class _ListCardState extends State<ListCard> {
 
   /// Constrói a pilha de avatares simplificada e unificada
   Widget _buildParticipantsStack() {
-    final i18n = AppLocalizations.of(context);
-
-    final emoji = _controller.emoji ?? ListEmojiAvatar.defaultEmoji;
     final participants = _controller.recentParticipants;
     final totalCount = _controller.totalParticipantsCount;
     
@@ -67,31 +65,10 @@ class _ListCardState extends State<ListCard> {
     final displayCount = participants.length > 4 ? 4 : participants.length;
     final hasCounter = totalCount > 0;
     
-    // Lista de itens para empilhar
+    // Lista de itens para empilhar (sem emoji - agora fica no texto)
     final List<Widget> items = [];
     
-    // 1. Emoji (Criador)
-    items.add(
-      Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: border),
-          color: Colors.white,
-        ),
-        child: ClipOval(
-          child: ListEmojiAvatar(
-            emoji: emoji,
-            eventId: _controller.eventId,
-            size: size,
-            emojiSize: 20,
-          ),
-        ),
-      ),
-    );
-    
-    // 2. Participantes
+    // 1. Participantes
     for (int i = 0; i < displayCount; i++) {
       items.add(
         Container(
@@ -112,9 +89,8 @@ class _ListCardState extends State<ListCard> {
       );
     }
     
-    // 3. Contador
+    // 2. Contador (apenas número, sem +)
     if (hasCounter) {
-      final totalCountText = i18n.translate('plus_count').replaceAll('{count}', totalCount.toString());
       items.add(
         Container(
           width: size,
@@ -126,7 +102,7 @@ class _ListCardState extends State<ListCard> {
             border: Border.all(color: Colors.white, width: border),
           ),
           child: Text(
-            totalCountText,
+            totalCount.toString(),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
               fontSize: 12,
@@ -136,6 +112,11 @@ class _ListCardState extends State<ListCard> {
           ),
         ),
       );
+    }
+
+    // Se não tem itens, retorna vazio
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     return SizedBox(
@@ -153,8 +134,33 @@ class _ListCardState extends State<ListCard> {
     );
   }
 
+  /// Constrói o avatar de emoji do evento
+  Widget _buildEmojiAvatar() {
+    final emoji = _controller.emoji ?? ListEmojiAvatar.defaultEmoji;
+    const double size = 56.0;
+    
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: GlimpseColors.primaryLight,
+      ),
+      child: ClipOval(
+        child: ListEmojiAvatar(
+          emoji: emoji,
+          eventId: _controller.eventId,
+          size: size,
+          emojiSize: 28,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    
     // Loading state
     if (_controller.isLoading) {
       return const ListCardShimmer();
@@ -190,29 +196,31 @@ class _ListCardState extends State<ListCard> {
       );
     }
 
-    // Success state
+    // Success state - Dados formatados
     final activityText = _controller.activityText ?? 'Atividade';
+    final locationName = _controller.locationName;
     
     final scheduleDate = _controller.scheduleDate;
     String dateText = '';
     String timeText = '';
     if (scheduleDate != null) {
-      dateText = DateFormat('dd/MM', 'pt_BR').format(scheduleDate);
+      dateText = 'dia ${DateFormat('dd/MM', 'pt_BR').format(scheduleDate)}';
       if (scheduleDate.hour != 0 || scheduleDate.minute != 0) {
         timeText = DateFormat('HH:mm').format(scheduleDate);
       }
     }
 
-    final locationName = _controller.locationName;
-    final locality = _controller.locality;
-    final state = _controller.state;
-    final cityStateText = [
-      if (locality != null && locality.isNotEmpty) locality,
-      if (state != null && state.isNotEmpty) state,
-    ].join(' • ');
-
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        debugPrint('🔵 [ListCard] Tap no card - eventId: ${_controller.eventId}');
+        debugPrint('🔵 [ListCard] activityText: $activityText');
+        if (widget.onTap != null) {
+          debugPrint('🔵 [ListCard] Chamando onTap callback');
+          widget.onTap!();
+        } else {
+          debugPrint('⚠️ [ListCard] onTap é null!');
+        }
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
@@ -227,152 +235,28 @@ class _ListCardState extends State<ListCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título/Data (Esquerda) + Contador (Direita)
+            // Row: Emoji à esquerda + Texto formatado à direita
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Avatar de emoji
+                _buildEmojiAvatar(),
+                const SizedBox(width: 12),
+                // Texto formatado: "João quer jogar futebol em Parque dia 15/12 às 18:00"
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        activityText,
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: GlimpseColors.primaryColorLight,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      
-                      if (dateText.isNotEmpty || (locationName != null && locationName.isNotEmpty)) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            if (locationName != null && locationName.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: GlimpseColors.primaryLight,
-                                  borderRadius: BorderRadius.circular(100),
-                                ),
-                                child: Text(
-                                  locationName,
-                                  style: GoogleFonts.getFont(
-                                    FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: GlimpseColors.primaryDarker,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-
-                            if (cityStateText.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: GlimpseColors.primaryLight,
-                                  borderRadius: BorderRadius.circular(100),
-                                ),
-                                child: Text(
-                                  cityStateText,
-                                  style: GoogleFonts.getFont(
-                                    FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: GlimpseColors.primaryDarker,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-
-                            if (dateText.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: GlimpseColors.lightTextField,
-                                  borderRadius: BorderRadius.circular(100),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Iconsax.calendar_1,
-                                      size: 14,
-                                      color: GlimpseColors.textSubTitle,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      dateText,
-                                      style: GoogleFonts.getFont(
-                                        FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: GlimpseColors.textSubTitle,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                            if (timeText.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: GlimpseColors.lightTextField,
-                                  borderRadius: BorderRadius.circular(100),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Iconsax.clock,
-                                      size: 14,
-                                      color: GlimpseColors.textSubTitle,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      timeText,
-                                      style: GoogleFonts.getFont(
-                                        FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: GlimpseColors.textSubTitle,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ],
+                  child: _buildFormattedText(
+                    i18n: i18n,
+                    creatorId: _controller.creatorId,
+                    activityText: activityText,
+                    locationName: locationName,
+                    dateText: dateText,
+                    timeText: timeText,
                   ),
                 ),
-                
               ],
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             
             // Base: Avatars (Esquerda)
             Row(
@@ -383,6 +267,113 @@ class _ListCardState extends State<ListCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Constrói o texto formatado no estilo do EventCard
+  /// Exemplo: "João quer jogar futebol em Parque Ibirapuera dia 15/12 às 18:00"
+  Widget _buildFormattedText({
+    required AppLocalizations i18n,
+    required String? creatorId,
+    required String activityText,
+    required String? locationName,
+    required String dateText,
+    required String timeText,
+  }) {
+    final baseStyle = GoogleFonts.getFont(
+      FONT_PLUS_JAKARTA_SANS,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+    );
+
+    // Se tiver creatorId, usa ValueListenableBuilder para nome reativo
+    if (creatorId != null && creatorId.isNotEmpty) {
+      return ValueListenableBuilder<String?>(
+        valueListenable: UserStore.instance.getNameNotifier(creatorId),
+        builder: (context, creatorName, _) {
+          final displayName = (creatorName ?? '').trim();
+          return _buildRichText(
+            baseStyle: baseStyle,
+            i18n: i18n,
+            creatorName: displayName,
+            activityText: activityText,
+            locationName: locationName,
+            dateText: dateText,
+            timeText: timeText,
+          );
+        },
+      );
+    }
+
+    // Sem creatorId, mostra sem nome
+    return _buildRichText(
+      baseStyle: baseStyle,
+      i18n: i18n,
+      creatorName: '',
+      activityText: activityText,
+      locationName: locationName,
+      dateText: dateText,
+      timeText: timeText,
+    );
+  }
+
+  Widget _buildRichText({
+    required TextStyle baseStyle,
+    required AppLocalizations i18n,
+    required String creatorName,
+    required String activityText,
+    required String? locationName,
+    required String dateText,
+    required String timeText,
+  }) {
+    return RichText(
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: baseStyle.copyWith(color: GlimpseColors.textSubTitle),
+        children: [
+          // Nome do criador (só se não vazio)
+          if (creatorName.isNotEmpty) ...[
+            TextSpan(
+              text: creatorName,
+              style: baseStyle.copyWith(color: GlimpseColors.primary),
+            ),
+            // Conectivo
+            TextSpan(text: ' ${i18n.translate('event_formatted_wants')} '),
+          ],
+          
+          // "quer" quando creatorName está vazio
+          if (creatorName.isEmpty) ...[
+            TextSpan(text: '${i18n.translate('event_formatted_wants').substring(0, 1).toUpperCase()}${i18n.translate('event_formatted_wants').substring(1)} '),
+          ],
+          
+          // Atividade
+          TextSpan(
+            text: activityText,
+            style: baseStyle.copyWith(color: GlimpseColors.primaryColorLight),
+          ),
+          
+          // Local
+          if (locationName != null && locationName.isNotEmpty) ...[
+            TextSpan(text: ' ${i18n.translate('event_formatted_in')} '),
+            TextSpan(
+              text: locationName,
+              style: baseStyle.copyWith(color: GlimpseColors.primary),
+            ),
+          ],
+          
+          // Data
+          if (dateText.isNotEmpty) ...[
+            TextSpan(text: ' $dateText'),
+          ],
+          
+          // Horário
+          if (timeText.isNotEmpty) ...[
+            TextSpan(text: ' ${i18n.translate('event_formatted_at')} '),
+            TextSpan(text: timeText),
+          ],
+        ],
       ),
     );
   }

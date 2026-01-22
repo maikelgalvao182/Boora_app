@@ -6,7 +6,9 @@ import 'package:partiu/features/home/data/models/event_application_model.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
+import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/utils/date_formatter.dart';
 import 'package:partiu/screens/chat/services/event_deletion_service.dart';
 
@@ -103,6 +105,8 @@ class EventCardController extends ChangeNotifier {
 
       if (_preloadedEvent!.participants != null) {
         _approvedParticipants = _preloadedEvent!.participants!;
+        // Preload avatares para evitar "popping" na UI
+        _preloadParticipantAvatars();
       }
 
       debugPrint('🎫 [EventCard] Dados carregados:');
@@ -454,6 +458,20 @@ class EventCardController extends ChangeNotifier {
   Future<void> _loadApprovedParticipants() async {
     _approvedParticipants =
         await _applicationRepo.getApprovedApplicationsWithUserData(eventId);
+    
+    // Preload avatares para evitar "popping" na UI
+    _preloadParticipantAvatars();
+  }
+
+  /// Preload dos avatares dos participantes para exibição instantânea
+  void _preloadParticipantAvatars() {
+    for (final p in _approvedParticipants) {
+      final userId = p['userId'] as String?;
+      final photoUrl = p['photoUrl'] as String?;
+      if (userId != null && photoUrl != null && photoUrl.isNotEmpty) {
+        UserStore.instance.preloadAvatar(userId, photoUrl);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -644,6 +662,10 @@ class EventCardController extends ChangeNotifier {
       }
       
       debugPrint('✅ Evento deletado com sucesso');
+      
+      // ✅ Remover marker do mapa instantaneamente
+      MapViewModel.instance?.removeEvent(eventId);
+      debugPrint('✅ Marker removido do mapa');
     } catch (e, stackTrace) {
       debugPrint('❌ Erro ao deletar evento: $e');
       debugPrint('📚 StackTrace: $stackTrace');

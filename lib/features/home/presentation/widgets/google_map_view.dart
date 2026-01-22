@@ -12,6 +12,7 @@ import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
+import 'package:partiu/features/home/data/repositories/event_map_repository.dart';
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
@@ -773,6 +774,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       _currentZoom = newZoom;
 
       final visibleRegion = await _mapController!.getVisibleRegion();
+  widget.viewModel.setVisibleBounds(visibleRegion);
       final expandedBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
       _lastExpandedVisibleBounds = expandedBounds;
 
@@ -857,6 +859,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       debugPrint('🔲 GoogleMapView: Zoom inicial: ${_currentZoom.toStringAsFixed(1)}');
       
       final visibleRegion = await _mapController!.getVisibleRegion();
+  widget.viewModel.setVisibleBounds(visibleRegion);
       _lastExpandedVisibleBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
       
@@ -1038,7 +1041,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Handler de navegação chamado pelo MapNavigationService
   /// 
   /// Responsável por:
-  /// 1. Encontrar o evento na lista de eventos carregados
+  /// 1. Encontrar o evento na lista de eventos carregados (ou buscar do Firestore)
   /// 2. Mover câmera para o evento
   /// 3. Abrir o EventCard
   /// 
@@ -1048,22 +1051,35 @@ class GoogleMapViewState extends State<GoogleMapView> {
     
     if (!mounted) return;
     
-    // Buscar evento na lista de eventos carregados
-    final event = widget.viewModel.events.firstWhere(
-      (e) => e.id == eventId,
-      orElse: () {
-        debugPrint('⚠️ [GoogleMapView] Evento não encontrado na lista: $eventId');
-        // Se não encontrou, forçar refresh dos bounds atuais
-        if (_lastRequestedQueryBounds != null) {
-          widget.viewModel.forceRefreshBounds(_lastRequestedQueryBounds!);
-        } else {
-          widget.viewModel.loadNearbyEvents();
-        }
-        throw Exception('Evento não encontrado');
-      },
-    );
+    EventModel? event;
     
-    debugPrint('✅ [GoogleMapView] Evento encontrado: ${event.title}');
+    // Primeiro, tentar encontrar na lista de eventos carregados (mais rápido)
+    try {
+      event = widget.viewModel.events.firstWhere((e) => e.id == eventId);
+      debugPrint('✅ [GoogleMapView] Evento encontrado na lista local: ${event.title}');
+    } catch (_) {
+      // Não encontrou na lista local, buscar do Firestore
+      debugPrint('⚠️ [GoogleMapView] Evento não encontrado na lista local, buscando do Firestore...');
+      
+      try {
+        event = await EventMapRepository().getEventById(eventId);
+        
+        if (event == null) {
+          debugPrint('❌ [GoogleMapView] Evento não encontrado no Firestore: $eventId');
+          return;
+        }
+        
+        debugPrint('✅ [GoogleMapView] Evento carregado do Firestore: ${event.title}');
+        
+        // Injetar o evento no ViewModel para que o marker apareça
+        await widget.viewModel.injectEvent(event);
+      } catch (e) {
+        debugPrint('❌ [GoogleMapView] Erro ao buscar evento do Firestore: $e');
+        return;
+      }
+    }
+    
+    if (!mounted) return;
     
     // Mover câmera para o evento
     if (_mapController != null) {
