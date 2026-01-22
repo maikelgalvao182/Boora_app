@@ -95,7 +95,7 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
           duration: const Duration(milliseconds: 200),
           child: SizedBox(
             key: ValueKey('vip_overlay_$eventsKey'),
-            height: 64, // 48 (card) + 16 (espaço para sombra)
+            height: 58, // 48 (card) + 10 (espaço para sombra)
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
@@ -245,6 +245,10 @@ class _PromoCardState extends State<_PromoCard> {
 
   @override
   Widget build(BuildContext context) {
+  const double kAvatarAndEmojiSize = 44;
+  const double kAvatarAndEmojiBorderWidth = 4;
+  const double kAvatarInnerSize = kAvatarAndEmojiSize - (kAvatarAndEmojiBorderWidth * 2);
+
     final activityName = widget.event.title.trim().isEmpty 
         ? 'um rolê' 
         : widget.event.title.trim();
@@ -303,14 +307,14 @@ class _PromoCardState extends State<_PromoCard> {
                         left: 0,
                         top: 0,
                         child: Container(
-                          width: 44,
-                          height: 44,
+          width: kAvatarAndEmojiSize,
+          height: kAvatarAndEmojiSize,
                           decoration: BoxDecoration(
                             color: widget.backgroundColor,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.white,
-                              width: 2,
+          width: kAvatarAndEmojiBorderWidth,
                             ),
                           ),
                           alignment: Alignment.center,
@@ -322,20 +326,23 @@ class _PromoCardState extends State<_PromoCard> {
                       ),
                       // Avatar sobreposto (direita)
                       Positioned(
-                        left: 24,
-                        top: 2,
+        left: 22,
+        top: 0,
                         child: Container(
+                          width: kAvatarAndEmojiSize,
+                          height: kAvatarAndEmojiSize,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.white,
-                              width: 2,
+          width: kAvatarAndEmojiBorderWidth,
                             ),
                           ),
+                          alignment: Alignment.center,
                           child: StableAvatar(
                             userId: widget.event.createdBy,
                             photoUrl: '',
-                            size: 40,
+                            size: kAvatarInnerSize,
                             enableNavigation: false,
                           ),
                         ),

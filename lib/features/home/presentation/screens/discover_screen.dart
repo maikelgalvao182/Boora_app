@@ -27,6 +27,7 @@ class DiscoverScreenState extends State<DiscoverScreen> {
   final GlobalKey<GoogleMapViewState> _mapKey = GlobalKey<GoogleMapViewState>();
   bool _platformMapCreated = false;
   bool _didScheduleClusterPreload = false;
+  bool _firstRenderApplied = false;
 
   VoidCallback? _mapVmListener;
 
@@ -65,7 +66,8 @@ class DiscoverScreenState extends State<DiscoverScreen> {
       // Só roda quando:
       // - o PlatformView do mapa já foi criado (evita animateCamera falhar)
       // - já temos dataset inicial (mapReady)
-      if (!_platformMapCreated || !widget.mapViewModel.mapReady) return;
+  // - o 1º render de markers já foi aplicado (evita aquecer clusters com dataset parcial)
+  if (!_platformMapCreated || !widget.mapViewModel.mapReady || !_firstRenderApplied) return;
 
       widget.mapViewModel.removeListener(listener!);
       _mapVmListener = null;
@@ -74,7 +76,10 @@ class DiscoverScreenState extends State<DiscoverScreen> {
       // Prioridade baixa: deixa a UI respirar e não compete com o 1º onCameraIdle.
       Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
-  // Warmup em zoom baixo (clusters) sem mexer na câmera.
+  // 1) Warmup de cobertura (dados): prefetch por viewport real com bounds expandido.
+  unawaited(_mapKey.currentState?.prefetchExpandedBounds(bufferFactor: 2.5));
+
+  // 2) Warmup de compute/UI: clusters/bitmaps em zoom baixo sem mexer na câmera.
   unawaited(_mapKey.currentState?.preloadZoomOutClusters(targetZoom: 3.0));
       });
     };
@@ -112,6 +117,11 @@ class DiscoverScreenState extends State<DiscoverScreen> {
               });
 
               // Se já está mapReady, podemos agendar o preload agora.
+              _scheduleClusterPreloadWhenReady();
+            },
+            onFirstRenderApplied: () {
+              if (!mounted || _firstRenderApplied) return;
+              _firstRenderApplied = true;
               _scheduleClusterPreloadWhenReady();
             },
           ),

@@ -35,9 +35,18 @@ class MapDiscoveryService {
   Stream<List<EventLocation>> get eventsStream => _eventsController.stream;
 
   // Cache
-  List<EventLocation> _cachedEvents = [];
-  DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
-  String? _lastQuadkey;
+  // Cache por "tiles" (quadkey)
+  //
+  // Antes: cache de 1 quadkey + TTL.
+  // Agora: cache LRU simples por quadkey (mantém várias áreas recentes).
+  // Isso reduz refetch em pans pequenos (vai e volta) e melhora a velocidade
+  // de borda, mantendo a lógica atual de bounded queries.
+  static const int _maxCachedQuadkeys = 12;
+
+  // quadkey -> entry
+  final Map<String, _QuadkeyCacheEntry> _quadkeyCache = <String, _QuadkeyCacheEntry>{};
+  // Ordem LRU (mais antigo no início)
+  final List<String> _quadkeyLru = <String>[];
 
   // Configurações
   /// TTL do cache por quadkey. 30s balanceia freshness vs economia de reads.
@@ -113,17 +122,18 @@ class MapDiscoveryService {
   Future<void> _executeQuery(MapBounds bounds, int requestId) async {
     // Verificar cache por quadkey
     final quadkey = bounds.toQuadkey();
-    
-    if (_shouldUseCache(quadkey)) {
-      debugPrint('📦 [MapDiscovery] Cache: ${_cachedEvents.length} eventos');
+
+    final cached = _getFromCacheIfFresh(quadkey);
+    if (cached != null) {
+      debugPrint('📦 [MapDiscovery] Cache hit (quadkey=$quadkey): ${cached.length} eventos');
 
       // Se existe um request mais novo, não publica cache velho.
       if (requestId != _requestSeq) {
         return;
       }
 
-      nearbyEvents.value = _cachedEvents;
-      _eventsController.add(_cachedEvents);
+      nearbyEvents.value = cached;
+      _eventsController.add(cached);
       return;
     }
 
@@ -138,9 +148,7 @@ class MapDiscoveryService {
         return;
       }
       
-      _cachedEvents = events;
-      _lastFetchTime = DateTime.now();
-      _lastQuadkey = quadkey;
+  _putInCache(quadkey, events);
       
       debugPrint('✅ MapDiscoveryService: ${events.length} eventos encontrados');
       nearbyEvents.value = events;
@@ -153,12 +161,39 @@ class MapDiscoveryService {
     }
   }
 
-  /// Verifica se deve usar o cache
-  bool _shouldUseCache(String quadkey) {
-    if (_lastQuadkey != quadkey) return false;
-    
-    final elapsed = DateTime.now().difference(_lastFetchTime);
-    return elapsed < cacheTTL;
+  List<EventLocation>? _getFromCacheIfFresh(String quadkey) {
+    final entry = _quadkeyCache[quadkey];
+    if (entry == null) return null;
+
+    final elapsed = DateTime.now().difference(entry.fetchedAt);
+    if (elapsed >= cacheTTL) {
+      // Expirou.
+      _quadkeyCache.remove(quadkey);
+      _quadkeyLru.remove(quadkey);
+      return null;
+    }
+
+    // Toca no LRU.
+    _quadkeyLru.remove(quadkey);
+    _quadkeyLru.add(quadkey);
+
+    return entry.events;
+  }
+
+  void _putInCache(String quadkey, List<EventLocation> events) {
+    _quadkeyCache[quadkey] = _QuadkeyCacheEntry(
+      events: events,
+      fetchedAt: DateTime.now(),
+    );
+
+    _quadkeyLru.remove(quadkey);
+    _quadkeyLru.add(quadkey);
+
+    // Evict LRU.
+    while (_quadkeyLru.length > _maxCachedQuadkeys) {
+      final evictKey = _quadkeyLru.removeAt(0);
+      _quadkeyCache.remove(evictKey);
+    }
   }
 
   /// Query no Firestore usando bounding box
@@ -212,7 +247,10 @@ class MapDiscoveryService {
   /// Força atualização imediata (ignora cache e debounce)
   Future<void> forceRefresh(MapBounds bounds) async {
     _debounceTimer?.cancel();
-    _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
+  // Force refresh ignora TTL para o quadkey atual.
+  final quadkey = bounds.toQuadkey();
+  _quadkeyCache.remove(quadkey);
+  _quadkeyLru.remove(quadkey);
   final int requestId = ++_requestSeq;
   await _executeQuery(bounds, requestId);
   }
@@ -221,24 +259,36 @@ class MapDiscoveryService {
   /// 
   /// Isso permite atualização instantânea do mapa sem esperar o TTL expirar.
   void removeEvent(String eventId) {
-    final sizeBefore = _cachedEvents.length;
-    _cachedEvents = _cachedEvents.where((e) => e.eventId != eventId).toList();
-    
-    if (_cachedEvents.length < sizeBefore) {
-      debugPrint('🗑️ MapDiscoveryService: Evento $eventId removido do cache');
-      // Atualizar os listeners
-      nearbyEvents.value = _cachedEvents;
-      _eventsController.add(_cachedEvents);
-    } else {
-      debugPrint('⚠️ MapDiscoveryService: Evento $eventId não encontrado no cache');
+    var removedSomewhere = false;
+
+    for (final key in _quadkeyCache.keys.toList(growable: false)) {
+      final entry = _quadkeyCache[key];
+      if (entry == null) continue;
+      final before = entry.events.length;
+      final next = entry.events.where((e) => e.eventId != eventId).toList(growable: false);
+      if (next.length != before) {
+        removedSomewhere = true;
+        _quadkeyCache[key] = _QuadkeyCacheEntry(events: next, fetchedAt: entry.fetchedAt);
+      }
+    }
+
+    if (removedSomewhere) {
+      debugPrint('🗑️ MapDiscoveryService: Evento $eventId removido do cache (multi-tiles)');
+      // Se o evento removido estava no snapshot atual, publica a lista atualizada
+      // para manter o mapa consistente.
+      final current = nearbyEvents.value;
+      if (current.any((e) => e.eventId == eventId)) {
+        final next = current.where((e) => e.eventId != eventId).toList(growable: false);
+        nearbyEvents.value = next;
+        _eventsController.add(next);
+      }
     }
   }
 
   /// Limpa o cache
   void clearCache() {
-    _cachedEvents = [];
-    _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
-    _lastQuadkey = null;
+  _quadkeyCache.clear();
+  _quadkeyLru.clear();
     debugPrint('🧹 MapDiscoveryService: Cache limpo');
   }
 
@@ -247,4 +297,14 @@ class MapDiscoveryService {
     _debounceTimer?.cancel();
     _eventsController.close();
   }
+}
+
+class _QuadkeyCacheEntry {
+  final List<EventLocation> events;
+  final DateTime fetchedAt;
+
+  const _QuadkeyCacheEntry({
+    required this.events,
+    required this.fetchedAt,
+  });
 }

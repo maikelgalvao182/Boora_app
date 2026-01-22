@@ -45,11 +45,13 @@ import 'package:partiu/shared/widgets/confetti_celebration.dart';
 class GoogleMapView extends StatefulWidget {
   final MapViewModel viewModel;
   final VoidCallback? onPlatformMapCreated;
+  final VoidCallback? onFirstRenderApplied;
 
   const GoogleMapView({
     super.key,
     required this.viewModel,
     this.onPlatformMapCreated,
+  this.onFirstRenderApplied,
   });
 
   @override
@@ -125,6 +127,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
   // mostrar um subconjunto rapidamente e depois completar.
   static const int _initialViewportRenderCap = 60;
   bool _didProgressiveFirstRender = false;
+
+  /// Sinaliza para o pai (Discover) que o primeiro render de markers foi aplicado.
+  /// Isso ajuda a sincronizar warmups (ex.: clusters) sem competir com o cold start.
+  bool _didEmitFirstRenderApplied = false;
   
   /// Flag para evitar rebuilds durante animação de câmera
   bool _isAnimating = false;
@@ -149,11 +155,79 @@ class GoogleMapViewState extends State<GoogleMapView> {
   Timer? _avatarBitmapsDebounce;
   static const Duration _avatarBitmapsDebounceDuration = Duration(milliseconds: 150);
 
-  static const double _viewportBoundsBufferFactor = 1.3;
+  // Buffer do viewport usado para filtrar markers em zoom alto.
+  // Aumentar esse fator melhora a sensação de "instantâneo" ao pan, pois mais
+  // eventos que estão logo fora do frame já entram no conjunto renderizável.
+  static const double _viewportBoundsBufferFactor = 2.0;
+
+  // ===== Prefetch por "zona de gordura" (cobertura além do frame) =====
+  // Ideia: manter um bounds maior (pré-carregado) para que pans dentro dessa área
+  // não disparem rede e apenas re-renderizem markers/clusters.
+  //
+  // Em zoom baixo usamos clustering sem filtro de viewport; então o ganho aqui é
+  // principalmente evitar espera de rede ao pan em zoom alto (markers individuais).
+  static const double _prefetchBoundsBufferFactor = 2.6;
+  LatLngBounds? _prefetchedExpandedBounds;
 
   MapBounds? _lastRequestedQueryBounds;
   DateTime _lastRequestedQueryAt = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _minIntervalBetweenContainedBoundsQueries = Duration(seconds: 2);
+
+  bool _isLatLngBoundsContained(LatLngBounds inner, LatLngBounds outer) {
+    // Note: tratamos o caso típico (não cruza antimeridiano). Para robustez,
+    // aplicamos a mesma lógica de longitude do _boundsContains.
+    final innerSw = inner.southwest;
+    final innerNe = inner.northeast;
+    final outerSw = outer.southwest;
+    final outerNe = outer.northeast;
+
+    final innerMinLat = innerSw.latitude < innerNe.latitude ? innerSw.latitude : innerNe.latitude;
+    final innerMaxLat = innerSw.latitude < innerNe.latitude ? innerNe.latitude : innerSw.latitude;
+    final outerMinLat = outerSw.latitude < outerNe.latitude ? outerSw.latitude : outerNe.latitude;
+    final outerMaxLat = outerSw.latitude < outerNe.latitude ? outerNe.latitude : outerSw.latitude;
+
+    final latContained = innerMinLat >= outerMinLat && innerMaxLat <= outerMaxLat;
+
+    // Para containment de longitude, cobrimos dois cenários do outer:
+    // - outerSw <= outerNe: intervalo normal
+    // - outerSw > outerNe: outer cruza o antimeridiano
+    final outerCrosses = outerSw.longitude > outerNe.longitude;
+    final innerCrosses = innerSw.longitude > innerNe.longitude;
+
+    // Se inner cruza antimeridiano mas outer não cruza, não pode estar contido.
+    if (innerCrosses && !outerCrosses) return false;
+
+    if (!outerCrosses) {
+      // Intervalo normal.
+      final minLng = outerSw.longitude;
+      final maxLng = outerNe.longitude;
+      final innerMinLng = innerSw.longitude;
+      final innerMaxLng = innerNe.longitude;
+      return latContained && innerMinLng >= minLng && innerMaxLng <= maxLng;
+    }
+
+    // Outer cruza antimeridiano, então "contido" significa que ambos os cantos
+    // do inner estão em uma das duas faixas válidas: [outerSw..180] U [-180..outerNe].
+    final swOk = (innerSw.longitude >= outerSw.longitude) || (innerSw.longitude <= outerNe.longitude);
+    final neOk = (innerNe.longitude >= outerSw.longitude) || (innerNe.longitude <= outerNe.longitude);
+    return latContained && swOk && neOk;
+  }
+
+  Future<void> _prefetchEventsForExpandedBounds(LatLngBounds visibleRegion) async {
+    // Best-effort: não bloquear UX. Se falhar, o onCameraIdle normal ainda faz fetch.
+    if (!mounted) return;
+    if (_mapController == null) return;
+
+    final expanded = _expandBounds(visibleRegion, _prefetchBoundsBufferFactor);
+    _prefetchedExpandedBounds = expanded;
+
+    final prefetchQuery = MapBounds.fromLatLngBounds(expanded);
+    try {
+      await widget.viewModel.loadEventsInBounds(prefetchQuery);
+    } catch (_) {
+      // ignora
+    }
+  }
 
   bool _isBoundsContained(MapBounds inner, MapBounds outer) {
     return inner.minLat >= outer.minLat &&
@@ -518,6 +592,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
       setState(() => _markers = markers);
     }
 
+    // Notifica apenas uma vez, após aplicar markers pela primeira vez.
+    if (!_didEmitFirstRenderApplied) {
+      _didEmitFirstRenderApplied = true;
+      widget.onFirstRenderApplied?.call();
+    }
+
     _dlog(
       '🧭 [MapRender#$seq] applied markers=${markers.length} '
       'totalTook=${DateTime.now().difference(rebuildStartedAt).inMilliseconds}ms',
@@ -700,6 +780,23 @@ class GoogleMapViewState extends State<GoogleMapView> {
     await _triggerInitialEventSearch();
   }
 
+  /// Prefetch best-effort baseado no viewport REAL (visibleRegion) com bounds expandido.
+  ///
+  /// Uso típico: warmup pós-splash, após primeiro render aplicado.
+  Future<void> prefetchExpandedBounds({double? bufferFactor}) async {
+    final controller = _mapController;
+    if (controller == null || !mounted) return;
+
+    try {
+      final visibleRegion = await controller.getVisibleRegion();
+      final factor = bufferFactor ?? _prefetchBoundsBufferFactor;
+      final expanded = _expandBounds(visibleRegion, factor);
+      await _prefetchEventsForExpandedBounds(expanded);
+    } catch (_) {
+      // Best-effort.
+    }
+  }
+
   /// Callback quando a câmera para de se mover
   /// 
   /// Responsável por:
@@ -778,6 +875,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
       final expandedBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
       _lastExpandedVisibleBounds = expandedBounds;
 
+  // Bounds "prefetched" usa um buffer maior, pensado para cobrir vários pans.
+  // Não usamos isso para render; é apenas para decidir quando refazer rede.
+  final prefetchExpandedBounds = _expandBounds(visibleRegion, _prefetchBoundsBufferFactor);
+
       // Fonte de verdade para drawer/chips: bounds VISÍVEL (frame).
       // O bounds expandido é usado apenas para reduzir churn de render de markers.
       final queryBounds = MapBounds.fromLatLngBounds(visibleRegion);
@@ -798,12 +899,23 @@ class GoogleMapViewState extends State<GoogleMapView> {
           _isBoundsContained(queryBounds, _lastRequestedQueryBounds!);
       final tooSoon = now.difference(_lastRequestedQueryAt) < _minIntervalBetweenContainedBoundsQueries;
 
-      if (withinPrevious && tooSoon) {
+    final withinPrefetched = _prefetchedExpandedBounds != null &&
+      _isLatLngBoundsContained(visibleRegion, _prefetchedExpandedBounds!);
+
+      if (withinPrefetched) {
+        // Dentro da zona de gordura: não faz rede. Só garante render no idle.
+        debugPrint('📦 GoogleMapView: Dentro do bounds pré-carregado, pulando refetch');
+        scheduleRender();
+      } else if (withinPrevious && tooSoon) {
         debugPrint('📦 GoogleMapView: Bounds contido, pulando refetch (janela curta)');
       } else {
         _lastRequestedQueryBounds = queryBounds;
         _lastRequestedQueryAt = now;
   await widget.viewModel.loadEventsInBounds(queryBounds);
+
+  // Atualiza a zona de gordura baseada no viewport atual, para que o próximo pan
+  // dentro dessa área não precise de rede.
+  _prefetchedExpandedBounds = prefetchExpandedBounds;
 
   // ✅ Correção de confiabilidade:
   // Se o dataset chegou enquanto o usuário estava em pan (_isCameraMoving == true),
@@ -862,6 +974,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
   widget.viewModel.setVisibleBounds(visibleRegion);
       _lastExpandedVisibleBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
+
+  // Preload de cobertura (zona de gordura): buscar eventos num bounds maior logo no início.
+  // Isso faz com que, ao pan dentro dessa área, os markers/clusters apareçam mais rápido.
+  // Best-effort e não substitui o fetch normal do frame.
+  unawaited(_prefetchEventsForExpandedBounds(visibleRegion));
       
       debugPrint('🎯 GoogleMapView: Busca inicial de eventos em $bounds');
       

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax_plus/iconsax_plus.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:share_plus/share_plus.dart';
@@ -47,10 +47,17 @@ class WhatsAppShareButton extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: Center(
-            child: Icon(
-              IconsaxPlusBold.link,
-              size: 24,
-              color: GlimpseColors.primary,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: SvgPicture.asset(
+                'assets/svg/forward.svg',
+                width: 28,
+                height: 28,
+                colorFilter: const ColorFilter.mode(
+                  GlimpseColors.primary,
+                  BlendMode.srcIn,
+                ),
+              ),
             ),
           ),
         ),
