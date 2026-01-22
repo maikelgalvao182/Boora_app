@@ -26,6 +26,9 @@ class DiscoverScreen extends StatefulWidget {
 class DiscoverScreenState extends State<DiscoverScreen> {
   final GlobalKey<GoogleMapViewState> _mapKey = GlobalKey<GoogleMapViewState>();
   bool _platformMapCreated = false;
+  bool _didScheduleClusterPreload = false;
+
+  VoidCallback? _mapVmListener;
 
   @override
   void initState() {
@@ -43,7 +46,54 @@ class DiscoverScreenState extends State<DiscoverScreen> {
           // Inicialização do mapa não é crítica para navegação.
         }
       }());
+
+      // Post-first-frame preload (prioridade baixa): aquece clusters sem travar UI.
+      // Importante: no primeiro boot, o dataset inicial (MapDiscoveryService) pode levar
+      // alguns segundos. Se fizermos zoom-out antes do dataset/map estarem prontos,
+      // não aquece nada relevante.
+      _scheduleClusterPreloadWhenReady();
     });
+  }
+
+  void _scheduleClusterPreloadWhenReady() {
+    if (_didScheduleClusterPreload) return;
+
+    VoidCallback? listener;
+    listener = () {
+      if (!mounted) return;
+
+      // Só roda quando:
+      // - o PlatformView do mapa já foi criado (evita animateCamera falhar)
+      // - já temos dataset inicial (mapReady)
+      if (!_platformMapCreated || !widget.mapViewModel.mapReady) return;
+
+      widget.mapViewModel.removeListener(listener!);
+      _mapVmListener = null;
+      _didScheduleClusterPreload = true;
+
+      // Prioridade baixa: deixa a UI respirar e não compete com o 1º onCameraIdle.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+  // Warmup em zoom baixo (clusters) sem mexer na câmera.
+  unawaited(_mapKey.currentState?.preloadZoomOutClusters(targetZoom: 3.0));
+      });
+    };
+
+    _mapVmListener = listener;
+    widget.mapViewModel.addListener(listener);
+
+    // Caso já esteja pronto quando chamarmos.
+    listener();
+  }
+
+  @override
+  void dispose() {
+    final listener = _mapVmListener;
+    if (listener != null) {
+      widget.mapViewModel.removeListener(listener);
+      _mapVmListener = null;
+    }
+    super.dispose();
   }
 
   @override
@@ -60,6 +110,9 @@ class DiscoverScreenState extends State<DiscoverScreen> {
               setState(() {
                 _platformMapCreated = true;
               });
+
+              // Se já está mapReady, podemos agendar o preload agora.
+              _scheduleClusterPreloadWhenReady();
             },
           ),
         ),

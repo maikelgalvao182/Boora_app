@@ -76,6 +76,27 @@ class MarkerClusterService {
   static const int _extent = 2048;  // maior = mais precisão
   static const int _nodeSize = 64;
 
+  // Se dois eventos têm a MESMA coordenada, o Fluster vai manter um cluster mesmo
+  // em zoom máximo. Para permitir "desmontar" em markers individuais, aplicamos
+  // um deslocamento mínimo (jitter) determinístico APENAS em pontos duplicados.
+  //
+  // 0.00005 deg ~ 5m (latitude). Aumentado para garantir separação visual.
+  static const double _jitterBaseDeg = 0.00005;
+
+  // A partir deste zoom, forçamos a separação de clusters pequenos em markers individuais.
+  // Isso garante que o usuário sempre consiga acessar eventos sobrepostos.
+  static const int _forceExpandZoom = 14;
+  static const int _maxClusterSizeToExpand = 5;
+
+  /// Calcula jitter determinístico para separar markers sobrepostos.
+  /// Retorna: 0, +j, -j, +2j, -2j, ...
+  static double jitterForIndex(int index) {
+    if (index == 0) return 0.0;
+    final k = (index + 1) ~/ 2;
+    final sign = index.isOdd ? 1.0 : -1.0;
+    return sign * k * _jitterBaseDeg;
+  }
+
   /// Constrói o Fluster com um novo dataset de eventos.
   ///
   /// Chame este método apenas quando:
@@ -100,19 +121,30 @@ class MarkerClusterService {
     _eventsHash = newHash;
     _clusterCache.clear();
 
-    final points = events
-        .map(
-          (e) => EventMapMarker(
-            event: e,
-            markerId: e.id,
-            latitude: e.lat,
-            longitude: e.lng,
-          ),
-        )
-        .toList(growable: false);
+    // Detectar coordenadas duplicadas (lat/lng). Só nesses casos aplicamos jitter.
+    final Map<String, int> duplicateIndexByKey = {};
+
+    String coordKey(double lat, double lng) {
+      return '${lat.toStringAsFixed(7)}|${lng.toStringAsFixed(7)}';
+    }
+
+    final points = <EventMapMarker>[];
+    for (final e in events) {
+      final key = coordKey(e.lat, e.lng);
+      final dupIndex = duplicateIndexByKey.update(key, (v) => v + 1, ifAbsent: () => 0);
+
+      final jitter = jitterForIndex(dupIndex);
+      points.add(
+        EventMapMarker(
+          event: e,
+          markerId: e.id,
+          latitude: e.lat + jitter,
+          longitude: e.lng - jitter,
+        ),
+      );
+    }
 
     final placeholderEvent = events.first;
-
     _fluster = Fluster<EventMapMarker>(
       minZoom: _minZoom,
       maxZoom: _maxZoom,
@@ -175,14 +207,35 @@ class MarkerClusterService {
       if ((item.isCluster ?? false) && item.clusterId != null) {
         final childEvents = _collectChildEvents(fluster, item.clusterId!);
         final safeEvents = childEvents.isEmpty ? <EventModel>[events.first] : childEvents;
-        out.add(
-          MarkerCluster(
-            events: safeEvents,
-            center: LatLng(lat, lng),
-            id: 'cluster_${item.clusterId}',
-            isCluster: safeEvents.length > 1,
-          ),
-        );
+
+        // ✅ Em zoom alto, forçar separação de clusters pequenos em markers individuais.
+        final shouldExpandCluster = zoomInt >= _forceExpandZoom && 
+            safeEvents.length <= _maxClusterSizeToExpand;
+
+        if (shouldExpandCluster) {
+          for (int i = 0; i < safeEvents.length; i++) {
+            final e = safeEvents[i];
+            final jitterLat = jitterForIndex(i);
+            final jitterLng = -jitterForIndex(i);
+            out.add(
+              MarkerCluster(
+                events: [e],
+                center: LatLng(e.lat + jitterLat, e.lng + jitterLng),
+                id: 'marker_${e.id}',
+                isCluster: false,
+              ),
+            );
+          }
+        } else {
+          out.add(
+            MarkerCluster(
+              events: safeEvents,
+              center: LatLng(lat, lng),
+              id: 'cluster_${item.clusterId}',
+              isCluster: safeEvents.length > 1,
+            ),
+          );
+        }
       } else {
         final e = (item as EventMapMarker).event;
         out.add(
@@ -280,7 +333,30 @@ class MarkerClusterService {
 
       if ((item.isCluster ?? false) && item.clusterId != null) {
         final childEvents = _collectChildEvents(_fluster!, item.clusterId!);
-        if (childEvents.isNotEmpty) {
+        if (childEvents.isEmpty) continue;
+
+        // ✅ Em zoom alto, forçar separação de clusters pequenos em markers individuais.
+        // Isso garante que o usuário sempre consiga acessar eventos sobrepostos.
+        final shouldExpandCluster = zoomInt >= _forceExpandZoom && 
+            childEvents.length <= _maxClusterSizeToExpand;
+
+        if (shouldExpandCluster) {
+          // Expandir: cada evento vira um marker individual
+          for (int i = 0; i < childEvents.length; i++) {
+            final e = childEvents[i];
+            // Aplicar jitter visual para separar markers sobrepostos
+            final jitterLat = jitterForIndex(i);
+            final jitterLng = -jitterForIndex(i); // Diagonal para melhor separação
+            out.add(
+              MarkerCluster(
+                events: [e],
+                center: LatLng(e.lat + jitterLat, e.lng + jitterLng),
+                id: 'marker_${e.id}',
+                isCluster: false,
+              ),
+            );
+          }
+        } else {
           out.add(
             MarkerCluster(
               events: childEvents,

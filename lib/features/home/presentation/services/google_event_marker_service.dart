@@ -440,6 +440,7 @@ class GoogleEventMarkerService {
   Future<Set<Marker>> buildClusteredMarkers(
     List<EventModel> events, {
     required double zoom,
+  LatLngBounds? visibleBounds,
     Function(String eventId)? onSingleTap,
     Function(List<EventModel> events)? onClusterTap,
   }) async {
@@ -448,11 +449,22 @@ class GoogleEventMarkerService {
     
     if (events.isEmpty) return markers;
 
-    // Clusterizar eventos
-    final clusters = _clusterService.clusterEvents(
-      events: events,
-      zoom: zoom,
-    );
+    // ✅ IMPORTANTE: Garantir que o Fluster está construído com o dataset atual
+    // ANTES de chamar clustersForView (que assume Fluster já pronto).
+    _clusterService.buildFluster(events);
+
+    // Clusterizar eventos.
+    // Preferir bounds-aware clustering para reduzir trabalho e evitar corrida
+    // (o Fluster não precisa calcular clusters do mundo todo).
+    final clusters = visibleBounds != null
+        ? _clusterService.clustersForView(
+            bounds: visibleBounds,
+            zoom: zoom,
+          )
+        : _clusterService.clusterEvents(
+            events: events,
+            zoom: zoom,
+          );
 
     debugPrint('🔲 [MarkerService] Gerando markers para ${clusters.length} clusters (zoom: ${zoom.toStringAsFixed(1)})');
     

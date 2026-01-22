@@ -85,6 +85,27 @@ class MapViewModel extends ChangeNotifier {
   List<EventModel> _events = [];
   List<EventModel> get events => _events;
 
+  /// Versão monotônica do dataset de eventos exposto ao mapa.
+  ///
+  /// Motivo: evitar o gap "ids iguais -> não notifica" + permitir que a UI
+  /// detecte mudanças de dataset e force um render no idle.
+  final ValueNotifier<int> eventsVersion = ValueNotifier<int>(0);
+
+  /// Assinatura leve do snapshot atual para evitar o caso
+  /// "ids iguais -> não notifica" quando o visual precisa re-renderizar
+  /// (ex.: corrida aplicou markers vazios, mas o dataset é o mesmo).
+  ///
+  /// A assinatura é atualizada junto com `_events` e incluí:
+  /// - quantidade de eventos
+  /// - contagem por categoria (derivada do snapshot)
+  /// - versão do snapshot (incrementada a cada sync do viewport)
+  String _eventsSignature = '';
+
+  /// Incrementa a cada tentativa de sincronizar o viewport (load/refresh bounds).
+  /// Isso evita o caso: "ids iguais -> não notifica" quando a UI precisa
+  /// reconstruir markers por ter aplicado um estado visual incorreto por corrida.
+  int _boundsSnapshotVersion = 0;
+
   /// Filtro de categoria selecionado para o mapa
   /// - null: mostrar todas
   /// - String: mostrar apenas eventos daquela categoria
@@ -640,24 +661,54 @@ class MapViewModel extends ChangeNotifier {
   /// Chamado pelo GoogleMapView quando a câmera para de mover.
   /// Isso mantém os chips de categoria sincronizados com o viewport.
   Future<void> loadEventsInBounds(MapBounds bounds) async {
-  await _mapDiscoveryService.loadEventsInBounds(bounds);
-  await _syncEventsFromBounds();
+    debugPrint('🔵 [MapVM] loadEventsInBounds start (events.length=${_events.length})');
+    // Estratégia A (stale-while-revalidate): mantém eventos atuais durante o fetch.
+    // A UI pode reagir ao loading (spinner), mas não apaga markers por um "vazio" transitório.
+    _setLoading(true);
+    try {
+      await _mapDiscoveryService.loadEventsInBounds(bounds);
+      debugPrint('🔵 [MapVM] loadEventsInBounds after service (nearbyEvents.value.length=${_mapDiscoveryService.nearbyEvents.value.length})');
+      await _syncEventsFromBounds();
+      debugPrint('🔵 [MapVM] loadEventsInBounds after sync (events.length=${_events.length})');
+    } finally {
+      _setLoading(false);
+    }
   }
 
   /// Força refresh imediato das categorias do drawer
   /// 
   /// Ignora cache e debounce. Usado na inicialização do mapa.
   Future<void> forceRefreshBounds(MapBounds bounds) async {
-    await _mapDiscoveryService.forceRefresh(bounds);
-    await _syncEventsFromBounds();
+    // Refresh forçado: aqui o resultado (inclusive vazio) é considerado "confirmado".
+    _setLoading(true);
+    try {
+      await _mapDiscoveryService.forceRefresh(bounds);
+      await _syncEventsFromBounds(forceEmpty: true);
+    } finally {
+      _setLoading(false);
+    }
   }
 
-  Future<void> _syncEventsFromBounds() async {
+  Future<void> _syncEventsFromBounds({bool forceEmpty = false}) async {
+    debugPrint('🟣 [MapVM] _syncEventsFromBounds start (forceEmpty=$forceEmpty)');
+    // Mesmo que a lista final não mude, houve uma tentativa de sync do viewport.
+    // Atualizamos a versão para permitir notificar a UI quando necessário.
+    _boundsSnapshotVersion = (_boundsSnapshotVersion + 1).clamp(0, 1 << 30);
     final boundsEvents = _mapDiscoveryService.nearbyEvents.value;
+    debugPrint('🟣 [MapVM] boundsEvents.length=${boundsEvents.length} isLoading=${_mapDiscoveryService.isLoading}');
     if (boundsEvents.isEmpty) {
-      if (_events.isNotEmpty) {
-        _events = const [];
-        notifyListeners();
+      // "Vazio" pode ser transitório por debounce / in-flight request.
+      // Estratégia A: manter dados atuais enquanto o MapDiscovery ainda está carregando.
+      final emptyConfirmed = forceEmpty || !_mapDiscoveryService.isLoading;
+      debugPrint('🟣 [MapVM] boundsEvents.isEmpty => emptyConfirmed=$emptyConfirmed');
+
+      if (emptyConfirmed) {
+        if (_events.isNotEmpty) {
+          debugPrint('🟣 [MapVM] clearing _events (was ${_events.length})');
+          _events = const [];
+          eventsVersion.value = (eventsVersion.value + 1).clamp(0, 1 << 30);
+          notifyListeners();
+        }
       }
       return;
     }
@@ -740,16 +791,32 @@ class MapViewModel extends ChangeNotifier {
         })
         .toList(growable: false);
 
-    // Mantém o mesmo objeto se nada mudou (reduz rebuilds).
+    // Mantém o mesmo objeto se nada mudou (reduz rebuilds), mas sem criar
+    // "zonas mortas" onde a UI fica visualmente errada e nunca é corrigida.
     final sameLength = mapped.length == _events.length;
     final sameIds = sameLength && _events.asMap().entries.every((entry) {
       final i = entry.key;
       return entry.value.id == mapped[i].id;
     });
 
-    if (sameIds) return;
+  // Assinatura do snapshot (inclui contexto do viewport), para permitir notify
+    // quando o "mesmo dataset" precisa re-renderizar (ex.: bounds mudou,
+    // counts mudaram, ou uma corrida aplicou estado visual inválido).
+    final countsSignature = _eventsInBoundsCountByCategory.entries
+        .map((e) => '${e.key}:${e.value}')
+        .toList(growable: false)
+      ..sort();
+  final nextSignature = '${mapped.length}|v$_boundsSnapshotVersion|${countsSignature.join(',')}';
 
+    if (sameIds && nextSignature == _eventsSignature) {
+      debugPrint('🟣 [MapVM] early-return: sameIds && sameSignature (events.length=${_events.length})');
+      return;
+    }
+
+    debugPrint('🟣 [MapVM] updating _events: ${_events.length} -> ${mapped.length} (signature=$nextSignature)');
     _events = mapped;
+    _eventsSignature = nextSignature;
+  eventsVersion.value = (eventsVersion.value + 1).clamp(0, 1 << 30);
     notifyListeners();
   }
 

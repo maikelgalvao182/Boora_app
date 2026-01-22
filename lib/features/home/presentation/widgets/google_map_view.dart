@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -66,6 +67,32 @@ class GoogleMapViewState extends State<GoogleMapView> {
   
   /// Markers atuais do mapa (clusterizados)
   Set<Marker> _markers = {};
+
+  // ===== Debug / observabilidade =====
+  // Deixe true enquanto estivermos caçando o bug de “0 clusters/0 markers”.
+  static const bool _debugMarkers = true;
+  static const int _debugSampleEvents = 5;
+
+  void _dlog(String message) {
+    if (!_debugMarkers) return;
+    debugPrint(message);
+  }
+
+  /// Token incremental para garantir que apenas o último rebuild assíncrono
+  /// aplica o resultado (evita corrida onde um rebuild “velho” sobrescreve o novo).
+  int _renderSeq = 0;
+
+  /// Pipeline único de render: qualquer trigger chama `scheduleRender()`.
+  ///
+  /// - Cancela render agendado anterior
+  /// - Executa em debounce curto
+  /// - Usa snapshot + token dentro de `_rebuildClusteredMarkers()`
+  Timer? _renderDebounce;
+  static const Duration _renderDebounceDuration = Duration(milliseconds: 80);
+
+  /// Se um render foi solicitado enquanto `_isCameraMoving`/`_isAnimating` estava true,
+  /// guardamos pendência para executar assim que a câmera ficar idle.
+  bool _renderPendingAfterMove = false;
   
   /// Estilo customizado do mapa carregado de assets
   String? _mapStyle;
@@ -79,8 +106,24 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Cache rápido para mapear eventId -> EventModel no viewport (evita firstWhere em lista grande).
   final Map<String, EventModel> _eventsInViewportById = <String, EventModel>{};
 
+  /// Última versão do dataset (MapViewModel.eventsVersion) que foi usada
+  /// para renderizar markers.
+  int _lastRenderedEventsVersion = -1;
+
   // Deve estar alinhado com MarkerClusterService._maxClusterZoom
   static const double _clusterZoomThreshold = 11.0;
+
+  // Ao tocar num cluster pequeno (2-3 itens), queremos garantir que ele realmente
+  // expanda em markers individuais. Para isso, forçamos um zoom mínimo acima do
+  // limiar de clustering.
+  static const int _smallClusterMaxSize = 3;
+  static const double _clusterExpandMinZoom = 14.5;
+
+  // No cold start, renderizar TODOS os eventos no viewport pode atrasar o
+  // primeiro paint (principalmente se houver muitos). Para a UX, é melhor
+  // mostrar um subconjunto rapidamente e depois completar.
+  static const int _initialViewportRenderCap = 60;
+  bool _didProgressiveFirstRender = false;
   
   /// Flag para evitar rebuilds durante animação de câmera
   bool _isAnimating = false;
@@ -95,6 +138,8 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
   /// Guarda o último cluster tocado (pelo conjunto de ids) para permitir “tap 2 abre lista”.
   Set<String>? _lastTappedClusterEventIds;
+  DateTime? _lastClusterTapAt;
+  static const Duration _doubleTapClusterWindow = Duration(milliseconds: 900);
 
   Timer? _cameraIdleDebounce;
   static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 200);
@@ -162,6 +207,54 @@ class GoogleMapViewState extends State<GoogleMapView> {
     _moveCameraToUserLocation();
   }
 
+  /// Preload leve de clusters via "zoom out" seguido de retorno ao zoom anterior.
+  ///
+  /// Objetivo: aquecer a criação de clusters/bitmaps logo após o primeiro frame,
+  /// sem bloquear a UI nem mexer nos dados (não refetch).
+  ///
+  /// - Não faz nada se o mapa ainda não foi criado.
+  /// - Evita disparar `loadEventsInBounds` durante a animação (marca `_isExpandingCluster`).
+  /// - No final, faz um rebuild dos markers para o zoom/bounds atual.
+  Future<void> preloadZoomOutClusters({
+    double targetZoom = 6.0,
+    Duration settleDelay = const Duration(milliseconds: 220),
+  }) async {
+    if (!mounted) return;
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // Se ainda não temos eventos, não há o que clusterizar.
+    if (widget.viewModel.events.isEmpty) return;
+
+    // Evitar competir com interação do usuário.
+    if (_isCameraMoving || _isAnimating) return;
+
+    try {
+      // ⚠️ Importante: mexer na câmera (zoom out) no cold start gera um bounds
+      // ENORME e dispara MapDiscoveryService para o "mundo todo", que é exatamente
+      // o que está causando os ~7s + múltiplos refetchs.
+      //
+      // Aqui o objetivo é só "aquecer" o clustering/bitmaps com o dataset atual.
+      // Então: apenas rebuild dos markers em um zoom baixo (clusters), sem animar.
+      final previousZoom = _currentZoom;
+      final warmZoom = targetZoom;
+
+      _isAnimating = true;
+      _isExpandingCluster = true;
+
+      _currentZoom = warmZoom;
+  scheduleRender();
+
+      _currentZoom = previousZoom;
+  scheduleRender();
+    } catch (_) {
+      // Best-effort.
+    } finally {
+      _isAnimating = false;
+      _isExpandingCluster = false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -183,7 +276,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       _avatarBitmapsDebounce?.cancel();
       _avatarBitmapsDebounce = Timer(_avatarBitmapsDebounceDuration, () {
         if (!mounted || _isAnimating || _isCameraMoving) return;
-        unawaited(_rebuildClusteredMarkers());
+  scheduleRender();
       });
     };
     _markerService.avatarBitmapsVersion.addListener(_avatarBitmapsListener!);
@@ -210,16 +303,49 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Callback quando eventos mudarem
   void _onEventsChanged() async {
     if (!mounted || _isAnimating) return;
-    await _rebuildClusteredMarkers();
+    scheduleRender();
+  }
+
+  /// Agenda um rebuild de markers num pipeline único.
+  void scheduleRender() {
+    if (!mounted) return;
+    if (_mapController == null) return;
+
+    // Se estamos em movimento/animação, não tentamos render agora (evita churn),
+    // mas garante que o próximo idle execute um render obrigatório.
+    if (_isAnimating || _isCameraMoving) {
+      _renderPendingAfterMove = true;
+      return;
+    }
+
+    _renderDebounce?.cancel();
+    _renderDebounce = Timer(_renderDebounceDuration, () {
+      if (!mounted) return;
+      if (_isAnimating || _isCameraMoving) return;
+      unawaited(_rebuildClusteredMarkers());
+    });
   }
 
   /// Reconstrói markers com clustering baseado no zoom atual
   Future<void> _rebuildClusteredMarkers() async {
+    final int seq = ++_renderSeq;
+
+    final rebuildStartedAt = DateTime.now();
+    _dlog(
+      '🧭 [MapRender#$seq] rebuild start '
+      '(moving=$_isCameraMoving animating=$_isAnimating zoom=${_currentZoom.toStringAsFixed(2)} '
+      'events=${widget.viewModel.events.length} markersCur=${_markers.length})',
+    );
+
     if (!mounted) return;
     if (_isAnimating || _isCameraMoving) return;
 
-    final allEvents = widget.viewModel.events;
+  // Snapshot do estado atual para manter consistência durante awaits.
+  final allEvents = List<EventModel>.from(widget.viewModel.events);
+  final zoomSnapshot = _currentZoom;
+
     if (allEvents.isEmpty) {
+      _dlog('🧭 [MapRender#$seq] abort: allEvents.isEmpty');
       if (_markers.isNotEmpty) {
         setState(() => _markers = {});
       }
@@ -233,34 +359,137 @@ class GoogleMapViewState extends State<GoogleMapView> {
         final visibleRegion = await _mapController!.getVisibleRegion();
         bounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
         _lastExpandedVisibleBounds = bounds;
+
+        _dlog(
+          '🧭 [MapRender#$seq] fetched bounds from map '
+          'SW(${bounds.southwest.latitude.toStringAsFixed(4)},${bounds.southwest.longitude.toStringAsFixed(4)}) '
+          'NE(${bounds.northeast.latitude.toStringAsFixed(4)},${bounds.northeast.longitude.toStringAsFixed(4)})',
+        );
       } catch (_) {
-        // Mapa ainda não pronto - não renderiza markers
+        _dlog('🧭 [MapRender#$seq] abort: getVisibleRegion failed (map not ready?)');
+        // Mapa ainda não pronto: manter estado consistente (sem markers).
+        if (_markers.isNotEmpty) {
+          setState(() => _markers = {});
+        }
         return;
       }
     }
     
     // Sem bounds = não renderiza (evita renderizar tudo)
-    if (bounds == null) return;
+    if (bounds == null) {
+  _dlog('🧭 [MapRender#$seq] abort: bounds == null (clearing markers)');
+      // Sem bounds: manter estado consistente (sem markers), para evitar ficar
+      // preso com markers stale quando há mudanças de categoria/dataset.
+      if (_markers.isNotEmpty) {
+        setState(() => _markers = {});
+      }
+      return;
+    }
 
-    final eventsByCategory = _applyCategoryFilter(allEvents);
-    final viewportEvents = eventsByCategory
-        .where((event) => _boundsContains(bounds!, event.lat, event.lng))
+    // ✅ Importante: em zoom out (clustering), NÃO filtramos por viewport.
+    // Em zoom baixo, o viewport pode ser enorme/instável e esse filtro acaba
+    // causando "0 markers" mesmo com dataset cheio. O clustering já resolve o custo.
+    final shouldFilterByViewport = zoomSnapshot > _clusterZoomThreshold;
+
+    final selectedCategory = widget.viewModel.selectedCategory;
+    _dlog(
+      '🧭 [MapRender#$seq] snapshot '
+      'zoom=$zoomSnapshot (effective clustering=${zoomSnapshot <= _clusterZoomThreshold}) '
+      'filterViewport=$shouldFilterByViewport '
+      'category=${selectedCategory == null ? 'null' : "\"$selectedCategory\""} '
+      'boundsExpand=SW(${bounds.southwest.latitude.toStringAsFixed(3)},${bounds.southwest.longitude.toStringAsFixed(3)}) '
+      'NE(${bounds.northeast.latitude.toStringAsFixed(3)},${bounds.northeast.longitude.toStringAsFixed(3)})',
+    );
+
+    final categoryFiltered = _applyCategoryFilter(allEvents);
+    _dlog('🧭 [MapRender#$seq] categoryFilter: ${allEvents.length} -> ${categoryFiltered.length}');
+
+    int insideBoundsCount = 0;
+    if (shouldFilterByViewport) {
+      final b = bounds;
+      for (final e in categoryFiltered) {
+        if (_boundsContains(b, e.lat, e.lng)) insideBoundsCount++;
+      }
+      _dlog('🧭 [MapRender#$seq] boundsFilter: inside=$insideBoundsCount of ${categoryFiltered.length}');
+    }
+
+    final b = bounds;
+    var viewportEvents = categoryFiltered
+        .where((event) {
+          if (!shouldFilterByViewport) return true;
+          return _boundsContains(b, event.lat, event.lng);
+        })
         .toList(growable: false);
 
-    if (viewportEvents.isEmpty) return;
+    if (_debugMarkers) {
+      final sample = viewportEvents.take(_debugSampleEvents).toList(growable: false);
+      for (final e in sample) {
+        _dlog(
+          '🧭 [MapRender#$seq] sample event id=${e.id} '
+          'lat=${e.lat.toStringAsFixed(5)} lng=${e.lng.toStringAsFixed(5)} '
+          'cat=${e.category ?? 'null'}',
+        );
+      }
+    }
 
-    // Pré-carrega avatares do viewport em background.
-    // Isso aumenta a chance de, ao dar zoom in (desfazer cluster), os avatares já estarem no cache.
-    unawaited(
-      _markerService.preloadAvatarPinsForEvents(
-        viewportEvents,
-        maxUsers: 30,
-      ),
-    );
+    // Progressive render (apenas no primeiro paint com dados): mostra algo rápido.
+    if (!_didProgressiveFirstRender && viewportEvents.length > _initialViewportRenderCap) {
+      viewportEvents = viewportEvents.take(_initialViewportRenderCap).toList(growable: false);
+    }
+
+    if (viewportEvents.isEmpty) {
+      _dlog(
+        '🧭 [MapRender#$seq] abort: viewportEvents.isEmpty '
+        '(filterViewport=$shouldFilterByViewport, categoryFiltered=${categoryFiltered.length})',
+      );
+      // ✅ Estado consistente: se não há eventos visíveis, limpamos markers.
+      // Isso evita ficar preso com markers antigos quando uma mudança de bounds/
+      // categoria deixa o viewport vazio por um frame.
+      if (_markers.isNotEmpty) {
+        setState(() => _markers = {});
+      }
+      return;
+    }
+
+    // ✅ Pré-carrega avatares do viewport ANTES de construir markers.
+    // Aguardar com timeout curto para que markers já nasçam com avatar,
+    // evitando o "flash" do empty state.
+    // Se timeout estourar, continuamos (best-effort) - avatares virão depois via listener.
+    try {
+      await _markerService
+          .preloadAvatarPinsForEvents(viewportEvents, maxUsers: 30)
+          .timeout(const Duration(milliseconds: 800));
+      _dlog('🧭 [MapRender#$seq] avatars preloaded (within timeout)');
+    } catch (_) {
+      _dlog('🧭 [MapRender#$seq] avatars preload timeout/error - continuing with defaults');
+    }
+
+    // Verificar se ainda somos o render atual após o await
+    if (!mounted || seq != _renderSeq) {
+      _dlog('🧭 [MapRender#$seq] discard after avatar preload (currentSeq=$_renderSeq)');
+      return;
+    }
     
+  // 🎯 Importante para UX: no cold start, forçamos clustering mesmo em zoom alto
+  // para aparecer "algo" rapidamente.
+  //
+  // Porém, durante a expansão de cluster (tap), precisamos usar o zoom REAL para
+  // desfazer o cluster. Então o clamp só acontece no primeiro paint.
+  final shouldForceClusters = !_didProgressiveFirstRender && !_isExpandingCluster;
+  final effectiveZoom = shouldForceClusters
+    ? zoomSnapshot.clamp(0.0, _clusterZoomThreshold)
+    : zoomSnapshot;
+
+    final markersBuildStart = DateTime.now();
+    _dlog(
+      '🧭 [MapRender#$seq] markerService.buildClusteredMarkers '
+      'inputEvents=${viewportEvents.length} zoomEffective=${effectiveZoom.toStringAsFixed(2)}',
+    );
+
     final markers = await _markerService.buildClusteredMarkers(
       viewportEvents,
-      zoom: _currentZoom,
+      zoom: effectiveZoom,
+      visibleBounds: bounds,
       onSingleTap: (eventId) {
         final event = _eventsInViewportById[eventId] ??
             widget.viewModel.events.firstWhere((e) => e.id == eventId);
@@ -272,9 +501,40 @@ class GoogleMapViewState extends State<GoogleMapView> {
     _eventsInViewportById
       ..clear()
       ..addEntries(viewportEvents.map((e) => MapEntry(e.id, e)));
+
+    _dlog(
+      '🧭 [MapRender#$seq] markerService result markers=${markers.length} '
+      '(took ${DateTime.now().difference(markersBuildStart).inMilliseconds}ms)',
+    );
     
+  if (!mounted || seq != _renderSeq) {
+      // Descarta resultado atrasado (um rebuild mais novo já foi disparado).
+      _dlog('🧭 [MapRender#$seq] discard: stale result (currentSeq=$_renderSeq)');
+      return;
+    }
+
     if (mounted) {
       setState(() => _markers = markers);
+    }
+
+    _dlog(
+      '🧭 [MapRender#$seq] applied markers=${markers.length} '
+      'totalTook=${DateTime.now().difference(rebuildStartedAt).inMilliseconds}ms',
+    );
+
+  // Marca que o render aplicou a versão atual do dataset.
+  _lastRenderedEventsVersion = widget.viewModel.eventsVersion.value;
+
+    // Depois do primeiro render com cap, agenda completar o render com tudo.
+    if (!_didProgressiveFirstRender) {
+      _didProgressiveFirstRender = true;
+      if (widget.viewModel.events.isNotEmpty) {
+        // Próximo frame, completa com todos os eventos (best-effort).
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          scheduleRender();
+        });
+      }
     }
   }
 
@@ -299,14 +559,30 @@ class GoogleMapViewState extends State<GoogleMapView> {
   void _onClusterTap(List<EventModel> eventsInCluster) async {
     if (_mapController == null || eventsInCluster.isEmpty) return;
 
-    // Warmup em background (não bloqueia a interação)
-    _markerService
-        .preloadAvatarPinsForEvents(eventsInCluster, maxUsers: 30)
-        .timeout(const Duration(milliseconds: 900))
-        .catchError((_) => 0);
+    // Tap 2 no mesmo cluster: abre lista dos eventos (sem depender de zoom/expand).
+    final idsNow = eventsInCluster.map((e) => e.id).toSet();
+    final now = DateTime.now();
+    final withinWindow = _lastClusterTapAt != null && now.difference(_lastClusterTapAt!) <= _doubleTapClusterWindow;
+    final isSameCluster = _lastTappedClusterEventIds != null && setEquals(_lastTappedClusterEventIds, idsNow);
+    if (withinWindow && isSameCluster) {
+      _lastClusterTapAt = now;
+      _showClusterEventsSheet(eventsInCluster);
+      return;
+    }
+
+    // ✅ Pré-carrega avatares do cluster ANTES de animar.
+    // Aguardamos com timeout curto para que markers individuais já tenham avatar.
+    try {
+      await _markerService
+          .preloadAvatarPinsForEvents(eventsInCluster, maxUsers: 30)
+          .timeout(const Duration(milliseconds: 600));
+    } catch (_) {
+      // Best-effort: se timeout, continuamos (avatares virão depois via listener)
+    }
     
-    // Mantém referência do último cluster tocado (pode ser útil para ajustes futuros)
-    _lastTappedClusterEventIds = eventsInCluster.map((e) => e.id).toSet();
+  // Mantém referência do último cluster tocado (tap 2 abre lista)
+  _lastTappedClusterEventIds = idsNow;
+  _lastClusterTapAt = now;
     
     // 🎯 Calcular bounds que enquadra todos os eventos
     double minLat = eventsInCluster.first.lat;
@@ -331,11 +607,15 @@ class GoogleMapViewState extends State<GoogleMapView> {
       // Se todos os eventos estão no mesmo ponto (ou muito próximos), fazer zoom fixo
       final latDiff = maxLat - minLat;
       final lngDiff = maxLng - minLng;
+
+      final isSmallCluster = eventsInCluster.length <= _smallClusterMaxSize;
       
       if (latDiff < 0.0001 && lngDiff < 0.0001) {
         // Eventos sobrepostos: zoom fixo no centro
         final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-        final targetZoom = (_currentZoom + 2.0).clamp(14.0, 18.0);
+        final targetZoom = isSmallCluster
+            ? (_currentZoom + 3.0).clamp(_clusterExpandMinZoom, 18.0)
+            : (_currentZoom + 2.0).clamp(14.0, 18.0);
         
         debugPrint(
           '🔍 Expandindo cluster (sobrepostos): ${eventsInCluster.length} eventos, '
@@ -346,7 +626,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
           CameraUpdate.newLatLngZoom(center, targetZoom),
         );
         
-        _currentZoom = targetZoom;
+  _currentZoom = targetZoom;
       } else {
         // Eventos espalhados: usar bounds para enquadrar todos
         final bounds = LatLngBounds(
@@ -364,11 +644,28 @@ class GoogleMapViewState extends State<GoogleMapView> {
         await _mapController!.animateCamera(
           CameraUpdate.newLatLngBounds(bounds, 80.0),
         );
-        
-        // Atualizar zoom atual após animação
-        final newPosition = await _mapController!.getVisibleRegion();
-        // Estimar zoom baseado no tamanho do bounds (aproximação)
-        _currentZoom = (_currentZoom + 2.0).clamp(12.0, 18.0);
+
+        // Para clusters pequenos, o bounds pode manter zoom baixo e o cluster continua.
+        // Garantimos um zoom acima do limiar para realmente separar em markers.
+        if (isSmallCluster) {
+          final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+          await _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              center,
+              (_currentZoom + 3.0).clamp(_clusterExpandMinZoom, 18.0),
+            ),
+          );
+        }
+
+        // Atualizar zoom atual após animação (valor real)
+        _currentZoom = await _mapController!.getZoomLevel();
+      }
+
+      // 🧩 Importante: em alguns devices/timings, o onCameraIdle pode demorar ou
+      // não disparar do jeito esperado para "desfazer" cluster pequeno.
+      // Então fazemos um rebuild best-effort logo após a animação.
+      if (mounted) {
+  scheduleRender();
       }
       
     } finally {
@@ -418,14 +715,37 @@ class GoogleMapViewState extends State<GoogleMapView> {
     if (_isExpandingCluster) {
       _isExpandingCluster = false;
 
+      // ✅ Boa prática: ao finalizar a animação do cluster, garantir que estamos
+      // reconstruindo com zoom/bounds REAIS do frame atual.
+      try {
+        final newZoom = await _mapController!.getZoomLevel();
+        _currentZoom = newZoom;
+
+        final visibleRegion = await _mapController!.getVisibleRegion();
+        _lastExpandedVisibleBounds = _expandBounds(visibleRegion, _viewportBoundsBufferFactor);
+      } catch (_) {
+        // Best-effort.
+      }
+
       // Ainda assim, atualiza os markers para o novo zoom/bounds com o dataset já carregado.
       // Isso dá a sensação correta de “expandiu o cluster” sem poluir com novos eventos.
       _cameraIdleDebounce?.cancel();
       _cameraIdleDebounce = Timer(_cameraIdleDebounceDuration, () {
         if (!mounted) return;
-        unawaited(_rebuildClusteredMarkers());
+        // Sempre drena um render pendente após movimento/animação.
+        if (_renderPendingAfterMove) {
+          _renderPendingAfterMove = false;
+        }
+        scheduleRender();
       });
       return;
+    }
+
+    // Se algum listener pediu render durante o pan, garantimos um render no idle,
+    // mesmo que zoom não tenha mudado.
+    if (_renderPendingAfterMove) {
+      _renderPendingAfterMove = false;
+      scheduleRender();
     }
 
     _cameraIdleDebounce?.cancel();
@@ -467,7 +787,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       // Recalcular clusters se zoom mudou significativamente OU se cruzou o limiar de clustering
       if ((zoomChanged || crossedClusterThreshold) && widget.viewModel.events.isNotEmpty) {
         debugPrint('🔄 GoogleMapView: Zoom mudou - recalculando clusters');
-        await _rebuildClusteredMarkers();
+  scheduleRender();
       }
       
       // Disparar busca de eventos no bounding box
@@ -481,7 +801,22 @@ class GoogleMapViewState extends State<GoogleMapView> {
       } else {
         _lastRequestedQueryBounds = queryBounds;
         _lastRequestedQueryAt = now;
-        await widget.viewModel.loadEventsInBounds(queryBounds);
+  await widget.viewModel.loadEventsInBounds(queryBounds);
+
+  // ✅ Correção de confiabilidade:
+  // Se o dataset chegou enquanto o usuário estava em pan (_isCameraMoving == true),
+  // o listener de eventos pode ter tentado rebuild e abortado.
+  // Em um pan sem zoom, zoomChanged/crossedThreshold = false, então o rebuild
+  // não aconteceria e os markers podem ficar "presos" no estado anterior.
+  scheduleRender();
+      }
+
+      // Fallback de confiabilidade: mesmo num pan sem mudança de zoom,
+      // se o dataset mudou desde o último render, garantimos um render no idle.
+      final currentVersion = widget.viewModel.eventsVersion.value;
+      if (currentVersion != _lastRenderedEventsVersion) {
+        _lastRenderedEventsVersion = currentVersion;
+        scheduleRender();
       }
 
       // Atualizar contagem/lista de pessoas SOMENTE quando o zoom está próximo
@@ -569,7 +904,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
         } catch (e) {
           debugPrint('⚠️ GoogleMapView: Warmup inicial falhou: $e');
         }
-        await _rebuildClusteredMarkers();
+  scheduleRender();
       }
     } catch (error) {
       debugPrint('⚠️ GoogleMapView: Erro na busca inicial: $error');
@@ -626,6 +961,78 @@ class GoogleMapViewState extends State<GoogleMapView> {
     if (!mounted) return;
 
     ToastService.showInfo(message: message);
+  }
+
+  void _showClusterEventsSheet(List<EventModel> events) {
+    if (!mounted) return;
+
+    final sorted = [...events]
+      ..sort((a, b) => (a.title).toLowerCase().compareTo((b.title).toLowerCase()));
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 500),
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).dividerColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Eventos neste cluster (${sorted.length})',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: sorted.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final e = sorted[index];
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Text(e.emoji, style: const TextStyle(fontSize: 20)),
+                        title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: e.category == null
+                            ? null
+                            : Text(e.category!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          unawaited(_onMarkerTap(e));
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// Handler de navegação chamado pelo MapNavigationService
@@ -914,6 +1321,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
   @override
   void dispose() {
     _cameraIdleDebounce?.cancel();
+  _renderDebounce?.cancel();
     _avatarBitmapsDebounce?.cancel();
     final listener = _avatarBitmapsListener;
     if (listener != null) {

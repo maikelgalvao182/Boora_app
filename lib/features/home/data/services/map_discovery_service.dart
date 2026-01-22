@@ -43,12 +43,23 @@ class MapDiscoveryService {
   /// TTL do cache por quadkey. 30s balanceia freshness vs economia de reads.
   /// Em uso casual, usuário pode pan/zoom e voltar pro mesmo lugar.
   static const Duration cacheTTL = Duration(seconds: 30);
-  static const Duration debounceTime = Duration(milliseconds: 500);
+  // Para mapa, 500ms costuma dar sensação de lag e aumenta a janela de corrida.
+  // 200ms mantém proteção contra spam sem prejudicar a UX.
+  static const Duration debounceTime = Duration(milliseconds: 200);
   static const int maxEventsPerQuery = 100;
+
+  // Sequência monotônica de requests para descartar respostas antigas.
+  // Isso evita a corrida: request A (lento) termina depois de request B (rápido)
+  // e sobrescreve o estado com dados velhos.
+  int _requestSeq = 0;
 
   // Debounce
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
+  
+  /// Completer que é completado quando a query (ou cache hit) efetivamente termina.
+  /// Isso permite que callers de `loadEventsInBounds` aguardem o resultado real.
+  Completer<void>? _activeQueryCompleter;
 
   // Estado
   bool _isLoading = false;
@@ -58,28 +69,59 @@ class MapDiscoveryService {
   /// 
   /// Aplica debounce automático para evitar queries excessivas
   /// durante o movimento do mapa.
+  /// 
+  /// **Importante**: este método aguarda a query completar (incluindo debounce)
+  /// para que o caller possa consumir `nearbyEvents.value` logo após o await.
   Future<void> loadEventsInBounds(MapBounds bounds) async {
     _pendingBounds = bounds;
 
-    // Cancelar timer anterior
+    // Marca que existe um request mais recente; se houver outro load antes do
+    // debounce estourar, o seq muda e o anterior perde.
+    final int requestId = ++_requestSeq;
+
+    // Cancelar timer anterior (vai re-agendar com novo debounce)
     _debounceTimer?.cancel();
 
+    // Se já existe um completer ativo (query em andamento ou agendada),
+    // reutilizamos para que todos os callers aguardem o mesmo resultado.
+    // Se não existe, criamos um novo.
+    _activeQueryCompleter ??= Completer<void>();
+    final completerToAwait = _activeQueryCompleter!;
+
     // Criar novo timer
-    _debounceTimer = Timer(debounceTime, () {
-      if (_pendingBounds != null) {
-        _executeQuery(_pendingBounds!);
-        _pendingBounds = null;
+    _debounceTimer = Timer(debounceTime, () async {
+      final boundsToQuery = _pendingBounds;
+      _pendingBounds = null;
+      
+      if (boundsToQuery != null) {
+        await _executeQuery(boundsToQuery, requestId);
+      }
+      
+      // Completa o completer (permite todos os callers prosseguirem)
+      final c = _activeQueryCompleter;
+      _activeQueryCompleter = null;
+      if (c != null && !c.isCompleted) {
+        c.complete();
       }
     });
+
+    // Aguarda o completer: só retorna quando a query (ou cache hit) finalizar.
+    await completerToAwait.future;
   }
 
   /// Executa a query no Firestore
-  Future<void> _executeQuery(MapBounds bounds) async {
+  Future<void> _executeQuery(MapBounds bounds, int requestId) async {
     // Verificar cache por quadkey
     final quadkey = bounds.toQuadkey();
     
     if (_shouldUseCache(quadkey)) {
       debugPrint('📦 [MapDiscovery] Cache: ${_cachedEvents.length} eventos');
+
+      // Se existe um request mais novo, não publica cache velho.
+      if (requestId != _requestSeq) {
+        return;
+      }
+
       nearbyEvents.value = _cachedEvents;
       _eventsController.add(_cachedEvents);
       return;
@@ -90,6 +132,11 @@ class MapDiscoveryService {
 
     try {
       final events = await _queryFirestore(bounds);
+
+      // Descarta resposta velha (last-write-wins)
+      if (requestId != _requestSeq) {
+        return;
+      }
       
       _cachedEvents = events;
       _lastFetchTime = DateTime.now();
@@ -166,7 +213,8 @@ class MapDiscoveryService {
   Future<void> forceRefresh(MapBounds bounds) async {
     _debounceTimer?.cancel();
     _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
-    await _executeQuery(bounds);
+  final int requestId = ++_requestSeq;
+  await _executeQuery(bounds, requestId);
   }
 
   /// Limpa o cache
