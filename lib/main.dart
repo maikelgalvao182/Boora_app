@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_country_selector/flutter_country_selector.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:provider/provider.dart' as provider;
 import 'package:partiu/firebase_options.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
@@ -16,7 +18,9 @@ import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/core/services/cache/cache_manager.dart';
 import 'package:partiu/core/services/google_maps_initializer.dart';
+import 'package:partiu/core/services/analytics_service.dart';
 import 'package:partiu/core/router/app_router.dart';
+import 'package:partiu/core/router/analytics_route_tracker.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
 // LocationSyncScheduler agora é inicializado pelo AuthSyncService após login.
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
@@ -43,6 +47,28 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
+    // Inicializar Firebase primeiro (necessário para Crashlytics)
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+    } catch (e) {
+      debugPrint('Firebase já inicializado: $e');
+    }
+
+    // Inicializar Analytics e Crashlytics
+    await AnalyticsService.instance.initialize();
+
+    // Se usuário já está logado, setar userId para analytics
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      await AnalyticsService.instance.setUserId(currentUser.uid);
+      debugPrint('📊 Analytics userId setado: ${currentUser.uid}');
+    }
+
+    // Captura erros do Flutter framework e envia para Crashlytics
     FlutterError.onError = (FlutterErrorDetails details) {
       final exception = details.exception;
       final stack = details.stack ?? StackTrace.current;
@@ -55,6 +81,9 @@ Future<void> main() async {
         return;
       }
 
+      // Registra no Crashlytics (usando recordFlutterError para não marcar tudo como fatal)
+      FirebaseCrashlytics.instance.recordFlutterError(details);
+
       FlutterError.presentError(details);
       AppLogger.error(
         'Unhandled Flutter error',
@@ -64,6 +93,7 @@ Future<void> main() async {
       );
     };
 
+    // Captura erros assíncronos da plataforma
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
       if (_shouldSuppressPermissionDeniedAfterLogout(error)) {
         AppLogger.warning(
@@ -72,6 +102,9 @@ Future<void> main() async {
         );
         return true;
       }
+
+      // Registra no Crashlytics
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
 
       AppLogger.error(
         'Unhandled async error',
@@ -87,23 +120,9 @@ Future<void> main() async {
       DeviceOrientation.portraitUp,
     ]);
     
-    // Inicializar BrazilianLocations
-    // await BrazilianLocations.initialize();
-    
     // Configurar locales para timeago
     timeago.setLocaleMessages('pt', timeago.PtBrMessages());
     timeago.setLocaleMessages('es', timeago.EsMessages());
-    
-    // Inicializar Firebase (protegido contra hot reload)
-    try {
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      }
-    } catch (e) {
-      debugPrint('Firebase já inicializado: $e');
-    }
 
     //  Inicializar Push Notification Manager (ANTES do runApp)
     await PushNotificationManager.instance.initialize();
@@ -186,6 +205,10 @@ Future<void> main() async {
       );
       return;
     }
+
+    // Registra no Crashlytics
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+
     AppLogger.error(
       'Uncaught zoned error',
       tag: 'APP',
@@ -240,6 +263,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     debugPrint('📊 [AppRoot] Criando router...');
     final router = createAppRouter(context);
     debugPrint('✅ [AppRoot] Router criado');
+
+    // Inicializa o tracker de analytics com sanitização de rotas
+    // ignore: unused_local_variable
+    final analyticsTracker = AnalyticsRouteTracker(router, FirebaseAnalytics.instance);
     
     debugPrint('📊 [AppRoot] Construindo MaterialApp.router...');
 

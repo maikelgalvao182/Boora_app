@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:partiu/features/subscription/services/simple_revenue_cat_service.dart';
+import 'package:partiu/core/services/analytics_service.dart';
 
 class SocialAuth {
   // Variables
@@ -144,6 +145,15 @@ class SocialAuth {
       } catch (e) {
         // Ignora erros do RevenueCat para não bloquear o login
       }
+
+      // 📊 ANALYTICS: Loga evento de login/signup com Apple
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      if (isNewUser) {
+        AnalyticsService.instance.logSignUp(method: 'apple');
+      } else {
+        AnalyticsService.instance.logLogin(method: 'apple');
+      }
+      AnalyticsService.instance.setUserId(userCredential.user!.uid);
 
       /// Check User Account in Database to take action
       checkUserAccount();
@@ -317,6 +327,15 @@ class SocialAuth {
         debugPrint('⚠️ [GOOGLE_AUTH] Erro no RevenueCat (ignorando): $e');
       }
 
+      // 📊 ANALYTICS: Loga evento de login/signup com Google
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      if (isNewUser) {
+        AnalyticsService.instance.logSignUp(method: 'google');
+      } else {
+        AnalyticsService.instance.logLogin(method: 'google');
+      }
+      AnalyticsService.instance.setUserId(userCredential.user!.uid);
+
       debugPrint('🔵 [GOOGLE_AUTH] Verificando conta do usuário...');
       /// Check User Account in Database to take action
       checkUserAccount();
@@ -387,6 +406,10 @@ class SocialAuth {
         // Ignora erros do RevenueCat para não bloquear o login
       }
 
+      // 📊 ANALYTICS: Loga evento de login com Email
+      AnalyticsService.instance.logLogin(method: 'email');
+      AnalyticsService.instance.setUserId(userCredential.user!.uid);
+
       /// Check User Account in Database to take action
       checkUserAccount();
     } on FirebaseAuthException catch (error) {
@@ -412,6 +435,10 @@ class SocialAuth {
         email: email.trim(),
         password: password,
       );
+
+      // 📊 ANALYTICS: Loga evento de signup com Email
+      AnalyticsService.instance.logSignUp(method: 'email');
+      AnalyticsService.instance.setUserId(userCredential.user!.uid);
 
       // ✅ Envia verificação e impede prosseguir até o e-mail estar verificado
       final user = userCredential.user;

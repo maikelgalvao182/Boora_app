@@ -69,6 +69,8 @@ GoRouter createAppRouter(BuildContext context) {
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     refreshListenable: authSync, // Ouve mudanças no AuthSyncService
+    // Screen tracking feito via AnalyticsRouteTracker (sanitizado)
+    // Não usar FirebaseGoRouterObserver aqui para evitar duplicação
     
     // Proteção de rotas baseada no AuthSyncService
     redirect: (context, state) {

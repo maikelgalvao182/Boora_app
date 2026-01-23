@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/managers/session_manager.dart';
+import 'package:partiu/core/services/analytics_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
@@ -157,6 +158,15 @@ class SessionCleanupService {
         _log('✅ Estado reativo (AppState) resetado');
       } catch (e) {
         _log('⚠️  Etapa 7/9 falhou: $e (continuando...)');
+      }
+
+      // 7.1 Limpar userId do Analytics
+      _log('📊 ETAPA 7.1/9: Limpando userId do Analytics');
+      try {
+        await AnalyticsService.instance.setUserId(null);
+        _log('✅ Analytics userId limpo');
+      } catch (e) {
+        _log('⚠️  Etapa 7.1/9 falhou: $e (continuando...)');
       }
 
       // 8. Cancelar listeners ativos antes de limpar cache
