@@ -591,6 +591,41 @@ class UserStore {
     }
   }
 
+  /// ✅ Atualização otimista de localização (chamado após salvar no Firestore)
+  /// Atualiza os notifiers imediatamente sem esperar o snapshot do Firestore
+  void updateLocation(String userId, {String? city, String? state, String? country}) {
+    if (userId.isEmpty) return;
+    
+    // Garantir que entry existe
+    if (!_users.containsKey(userId)) {
+      _users[userId] = UserEntry(
+        avatarUrl: '',
+        avatarProvider: const AssetImage('assets/images/empty_avatar.jpg'),
+        lastUpdated: DateTime.now(),
+        city: city,
+        state: state,
+        country: country,
+      );
+    }
+    
+    final entry = _users[userId]!;
+    
+    if (city != null && entry.city != city) {
+      entry.city = city;
+      _cityNotifiers[userId]?.value = city;
+    }
+    
+    if (state != null && entry.state != state) {
+      entry.state = state;
+      _stateNotifiers[userId]?.value = state;
+    }
+    
+    if (country != null && entry.country != country) {
+      entry.country = country;
+      _countryNotifiers[userId]?.value = country;
+    }
+  }
+
   // ========== FIRESTORE LISTENER ==========
 
   /// Garante que o listener do Firestore está ativo

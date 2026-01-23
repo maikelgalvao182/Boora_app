@@ -12,6 +12,9 @@ class MarkerBitmapGenerator {
   /// Cache de bitmaps de clusters
   static final Map<String, google.BitmapDescriptor> _clusterCache = {};
 
+  /// Cache de bitmaps de emoji pins
+  static final Map<String, google.BitmapDescriptor> _emojiPinCache = {};
+
   static double get _currentDevicePixelRatio {
     final view = ui.PlatformDispatcher.instance.implicitView;
     if (view != null) return view.devicePixelRatio;
@@ -179,6 +182,19 @@ class MarkerBitmapGenerator {
     debugPrint('🗑️ [MarkerBitmapGenerator] Cache de clusters limpo');
   }
 
+  /// Limpa cache de emoji pins
+  static void clearEmojiPinCache() {
+    _emojiPinCache.clear();
+    debugPrint('🗑️ [MarkerBitmapGenerator] Cache de emoji pins limpo');
+  }
+
+  /// Limpa todos os caches de bitmaps
+  static void clearAllCaches() {
+    clearClusterCache();
+    clearEmojiPinCache();
+    debugPrint('🗑️ [MarkerBitmapGenerator] Todos os caches limpos');
+  }
+
   /// Gera bitmap de um emoji com cor dinâmica (Google Maps)
   /// 
   /// Parâmetros:
@@ -190,6 +206,12 @@ class MarkerBitmapGenerator {
     String? eventId,
     int size = 150,
   }) async {
+    // Cache key baseada no emoji, eventId e size
+    final cacheKey = 'emoji_${emoji}_${eventId ?? "default"}_$size';
+    if (_emojiPinCache.containsKey(cacheKey)) {
+      return _emojiPinCache[cacheKey]!;
+    }
+
     try {
       // Adicionar padding extra para acomodar a sombra
       final padding = (size * 0.16).round();
@@ -254,7 +276,9 @@ class MarkerBitmapGenerator {
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final uint8list = byteData!.buffer.asUint8List();
 
-      return _descriptorFromPngBytes(uint8list);
+      final descriptor = await _descriptorFromPngBytes(uint8list);
+      _emojiPinCache[cacheKey] = descriptor;
+      return descriptor;
     } catch (e) {
       debugPrint('❌ Erro ao gerar emoji pin: $e');
       return await _generateDefaultAvatarPinForGoogleMaps(size);

@@ -70,7 +70,20 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
       _isFirstBuild = false;
     }
 
-    _cachedParticipants = next;
+    // ✅ ORDEM ESTÁVEL: Manter o primeiro participante (criador) fixo,
+    // ordenar os demais por `userId` para evitar "troca de lugares" visual
+    final sortedList = List<Map<String, dynamic>>.from(next);
+    if (sortedList.length > 1) {
+      // Preservar o primeiro (criador), ordenar o resto por userId
+      final first = sortedList.removeAt(0);
+      sortedList.sort((a, b) {
+        final aId = a['userId'] as String? ?? '';
+        final bId = b['userId'] as String? ?? '';
+        return aId.compareTo(bId);
+      });
+      sortedList.insert(0, first);
+    }
+    _cachedParticipants = sortedList;
 
     // ✅ PRELOAD: Carregar avatares antes da UI renderizar
     for (final p in _cachedParticipants) {

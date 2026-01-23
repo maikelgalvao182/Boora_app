@@ -127,6 +127,12 @@ export const onEventChatMessageCreated = functions.firestore
         );
       }
 
+      // ✅ COMMIT DO BATCH - Atualiza last_message em todas as conversas
+      await batch.commit();
+      console.log(
+        `✅ Batch committed - ${participantIds.length} convs updated`
+      );
+
       // Enviar apenas push notifications (sem salvar in-app)
       // NOTA: Chat de evento segue padrão Instagram
       // Apenas push, sem tela de notificações

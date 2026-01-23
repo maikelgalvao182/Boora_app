@@ -1219,6 +1219,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.3.0"
+  markers_cluster_google_maps_flutter:
+    dependency: "direct main"
+    description:
+      name: markers_cluster_google_maps_flutter
+      sha256: aa359289176f40f8194d96d43755d5bea9fe247c385b8934f22353855f150dfb
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0+2"
   matcher:
     dependency: transitive
     description:

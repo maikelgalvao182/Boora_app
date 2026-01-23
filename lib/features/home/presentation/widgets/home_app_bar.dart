@@ -12,6 +12,7 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_profile_completeness_ring.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
+import 'package:partiu/shared/widgets/reactive/reactive_user_location.dart';
 import 'package:partiu/features/home/presentation/widgets/auto_updating_badge.dart';
 import 'package:partiu/features/home/presentation/widgets/home_app_bar_controller.dart';
 import 'package:partiu/shared/widgets/safety_tips_button.dart';
@@ -141,17 +142,6 @@ class _UserAppBarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final locality = user.locality ?? '';
-    final state = user.state ?? '';
-    final fallbackLocation = i18n.translate('location_not_defined');
-    
-    final location = locality.isNotEmpty && state.isNotEmpty
-        ? '$locality, $state'
-        : locality.isNotEmpty
-            ? locality
-            : state.isNotEmpty
-                ? state
-          : fallbackLocation;
 
     return Row(
       children: [
@@ -184,16 +174,16 @@ class _UserAppBarContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                location,
+              // ✅ Localização reativa - atualiza instantaneamente quando muda no Firestore
+              ReactiveUserLocation(
+                userId: user.userId,
+                fallbackText: i18n.translate('location_not_defined'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.textSubTitle,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

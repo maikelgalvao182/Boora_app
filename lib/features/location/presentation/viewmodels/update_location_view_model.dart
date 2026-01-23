@@ -6,6 +6,7 @@ import 'package:partiu/features/location/domain/repositories/location_repository
 import 'package:partiu/core/services/state_abbreviation_service.dart';
 import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -209,6 +210,16 @@ class UpdateLocationViewModel extends ChangeNotifier {
         country: countryStr,
         locality: localityStr,
         state: stateStr,
+      );
+      
+      // ✅ ATUALIZAÇÃO OTIMISTA: Atualizar UserStore imediatamente
+      // Isso garante que a UI (HomeAppBar) atualize instantaneamente
+      // sem esperar o roundtrip do snapshot Firestore
+      UserStore.instance.updateLocation(
+        userId,
+        city: localityStr,
+        state: stateStr,
+        country: countryStr,
       );
       
       _saveState = LocationSaveState.success;

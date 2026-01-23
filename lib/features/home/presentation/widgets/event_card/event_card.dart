@@ -11,6 +11,7 @@ import 'package:partiu/features/home/presentation/widgets/event_card/widgets/par
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_counter.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:partiu/shared/widgets/place_details_modal.dart';
+import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/report_event_button.dart';
 
 /// Bottom sheet de evento que exibe informações do criador e localização
@@ -118,19 +119,34 @@ class _EventCardState extends State<EventCard> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Nome centralizado
-                  Center(
-                    child: Text(
-                      _controller.creatorFullName ?? '',
-                      style: GoogleFonts.getFont(
-                        FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: GlimpseColors.primaryColorLight,
+                  // Nome centralizado (usando ReactiveUserNameWithBadge como no UserCard)
+                  if (_controller.creatorId != null)
+                    Center(
+                      child: ReactiveUserNameWithBadge(
+                        userId: _controller.creatorId!,
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: GlimpseColors.primaryColorLight,
+                        ),
+                        iconSize: 16, // Badge maior para o header do EventCard
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
+                    )
+                  else
+                    Center(
+                      child: Text(
+                        _controller.creatorFullName ?? '',
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: GlimpseColors.primaryColorLight,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                  ),
                   // Botão de denúncia à direita
                   Positioned(
                     right: 0,

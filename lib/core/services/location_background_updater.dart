@@ -9,6 +9,7 @@ import 'package:partiu/core/services/location_permission_flow.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
 import 'package:partiu/core/services/state_abbreviation_service.dart';
 import 'package:partiu/core/utils/location_offset_helper.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Configuração para o LocationSyncScheduler
 /// 
@@ -276,6 +277,16 @@ class LocationSyncScheduler {
           .collection('Users')
           .doc(userId)
           .update(updateData);
+      
+      // ✅ ATUALIZAÇÃO OTIMISTA: Atualizar UserStore imediatamente
+      // Isso garante que a UI (HomeAppBar) atualize instantaneamente
+      if (locality != null || state != null) {
+        UserStore.instance.updateLocation(
+          userId,
+          city: locality,
+          state: state,
+        );
+      }
           
       debugPrint('✅ Background update salvo: ${updateData.keys.join(', ')}');
     } catch (e) {
