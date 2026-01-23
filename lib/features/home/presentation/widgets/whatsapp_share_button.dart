@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:share_plus/share_plus.dart';
@@ -10,7 +11,7 @@ class WhatsAppShareButton extends StatelessWidget {
 
   Future<void> _shareApp(BuildContext context) async {
     final i18n = AppLocalizations.of(context);
-    const String appUrl = 'https://apps.apple.com/br/app/boora/id6755944656';
+    const String appUrl = BOORA_APP_STORE_URL;
     final String shareMessage = i18n.translate('share_app_message');
     final String message = '$shareMessage\n\n$appUrl';
     

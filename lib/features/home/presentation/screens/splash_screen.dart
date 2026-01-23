@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -114,7 +116,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       );
 
       // 3. Executar apenas a parte CRÍTICA (sem travar com warmups pesados)
-      await initializer.initializeCritical();
+      try {
+        await initializer
+            .initializeCritical()
+            .timeout(const Duration(seconds: 8));
+      } on TimeoutException {
+        AppLogger.warning(
+          'Timeout na inicialização crítica; continuando para não travar o splash',
+          tag: 'SPLASH',
+        );
+      }
 
       AppLogger.success('Inicialização crítica concluída', tag: 'SPLASH');
       AppLogger.info('Eventos (até aqui): ${mapViewModel.events.length}', tag: 'SPLASH');

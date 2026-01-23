@@ -68,7 +68,7 @@ class AppHelper {
 
   /// Compartilha o app
   Future<void> shareApp({BuildContext? context}) async {
-    const String appUrl = 'https://apps.apple.com/br/app/boora/id6755944656';
+    const String appUrl = BOORA_APP_STORE_URL;
     
     // Usa tradução i18n se contexto disponível, senão usa fallback
     String shareMessage = 'Conheça o $APP_NAME! O app para encontros e relacionamentos.';
@@ -137,9 +137,9 @@ class AppHelper {
     try {
       final Uri url;
       if (Platform.isAndroid) {
-        url = Uri.parse('https://play.google.com/store/apps/details?id=com.partiu.app');
+        url = Uri.parse(BOORA_PLAY_STORE_URL);
       } else {
-        url = Uri.parse('https://apps.apple.com/app/id6755944656');
+        url = Uri.parse(BOORA_APP_STORE_URL);
       }
       
       if (await canLaunchUrl(url)) {

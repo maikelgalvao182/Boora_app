@@ -359,3 +359,7 @@ const String BOORA_PRIVACY_POLICY_URL = 'https://www.boora.space/politica-de-pri
 const String BOORA_TERMS_OF_SERVICE_URL = 'https://www.boora.space/termos-de-servico';
 const String BOORA_SAFETY_ETIQUETTE_URL = 'https://www.boora.space/seguranca-etiqueta';
 const String BOORA_COMMUNITY_GUIDELINES_URL = 'https://www.boora.space/diretrizes-da-comunidade';
+
+/// APP STORE LINKS
+const String BOORA_APP_STORE_URL = 'https://apps.apple.com/br/app/boora/id6755944656';
+const String BOORA_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.maikelgalvao.partiu';

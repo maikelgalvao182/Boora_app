@@ -1,6 +1,8 @@
+import 'dart:async';
+import 'dart:math' show cos;
+
 import 'package:flutter/painting.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math' show cos;
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
@@ -108,7 +110,9 @@ class AppInitializerService {
         AppLogger.info('Pré-carregando avatar do usuário (HomeAppBar)...', tag: 'INIT');
         try {
           final userRepo = UserRepository();
-          final currentUserData = await userRepo.getUserById(currentUserId);
+          final currentUserData = await userRepo
+              .getUserById(currentUserId)
+              .timeout(const Duration(seconds: 3));
           if (currentUserData != null) {
             // ✅ Seed da localização inicial do mapa via Firestore.
             // Evita o primeiro frame em São Paulo quando o user já tem coords persistidas.
@@ -154,8 +158,13 @@ class AppInitializerService {
       AppLogger.info('Pré-carregando eventos do mapa...', tag: 'INIT');
       try {
         if (!mapViewModel.mapReady && !mapViewModel.isLoading) {
-          await mapViewModel.initialize();
+          await mapViewModel.initialize().timeout(const Duration(seconds: 8));
         }
+      } on TimeoutException {
+        AppLogger.warning(
+          'Timeout ao pré-carregar eventos do mapa (critical). Continuando.',
+          tag: 'INIT',
+        );
       } catch (e) {
         AppLogger.warning('Erro ao pré-carregar eventos do mapa: $e', tag: 'INIT');
       }
