@@ -46,7 +46,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
   static const double _peopleButtonRight = 16;
   static const double _peopleButtonLeft = 16;
   static const double _peopleButtonHeight = 48;
-  static const double _filtersSpacing = 8;
+  static const double _filtersSpacing = 16;
 
   bool _isShowingOnboarding = false;
 
@@ -359,15 +359,19 @@ class _DiscoverTabState extends State<DiscoverTab> {
               return VipEventPromoOverlay(
                 events: widget.mapViewModel.events,
                 visibleBounds: widget.mapViewModel.visibleBounds,
-                onEventTap: (event) {
+                onEventTap: (event) async {
                   // Reusar o mesmo fluxo do marker: abrir EventCard.
                   // (O handler faz preload/stream via EventCardController)
                   final controller = EventCardController(
                     eventId: event.id,
                     preloadedEvent: event,
                   );
-                  // Carrega dados adicionais (creatorFullName, locationName, etc.)
-                  controller.load();
+                  // Aguarda carregar dados adicionais + avatares ANTES de mostrar o card
+                  await controller.load();
+                  await controller.preloadAvatarsAsync();
+                  
+                  if (!mounted) return;
+                  
                   EventCard.show(
                     context: context,
                     controller: controller,

@@ -40,8 +40,8 @@ class WhatsAppShareButton extends StatelessWidget {
         onTap: () => _shareApp(context),
         customBorder: const CircleBorder(),
         child: Container(
-          width: 48,
-          height: 48,
+          width: 56,
+          height: 56,
           decoration: const BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,

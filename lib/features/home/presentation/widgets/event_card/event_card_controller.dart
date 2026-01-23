@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
@@ -471,6 +473,56 @@ class EventCardController extends ChangeNotifier {
       if (userId != null && photoUrl != null && photoUrl.isNotEmpty) {
         UserStore.instance.preloadAvatar(userId, photoUrl);
       }
+    }
+  }
+
+  /// Aguarda o download real dos avatares dos participantes
+  /// 
+  /// Use ANTES de exibir o EventCard para garantir que os avatares
+  /// apareçam imediatamente, sem "popping".
+  Future<void> preloadAvatarsAsync() async {
+    final futures = <Future<void>>[];
+    
+    for (final p in _approvedParticipants) {
+      final photoUrl = p['photoUrl'] as String?;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        futures.add(_downloadImage(photoUrl));
+      }
+    }
+    
+    if (futures.isEmpty) return;
+    
+    // Aguarda todos os avatares (com timeout de 3s para não travar UI)
+    await Future.wait(futures).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => [], // Timeout silencioso
+    );
+  }
+
+  /// Força o download de uma imagem para o cache
+  Future<void> _downloadImage(String url) async {
+    final imageProvider = CachedNetworkImageProvider(url);
+    final stream = imageProvider.resolve(ImageConfiguration.empty);
+    final completer = Completer<void>();
+    
+    late ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onError: (error, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+    
+    stream.addListener(listener);
+    
+    try {
+      await completer.future.timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Timeout silencioso
+    } finally {
+      stream.removeListener(listener);
     }
   }
 

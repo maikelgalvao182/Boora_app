@@ -1073,6 +1073,7 @@
   "review_participant_confirmation_date_time": "no dia {date} às {time}",
   "review_participant_confirmation_suffix": " e deixe sua avaliação!",
   "review_participant_confirmation_none": "Nenhum participante marcou presença",
+  "reviewed_by_section_title": "Avaliado por",
   "review_badges_section_title": "Elogios mais recebidos",
   "review_comments_section_title": "Últimos comentários",
   "see_more": "Ver mais",

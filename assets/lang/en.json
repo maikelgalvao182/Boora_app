@@ -1059,6 +1059,7 @@
   "review_participant_confirmation_date_time": "on {date} at {time}",
   "review_participant_confirmation_suffix": " and leave your review!",
   "review_participant_confirmation_none": "No participants marked attendance",
+  "reviewed_by_section_title": "Reviewed by",
   "review_badges_section_title": "Most received compliments",
   "review_comments_section_title": "Latest comments",
   "see_more": "See more",

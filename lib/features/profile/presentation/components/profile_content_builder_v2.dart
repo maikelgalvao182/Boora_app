@@ -19,6 +19,7 @@ import 'package:partiu/features/reviews/data/models/review_model.dart';
 import 'package:partiu/features/reviews/data/models/review_stats_model.dart';
 import 'package:partiu/features/reviews/presentation/components/review_stats_section.dart';
 import 'package:partiu/features/reviews/presentation/components/review_badges_section.dart';
+import 'package:partiu/features/reviews/presentation/components/reviewed_by_section.dart';
 import 'package:partiu/features/reviews/presentation/components/review_comments_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/profile_actions_section.dart';
 
@@ -269,7 +270,7 @@ class _ProfileReviewsSectionState extends State<_ProfileReviewsSection> {
               if (stats.badgesCount.isNotEmpty)
                 ReviewBadgesSection(badgesCount: stats.badgesCount),
               
-              // Lista de reviews individuais
+              // Lista de reviews individuais + Seção "Avaliado por"
               StreamBuilder<List<ReviewModel>>(
                 stream: widget.reviewsStream,
                 builder: (context, reviewsSnapshot) {
@@ -288,7 +289,16 @@ class _ProfileReviewsSectionState extends State<_ProfileReviewsSection> {
                     return const SizedBox.shrink();
                   }
 
-                  return ReviewCommentsSection(reviews: reviews);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Seção "Avaliado por" com avatares dos reviewers
+                      ReviewedBySection(reviews: reviews),
+                      
+                      // Comentários das reviews
+                      ReviewCommentsSection(reviews: reviews),
+                    ],
+                  );
                 },
               ),
             ],

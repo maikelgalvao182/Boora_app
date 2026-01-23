@@ -73,6 +73,7 @@ class _SafetyTipsBottomSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 12, left: 20, right: 20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
                     child: Container(
@@ -119,25 +120,25 @@ class _SafetyTipsBottomSheet extends StatelessWidget {
                   children: [
                     const SizedBox(height: 8),
                     _SafetyTipItem(
-                      icon: IconsaxPlusLinear.verify,
+                      icon: IconsaxPlusBold.verify,
                       title: i18n.translate('onboarding_verified_title'),
                       description: 'Prefira conversar e marcar encontros com perfis verificados. Se algo não bater, melhor não marcar e seguir em frente.',
                     ),
                     const SizedBox(height: 16),
                     _SafetyTipItem(
-                      icon: IconsaxPlusLinear.star_1,
+                      icon: IconsaxPlusBold.star_1,
                       title: i18n.translate('onboarding_reputation_title'),
                       description: i18n.translate('onboarding_reputation_text'),
                     ),
                     const SizedBox(height: 16),
                     _SafetyTipItem(
-                      icon: IconsaxPlusLinear.shield_tick,
+                      icon: IconsaxPlusBold.shield_tick,
                       title: i18n.translate('onboarding_safety_title'),
                       description: i18n.translate('onboarding_safety_text'),
                     ),
                     const SizedBox(height: 16),
                     _SafetyTipItem(
-                      icon: IconsaxPlusLinear.flag_2,
+                      icon: IconsaxPlusBold.flag_2,
                       title: i18n.translate('onboarding_report_title'),
                       description: 'Viu comportamento estranho, perfil suspeito ou algo inadequado no mapa ou nos chats? Denuncie e bloqueie pelo app.',
                     ),
@@ -185,7 +186,7 @@ class _SafetyTipItem extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: const BoxDecoration(
-            color: GlimpseColors.lightTextField,
+            color: GlimpseColors.primaryLight,
             shape: BoxShape.circle,
           ),
           child: Icon(

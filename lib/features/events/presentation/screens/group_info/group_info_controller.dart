@@ -597,6 +597,9 @@ class GroupInfoController extends ChangeNotifier {
     final i18n = AppLocalizations.of(context);
     final progressDialog = ProgressDialog(context);
     final removalService = EventApplicationRemovalService();
+    
+    // Captura o router ANTES de qualquer operação assíncrona
+    final router = GoRouter.of(context);
 
     removalService.handleLeaveEvent(
       context: context,
@@ -604,15 +607,11 @@ class GroupInfoController extends ChangeNotifier {
       i18n: i18n,
       progressDialog: progressDialog,
       onSuccess: () {
-        // Navega até a raiz (DiscoverTab/HomeScreen)
-        if (context.mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) {
-              // Força a navegação para a tab 0 (Discover)
-              context.go(Uri(path: AppRoutes.home, queryParameters: {'tab': '0'}).toString());
-            }
-          });
-        }
+        // Navega para ConversationsTab (tab 3) usando router capturado
+        // Pequeno delay para garantir que dialogs fecharam
+        Future.delayed(const Duration(milliseconds: 100), () {
+          router.go(Uri(path: AppRoutes.home, queryParameters: {'tab': '3'}).toString());
+        });
       },
     );
   }

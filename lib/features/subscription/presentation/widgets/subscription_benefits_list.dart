@@ -40,28 +40,28 @@ class SubscriptionBenefitsList extends StatelessWidget {
     return [
       // 👀 Veja quem se interessou por você
       _Benefit(
-        icon: IconsaxPlusLinear.eye,
+        icon: IconsaxPlusBold.eye,
         title: i18n.translate('subscription_benefit_profile_visits_title'),
         subtitle: i18n.translate('subscription_benefit_profile_visits_subtitle'),
       ),
 
       // ⭐ Apareça primeiro no mapa
       _Benefit(
-        icon: IconsaxPlusLinear.star,
+        icon: IconsaxPlusBold.star,
         title: i18n.translate('subscription_benefit_more_visibility_title'),
         subtitle: i18n.translate('subscription_benefit_more_visibility_subtitle'),
       ),
 
       // 🗺️ Acesse todos os perfis da área
       _Benefit(
-        icon: IconsaxPlusLinear.people,
+        icon: IconsaxPlusBold.people,
         title: i18n.translate('subscription_benefit_unlock_people_list_title'),
         subtitle: i18n.translate('subscription_benefit_unlock_people_list_subtitle'),
       ),
 
       // 🚀 Destaque seus eventos no topo do mapa
       _Benefit(
-        icon: IconsaxPlusLinear.map,
+        icon: IconsaxPlusBold.map,
         title: i18n.translate('subscription_benefit_event_promo_title'),
         subtitle: i18n.translate('subscription_benefit_event_promo_subtitle'),
       ),

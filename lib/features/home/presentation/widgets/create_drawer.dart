@@ -145,59 +145,79 @@ class _CreateDrawerState extends State<CreateDrawer> {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     
+    // Conteúdo principal (compartilhado entre modo normal e sugestão)
+    final content = _buildContent(context, screenHeight);
+    
+    // Se estiver em modo sugestão, usa Scaffold com AppBar para safe area
+    if (_controller.isSuggestionMode) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+        ),
+        body: content,
+      );
+    }
+    
+    // Modo normal: bottom sheet padrão
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      height: _controller.isSuggestionMode ? screenHeight : null,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: _controller.isSuggestionMode 
-            ? BorderRadius.zero 
-            : const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: _controller.isSuggestionMode ? 0 : MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: Container(
-          color: Colors.white,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              Padding(
-                padding: EdgeInsets.only(
-                  top: _controller.isSuggestionMode ? MediaQuery.of(context).padding.top + 12 : 12,
-                  left: 20,
-                  right: 20,
-                ),
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: GlimpseColors.borderColorLight,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+        child: content,
+      ),
+    );
+  }
+  
+  Widget _buildContent(BuildContext context, double screenHeight) {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        mainAxisSize: _controller.isSuggestionMode ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          // Handle
+          Padding(
+            padding: const EdgeInsets.only(
+              top: 12,
+              left: 20,
+              right: 20,
+            ),
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: GlimpseColors.borderColorLight,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
+            ),
+          ),
 
-              const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-              // Container com emoji
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: double.infinity,
-                    height: 120,
-                    color: _containerColor,
+          // Container com emoji
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: double.infinity,
+                height: 120,
+                color: _containerColor,
                     child: Stack(
                       children: [
                         // Imagem de fundo com scale maior
@@ -331,22 +351,18 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 const SizedBox(height: 8),
 
               // Área de sugestões expandível
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                height: _controller.isSuggestionMode 
-                    ? (screenHeight - MediaQuery.of(context).padding.top - 280) 
-                    : 0,
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom + 24,
-                  ),
-                  child: SuggestionTagsView(
-                    onSuggestionSelected: _onSuggestionSelected,
+              if (_controller.isSuggestionMode)
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 24,
+                    ),
+                    child: SuggestionTagsView(
+                      onSuggestionSelected: _onSuggestionSelected,
+                    ),
                   ),
                 ),
-              ),
 
               // Botões de voltar e continuar (apenas visível se não estiver em modo sugestão)
               if (!_controller.isSuggestionMode)
@@ -361,8 +377,6 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 }

@@ -327,7 +327,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
         m.copyWith(
           iconParam: clusterPin,
           anchorParam: const Offset(0.5, 1.0),
-          zIndexParam: 10,
+          zIndexParam: 1000,
           // Remove o popup padrão da lib que mostra "N markers"
           infoWindowParam: InfoWindow.noText,
           // Adiciona onTap para fazer zoom in no cluster
@@ -338,7 +338,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
     // Avatares: gerar overlay para SOMENTE os markers individuais.
     // Heurística: markerId começa com 'event_' (os que adicionamos) e não é cluster (que costuma ser numérico/gerado).
+    // ✅ CORREÇÃO: Usar zIndex único por evento para manter emoji e avatar na mesma camada lógica
     final nextAvatarOverlays = <Marker>{};
+    int avatarZIndexCounter = 0;
+    final updatedEmojiMarkers = <Marker>{};
+    final markersToRemove = <Marker>{};
   for (final m in nextClusteredStyled) {
       final rawId = m.markerId.value;
       if (!rawId.startsWith('event_')) continue;
@@ -346,9 +350,16 @@ class GoogleMapViewState extends State<GoogleMapView> {
       final event = _eventById[eventId];
       if (event == null) continue;
 
+      // Calcular zIndex único para este par emoji+avatar (base 100+)
+      final baseZIndex = 100 + (avatarZIndexCounter * 2);
+      avatarZIndexCounter++;
+
+
+      // Atualizar o emoji marker para usar o baseZIndex
+      markersToRemove.add(m);
+      updatedEmojiMarkers.add(m.copyWith(zIndexParam: baseZIndex.toDouble()));
       // Avatar pin best-effort; se ainda não estiver pronto, usa placeholder.
       final avatarPin = await _getAvatarPinBestEffort(event);
-
       nextAvatarOverlays.add(
         Marker(
           markerId: MarkerId('event_avatar_$eventId'),
@@ -357,12 +368,15 @@ class GoogleMapViewState extends State<GoogleMapView> {
           // Mesmo estilo antigo: avatar “flutuando” sobre o emoji.
           anchor: const Offset(0.5, 0.80),
           onTap: () { debugPrint('👆 TAP AVATAR (line 359)'); _onMarkerTap(event); },
-          // Avatar fica na camada 2, logo acima do emoji (camada 1).
-          // Clusters ficam na camada 10 para aparecer acima de ambos.
-          zIndex: 2,
+          // Avatar fica logo acima do emoji do mesmo evento.
+          zIndex: (baseZIndex + 1).toDouble(),
         ),
       );
     }
+
+    // Atualizar o set de markers com os emojis que têm zIndex corrigido
+    nextClusteredStyled.removeAll(markersToRemove);
+    nextClusteredStyled.addAll(updatedEmojiMarkers);
 
     setState(() {
       _avatarOverlayMarkers
@@ -892,7 +906,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
         m.copyWith(
           iconParam: clusterPin,
           anchorParam: const Offset(0.5, 1.0),
-          zIndexParam: 10,
+          zIndexParam: 1000,
           infoWindowParam: InfoWindow.noText,
           // Adiciona onTap para fazer zoom in no cluster
           onTapParam: () => _onClusterTap(clusterPosition, clusterCount),
@@ -901,13 +915,25 @@ class GoogleMapViewState extends State<GoogleMapView> {
     }
 
     // Avatares para markers individuais
+    // ✅ CORREÇÃO: Usar zIndex único por evento para manter emoji e avatar na mesma camada lógica
     final nextAvatarOverlays = <Marker>{};
+    final updatedEmojiMarkers2 = <Marker>{};
+    final markersToRemove2 = <Marker>{};
+    int avatarZIndexCounter2 = 0;
     for (final m in nextClusteredStyled) {
       final rawId = m.markerId.value;
       if (!rawId.startsWith('event_')) continue;
       final eventId = rawId.replaceFirst('event_', '');
       final event = _eventById[eventId];
       if (event == null) continue;
+
+      // Calcular zIndex único para este par emoji+avatar (base 100+)
+      final baseZIndex = 100 + (avatarZIndexCounter2 * 2);
+      avatarZIndexCounter2++;
+
+      // Atualizar o emoji marker para usar o baseZIndex
+      markersToRemove2.add(m);
+      updatedEmojiMarkers2.add(m.copyWith(zIndexParam: baseZIndex.toDouble()));
 
       final avatarPin = await _getAvatarPinBestEffort(event);
 
@@ -918,10 +944,15 @@ class GoogleMapViewState extends State<GoogleMapView> {
           icon: avatarPin,
           anchor: const Offset(0.5, 0.80),
           onTap: () { debugPrint('👆 TAP AVATAR (line 920)'); _onMarkerTap(event); },
-          zIndex: 2,
+          // Avatar fica logo acima do emoji do mesmo evento.
+          zIndex: (baseZIndex + 1).toDouble(),
         ),
       );
     }
+
+    // Atualizar o set de markers com os emojis que têm zIndex corrigido
+    nextClusteredStyled.removeAll(markersToRemove2);
+    nextClusteredStyled.addAll(updatedEmojiMarkers2);
 
     if (!mounted) return;
     setState(() {

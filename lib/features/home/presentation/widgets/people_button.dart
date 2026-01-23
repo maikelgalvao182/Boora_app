@@ -73,7 +73,7 @@ class _PeopleButtonState extends State<PeopleButton> {
 
     final subtitleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: FontWeight.w600,
       color: GlimpseColors.primary,
     );
@@ -157,8 +157,8 @@ class _ZoomInToSeePeopleButton extends StatelessWidget {
       shadowColor: Colors.black.withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(100),
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4, right: 8),
+        height: 56,
+        padding: const EdgeInsets.only(left: 8, right: 8),
         decoration: BoxDecoration(
           color: GlimpseColors.lightTextField,
           borderRadius: BorderRadius.circular(100),
@@ -273,8 +273,8 @@ class _PeopleNearYouButton extends StatelessWidget {
                         onTap: onPressed,
                         borderRadius: BorderRadius.circular(100),
                         child: Container(
-                          height: 48,
-                          padding: const EdgeInsets.only(left: 4, right: 8),
+                          height: 56,
+                          padding: const EdgeInsets.only(left: 8, right: 8),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(100),
