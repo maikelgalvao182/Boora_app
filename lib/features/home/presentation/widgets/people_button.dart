@@ -298,7 +298,7 @@ class _PeopleNearYouButton extends StatelessWidget {
                                     enableNavigation: false,
                                   ),
                                 )
-                              else
+                              else if (isLoading)
                                 Container(
                                   width: 40,
                                   height: 40,
@@ -310,7 +310,9 @@ class _PeopleNearYouButton extends StatelessWidget {
                                   child: const Center(
                                     child: CupertinoActivityIndicator(radius: 8),
                                   ),
-                                ),
+                                )
+                              else
+                                const SizedBox(width: 40, height: 40),
                               const SizedBox(width: 8),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_reply_model.dart';
+import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/event_photo_cache_service.dart';
 
 class EventPhotoPage {
   const EventPhotoPage({
@@ -29,10 +32,17 @@ class EventPhotoPage {
 }
 
 class EventPhotoRepository {
-  EventPhotoRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  EventPhotoRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    EventPhotoCacheService? cacheService,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance,
+        _cacheService = cacheService;
 
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
+  final EventPhotoCacheService? _cacheService;
 
   CollectionReference<Map<String, dynamic>> get _photos => _firestore.collection('EventPhotos');
 
@@ -88,6 +98,15 @@ class EventPhotoRepository {
       case EventPhotoFeedScopeGlobal():
         print('🌍 [EventPhotoRepository] Scope global (sem filtros adicionais)');
         break;
+      case EventPhotoFeedScopeFollowing():
+        print('👥 [EventPhotoRepository] Scope seguindo (não implementado)');
+        return const EventPhotoPage(
+          items: [],
+          nextCursor: null,
+          activeCursor: null,
+          pendingCursor: null,
+          hasMore: false,
+        );
       case EventPhotoFeedScopeEvent(:final eventId):
         print('🎉 [EventPhotoRepository] Aplicando filtro de evento: $eventId');
         applyScopeFilters((q) => q.where('eventId', isEqualTo: eventId));
@@ -95,7 +114,7 @@ class EventPhotoRepository {
       case EventPhotoFeedScopeUser(:final userId):
         print('👤 [EventPhotoRepository] Aplicando filtro de usuário: $userId');
         // Para scope user, mostra active do usuário + under_review do usuário logado
-        applyScopeFilters((q) => q.where('userId', isEqualTo: userId));
+        activeQuery = activeQuery.where('userId', isEqualTo: userId);
         break;
     }
 
@@ -194,6 +213,15 @@ class EventPhotoRepository {
       case EventPhotoFeedScopeGlobal():
         print('🌍 [EventPhotoRepository] Scope global (sem filtros adicionais)');
         break;
+      case EventPhotoFeedScopeFollowing():
+        print('👥 [EventPhotoRepository] Scope seguindo (não implementado)');
+        return const EventPhotoPage(
+          items: [],
+          nextCursor: null,
+          activeCursor: null,
+          pendingCursor: null,
+          hasMore: false,
+        );
       case EventPhotoFeedScopeEvent(:final eventId):
         print('🎉 [EventPhotoRepository] Aplicando filtro de evento: $eventId');
         query = query.where('eventId', isEqualTo: eventId);
@@ -248,6 +276,48 @@ class EventPhotoRepository {
     await _photos.doc(photoId).delete();
   }
 
+  Future<void> removePhotoImage({
+    required String photoId,
+    required int index,
+    required List<String> imageUrls,
+    required List<String> thumbnailUrls,
+  }) async {
+    if (index < 0 || index >= imageUrls.length) return;
+    if (imageUrls.length <= 1) {
+      throw Exception('Não é possível remover a última imagem');
+    }
+
+    final removedImageUrl = imageUrls[index];
+    final removedThumbUrl = index < thumbnailUrls.length ? thumbnailUrls[index] : null;
+
+    final nextImageUrls = [...imageUrls]..removeAt(index);
+    final nextThumbnailUrls = [...thumbnailUrls];
+    if (index < nextThumbnailUrls.length) {
+      nextThumbnailUrls.removeAt(index);
+    }
+
+    await _photos.doc(photoId).update({
+      'imageUrls': nextImageUrls,
+      'thumbnailUrls': nextThumbnailUrls,
+      'imageUrl': nextImageUrls.first,
+      'thumbnailUrl': nextThumbnailUrls.isNotEmpty ? nextThumbnailUrls.first : null,
+    });
+
+    await _deleteStorageFile(removedImageUrl);
+    if (removedThumbUrl != null && removedThumbUrl.isNotEmpty) {
+      await _deleteStorageFile(removedThumbUrl);
+    }
+  }
+
+  Future<void> _deleteStorageFile(String url) async {
+    try {
+      final ref = _storage.refFromURL(url);
+      await ref.delete();
+    } catch (_) {
+      // Ignore delete errors
+    }
+  }
+
   Future<List<EventPhotoCommentModel>> fetchComments({
     required String photoId,
     int limit = 50,
@@ -263,6 +333,22 @@ class EventPhotoRepository {
     return snap.docs
         .map((d) => EventPhotoCommentModel.fromFirestore(d, photoId))
         .toList(growable: false);
+  }
+
+  Future<List<EventPhotoCommentModel>> fetchCommentsCached({
+    required String photoId,
+    int limit = 50,
+  }) async {
+    await _cacheService?.initialize();
+
+    final cached = _cacheService?.getCachedComments(photoId);
+    if (cached != null && cached.isNotEmpty) {
+      return cached.take(limit).toList(growable: false);
+    }
+
+    final items = await fetchComments(photoId: photoId, limit: limit);
+    await _cacheService?.setCachedComments(photoId, items);
+    return items;
   }
 
   Future<void> addComment({
@@ -281,6 +367,20 @@ class EventPhotoRepository {
     await _photos.doc(photoId).update({
       'commentsCount': FieldValue.increment(1),
     });
+
+    if (_cacheService != null) {
+      final cachedComment = EventPhotoCommentModel(
+        id: comment.id,
+        photoId: comment.photoId,
+        userId: comment.userId,
+        userName: comment.userName,
+        userPhotoUrl: comment.userPhotoUrl,
+        text: comment.text,
+        createdAt: comment.createdAt ?? Timestamp.now(),
+        status: comment.status,
+      );
+      await _cacheService?.appendCachedComment(photoId, cachedComment);
+    }
   }
 
   Future<void> deleteComment({
@@ -293,6 +393,8 @@ class EventPhotoRepository {
     await _photos.doc(photoId).update({
       'commentsCount': FieldValue.increment(-1),
     });
+
+    await _cacheService?.removeCachedComment(photoId, commentId);
   }
 
   Future<List<EventPhotoCommentReplyModel>> fetchCommentReplies({
@@ -300,25 +402,91 @@ class EventPhotoRepository {
     required String commentId,
     int limit = 50,
   }) async {
-    final snap = await _photos
-        .doc(photoId)
-        .collection('comments')
-        .doc(commentId)
-        .collection('replies')
-        .where('status', isEqualTo: 'active')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    print('🔵 [EventPhotoRepository.fetchCommentReplies] Iniciando busca de replies');
+    print('   📸 photoId: $photoId');
+    print('   💬 commentId: $commentId');
+    print('   📊 limit: $limit');
+    
+    try {
+      final snap = await _photos
+          .doc(photoId)
+          .collection('comments')
+          .doc(commentId)
+          .collection('replies')
+          .where('status', isEqualTo: 'active')
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
 
-    return snap.docs
-        .map(
-          (d) => EventPhotoCommentReplyModel.fromFirestore(
-            d,
-            photoId: photoId,
-            commentId: commentId,
-          ),
-        )
-        .toList(growable: false);
+      print('✅ [EventPhotoRepository.fetchCommentReplies] Query completada: ${snap.docs.length} replies');
+
+      return snap.docs
+          .map(
+            (d) => EventPhotoCommentReplyModel.fromFirestore(
+              d,
+              photoId: photoId,
+              commentId: commentId,
+            ),
+          )
+          .toList(growable: false);
+    } catch (e, stack) {
+      print('❌ [EventPhotoRepository.fetchCommentReplies] ERRO ao buscar replies!');
+      print('   💥 Erro: $e');
+      print('   📸 photoId: $photoId');
+      print('   💬 commentId: $commentId');
+      
+      if (e.toString().contains('index') || e.toString().contains('Index')) {
+        print('');
+        print('⚠️  ═══════════════════════════════════════════════════════════════');
+        print('⚠️  ERRO DE ÍNDICE FIRESTORE DETECTADO!');
+        print('⚠️  ═══════════════════════════════════════════════════════════════');
+        print('⚠️  Query: EventPhotos/{photoId}/comments/{commentId}/replies');
+        print('⚠️  Filtros: where(status == active) + orderBy(createdAt DESC)');
+        print('⚠️  ');
+        print('⚠️  É necessário criar um índice composto no Firestore.');
+        print('⚠️  ');
+        print('⚠️  Geralmente o erro do Firestore inclui um link direto para criar');
+        print('⚠️  o índice. Procure no erro completo acima por uma URL começando');
+        print('⚠️  com: https://console.firebase.google.com/...');
+        print('⚠️  ');
+        print('⚠️  Ou adicione manualmente em firestore.indexes.json:');
+        print('⚠️  {');
+        print('⚠️    "collectionGroup": "replies",');
+        print('⚠️    "queryScope": "COLLECTION",');
+        print('⚠️    "fields": [');
+        print('⚠️      {"fieldPath": "status", "order": "ASCENDING"},');
+        print('⚠️      {"fieldPath": "createdAt", "order": "DESCENDING"}');
+        print('⚠️    ]');
+        print('⚠️  }');
+        print('⚠️  ═══════════════════════════════════════════════════════════════');
+        print('');
+      }
+      
+      print('📚 Stack trace:');
+      print(stack);
+      rethrow;
+    }
+  }
+
+  Future<List<EventPhotoCommentReplyModel>> fetchCommentRepliesCached({
+    required String photoId,
+    required String commentId,
+    int limit = 50,
+  }) async {
+    await _cacheService?.initialize();
+
+    final cached = _cacheService?.getCachedReplies(photoId, commentId);
+    if (cached != null && cached.isNotEmpty) {
+      return cached.take(limit).toList(growable: false);
+    }
+
+    final items = await fetchCommentReplies(
+      photoId: photoId,
+      commentId: commentId,
+      limit: limit,
+    );
+    await _cacheService?.setCachedReplies(photoId, commentId, items);
+    return items;
   }
 
   Future<void> addCommentReply({
@@ -340,6 +508,21 @@ class EventPhotoRepository {
     await _photos.doc(photoId).update({
       'commentsCount': FieldValue.increment(1),
     });
+
+    if (_cacheService != null) {
+      final cachedReply = EventPhotoCommentReplyModel(
+        id: reply.id,
+        photoId: reply.photoId,
+        commentId: reply.commentId,
+        userId: reply.userId,
+        userName: reply.userName,
+        userPhotoUrl: reply.userPhotoUrl,
+        text: reply.text,
+        createdAt: reply.createdAt ?? Timestamp.now(),
+        status: reply.status,
+      );
+      await _cacheService?.appendCachedReply(photoId, commentId, cachedReply);
+    }
   }
 
   Future<void> deleteCommentReply({
@@ -359,28 +542,8 @@ class EventPhotoRepository {
     await _photos.doc(photoId).update({
       'commentsCount': FieldValue.increment(-1),
     });
+
+    await _cacheService?.removeCachedReply(photoId, commentId, replyId);
   }
 }
 
-sealed class EventPhotoFeedScope {
-  const EventPhotoFeedScope();
-}
-
-class EventPhotoFeedScopeCity extends EventPhotoFeedScope {
-  const EventPhotoFeedScopeCity({required this.cityId});
-  final String? cityId;
-}
-
-class EventPhotoFeedScopeGlobal extends EventPhotoFeedScope {
-  const EventPhotoFeedScopeGlobal();
-}
-
-class EventPhotoFeedScopeEvent extends EventPhotoFeedScope {
-  const EventPhotoFeedScopeEvent({required this.eventId});
-  final String eventId;
-}
-
-class EventPhotoFeedScopeUser extends EventPhotoFeedScope {
-  const EventPhotoFeedScopeUser({required this.userId});
-  final String userId;
-}

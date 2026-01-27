@@ -218,6 +218,8 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
       (region.northeast.longitude + region.southwest.longitude) / 2,
     );
 
+    if (!mounted) return;
+
     await _controller.moveToLocation(center, loadNearby: false);
   }
 

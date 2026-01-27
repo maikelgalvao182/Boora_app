@@ -1,15 +1,30 @@
+import 'package:hive_flutter/hive_flutter.dart';
+
+@HiveType(typeId: 30)
 class ConversationItem {
+  @HiveField(0)
   final String id; // other userId or conversationId
+  @HiveField(1)
   final String userId;
+  @HiveField(2)
   final String userFullname;
+  @HiveField(3)
   final String? userPhotoUrl;
+  @HiveField(4)
   final String? lastMessage;
+  @HiveField(5)
   final String? lastMessageType;
+  @HiveField(6)
   final DateTime? lastMessageAt;
+  @HiveField(7)
   final int unreadCount;
+  @HiveField(8)
   final bool isRead;
+  @HiveField(9)
   final bool isEventChat; // Se é um chat de evento
+  @HiveField(10)
   final String? eventId; // ID do evento (quando isEventChat = true)
+  @HiveField(11)
   final String? emoji; // Emoji do evento (quando isEventChat = true)
 
   ConversationItem({
@@ -156,5 +171,66 @@ class ConversationItem {
       'eventId': eventId,
       'emoji': emoji,
     };
+  }
+}
+
+/// TypeAdapter manual para ConversationItem
+class ConversationItemAdapter extends TypeAdapter<ConversationItem> {
+  @override
+  final int typeId = 30;
+
+  @override
+  ConversationItem read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{};
+    for (var i = 0; i < numOfFields; i++) {
+      final fieldKey = reader.readByte();
+      fields[fieldKey] = reader.read();
+    }
+
+    return ConversationItem(
+      id: fields[0] as String? ?? '',
+      userId: fields[1] as String? ?? '',
+      userFullname: fields[2] as String? ?? '',
+      userPhotoUrl: fields[3] as String?,
+      lastMessage: fields[4] as String?,
+      lastMessageType: fields[5] as String?,
+      lastMessageAt: fields[6] as DateTime?,
+      unreadCount: (fields[7] as num?)?.toInt() ?? 0,
+      isRead: fields[8] as bool? ?? true,
+      isEventChat: fields[9] as bool? ?? false,
+      eventId: fields[10] as String?,
+      emoji: fields[11] as String?,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, ConversationItem obj) {
+    writer
+      ..writeByte(12)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.userId)
+      ..writeByte(2)
+      ..write(obj.userFullname)
+      ..writeByte(3)
+      ..write(obj.userPhotoUrl)
+      ..writeByte(4)
+      ..write(obj.lastMessage)
+      ..writeByte(5)
+      ..write(obj.lastMessageType)
+      ..writeByte(6)
+      ..write(obj.lastMessageAt)
+      ..writeByte(7)
+      ..write(obj.unreadCount)
+      ..writeByte(8)
+      ..write(obj.isRead)
+      ..writeByte(9)
+      ..write(obj.isEventChat)
+      ..writeByte(10)
+      ..write(obj.eventId)
+      ..writeByte(11)
+      ..write(obj.emoji);
   }
 }

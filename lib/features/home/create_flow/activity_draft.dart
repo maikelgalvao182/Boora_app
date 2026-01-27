@@ -24,6 +24,7 @@ class ActivityDraft {
   int? maxAge;
   PrivacyType? privacyType;
   int? maxParticipants; // 0 = Aberto, 1-20 = específico
+  String? gender; // Gênero específico ou null para todos
 
   ActivityDraft({
     this.activityText,
@@ -38,6 +39,7 @@ class ActivityDraft {
     this.maxAge,
     this.privacyType,
     this.maxParticipants,
+    this.gender,
   });
 
   /// Verifica se o rascunho está completo para ser salvo
@@ -103,6 +105,7 @@ class ActivityDraft {
     maxAge = null;
     privacyType = null;
     maxParticipants = null;
+    gender = null;
   }
 
   @override

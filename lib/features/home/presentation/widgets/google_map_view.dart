@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -59,9 +58,17 @@ class GoogleMapView extends StatefulWidget {
   State<GoogleMapView> createState() => GoogleMapViewState();
 }
 
-class GoogleMapViewState extends State<GoogleMapView> {
+class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMixin {
   /// Controller do mapa Google Maps
   GoogleMapController? _mapController;
+
+  /// Evita abrir múltiplos EventCards ao mesmo tempo
+  bool _isEventCardOpen = false;
+
+  void _dismissEventCardIfOpen() {
+    if (!_isEventCardOpen || !mounted) return;
+    Navigator.of(context).pop();
+  }
 
   /// Serviço para contagem de pessoas por bounding box
   final PeopleMapDiscoveryService _peopleCountService = PeopleMapDiscoveryService();
@@ -131,10 +138,8 @@ class GoogleMapViewState extends State<GoogleMapView> {
     return Object.hashAll(ids);
   }
 
-  void _ensureClusterManagerInitialized() {
-    if (_clusterManager != null) return;
-
-    _clusterManager = MarkersClusterManager(
+  MarkersClusterManager _createClusterManager() {
+    return MarkersClusterManager(
       // Estilo básico (ajustamos depois para o visual final).
       clusterColor: Colors.black,
       clusterBorderThickness: 6.0,
@@ -169,6 +174,25 @@ class GoogleMapViewState extends State<GoogleMapView> {
     controller.animateCamera(
       CameraUpdate.newLatLngZoom(position, targetZoom),
     );
+  }
+
+  String _pickClusterEmoji(LatLng position) {
+    if (_eventById.isEmpty) return '🎉';
+
+    EventModel? nearest;
+    var bestDistance = double.infinity;
+
+    for (final event in _eventById.values) {
+      final dLat = event.lat - position.latitude;
+      final dLng = event.lng - position.longitude;
+      final distance = (dLat * dLat) + (dLng * dLng);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        nearest = event;
+      }
+    }
+
+    return nearest?.emoji ?? '🎉';
   }
 
   Future<BitmapDescriptor> _getAvatarPinBestEffort(EventModel event) async {
@@ -210,53 +234,71 @@ class GoogleMapViewState extends State<GoogleMapView> {
   }
 
   Future<void> _syncBaseMarkersIntoClusterManager(List<EventModel> events) async {
-    _ensureClusterManagerInitialized();
-    final manager = _clusterManager;
-    if (manager == null) return;
+    // Se nunca foi inicializado, inicializa vazio para garantir que _updateClustersRealtime não quebre (safety)
+    if (_clusterManager == null) {
+      _clusterManager = _createClusterManager();
+    }
+    
     if (!mounted) return;
 
     final signature = _markerSignatureForEvents(events);
     if (signature == _lastMarkersSignature) return;
     _lastMarkersSignature = signature;
 
-    // Recriar manager é a forma mais segura de garantir que não há markers "stale"
-    // quando categoria/bounds mudam (a lib não documenta um clear).
-    _clusterManager = null;
-    _ensureClusterManagerInitialized();
-    final rebuilt = _clusterManager!;
-
-    _eventById
-      ..clear()
-      ..addEntries(events.map((e) => MapEntry(e.id, e)));
+    // Criar NOVO manager localmente para evitar ConcurrentModification durante 'await'
+    // se _updateClustersRealtime for chamado na thread principal enquanto populamos este.
+    final rebuilt = _createClusterManager();
 
     // Best-effort warmup (não bloqueia o render de markers).
     unawaited(_warmupAvatarsForEvents(events));
 
-    // 1 marker por evento (emoji) para alimentar o cluster manager.
-    // O avatar é desenhado como overlay apenas quando o evento está individual.
-    for (final event in events) {
+    // ✅ FIX ANDROID: Gerar todos os bitmaps em paralelo ANTES de adicionar ao cluster manager.
+    // O await sequencial dentro do loop causava problemas de timing no Android,
+    // onde alguns markers não eram adicionados se o estado mudasse durante a execução.
+    final markerFutures = events.map((event) async {
       try {
         final emojiPin = await MarkerBitmapGenerator.generateEmojiPinForGoogleMaps(
           event.emoji,
           eventId: event.id,
           size: 230,
         );
-
-        rebuilt.addMarker(
-          Marker(
-            markerId: MarkerId('event_${event.id}'),
-            position: LatLng(event.lat, event.lng),
-            icon: emojiPin,
-            anchor: const Offset(0.5, 1.0),
-            // Emoji base fica na camada 1, avatar logo acima na camada 2.
-            zIndex: 1,
-            onTap: () => unawaited(_onMarkerTap(event)),
-          ),
-        );
+        return MapEntry(event, emojiPin);
       } catch (_) {
-        // Best-effort; se falhar para um evento, seguimos.
+        return null;
       }
+    }).toList();
+
+    // AQUI ocorre o gap assíncrono onde _updateClustersRealtime pode rodar no manager ANTIGO via timer/movimento
+    final results = await Future.wait(markerFutures);
+    
+    // Verificar se ainda estamos montados após o await paralelo
+    if (!mounted) return;
+    
+    // Agora adicionar todos os markers de forma síncrona no NOVO manager
+    for (final result in results) {
+      if (result == null) continue;
+      final event = result.key;
+      final emojiPin = result.value;
+      
+      rebuilt.addMarker(
+        Marker(
+          markerId: MarkerId('event_${event.id}'),
+          position: LatLng(event.lat, event.lng),
+          icon: emojiPin,
+          anchor: const Offset(0.5, 1.0),
+          // Emoji base fica na camada 1, avatar logo acima na camada 2.
+          zIndex: 1,
+          onTap: () => unawaited(_onMarkerTap(event)),
+        ),
+      );
     }
+    
+    // ATOMIC SWAP: Atualizar _eventById e _clusterManager juntos no final
+    _eventById
+      ..clear()
+      ..addEntries(events.map((e) => MapEntry(e.id, e)));
+
+    _clusterManager = rebuilt;
   }
 
   Future<void> _updateClustersFromManager() async {
@@ -320,8 +362,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
 
       debugPrint('🔶 Cluster detectado: id="$rawId" -> count=$count (title="${m.infoWindow.title}")');
 
-      final clusterPin = await _getClusterPinForCount(count);
       final clusterPosition = m.position;
+      final clusterEmoji = _pickClusterEmoji(clusterPosition);
+      final clusterPin = await MarkerBitmapGenerator.generateClusterPinForGoogleMaps(
+        clusterEmoji,
+        count,
+      );
       final clusterCount = count;
       nextClusteredStyled.add(
         m.copyWith(
@@ -393,6 +439,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
   Timer? _renderDebounce;
   static const Duration _renderDebounceDuration = Duration(milliseconds: 80);
 
+  // Throttle para updates de cluster em tempo real (evita piscadas)
+  Timer? _realtimeClusterDebounce;
+  static const Duration _realtimeClusterDebounceDuration = Duration(milliseconds: 140);
+
   /// Se um render foi solicitado enquanto `_isCameraMoving`/`_isAnimating` estava true,
   /// guardamos pendência para executar assim que a câmera ficar idle.
   bool _renderPendingAfterMove = false;
@@ -432,6 +482,11 @@ class GoogleMapViewState extends State<GoogleMapView> {
   static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 200);
 
   Timer? _avatarBitmapsDebounce;
+
+  // Lookahead cache durante pan (throttle)
+  Timer? _cacheLookaheadThrottle;
+  static const Duration _cacheLookaheadThrottleDuration = Duration(milliseconds: 160);
+  LatLng? _pendingLookaheadCenter;
   
 
   // Buffer do viewport usado para filtrar markers em zoom alto.
@@ -648,7 +703,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
     // Snapshot consistente (similar ao fluxo atual).
     final allEvents = List<EventModel>.from(widget.viewModel.events);
     if (allEvents.isEmpty) {
-      if (_markers.isNotEmpty) setState(() => _markers = {});
+      if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
+        setState(() {
+          _markers = {};
+          _avatarOverlayMarkers.clear();
+        });
+      }
       return;
     }
 
@@ -674,7 +734,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
         .toList(growable: false);
 
     if (viewportEvents.isEmpty) {
-      if (_markers.isNotEmpty) setState(() => _markers = {});
+      if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
+        setState(() {
+          _markers = {};
+          _avatarOverlayMarkers.clear();
+        });
+      }
       return;
     }
 
@@ -795,12 +860,39 @@ class GoogleMapViewState extends State<GoogleMapView> {
       if (withinPrefetched) {
         // Dentro da zona de gordura: não faz rede.
         debugPrint('📦 GoogleMapView: Dentro do bounds pré-carregado, pulando refetch');
+        final applied = await widget.viewModel.softLookaheadForBounds(queryBounds);
+        if (!applied) {
+          // Fallback: cache não disponível para este bounds, então busca normalmente.
+          _lastRequestedQueryBounds = queryBounds;
+          _lastRequestedQueryAt = now;
+          await widget.viewModel.loadEventsInBounds(
+            queryBounds,
+            prefetchNeighbors: _currentZoom > _clusterZoomThreshold,
+          );
+          _prefetchedExpandedBounds = prefetchExpandedBounds;
+        }
+        scheduleRender();
       } else if (withinPrevious && tooSoon) {
         debugPrint('📦 GoogleMapView: Bounds contido, pulando refetch (janela curta)');
+        final applied = await widget.viewModel.softLookaheadForBounds(queryBounds);
+        if (!applied) {
+          // Fallback: cache miss mesmo dentro da janela curta.
+          _lastRequestedQueryBounds = queryBounds;
+          _lastRequestedQueryAt = now;
+          await widget.viewModel.loadEventsInBounds(
+            queryBounds,
+            prefetchNeighbors: _currentZoom > _clusterZoomThreshold,
+          );
+          _prefetchedExpandedBounds = prefetchExpandedBounds;
+        }
+        scheduleRender();
       } else {
         _lastRequestedQueryBounds = queryBounds;
         _lastRequestedQueryAt = now;
-        await widget.viewModel.loadEventsInBounds(queryBounds);
+        await widget.viewModel.loadEventsInBounds(
+          queryBounds,
+          prefetchNeighbors: _currentZoom > _clusterZoomThreshold,
+        );
 
         // Atualiza a zona de gordura baseada no viewport atual.
         _prefetchedExpandedBounds = prefetchExpandedBounds;
@@ -844,6 +936,46 @@ class GoogleMapViewState extends State<GoogleMapView> {
     // Atualizar clusters em tempo real (sem debounce)
     // Isso garante que os clusters se reorganizem instantaneamente durante zoom
     _updateClustersRealtime();
+
+    _scheduleCacheLookahead(position.target);
+  }
+
+  void _scheduleCacheLookahead(LatLng center) {
+    if (!mounted) return;
+    if (_currentZoom <= _clusterZoomThreshold) return;
+
+    _pendingLookaheadCenter = center;
+    if (_cacheLookaheadThrottle?.isActive ?? false) return;
+
+    _cacheLookaheadThrottle = Timer(_cacheLookaheadThrottleDuration, () {
+      final target = _pendingLookaheadCenter;
+      _pendingLookaheadCenter = null;
+      if (target == null) return;
+
+      final reference = _lastExpandedVisibleBounds;
+      if (reference == null) return;
+
+      final lookaheadBounds = _boundsFromCenterWithSpan(target, reference);
+      widget.viewModel.softLookaheadForBounds(lookaheadBounds);
+    });
+  }
+
+  MapBounds _boundsFromCenterWithSpan(LatLng center, LatLngBounds reference) {
+    final latSpan = (reference.northeast.latitude - reference.southwest.latitude).abs();
+    final lngSpan = (reference.northeast.longitude - reference.southwest.longitude).abs();
+
+    final halfLat = latSpan / 2.0;
+    final halfLng = lngSpan / 2.0;
+
+    double clampLat(double v) => v.clamp(-90.0, 90.0);
+    double clampLng(double v) => v.clamp(-180.0, 180.0);
+
+    return MapBounds(
+      minLat: clampLat(center.latitude - halfLat),
+      maxLat: clampLat(center.latitude + halfLat),
+      minLng: clampLng(center.longitude - halfLng),
+      maxLng: clampLng(center.longitude + halfLng),
+    );
   }
 
   /// Atualiza clusters em tempo real durante movimento de câmera.
@@ -852,18 +984,38 @@ class GoogleMapViewState extends State<GoogleMapView> {
     final manager = _clusterManager;
     if (manager == null) return;
     if (!mounted) return;
-    
-    // Usar unawaited para não bloquear o movimento do mapa
-    unawaited(_performClusterUpdate());
+
+    if (_realtimeClusterDebounce?.isActive ?? false) return;
+    _realtimeClusterDebounce = Timer(_realtimeClusterDebounceDuration, () {
+      if (!mounted) return;
+      // Usar unawaited para não bloquear o movimento do mapa
+      unawaited(_performClusterUpdate());
+    });
   }
 
   Future<void> _performClusterUpdate() async {
+    // 🔒 CAPTURA LOCAL ATÔMICA
+    // Capturamos a referência atual para garantir que usaremos a MESMA instância
+    // durante toda a execução deste método, mesmo que _syncBaseMarkersIntoClusterManager
+    // troque _clusterManager (swap) no meio do caminho.
     final manager = _clusterManager;
+    
     if (manager == null) return;
     
-    // Atualizar clusters com o zoom atual
-    await manager.updateClusters(zoomLevel: _currentZoom);
+    try {
+      // Atualizar clusters com o zoom atual
+      await manager.updateClusters(zoomLevel: _currentZoom);
+    } catch (e) {
+      // Se houver erro de concorrência na lib externa, ignoramos este frame.
+      // O próximo movimento de câmera corrigirá.
+      return;
+    }
+    
     if (!mounted) return;
+    
+    // Verificação de segurança: se o manager foi trocado durante o await acima,
+    // descartamos o resultado deste update antigo para evitar inconsistência visual.
+    if (_clusterManager != manager) return;
     
     final clustered = Set<Marker>.of(manager.getClusteredMarkers());
     
@@ -899,8 +1051,12 @@ class GoogleMapViewState extends State<GoogleMapView> {
       int? count = _extractClusterCount(m);
       count ??= 2;
 
-      final clusterPin = await _getClusterPinForCount(count);
       final clusterPosition = m.position;
+      final clusterEmoji = _pickClusterEmoji(clusterPosition);
+      final clusterPin = await MarkerBitmapGenerator.generateClusterPinForGoogleMaps(
+        clusterEmoji,
+        count,
+      );
       final clusterCount = count;
       nextClusteredStyled.add(
         m.copyWith(
@@ -1187,6 +1343,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
     }
     
     if (!mounted) return;
+
+    // FIX: Forçar renderização imediata para garantir que o marker apareça
+    // mesmo se o mapa já estiver na posição ou se a animação for curta.
+    scheduleRender();
     
     // Mover câmera para o evento
     if (_mapController != null) {
@@ -1209,102 +1369,38 @@ class GoogleMapViewState extends State<GoogleMapView> {
   /// Callback quando usuário toca em um marker
   /// 
   /// [showConfetti] - Se true, mostra confetti ao abrir o card (usado após criar evento)
+  /// 
+  /// ✅ OTIMIZAÇÃO: "Show first, fetch later"
+  /// O modal abre IMEDIATAMENTE com os dados pré-carregados do MapViewModel.
+  /// Os listeners realtime no EventCardController atualizam a UI se necessário.
   Future<void> _onMarkerTap(EventModel event, {bool showConfetti = false}) async {
     debugPrint('🔴🔴🔴 GoogleMapView._onMarkerTap CHAMADO! 🔴🔴🔴');
     debugPrint('🔴 GoogleMapView._onMarkerTap called for: ${event.id} - ${event.title}');
+
+    // ✅ Proteção: não abrir múltiplos bottom sheets
+    if (_isEventCardOpen) {
+      debugPrint('⚠️ [GoogleMapView] EventCard já aberto - ignorando novo tap');
+      return;
+    }
+    _isEventCardOpen = true;
     
-    final firestore = FirebaseFirestore.instance;
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    
-    // ✅ Pré-carregar TODOS os dados necessários em paralelo
-    String? creatorFullName = event.creatorFullName;
-    List<Map<String, dynamic>>? participants = event.participants;
-    dynamic userApplication = event.userApplication;
-    
+    // ✅ BUSCAR EVENTO ATUALIZADO da lista do ViewModel (pode ter sido enriquecido)
+    // O marker guarda uma cópia antiga; a lista _events tem a versão mais recente
+    EventModel enrichedEvent = event;
     try {
-      final futures = <Future>[];
-      
-      // 1. Buscar creatorFullName se necessário
-      if (creatorFullName == null && event.createdBy.isNotEmpty) {
-        futures.add(
-          firestore.collection('Users').doc(event.createdBy).get().then((doc) {
-            creatorFullName = doc.data()?['fullName'] as String?;
-            debugPrint('✅ creatorFullName: $creatorFullName');
-          }),
-        );
-      }
-      
-      // 2. Buscar participants se necessário
-      if (participants == null || participants!.isEmpty) {
-        futures.add(
-          firestore
-              .collection('EventApplications')
-              .where('eventId', isEqualTo: event.id)
-              .where('status', whereIn: ['approved', 'autoApproved'])
-              .get()
-              .then((snapshot) async {
-            final userIds = snapshot.docs.map((d) => d.data()['userId'] as String).toList();
-            if (userIds.isEmpty) {
-              participants = [];
-              return;
-            }
-            
-            // Buscar dados dos usuários em batch
-            final usersSnapshot = await firestore
-                .collection('Users')
-                .where(FieldPath.documentId, whereIn: userIds.take(10).toList())
-                .get();
-            
-            participants = usersSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'userId': doc.id,
-                'photoUrl': data['photoUrl'] as String?,
-                'fullName': data['fullName'] as String?,
-              };
-            }).toList();
-            debugPrint('✅ participants: ${participants?.length}');
-          }),
-        );
-      }
-      
-      // 3. Buscar userApplication se necessário
-      if (userApplication == null && currentUserId != null) {
-        futures.add(
-          firestore
-              .collection('EventApplications')
-              .where('eventId', isEqualTo: event.id)
-              .where('userId', isEqualTo: currentUserId)
-              .limit(1)
-              .get()
-              .then((snapshot) {
-            if (snapshot.docs.isNotEmpty) {
-              userApplication = snapshot.docs.first;
-              debugPrint('✅ userApplication: ${snapshot.docs.first.data()['status']}');
-            }
-          }),
-        );
-      }
-      
-      // Aguardar todas as queries terminarem
-      await Future.wait(futures);
-      
-    } catch (e) {
-      debugPrint('⚠️ Erro ao pré-carregar dados: $e');
+      final updated = widget.viewModel.events.firstWhere((e) => e.id == event.id);
+      enrichedEvent = updated;
+      debugPrint('✅ Evento atualizado encontrado na lista do ViewModel');
+    } catch (_) {
+      debugPrint('⚠️ Evento não encontrado na lista, usando cópia do marker');
     }
     
-    // Criar evento enriquecido com todos os dados
-    final enrichedEvent = event.copyWith(
-      creatorFullName: creatorFullName,
-      participants: participants,
-      // userApplication é tratado separadamente no controller
-    );
-    
-    debugPrint('📦 EventModel enriquecido:');
+    debugPrint('📦 EventModel (versão final):');
     debugPrint('   - creatorFullName: ${enrichedEvent.creatorFullName}');
     debugPrint('   - participants: ${enrichedEvent.participants?.length ?? 0}');
+    debugPrint('   - userApplication: ${enrichedEvent.userApplication?.status}');
     
-    // Criar controller com evento enriquecido
+    // Criar controller diretamente com o evento enriquecido
     final controller = EventCardController(
       eventId: enrichedEvent.id,
       preloadedEvent: enrichedEvent,
@@ -1318,30 +1414,37 @@ class GoogleMapViewState extends State<GoogleMapView> {
       ConfettiOverlay.show(context);
     }
     
-    // Abrir o card imediatamente
-    showModalBottomSheet(
+    // Abrir o card imediatamente (animação reduzida)
+    // NOTA: AnimationController customizado removido temporariamente para debug
+    // Se o dismiss funcionar sem ele, o problema está na animação
+
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      isDismissible: true,
+      enableDrag: true,
       isScrollControlled: true,
       useSafeArea: true,
+      useRootNavigator: true,
       constraints: const BoxConstraints(
         maxWidth: 500,
       ),
-      builder: (context) => EventCard(
+      builder: (sheetContext) => EventCard(
         controller: controller,
         onActionPressed: () async {
           // Capturar o navigator antes de fechar o modal
-          final navigator = Navigator.of(context);
-          
+          final navigator = Navigator.of(sheetContext);
+
           // Fechar o card
           navigator.pop();
-          
+
           // Se for o criador ou estiver aprovado, navegar para o chat
           if (controller.isCreator || controller.isApproved) {
             // Usar dados do evento pré-carregado
             final eventName = event.title;
             final emoji = event.emoji;
-            
+
             // Criar User com dados do evento usando campos corretos do SessionManager
             final chatUser = app_user.User.fromDocument({
               'userId': 'event_${event.id}',
@@ -1366,10 +1469,10 @@ class GoogleMapViewState extends State<GoogleMapView> {
               'totalVisits': 0,
               'isOnline': false,
             });
-            
+
             // Verificar se usuário está bloqueado
             final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-            if (currentUserId.isNotEmpty && 
+            if (currentUserId.isNotEmpty &&
                 BlockService().isBlockedCached(currentUserId, event.createdBy)) {
               final i18n = AppLocalizations.of(context);
               ToastService.showWarning(
@@ -1377,8 +1480,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
               );
               return;
             }
-            
-            // Usar o navigator capturado anteriormente
+
             navigator.push(
               MaterialPageRoute(
                 builder: (context) => ChatScreenRefactored(
@@ -1394,6 +1496,8 @@ class GoogleMapViewState extends State<GoogleMapView> {
     ).whenComplete(() {
       // Garantir limpeza do controller ao fechar o modal
       controller.dispose();
+      _isEventCardOpen = false;
+      debugPrint('🔴 [GoogleMapView] EventCard fechado via whenComplete');
     });
   }
 
@@ -1408,6 +1512,7 @@ class GoogleMapViewState extends State<GoogleMapView> {
       style: _mapStyle,
       // Callback de criação
       onMapCreated: _onMapCreated,
+      onTap: (_) => _dismissEventCardIfOpen(),
 
       onCameraMoveStarted: _onCameraMoveStarted,
 
@@ -1451,7 +1556,9 @@ class GoogleMapViewState extends State<GoogleMapView> {
   void dispose() {
     _cameraIdleDebounce?.cancel();
   _renderDebounce?.cancel();
+    _realtimeClusterDebounce?.cancel();
     _avatarBitmapsDebounce?.cancel();
+    _cacheLookaheadThrottle?.cancel();
     widget.viewModel.removeListener(_onEventsChanged);
     MapNavigationService.instance.unregisterMapHandler();
     _mapController?.dispose();

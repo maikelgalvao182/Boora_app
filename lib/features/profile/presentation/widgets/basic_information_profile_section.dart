@@ -112,7 +112,9 @@ class BasicInformationProfileSection extends StatelessWidget {
         return i18n.translate('gender_male');
       case 'Female':
         return i18n.translate('gender_female');
-      case 'Other':
+      case 'Trans':
+        return i18n.translate('gender_trans');
+      case 'Non-Binary':
         return i18n.translate('gender_non_binary');
       default:
         return gender; // Retorna o valor original se não encontrar tradução

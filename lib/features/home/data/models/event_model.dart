@@ -18,6 +18,7 @@ class EventModel {
   final double? distanceKm;
   final bool isAvailable;
   final String? creatorFullName;
+  final String? gender;
   final DateTime? scheduleDate;
   final String? privacyType;
   final List<Map<String, dynamic>>? participants;
@@ -41,6 +42,7 @@ class EventModel {
     this.distanceKm,
     this.isAvailable = true,
     this.creatorFullName,
+    this.gender,
     this.scheduleDate,
     this.privacyType,
     this.participants,
@@ -77,6 +79,8 @@ class EventModel {
     
     final placeId = map['placeId'] as String? ??
                    location?['placeId'] as String?;
+                   
+    final participantsMap = map['participants'] as Map<String, dynamic>?;
     
     // Parse photoReferences
     List<String>? photoReferences;
@@ -112,6 +116,8 @@ class EventModel {
       }
     }
 
+    final isActive = map['isActive'] as bool?;
+
     return EventModel(
       id: id,
       emoji: map['emoji'] as String? ?? '🎉',
@@ -125,11 +131,12 @@ class EventModel {
       placeId: placeId,
       photoReferences: photoReferences,
       distanceKm: (map['distanceKm'] as num?)?.toDouble(),
-      isAvailable: map['isAvailable'] as bool? ?? true,
+      isAvailable: map['isAvailable'] as bool? ?? isActive ?? true,
+      gender: map['gender'] as String? ?? participantsMap?['gender'] as String?,
       creatorFullName: map['creatorFullName'] as String?,
       scheduleDate: scheduleDate,
       // Se privacyType não existe, usar "open" como padrão (todos eventos são abertos por padrão)
-      privacyType: map['privacyType'] as String? ?? 'open',
+      privacyType: map['privacyType'] as String? ?? participantsMap?['privacyType'] as String? ?? 'open',
       participants: null, // Não vem do map inicial
       isAgeRestricted: map['isAgeRestricted'] as bool? ?? false,
     )..debugPrintFields(id);
@@ -139,6 +146,7 @@ class EventModel {
   void debugPrintFields(String id) {
     debugPrint('📊 [EventModel] Criado evento $id:');
     debugPrint('   - title (activityText): $title');
+    debugPrint('   - gender: $gender');
     debugPrint('   - locationName: $locationName');
     debugPrint('   - creatorFullName: $creatorFullName');
     debugPrint('   - privacyType: $privacyType');
@@ -159,6 +167,7 @@ class EventModel {
     String? placeId,
     List<String>? photoReferences,
     double? distanceKm,
+    String? gender,
     bool? isAvailable,
     String? creatorFullName,
     DateTime? scheduleDate,
@@ -181,6 +190,7 @@ class EventModel {
       formattedAddress: formattedAddress ?? this.formattedAddress,
       placeId: placeId ?? this.placeId,
       photoReferences: photoReferences ?? this.photoReferences,
+      gender: gender ?? this.gender,
       distanceKm: distanceKm ?? this.distanceKm,
       isAvailable: isAvailable ?? this.isAvailable,
       creatorFullName: creatorFullName ?? this.creatorFullName,

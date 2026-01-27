@@ -386,6 +386,48 @@ class UserStore {
     });
   }
 
+  /// ✅ Define o estado do usuário manualmente e notifica
+  void updateState(String userId, String? state) {
+    if (userId.isEmpty) return;
+    final entry = _users[userId];
+    if (entry != null) {
+      if (entry.state != state) {
+        entry.state = state;
+        _stateNotifiers[userId]?.value = state;
+      }
+    } else {
+      // Cria nova entry simples
+      _users[userId] = UserEntry(
+        avatarUrl: '',
+        avatarProvider: _loadingPlaceholder,
+        lastUpdated: DateTime.now(),
+        state: state,
+      );
+      _stateNotifiers[userId]?.value = state;
+    }
+  }
+
+  /// ✅ Define a cidade do usuário manualmente e notifica
+  void updateCity(String userId, String? city) {
+    if (userId.isEmpty) return;
+    final entry = _users[userId];
+    if (entry != null) {
+      if (entry.city != city) {
+        entry.city = city;
+        _cityNotifiers[userId]?.value = city;
+      }
+    } else {
+      // Cria nova entry simples
+      _users[userId] = UserEntry(
+        avatarUrl: '',
+        avatarProvider: _loadingPlaceholder,
+        lastUpdated: DateTime.now(),
+        city: city,
+      );
+      _cityNotifiers[userId]?.value = city;
+    }
+  }
+
   // ========== APIs SÍNCRONAS (sem reatividade) ==========
 
   /// Acesso síncrono ao avatar provider

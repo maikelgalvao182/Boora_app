@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
@@ -64,6 +65,11 @@ class EventCardController extends ChangeNotifier {
   int? _userAge;
   bool _isAgeRestricted = false;
 
+  // Gender restriction
+  String? _requiredGender;
+  String? _currentUserGender;
+  bool _isGenderRestricted = false;
+
   EventCardController({
     required this.eventId,
     EventModel? preloadedEvent,
@@ -105,10 +111,20 @@ class EventCardController extends ChangeNotifier {
       _minAge = _preloadedEvent!.minAge;
       _maxAge = _preloadedEvent!.maxAge;
 
+      // ✅ INICIALIZAR restrição de gênero
+      _requiredGender = _preloadedEvent!.gender;
+      // Se tiver restrição, validar o usuário
+      if (_requiredGender != null && _requiredGender != GENDER_ALL) {
+        _validateUserGender(_auth.currentUser?.uid ?? '');
+      }
+
       if (_preloadedEvent!.participants != null) {
         _approvedParticipants = _preloadedEvent!.participants!;
         // Preload avatares para evitar "popping" na UI
         _preloadParticipantAvatars();
+      } else {
+        // ✅ Se não há participantes no preload, tentar cache (memória + Hive)
+        _hydrateParticipantsFromCache();
       }
 
       debugPrint('🎫 [EventCard] Dados carregados:');
@@ -122,11 +138,56 @@ class EventCardController extends ChangeNotifier {
       if (_privacyType != null && _creatorId != null) {
         _loaded = true;
         debugPrint('🎫 [EventCard] ✅ _loaded = true');
+        
+        // ✅ Se creatorFullName está faltando, buscar em background
+        if (_creatorFullName == null && _creatorId != null) {
+          _fetchCreatorNameInBackground();
+        }
       } else {
         debugPrint('🎫 [EventCard] ⚠️ _loaded = false (privacyType ou creatorId é null)');
       }
     } else {
       debugPrint('🎫 [EventCard] ❌ _preloadedEvent é NULL - sem dados para carregar');
+    }
+  }
+
+  /// Busca participantes do cache (memória + Hive) sem bloquear a UI
+  Future<void> _hydrateParticipantsFromCache() async {
+    if (_disposed) return;
+
+    try {
+      final cached = await _applicationRepo.getCachedApprovedParticipants(eventId);
+      if (_disposed) return;
+
+      if (cached == null || cached.isEmpty) return;
+      if (_approvedParticipants.isNotEmpty) return;
+
+      _approvedParticipants = cached;
+      _preloadParticipantAvatars();
+      debugPrint('✅ [EventCard] Participantes carregados do cache (${cached.length})');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('⚠️ [EventCard] Erro ao hidratar participantes do cache: $e');
+    }
+  }
+  
+  /// Busca o nome do criador em background e atualiza a UI
+  Future<void> _fetchCreatorNameInBackground() async {
+    if (_creatorId == null || _disposed) return;
+    
+    try {
+      final userData = await _userRepo.getUserBasicInfo(_creatorId!);
+      final fullName = userData?['fullName'] as String?;
+      
+      if (_disposed) return;
+      
+      if (fullName != null && _creatorFullName == null) {
+        _creatorFullName = fullName;
+        debugPrint('✅ [EventCard] creatorFullName carregado em background: $fullName');
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('⚠️ [EventCard] Erro ao buscar nome do criador: $e');
     }
   }
 
@@ -145,12 +206,12 @@ class EventCardController extends ChangeNotifier {
   bool get isLoading => !_loaded && _error == null;
   String? get error => _error;
   bool get hasData {
-    final result = _error == null && _creatorFullName != null && _locationName != null && _activityText != null;
+    // ✅ RELAXADO: Não exige creatorFullName para mostrar o card
+    // O nome pode ser carregado em background e a UI atualiza via notifyListeners
+    final result = _error == null && _activityText != null;
     if (!result) {
       debugPrint('🎫 [EventCard] hasData = FALSE para eventId: $eventId');
       debugPrint('   - _error: $_error');
-      debugPrint('   - _creatorFullName: $_creatorFullName');
-      debugPrint('   - _locationName: $_locationName');
       debugPrint('   - _activityText: $_activityText');
     }
     return result;
@@ -210,6 +271,10 @@ class EventCardController extends ChangeNotifier {
       return 'age_restricted'; // Ou retornar direto: 'Indisponível para sua idade'
     }
 
+    if (_isGenderRestricted) {
+      return _genderRestrictionButtonTextKey;
+    }
+
     return privacyType == 'open' ? 'participate' : 'request_participation';
   }
 
@@ -232,6 +297,10 @@ class EventCardController extends ChangeNotifier {
       return false;
     }
 
+    if (_isGenderRestricted) {
+      return false;
+    }
+
     return true;
   }
   
@@ -241,6 +310,21 @@ class EventCardController extends ChangeNotifier {
       return 'Indisponível para sua idade';
     }
     return null;
+  }
+
+  String get _genderRestrictionButtonTextKey {
+    switch (_requiredGender) {
+      case GENDER_WOMAN:
+        return 'gender_restricted_female';
+      case GENDER_MAN:
+        return 'gender_restricted_male';
+      case GENDER_TRANS:
+        return 'gender_restricted_trans';
+      case GENDER_OTHER:
+        return 'gender_restricted_non_binary';
+      default:
+        return 'gender_restricted';
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -321,6 +405,15 @@ class EventCardController extends ChangeNotifier {
             _validateUserAge(uid);
           }
         }
+        
+        // ✅ ATUALIZAR restrição de gênero
+        final newGender = participantsData['gender'] as String?;
+        if (newGender != _requiredGender) {
+          _requiredGender = newGender;
+          if (uid != null && !isCreator) {
+            _validateUserGender(uid);
+          }
+        }
       }
 
       _emoji = data['emoji'] ?? _emoji;
@@ -342,11 +435,53 @@ class EventCardController extends ChangeNotifier {
         .where('status', whereIn: ['approved', 'autoApproved'])
     .snapshots();
 
+  // Primeiro evento do stream: não buscar do Firestore se já temos dados
+  bool isFirstStreamEvent = true;
+
   _participantsSub = _participantsSnapshotStream!.listen((snapshot) async {
       // Guard duplo: antes e depois de operações async
       if (_disposed) return;
       
       final uid = _auth.currentUser?.uid;
+      final snapshotCount = snapshot.docs.length;
+      final localCount = _approvedParticipants.length;
+      
+      // ✅ PRIMEIRO EVENTO DO STREAM
+      if (isFirstStreamEvent) {
+        isFirstStreamEvent = false;
+        
+        // Se já temos participantes pré-carregados E a contagem bate, usar eles
+        if (_approvedParticipants.isNotEmpty && (snapshotCount - localCount).abs() <= 1) {
+          debugPrint('📱 [EventCard] Usando participantes pré-carregados (${_approvedParticipants.length})');
+          return;
+        }
+        
+        // Se NÃO temos participantes pré-carregados, buscar imediatamente
+        if (_approvedParticipants.isEmpty && snapshotCount > 0) {
+          debugPrint('📱 [EventCard] Buscando ${snapshotCount} participantes (sem pré-load)...');
+          final userIds = snapshot.docs.map((doc) => doc.data()['userId'] as String).toList();
+          
+          try {
+            final usersData = await _userRepo.getUsersBasicInfo(userIds);
+            
+            if (_disposed) return;
+            
+            _approvedParticipants = usersData.map((userData) => {
+              'userId': userData['userId'],
+              'photoUrl': userData['photoUrl'],
+              'fullName': userData['fullName'],
+            }).toList();
+            
+            _preloadParticipantAvatars();
+            debugPrint('✅ [EventCard] Participantes carregados: ${_approvedParticipants.length}');
+            unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+            notifyListeners();
+          } catch (e) {
+            debugPrint('⚠️ [EventCard] Erro ao buscar participantes: $e');
+          }
+          return;
+        }
+      }
       
       // ✅ PRESERVAR participante otimista durante transição
       // Se o usuário atual ainda não está no snapshot mas estava na lista local (otimista),
@@ -361,15 +496,62 @@ class EventCardController extends ChangeNotifier {
         return;
       }
       
-      // Invalidar cache antes de buscar para garantir dados frescos
-      _applicationRepo.invalidateEventParticipantsCache(eventId);
+      // ✅ OTIMIZAÇÃO: Extrair userIds diretamente do snapshot (já temos!)
+      // Evita query redundante ao EventApplications
+      final snapshotUserIds = snapshot.docs
+          .map((doc) => doc.data()['userId'] as String)
+          .toList();
       
-      // Recarregar participantes com dados do usuário
-      _approvedParticipants = await _applicationRepo.getApprovedApplicationsWithUserData(eventId);
+      // Verificar se realmente mudou (evita rebuilds desnecessários)
+      final currentUserIds = _approvedParticipants.map((p) => p['userId'] as String).toSet();
+      final newUserIds = snapshotUserIds.toSet();
       
-      // Guard pós-async: evita "used after disposed"
-      if (_disposed) return;
-      notifyListeners();
+      if (currentUserIds.length == newUserIds.length && 
+          currentUserIds.containsAll(newUserIds)) {
+        // Mesmos participantes, não precisa atualizar
+        return;
+      }
+      
+      debugPrint('📱 [EventCard] Participantes mudaram: ${currentUserIds.length} → ${newUserIds.length}');
+      
+      // ✅ Buscar dados dos usuários (avatares/nomes) - isso usa cache do UserRepository
+      // Mas só busca os dados dos NOVOS usuários que ainda não temos
+      final newUsers = newUserIds.difference(currentUserIds);
+      final removedUsers = currentUserIds.difference(newUserIds);
+      
+      if (removedUsers.isNotEmpty) {
+        // Alguém saiu: remover da lista local (instantâneo)
+        _approvedParticipants = _approvedParticipants
+            .where((p) => !removedUsers.contains(p['userId']))
+            .toList();
+        
+        if (_disposed) return;
+        unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+        notifyListeners();
+      }
+      
+      if (newUsers.isNotEmpty) {
+        // Alguém entrou: buscar dados do novo usuário
+        try {
+          final newUsersData = await _userRepo.getUsersBasicInfo(newUsers.toList());
+          
+          if (_disposed) return;
+          
+          // Adicionar novos participantes à lista
+          for (final userData in newUsersData) {
+            _approvedParticipants.add({
+              'userId': userData['userId'],
+              'photoUrl': userData['photoUrl'],
+              'fullName': userData['fullName'],
+            });
+          }
+          
+          unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+          notifyListeners();
+        } catch (e) {
+          debugPrint('⚠️ [EventCard] Erro ao buscar dados de novos participantes: $e');
+        }
+      }
   }, onError: _handleRealtimeStreamError);
   }
 
@@ -545,6 +727,14 @@ class EventCardController extends ChangeNotifier {
       return;
     }
 
+    // ✅ VALIDAR gênero antes de aplicar
+    await _validateUserGender(uid);
+
+    if (_isGenderRestricted) {
+      notifyListeners();
+      return;
+    }
+
     _isApplying = true;
     notifyListeners();
 
@@ -619,6 +809,52 @@ class EventCardController extends ChangeNotifier {
     } catch (e) {
       debugPrint('❌ [EventCard] Erro ao validar idade: $e');
       _isAgeRestricted = true;
+    }
+  }
+
+  /// Valida se o gênero do usuário é permitido
+  Future<void> _validateUserGender(String userId) async {
+    if (_requiredGender == null || _requiredGender == GENDER_ALL) {
+      _isGenderRestricted = false;
+      return;
+    }
+
+    if (isCreator) {
+      _isGenderRestricted = false;
+      return;
+    }
+
+    if (_currentUserGender != null) {
+      _isGenderRestricted = _currentUserGender != _requiredGender;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final userData = await _userRepo.getUserById(userId);
+      
+      if (userData == null) {
+        _isGenderRestricted = true;
+        notifyListeners();
+        return;
+      }
+
+      _currentUserGender = userData['gender'] as String?;
+      
+      // Se não tem gênero definido no perfil, bloqueia se a atividade é restrita
+      if (_currentUserGender == null) {
+        _isGenderRestricted = true;
+        notifyListeners();
+        return;
+      }
+
+      _isGenderRestricted = _currentUserGender != _requiredGender;
+      debugPrint('🔒 [EventCard] Validação de gênero: user=$_currentUserGender required=$_requiredGender blocked=$_isGenderRestricted');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ [EventCard] Erro ao validar gênero: $e');
+      _isGenderRestricted = true;
+      notifyListeners();
     }
   }
 

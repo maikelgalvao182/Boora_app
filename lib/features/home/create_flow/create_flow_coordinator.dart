@@ -77,13 +77,15 @@ class CreateFlowCoordinator extends ChangeNotifier {
     required int maxAge,
     required PrivacyType privacyType,
     int? maxParticipants,
+    String? gender,
   }) {
     _draft.minAge = minAge;
     _draft.maxAge = maxAge;
     _draft.privacyType = privacyType;
     _draft.maxParticipants = maxParticipants;
+    _draft.gender = gender;
     notifyListeners();
-    debugPrint('👥 [CreateFlow] Participants set: $minAge-$maxAge ($privacyType) max: $maxParticipants');
+    debugPrint('👥 [CreateFlow] Participants set: $minAge-$maxAge ($privacyType) gender: $gender max: $maxParticipants');
   }
 
   /// Verifica se o draft está pronto para ser salvo

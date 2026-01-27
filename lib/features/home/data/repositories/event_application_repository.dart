@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/core/services/cache/hive_cache_service.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
@@ -32,6 +33,109 @@ class EventApplicationRepository {
   final FirebaseFunctions _functions;
   final UserRepository _userRepo;
   final GlobalCacheService _cache = GlobalCacheService.instance;
+  final HiveCacheService<List<Map<String, dynamic>>> _participantsPersistentCache =
+      HiveCacheService<List<Map<String, dynamic>>>('event_participants');
+  bool _participantsCacheInitialized = false;
+
+  static const Duration _participantsMemoryCacheTtl = Duration(minutes: 3);
+  static const Duration _participantsHiveCacheTtl = Duration(minutes: 10);
+
+  Future<void> _ensureParticipantsCacheInitialized() async {
+    if (_participantsCacheInitialized) return;
+    await _participantsPersistentCache.initialize();
+    _participantsCacheInitialized = true;
+  }
+
+  List<Map<String, dynamic>> _serializeParticipantsForCache(
+    List<Map<String, dynamic>> participants,
+  ) {
+    return participants.map((p) {
+      final appliedAt = p['appliedAt'];
+      int? appliedAtMillis;
+
+      if (appliedAt is Timestamp) {
+        appliedAtMillis = appliedAt.millisecondsSinceEpoch;
+      } else if (appliedAt is DateTime) {
+        appliedAtMillis = appliedAt.millisecondsSinceEpoch;
+      } else if (appliedAt is int) {
+        appliedAtMillis = appliedAt;
+      }
+
+      return {
+        'userId': p['userId'] as String?,
+        'photoUrl': p['photoUrl'] as String?,
+        'fullName': p['fullName'] as String?,
+        'isCreator': p['isCreator'] == true,
+        if (appliedAtMillis != null) 'appliedAtMillis': appliedAtMillis,
+      };
+    }).toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _deserializeParticipantsFromCache(
+    List<Map<String, dynamic>> cached,
+  ) {
+    return cached.map((p) {
+      final appliedAtMillis = p['appliedAtMillis'];
+      return {
+        'userId': p['userId'] as String?,
+        'photoUrl': p['photoUrl'] as String?,
+        'fullName': p['fullName'] as String?,
+        'isCreator': p['isCreator'] == true,
+        if (appliedAtMillis is int)
+          'appliedAt': Timestamp.fromMillisecondsSinceEpoch(appliedAtMillis),
+      };
+    }).toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>?> _getParticipantsFromPersistentCache(
+    String eventId,
+  ) async {
+    await _ensureParticipantsCacheInitialized();
+    final cached = _participantsPersistentCache.get('event_participants_$eventId');
+    if (cached == null) return null;
+    return _deserializeParticipantsFromCache(cached);
+  }
+
+  Future<void> _saveParticipantsToPersistentCache(
+    String eventId,
+    List<Map<String, dynamic>> participants,
+  ) async {
+    await _ensureParticipantsCacheInitialized();
+    final serialized = _serializeParticipantsForCache(participants);
+    await _participantsPersistentCache.put(
+      'event_participants_$eventId',
+      serialized,
+      ttl: _participantsHiveCacheTtl,
+    );
+  }
+
+  /// Retorna participantes APENAS do cache (memória + Hive)
+  ///
+  /// ✅ Não faz nenhum request ao Firestore
+  Future<List<Map<String, dynamic>>?> getCachedApprovedParticipants(String eventId) async {
+    final cacheKey = 'event_participants_$eventId';
+
+    final cachedMemory = _cache.get<List<Map<String, dynamic>>>(cacheKey);
+    if (cachedMemory != null) return cachedMemory;
+
+    final cachedPersistent = await _getParticipantsFromPersistentCache(eventId);
+    if (cachedPersistent != null && cachedPersistent.isNotEmpty) {
+      _cache.set(cacheKey, cachedPersistent, ttl: _participantsMemoryCacheTtl);
+      return cachedPersistent;
+    }
+
+    return null;
+  }
+
+  /// Atualiza caches de participantes (memória + Hive)
+  Future<void> cacheApprovedParticipants(
+    String eventId,
+    List<Map<String, dynamic>> participants,
+  ) async {
+    final cacheKey = 'event_participants_$eventId';
+    _cache.set(cacheKey, participants, ttl: _participantsMemoryCacheTtl);
+    await _saveParticipantsToPersistentCache(eventId, participants);
+  }
 
   /// Cria uma nova aplicação para um evento
   /// 
@@ -319,6 +423,14 @@ class EventApplicationRepository {
       debugPrint('✅ [EventApplicationRepo] Cache HIT: $eventId');
       return cached;
     }
+
+    // 🧊 HIVE CACHE HIT: Retornar imediatamente se existe
+    final cachedPersistent = await _getParticipantsFromPersistentCache(eventId);
+    if (cachedPersistent != null && cachedPersistent.isNotEmpty) {
+      debugPrint('✅ [EventApplicationRepo] Hive Cache HIT: $eventId');
+      _cache.set(cacheKey, cachedPersistent, ttl: _participantsMemoryCacheTtl);
+      return cachedPersistent;
+    }
     
     debugPrint('⏳ [EventApplicationRepo] Cache MISS: buscando do Firestore...');
     
@@ -405,7 +517,8 @@ class EventApplicationRepository {
       }
 
       // 💾 SALVAR no cache (TTL: 3 minutos)
-      _cache.set(cacheKey, results, ttl: const Duration(minutes: 3));
+      _cache.set(cacheKey, results, ttl: _participantsMemoryCacheTtl);
+      await _saveParticipantsToPersistentCache(eventId, results);
       debugPrint('💾 [EventApplicationRepo] Cache SAVED: $eventId (${results.length} membros)');
 
       return results;
@@ -596,8 +709,12 @@ class EventApplicationRepository {
   /// 🗑️ Invalida o cache de participantes de um evento específico
   /// 
   /// Útil para forçar refresh após operações externas que modificam participantes
-  void invalidateEventParticipantsCache(String eventId) {
+  Future<void> invalidateEventParticipantsCache(String eventId) async {
     _cache.remove('event_participants_$eventId');
+
+    await _ensureParticipantsCacheInitialized();
+    await _participantsPersistentCache.delete('event_participants_$eventId');
+
     debugPrint('🗑️ Cache invalidado para evento: $eventId');
   }
 }

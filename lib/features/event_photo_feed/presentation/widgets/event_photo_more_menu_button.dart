@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 
 class EventPhotoMoreMenuButton extends StatelessWidget {
@@ -18,6 +19,7 @@ class EventPhotoMoreMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: () async {
         final ok = await GlimpseCupertinoDialog.showDestructive(
@@ -25,7 +27,7 @@ class EventPhotoMoreMenuButton extends StatelessWidget {
           title: title,
           message: message,
           destructiveText: destructiveText,
-          cancelText: 'cancelar',
+          cancelText: i18n.translate('cancel'),
         );
         if (ok == true) {
           await onConfirmed();

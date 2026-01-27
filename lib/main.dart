@@ -32,6 +32,7 @@ import 'package:partiu/features/home/presentation/viewmodels/people_ranking_view
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:partiu/core/services/cache/hive_initializer.dart';
 
 bool _shouldSuppressPermissionDeniedAfterLogout(Object error) {
   if (FirebaseAuth.instance.currentUser != null) return false;
@@ -47,6 +48,9 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
+    // 📦 Inicializar Hive (cache persistente) - não bloqueia se falhar
+    unawaited(HiveInitializer.initialize());
+
     // Inicializar Firebase primeiro (necessário para Crashlytics)
     try {
       if (Firebase.apps.isEmpty) {
@@ -56,16 +60,6 @@ Future<void> main() async {
       }
     } catch (e) {
       debugPrint('Firebase já inicializado: $e');
-    }
-
-    // Inicializar Analytics e Crashlytics
-    await AnalyticsService.instance.initialize();
-
-    // Se usuário já está logado, setar userId para analytics
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      await AnalyticsService.instance.setUserId(currentUser.uid);
-      debugPrint('📊 Analytics userId setado: ${currentUser.uid}');
     }
 
     // Captura erros do Flutter framework e envia para Crashlytics
@@ -124,28 +118,16 @@ Future<void> main() async {
     timeago.setLocaleMessages('pt', timeago.PtBrMessages());
     timeago.setLocaleMessages('es', timeago.EsMessages());
 
-    //  Inicializar Push Notification Manager (ANTES do runApp)
-    await PushNotificationManager.instance.initialize();
-    debugPrint('✅ PushNotificationManager iniciado');
-
-    // Inicializar Google Maps
-    await GoogleMapsInitializer.initialize();
-
-    // Inicializar SessionManager
-    await SessionManager.instance.initialize();
-
     // Inicializar CacheManager
     CacheManager.instance.initialize();
 
     // Inicializar Service Locator
     final serviceLocator = ServiceLocator();
-    await serviceLocator.init();
 
     // 🌍 LocaleController (duas camadas):
     // - null => segue idioma do sistema
     // - Locale => override manual persistido
     final localeController = LocaleController();
-    await localeController.load();
 
     // NOTA: LocationSyncScheduler agora é iniciado dentro do AuthSyncService
     // após o login bem-sucedido, não mais aqui no main.dart
@@ -188,15 +170,15 @@ Future<void> main() async {
           ],
           child: DependencyProvider(
             serviceLocator: serviceLocator,
-            child: const AppRoot(),
+            child: AppBootstrap(
+              serviceLocator: serviceLocator,
+              localeController: localeController,
+              child: const AppRoot(),
+            ),
           ),
         ),
       ),
     );
-    
-    // 🔔 Processar mensagem inicial (se app foi aberto via notificação)
-    // Deve ser APÓS runApp para ter contexto de navegação disponível
-    PushNotificationManager.instance.handleInitialMessageAfterRunApp();
   }, (Object error, StackTrace stack) {
     if (_shouldSuppressPermissionDeniedAfterLogout(error)) {
       AppLogger.warning(
@@ -218,6 +200,69 @@ Future<void> main() async {
   });
 }
 
+class AppBootstrap extends StatefulWidget {
+  const AppBootstrap({
+    super.key,
+    required this.serviceLocator,
+    required this.localeController,
+    required this.child,
+  });
+
+  final ServiceLocator serviceLocator;
+  final LocaleController localeController;
+  final Widget child;
+
+  @override
+  State<AppBootstrap> createState() => _AppBootstrapState();
+}
+
+class _AppBootstrapState extends State<AppBootstrap> {
+  bool _didBootstrap = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_didBootstrap) return;
+      _didBootstrap = true;
+      unawaited(_bootstrap());
+    });
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      await Future.wait([
+        AnalyticsService.instance.initialize(),
+        PushNotificationManager.instance.initialize(),
+        GoogleMapsInitializer.initialize(),
+        SessionManager.instance.initialize(),
+        widget.serviceLocator.init(),
+        widget.localeController.load(),
+      ]);
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        await AnalyticsService.instance.setUserId(currentUser.uid);
+        debugPrint('📊 Analytics userId setado: ${currentUser.uid}');
+      }
+
+      // 🔔 Processar mensagem inicial (se app foi aberto via notificação)
+      // Deve ser APÓS o bootstrap para garantir inicialização do push
+      PushNotificationManager.instance.handleInitialMessageAfterRunApp();
+    } catch (error, stack) {
+      AppLogger.error(
+        'Falha no bootstrap pós-primeiro-frame',
+        tag: 'APP',
+        error: error,
+        stackTrace: stack,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
 
@@ -230,11 +275,6 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    // ✅ Processa clique em notificação local/FCM em cold-start com Navigator pronto.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      PushNotificationManager.instance.handleInitialMessageAfterRunApp();
-    });
   }
 
   @override

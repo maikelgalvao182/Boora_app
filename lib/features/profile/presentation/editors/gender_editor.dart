@@ -23,6 +23,7 @@ class GenderEditor extends StatelessWidget {
       items: [
         _translateGender(context, GENDER_MAN),
         _translateGender(context, GENDER_WOMAN),
+        _translateGender(context, GENDER_TRANS),
         _translateGender(context, GENDER_OTHER),
       ],
       selectedValue: _translateGender(context, controller.text),
@@ -43,6 +44,8 @@ class GenderEditor extends StatelessWidget {
         return i18n.translate('male');
       case GENDER_WOMAN:
         return i18n.translate('female');
+      case GENDER_TRANS:
+        return i18n.translate('gender_trans');
       case GENDER_OTHER:
         return i18n.translate('gender_non_binary');
       default:
@@ -56,6 +59,8 @@ class GenderEditor extends StatelessWidget {
       return GENDER_MAN;
     } else if (translatedGender == i18n.translate('female')) {
       return GENDER_WOMAN;
+    } else if (translatedGender == i18n.translate('gender_trans')) {
+      return GENDER_TRANS;
     } else if (translatedGender == i18n.translate('gender_non_binary')) {
       return GENDER_OTHER;
     }

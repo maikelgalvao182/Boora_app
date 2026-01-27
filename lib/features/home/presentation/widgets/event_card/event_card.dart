@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/utils/card_color_helper.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_handler.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/event_action_buttons.dart';
@@ -10,9 +11,11 @@ import 'package:partiu/features/home/presentation/widgets/event_card/widgets/eve
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_avatars_list.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/widgets/participants_counter.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
+import 'package:partiu/shared/widgets/list_emoji_avatar.dart';
 import 'package:partiu/shared/widgets/place_details_modal.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/report_event_button.dart';
+import 'package:partiu/shared/widgets/stable_avatar.dart';
 
 /// Bottom sheet de evento que exibe informações do criador e localização
 /// 
@@ -116,43 +119,107 @@ class _EventCardState extends State<EventCard> {
             // Header: Nome do criador centralizado + Report Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Nome centralizado (usando ReactiveUserNameWithBadge como no UserCard)
-                  if (_controller.creatorId != null)
-                    Center(
-                      child: ReactiveUserNameWithBadge(
-                        userId: _controller.creatorId!,
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: GlimpseColors.primaryColorLight,
+              child: SizedBox(
+                width: double.infinity,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Conteúdo centralizado (Stack de Avatars + Nome)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Stack de Emoji + Avatar
+                        SizedBox(
+                          height: 64, // Sem espaço extra abaixo dos avatares
+                          width: 104, // Largura suficiente para o overlap
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // 1. Emoji do evento (Esquerda)
+                              Positioned(
+                                left: 0,
+                                child: Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: CardColorHelper.getColor(_controller.eventId.hashCode),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 4,
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: ListEmojiAvatar(
+                                      emoji: _controller.emoji ?? ListEmojiAvatar.defaultEmoji,
+                                      eventId: _controller.eventId,
+                                      size: 64,
+                                      emojiSize: 32,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // 2. Avatar do criador (Direita)
+                              if (_controller.creatorId != null)
+                                Positioned(
+                                  right: 0,
+                                  child: Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 4,
+                                      ),
+                                    ),
+                                    child: StableAvatar(
+                                      userId: _controller.creatorId!,
+                                      size: 64,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                        iconSize: 16, // Badge maior para o header do EventCard
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  else
-                    Center(
-                      child: Text(
-                        _controller.creatorFullName ?? '',
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: GlimpseColors.primaryColorLight,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+
+                        // Nome centralizado (usando ReactiveUserNameWithBadge como no UserCard)
+                        if (_controller.creatorId != null)
+                          ReactiveUserNameWithBadge(
+                            userId: _controller.creatorId!,
+                            style: GoogleFonts.getFont(
+                              FONT_PLUS_JAKARTA_SANS,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: GlimpseColors.primaryColorLight,
+                            ),
+                            iconSize: 16, // Badge maior para o header do EventCard
+                            textAlign: TextAlign.center,
+                          )
+                        else
+                          Text(
+                            _controller.creatorFullName ?? '',
+                            style: GoogleFonts.getFont(
+                              FONT_PLUS_JAKARTA_SANS,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: GlimpseColors.primaryColorLight,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                      ],
                     ),
-                  // Botão de denúncia à direita
-                  Positioned(
-                    right: 0,
-                    child: ReportEventButton(eventId: _controller.eventId),
-                  ),
-                ],
+
+                    // Botão de denúncia à direita (topo alinhado com o centro do header)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: ReportEventButton(eventId: _controller.eventId),
+                    ),
+                  ],
+                ),
               ),
             ),
 

@@ -45,12 +45,30 @@ class MapBounds {
 
   /// Gera um quadkey para cache (simplificado)
   /// 
-  /// Arredonda coordenadas para criar uma chave única
-  /// baseada na região (precisão de ~1km)
+  /// Arredonda coordenadas + inclui bucket de span
+  /// para evitar colisão entre zoom-in e zoom-out.
   String toQuadkey({int precision = 2}) {
-    final latKey = (minLat + maxLat) ~/ 2 * precision;
-    final lngKey = (minLng + maxLng) ~/ 2 * precision;
-    return '${latKey}_$lngKey';
+    final centerLat = (minLat + maxLat) / 2.0;
+    final centerLng = (minLng + maxLng) / 2.0;
+    final latKey = (centerLat * precision).round();
+    final lngKey = (centerLng * precision).round();
+
+    final latSpan = (maxLat - minLat).abs();
+    final lngSpan = (maxLng - minLng).abs();
+    final spanBucket = _spanBucket(latSpan, lngSpan);
+
+    return '${latKey}_${lngKey}_$spanBucket';
+  }
+
+  int _spanBucket(double latSpan, double lngSpan) {
+    final span = (latSpan + lngSpan) / 2.0;
+    if (span > 5) return 1;
+    if (span > 2) return 2;
+    if (span > 1) return 3;
+    if (span > 0.5) return 4;
+    if (span > 0.25) return 5;
+    if (span > 0.1) return 6;
+    return 7;
   }
 
   @override

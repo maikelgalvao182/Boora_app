@@ -265,7 +265,7 @@ const bool ENABLE_RADIUS_LIMIT = true;
 /// - true: Exibe o ícone de galeria (feed de fotos do evento)
 /// - false: Oculta o ícone
 /// 📍 Usado em: HomeAppBar (home_app_bar.dart)
-const bool ENABLE_EVENT_PHOTO_FEED_ICON = false;
+const bool ENABLE_EVENT_PHOTO_FEED_ICON = true;
 
 /// ========================================
 /// === 3. LIMITES DO SLIDER DE RAIO ===
@@ -344,7 +344,7 @@ const double MIN_AGE = 18.0;
 const double MAX_AGE = 60.0;
 
 /// Default maximum age for participants drawer
-const double DEFAULT_MAX_AGE_PARTICIPANTS = 36.0;
+const double DEFAULT_MAX_AGE_PARTICIPANTS = 56.0;
 
 /// VIP / SUBSCRIPTION CONSTANTS
 const int FREE_PEOPLE_LIMIT = 13;

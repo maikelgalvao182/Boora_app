@@ -16,8 +16,20 @@ class MarkerColorHelper {
   /// 
   /// Usa o hashCode para garantir que o mesmo ID sempre retorne a mesma cor
   static Color getColorForId(String id) {
-    final index = id.hashCode.abs() % _colors.length;
+    final index = _stableHash(id) % _colors.length;
     return _colors[index];
+  }
+
+  /// Hash estável (FNV-1a) para evitar concentração em uma cor
+  static int _stableHash(String input) {
+    const int fnvOffset = 0x811C9DC5;
+    const int fnvPrime = 0x01000193;
+    var hash = fnvOffset;
+    for (final codeUnit in input.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * fnvPrime) & 0x7fffffff;
+    }
+    return hash.abs();
   }
 
   /// Retorna uma cor baseada no índice de um evento na lista

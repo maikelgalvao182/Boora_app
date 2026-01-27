@@ -28,13 +28,6 @@ class EventPhotoActionRow extends StatelessWidget {
             color: GlimpseColors.textSubTitle,
           ),
         ),
-        IconButton(
-          onPressed: null,
-          icon: const Icon(
-            IconsaxPlusLinear.location,
-            color: GlimpseColors.textSubTitle,
-          ),
-        ),
       ],
     );
   }

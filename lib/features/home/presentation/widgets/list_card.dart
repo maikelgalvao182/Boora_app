@@ -211,6 +211,7 @@ class _ListCardState extends State<ListCard> {
     }
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         debugPrint('🔵 [ListCard] Tap no card - eventId: ${_controller.eventId}');
         debugPrint('🔵 [ListCard] activityText: $activityText');

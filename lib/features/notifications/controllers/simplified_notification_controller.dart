@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/features/notifications/repositories/notifications_repository.dart';
 import 'package:partiu/features/notifications/repositories/notifications_repository_interface.dart';
+import 'package:partiu/features/notifications/models/notification_cache_item.dart';
+import 'package:partiu/features/notifications/services/notification_persistent_cache_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -25,9 +27,11 @@ class SimplifiedNotificationController extends ChangeNotifier {
   }) : _repository = repository;
   final INotificationsRepository _repository;
   final GlobalCacheService _cache = GlobalCacheService.instance;
+  final NotificationPersistentCacheRepository _persistentCache =
+      NotificationPersistentCacheRepository();
 
   // Cache por filtro (mantido em memória durante sessão)
-  final Map<String?, List<DocumentSnapshot<Map<String, dynamic>>>> _notificationsByFilter = {};
+  final Map<String?, List<NotificationCacheItem>> _notificationsByFilter = {};
   final Map<String?, DocumentSnapshot<Map<String, dynamic>>?> _lastDocumentByFilter = {};
   final Map<String?, bool> _hasMoreByFilter = {};
   final Map<String?, bool> _isFirstLoadByFilter = {};
@@ -59,7 +63,7 @@ class SimplifiedNotificationController extends ChangeNotifier {
   bool _isVipEffective = false;
 
   // Getters do filtro atual
-  List<DocumentSnapshot<Map<String, dynamic>>> get notifications =>
+  List<NotificationCacheItem> get notifications =>
       _notificationsByFilter[_selectedFilterKey] ?? [];
 
   bool get hasMore => _hasMoreByFilter[_selectedFilterKey] ?? true;
@@ -146,7 +150,7 @@ class SimplifiedNotificationController extends ChangeNotifier {
     );
   }
 
-  List<DocumentSnapshot<Map<String, dynamic>>> getNotificationsForFilter(String? filterKey) {
+  List<NotificationCacheItem> getNotificationsForFilter(String? filterKey) {
     return _notificationsByFilter[filterKey] ?? [];
   }
 
@@ -209,10 +213,27 @@ class SimplifiedNotificationController extends ChangeNotifier {
     
     if (_isLoading) return;
     
-    // 🔵 STEP 1: Tentar buscar do cache global primeiro
+    // 🧊 STEP 0: Cache persistente (Hive) para cold start
     if (!shouldRefresh) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        final persisted = await _persistentCache.getCached(userId, key);
+        if (persisted != null && persisted.isNotEmpty) {
+          print('🧊 [NotificationController] Hive cache HIT para filtro: $key');
+          _notificationsByFilter[key] = persisted;
+          _isFirstLoadByFilter[key] = false;
+          _notifyFilterUpdate(key);
+          notifyListeners();
+
+          // Atualização silenciosa em background
+          _silentRefresh(key);
+          return;
+        }
+      }
+
+      // 🔵 STEP 1: Tentar buscar do cache global primeiro
       final cacheKey = CacheKeys.notificationsFilter(key);
-      final cached = _cache.get<List<DocumentSnapshot<Map<String, dynamic>>>>(cacheKey);
+      final cached = _cache.get<List<NotificationCacheItem>>(cacheKey);
       
       if (cached != null && cached.isNotEmpty) {
         print('🗂️ [NotificationController] Cache HIT para filtro: $key');
@@ -262,12 +283,14 @@ class SimplifiedNotificationController extends ChangeNotifier {
             }).toList()
           : result.docs;
 
+      final newItems = filteredDocs.map(NotificationCacheItem.fromDocument).toList();
+
       if (shouldRefresh) {
-        _notificationsByFilter[key] = filteredDocs;
+        _notificationsByFilter[key] = newItems;
       } else {
         _notificationsByFilter[key] = [
           ...(_notificationsByFilter[key] ?? []),
-          ...filteredDocs,
+          ...newItems,
         ];
       }
       
@@ -302,6 +325,15 @@ class SimplifiedNotificationController extends ChangeNotifier {
           _notificationsByFilter[key]!,
           ttl: const Duration(minutes: 5),
         );
+
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+          await _persistentCache.cacheNotifications(
+            userId,
+            key,
+            _notificationsByFilter[key]!,
+          );
+        }
         print('🗂️ [NotificationController] Cache SAVED para filtro: $key');
       }
 
@@ -337,16 +369,17 @@ class SimplifiedNotificationController extends ChangeNotifier {
             }).toList()
           : result.docs;
 
-      // Comparar com cache atual
-      final currentList = _notificationsByFilter[key] ?? [];
-      final hasChanges = filteredDocs.length != currentList.length ||
-          (filteredDocs.isNotEmpty && 
+        // Comparar com cache atual
+        final currentList = _notificationsByFilter[key] ?? [];
+        final newItems = filteredDocs.map(NotificationCacheItem.fromDocument).toList();
+        final hasChanges = newItems.length != currentList.length ||
+          (newItems.isNotEmpty && 
            currentList.isNotEmpty && 
-           filteredDocs.first.id != currentList.first.id);
+           newItems.first.id != currentList.first.id);
 
       if (hasChanges) {
         print('🔄 [NotificationController] Dados atualizados detectados');
-        _notificationsByFilter[key] = filteredDocs;
+        _notificationsByFilter[key] = newItems;
         
         // 🧹 Limpar Set de lidos localmente - os dados do servidor já têm o estado correto
         _locallyReadNotifications.clear();
@@ -359,9 +392,17 @@ class SimplifiedNotificationController extends ChangeNotifier {
         final cacheKey = CacheKeys.notificationsFilter(key);
         _cache.set(
           cacheKey,
-          filteredDocs,
+          _notificationsByFilter[key]!,
           ttl: const Duration(minutes: 5),
         );
+
+        if (currentUserId != null) {
+          await _persistentCache.cacheNotifications(
+            currentUserId,
+            key,
+            _notificationsByFilter[key]!,
+          );
+        }
 
         _notifyFilterUpdate(key);
         notifyListeners();
@@ -418,6 +459,14 @@ class SimplifiedNotificationController extends ChangeNotifier {
       }
       print('🗂️ [NotificationController] Cache limpo após delete all');
 
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        for (int i = 0; i < 4; i++) {
+          final key = mapFilterIndexToKey(i);
+          await _persistentCache.clearFilter(userId, key);
+        }
+      }
+
       for (final notifier in _filterUpdateNotifiers.values) {
         notifier.value++;
       }
@@ -446,6 +495,14 @@ class SimplifiedNotificationController extends ChangeNotifier {
             list,
             ttl: const Duration(minutes: 5),
           );
+          final userId = FirebaseAuth.instance.currentUser?.uid;
+          if (userId != null) {
+            await _persistentCache.cacheNotifications(
+              userId,
+              _selectedFilterKey,
+              list,
+            );
+          }
         }
       }
 

@@ -12,8 +12,8 @@ import 'package:partiu/core/utils/app_logger.dart';
 /// - Gerenciar lifecycle do app para métricas de engajamento
 /// 
 /// Eventos rastreados:
-/// - session_start: Quando o usuário abre o app
-/// - session_end: Quando o app vai para background (com duração)
+/// - app_session_start: Quando o usuário abre o app
+/// - app_session_end: Quando o app vai para background (com duração)
 /// - sign_up: Quando cria conta
 /// - login: Quando faz login
 /// - screen_view: Quando navega entre telas
@@ -91,7 +91,7 @@ class AnalyticsService with WidgetsBindingObserver {
     
     // Evita session_start duplicado (ex: resumed após inactive)
     if (!_sentSessionStart) {
-      logEvent('session_start');
+      logEvent('app_session_start');
       _sentSessionStart = true;
       AppLogger.debug('📊 Session started', tag: 'ANALYTICS');
     }
@@ -101,7 +101,7 @@ class AnalyticsService with WidgetsBindingObserver {
     final started = _foregroundAt;
     if (started != null) {
       final durationSeconds = DateTime.now().difference(started).inSeconds;
-      logEvent('session_end', parameters: {
+      logEvent('app_session_end', parameters: {
         'duration_sec': durationSeconds,
       });
       AppLogger.debug('📊 Session ended: ${durationSeconds}s', tag: 'ANALYTICS');

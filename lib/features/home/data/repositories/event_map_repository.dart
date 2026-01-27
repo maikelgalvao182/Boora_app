@@ -83,6 +83,7 @@ class EventMapRepository {
             privacyType: participantsData?['privacyType'] as String?,
             minAge: participantsData?['minAge'] as int?,
             maxAge: participantsData?['maxAge'] as int?,
+            gender: participantsData?['gender'] as String?,
           );
           
           // 🔍 DEBUG: Log campos críticos para diagnóstico
@@ -270,6 +271,7 @@ class EventMapRepository {
         privacyType: participantsData?['privacyType'] as String?,
         minAge: participantsData?['minAge'] as int?,
         maxAge: participantsData?['maxAge'] as int?,
+        gender: participantsData?['gender'] as String?,
         participants: participants,
       );
     } catch (e) {

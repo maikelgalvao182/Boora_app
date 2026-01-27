@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 import 'package:partiu/features/event_photo_feed/presentation/controllers/event_photo_composer_controller.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
@@ -11,6 +13,8 @@ import 'package:partiu/shared/widgets/stable_avatar.dart';
 /// Provider para buscar participantes do evento com presence='Vou'
 final eventParticipantsProvider = FutureProvider.family<List<_ParticipantInfo>, String>((ref, eventId) async {
   final firestore = FirebaseFirestore.instance;
+  final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+  final fallbackUserName = i18n.translate('event_photo_user_fallback_name');
   
   // Buscar aplicações aprovadas com presence='Vou'
   final appsSnap = await firestore
@@ -52,7 +56,7 @@ final eventParticipantsProvider = FutureProvider.family<List<_ParticipantInfo>, 
       final data = doc.data();
       participants.add(_ParticipantInfo(
         userId: doc.id,
-        userName: (data['fullName'] as String?) ?? 'Usuário',
+        userName: (data['fullName'] as String?) ?? fallbackUserName,
         userPhotoUrl: data['photoUrl'] as String?,
       ));
     }
@@ -128,6 +132,7 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
     final asyncParticipants = ref.watch(eventParticipantsProvider(widget.eventId));
 
     return Container(
@@ -167,7 +172,7 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Quem estava com você?',
+                          i18n.translate('event_photo_participants_title'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
                             fontSize: 16,
@@ -195,13 +200,21 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
                     data: (participants) => TextButton(
                       onPressed: () => _confirm(participants),
                       style: TextButton.styleFrom(
-                        backgroundColor: GlimpseColors.primaryColorLight,
-                        foregroundColor: Colors.white,
+                        backgroundColor: _selectedUserIds.isEmpty
+                            ? Colors.transparent
+                            : GlimpseColors.primaryColorLight,
+                        foregroundColor: _selectedUserIds.isEmpty
+                            ? GlimpseColors.primary
+                            : Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
                       child: Text(
-                        _selectedUserIds.isEmpty ? 'Pular' : 'Confirmar (${_selectedUserIds.length})',
+                        _selectedUserIds.isEmpty
+                            ? i18n.translate('skip')
+                            : i18n
+                                .translate('event_photo_confirm_with_count')
+                                .replaceAll('{count}', _selectedUserIds.length.toString()),
                         style: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
                           fontSize: 13,
@@ -221,7 +234,7 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
                       padding: const EdgeInsets.only(bottom: 24),
                       child: Center(
                         child: Text(
-                          'Nenhum participante confirmado para este evento',
+                          i18n.translate('event_photo_no_participants'),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
@@ -253,13 +266,13 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
                 },
                 loading: () => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: CupertinoActivityIndicator(radius: 14)),
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: Center(
                     child: Text(
-                      'Erro ao carregar participantes',
+                      i18n.translate('error_loading_participants'),
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
                         fontSize: 13,

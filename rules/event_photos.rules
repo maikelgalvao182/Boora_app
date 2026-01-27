@@ -40,19 +40,28 @@ match /EventPhotos/{photoId} {
   // ✍️ CRIAR:
   // - apenas autenticado
   // - userId deve ser o próprio
-  // - status deve iniciar em under_review
+  // - status deve iniciar em active ou under_review
   allow create: if isSignedIn() &&
     request.resource.data.userId == request.auth.uid &&
-    request.resource.data.status == 'under_review';
+    request.resource.data.status in ['active', 'under_review'];
 
   // ✏️ UPDATE:
-  // - só o autor pode atualizar
+  // - autor pode atualizar
+  // - usuários autenticados podem atualizar apenas contadores (comments/likes)
   // - bloqueia mudança de userId
   // - bloqueia promover status para active pelo client
-  allow update: if isSignedIn() &&
-    resource.data.userId == request.auth.uid &&
-    request.resource.data.userId == request.auth.uid &&
-    !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']));
+  allow update: if isSignedIn() && (
+    (
+      resource.data.userId == request.auth.uid &&
+      request.resource.data.userId == request.auth.uid &&
+      !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']))
+    )
+    ||
+    (
+      request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['commentsCount', 'likesCount'])
+    )
+  );
 
   // 🗑️ DELETE:
   // - só autor

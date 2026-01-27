@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 
 class EventPhotoModel {
@@ -8,6 +9,8 @@ class EventPhotoModel {
     required this.userId,
     required this.imageUrl,
     this.thumbnailUrl,
+    this.imageUrls = const [],
+    this.thumbnailUrls = const [],
     this.caption,
     required this.createdAt,
     required this.eventTitle,
@@ -30,6 +33,8 @@ class EventPhotoModel {
 
   final String imageUrl;
   final String? thumbnailUrl;
+  final List<String> imageUrls;
+  final List<String> thumbnailUrls;
 
   final String? caption;
   final Timestamp? createdAt;
@@ -65,12 +70,37 @@ class EventPhotoModel {
       }
     }
 
+    // Parse image arrays
+    final rawImageUrls = data['imageUrls'];
+    final rawThumbnailUrls = data['thumbnailUrls'];
+    final imageUrlsList = rawImageUrls is List
+        ? rawImageUrls.whereType<String>().toList()
+        : <String>[];
+    final thumbnailUrlsList = rawThumbnailUrls is List
+        ? rawThumbnailUrls.whereType<String>().toList()
+        : <String>[];
+
+    // Fallback: se arrays estão vazios, usa campos simples
+    if (imageUrlsList.isEmpty && (data['imageUrl'] as String?)?.isNotEmpty == true) {
+      imageUrlsList.add(data['imageUrl'] as String);
+    }
+    if (thumbnailUrlsList.isEmpty && (data['thumbnailUrl'] as String?)?.isNotEmpty == true) {
+      thumbnailUrlsList.add(data['thumbnailUrl'] as String);
+    }
+    
+    // Debug log
+    if (imageUrlsList.length > 1) {
+      debugPrint('📸 [EventPhotoModel] Doc ${doc.id} has ${imageUrlsList.length} images');
+    }
+
     return EventPhotoModel(
       id: doc.id,
       eventId: (data['eventId'] as String?) ?? '',
       userId: (data['userId'] as String?) ?? '',
       imageUrl: (data['imageUrl'] as String?) ?? '',
       thumbnailUrl: data['thumbnailUrl'] as String?,
+      imageUrls: imageUrlsList,
+      thumbnailUrls: thumbnailUrlsList,
       caption: data['caption'] as String?,
       createdAt: data['createdAt'] as Timestamp?,
       eventTitle: (data['eventTitle'] as String?) ?? '',
@@ -94,6 +124,8 @@ class EventPhotoModel {
       'userId': userId,
       'imageUrl': imageUrl,
       'thumbnailUrl': thumbnailUrl,
+      'imageUrls': imageUrls,
+      'thumbnailUrls': thumbnailUrls,
       'caption': caption,
       'createdAt': FieldValue.serverTimestamp(),
       'eventTitle': eventTitle,

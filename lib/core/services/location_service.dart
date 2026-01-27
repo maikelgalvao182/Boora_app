@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:partiu/core/services/location_cache.dart';
+import 'package:partiu/core/services/cache/last_known_location_cache_repository.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
 
 /// Serviço central de localização do aplicativo
@@ -19,6 +20,8 @@ class LocationService extends ChangeNotifier {
   Position? _lastKnownPosition;
   StreamSubscription<Position>? _positionStream;
   bool _isTracking = false;
+  final LastKnownLocationCacheRepository _persistentLocationCache =
+      LastKnownLocationCacheRepository();
 
   /// Última posição conhecida do usuário
   Position? get lastKnownPosition => _lastKnownPosition;
@@ -49,6 +52,19 @@ class LocationService extends ChangeNotifier {
         analytics.logUsedCache(cacheAgeMinutes: cache.getCacheAgeMinutes() ?? 0);
         return cache.lastPosition;
       }
+
+      // 1.5️⃣ Tenta usar cache persistente do Hive (cold start)
+      if (useCache) {
+        final persistent = await _persistentLocationCache.getCached();
+        if (persistent != null) {
+          final cachedPosition = _persistentLocationCache.toPosition(persistent);
+          cache.update(cachedPosition);
+          _lastKnownPosition = cachedPosition;
+          notifyListeners();
+          analytics.logUsedCache(cacheAgeMinutes: persistent.ageMinutes);
+          return cachedPosition;
+        }
+      }
       
       // 2️⃣ Tenta obter posição com alta precisão
       try {
@@ -60,6 +76,7 @@ class LocationService extends ChangeNotifier {
 
         // Atualiza cache
         cache.update(position);
+        unawaited(_persistentLocationCache.cachePosition(position));
         
         // Log analytics
         analytics.logLocationUpdated(
@@ -111,6 +128,7 @@ class LocationService extends ChangeNotifier {
         
         // Atualiza cache mesmo sendo menos precisa
         cache.update(lastKnown);
+        unawaited(_persistentLocationCache.cachePosition(lastKnown));
         
         _lastKnownPosition = lastKnown;
         notifyListeners();
@@ -151,6 +169,7 @@ class LocationService extends ChangeNotifier {
           _lastKnownPosition = position;
           notifyListeners();
           debugPrint('📍 Nova posição: ${position.latitude}, ${position.longitude}');
+          unawaited(_persistentLocationCache.cachePosition(position));
         },
         onError: (error) {
           debugPrint('❌ Erro no stream de localização: $error');

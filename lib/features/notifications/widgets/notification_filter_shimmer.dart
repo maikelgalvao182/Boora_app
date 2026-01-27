@@ -23,21 +23,21 @@ class NotificationFilterShimmer extends StatelessWidget {
       child: Shimmer.fromColors(
         baseColor: GlimpseColors.lightTextField,
         highlightColor: Colors.white,
-        child: Row(
-          children: List.generate(
-            itemCount,
-            (index) => Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Container(
-                width: 80 + (index * 10.0), // Larguras variadas
-                height: 40,
-                decoration: BoxDecoration(
-                  color: GlimpseColors.lightTextField,
-                  borderRadius: BorderRadius.circular(50),
-                ),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: itemCount,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            return Container(
+              width: 80 + (index * 10.0), // Larguras variadas
+              height: 40,
+              decoration: BoxDecoration(
+                color: GlimpseColors.lightTextField,
+                borderRadius: BorderRadius.circular(50),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

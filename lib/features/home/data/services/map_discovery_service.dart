@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/data/models/event_location.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
+import 'package:partiu/features/home/data/repositories/event_cache_repository.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Serviço exclusivo para descoberta de eventos por bounding box
@@ -21,9 +22,16 @@ class MapDiscoveryService {
   
   MapDiscoveryService._internal() {
     debugPrint('🎉 MapDiscoveryService: Singleton criado (primeira vez)');
+    // Inicializa cache persistente em background (não bloqueia)
+    unawaited(ensurePersistentCacheReady());
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Cache persistente (Hive)
+  final EventCacheRepository _persistentCache = EventCacheRepository();
+  bool _persistentCacheReady = false;
+  Completer<void>? _persistentInitCompleter;
 
   // ValueNotifier para eventos próximos (evita rebuilds desnecessários)
   final ValueNotifier<List<EventLocation>> nearbyEvents = ValueNotifier([]);
@@ -49,9 +57,14 @@ class MapDiscoveryService {
   final List<String> _quadkeyLru = <String>[];
 
   // Configurações
-  /// TTL do cache por quadkey. 30s balanceia freshness vs economia de reads.
+  /// TTL do cache em memória por quadkey. 30s balanceia freshness vs economia de reads.
   /// Em uso casual, usuário pode pan/zoom e voltar pro mesmo lugar.
-  static const Duration cacheTTL = Duration(seconds: 30);
+  static const Duration memoryCacheTTL = Duration(seconds: 30);
+  
+  /// TTL do cache persistente (Hive). 20min porque eventos não mudam de lugar.
+  /// Mapa vazio no cold start é MUITO pior que marker desatualizado.
+  static const Duration persistentCacheTTL = Duration(minutes: 20);
+  
   // Para mapa, 500ms costuma dar sensação de lag e aumenta a janela de corrida.
   // 200ms mantém proteção contra spam sem prejudicar a UX.
   static const Duration debounceTime = Duration(milliseconds: 200);
@@ -65,6 +78,7 @@ class MapDiscoveryService {
   // Debounce
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
+  bool _pendingPrefetchNeighbors = false;
   
   /// Completer que é completado quando a query (ou cache hit) efetivamente termina.
   /// Isso permite que callers de `loadEventsInBounds` aguardem o resultado real.
@@ -74,6 +88,41 @@ class MapDiscoveryService {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  // Prefetch adjacente
+  bool _isPrefetching = false;
+  String? _lastPrefetchQuadkey;
+  static const int _maxPrefetchNeighbors = 8;
+
+  /// Inicializa cache persistente em background
+  Future<void> ensurePersistentCacheReady() async {
+    if (_persistentCacheReady) return;
+
+    final existing = _persistentInitCompleter;
+    if (existing != null) {
+      await existing.future;
+      return;
+    }
+
+    final completer = Completer<void>();
+    _persistentInitCompleter = completer;
+
+    try {
+      await _persistentCache.initialize();
+      _persistentCacheReady = true;
+      debugPrint('📦 MapDiscoveryService: Cache persistente pronto');
+    } catch (e) {
+      debugPrint('📦 MapDiscoveryService: Cache persistente indisponível: $e');
+      // Não é crítico - funciona sem cache persistente
+    } finally {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (identical(_persistentInitCompleter, completer)) {
+        _persistentInitCompleter = null;
+      }
+    }
+  }
+
   /// Carrega eventos dentro do bounding box
   /// 
   /// Aplica debounce automático para evitar queries excessivas
@@ -81,8 +130,12 @@ class MapDiscoveryService {
   /// 
   /// **Importante**: este método aguarda a query completar (incluindo debounce)
   /// para que o caller possa consumir `nearbyEvents.value` logo após o await.
-  Future<void> loadEventsInBounds(MapBounds bounds) async {
+  Future<void> loadEventsInBounds(
+    MapBounds bounds, {
+    bool prefetchNeighbors = false,
+  }) async {
     _pendingBounds = bounds;
+    _pendingPrefetchNeighbors = prefetchNeighbors;
 
     // Marca que existe um request mais recente; se houver outro load antes do
     // debounce estourar, o seq muda e o anterior perde.
@@ -103,7 +156,8 @@ class MapDiscoveryService {
       _pendingBounds = null;
       
       if (boundsToQuery != null) {
-        await _executeQuery(boundsToQuery, requestId);
+        final shouldPrefetch = _pendingPrefetchNeighbors;
+        await _executeQuery(boundsToQuery, requestId, prefetchNeighbors: shouldPrefetch);
       }
       
       // Completa o completer (permite todos os callers prosseguirem)
@@ -119,24 +173,65 @@ class MapDiscoveryService {
   }
 
   /// Executa a query no Firestore
-  Future<void> _executeQuery(MapBounds bounds, int requestId) async {
+  /// 
+  /// Estratégia: Stale-While-Revalidate
+  /// 1. Tenta cache em memória (mais rápido, TTL curto)
+  /// 2. Tenta cache persistente Hive (cold start, TTL longo)
+  /// 3. Se ambos miss, busca do Firestore
+  /// 4. Salva em ambos os caches
+  Future<void> _executeQuery(
+    MapBounds bounds,
+    int requestId, {
+    bool prefetchNeighbors = false,
+  }) async {
     // Verificar cache por quadkey
     final quadkey = bounds.toQuadkey();
 
-    final cached = _getFromCacheIfFresh(quadkey);
-    if (cached != null) {
-      debugPrint('📦 [MapDiscovery] Cache hit (quadkey=$quadkey): ${cached.length} eventos');
+    // 1️⃣ Tenta cache em memória primeiro (mais rápido)
+    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    if (memoryCached != null) {
+      debugPrint('📦 [MapDiscovery] Memory cache HIT (quadkey=$quadkey): ${memoryCached.length} eventos');
 
       // Se existe um request mais novo, não publica cache velho.
       if (requestId != _requestSeq) {
         return;
       }
 
-      nearbyEvents.value = cached;
-      _eventsController.add(cached);
+      nearbyEvents.value = memoryCached;
+      _eventsController.add(memoryCached);
+      if (prefetchNeighbors) {
+        unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+      }
       return;
     }
 
+    // 2️⃣ Tenta cache persistente (Hive) - útil no cold start
+    if (_persistentCacheReady) {
+      final persistentCached = _persistentCache.getEvents(quadkey);
+      if (persistentCached != null) {
+        debugPrint('📦 [MapDiscovery] Persistent cache HIT (quadkey=$quadkey): ${persistentCached.length} eventos');
+
+        if (requestId != _requestSeq) {
+          return;
+        }
+
+        // Publica imediatamente (UI rápida)
+        nearbyEvents.value = persistentCached;
+        _eventsController.add(persistentCached);
+        
+        // Também salva no cache em memória para próximas consultas
+        _putInMemoryCache(quadkey, persistentCached);
+        
+        // 🔄 Stale-While-Revalidate: atualiza em background
+        unawaited(_revalidateInBackground(bounds, quadkey));
+        if (prefetchNeighbors) {
+          unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+        }
+        return;
+      }
+    }
+
+    // 3️⃣ Cache miss - busca do Firestore
     _isLoading = true;
     debugPrint('🔍 MapDiscoveryService: Buscando eventos em $bounds');
 
@@ -148,11 +243,18 @@ class MapDiscoveryService {
         return;
       }
       
-  _putInCache(quadkey, events);
+      // 4️⃣ Salva em ambos os caches
+      _putInMemoryCache(quadkey, events);
+      if (_persistentCacheReady) {
+        unawaited(_persistentCache.saveEvents(quadkey, events, ttl: persistentCacheTTL));
+      }
       
       debugPrint('✅ MapDiscoveryService: ${events.length} eventos encontrados');
       nearbyEvents.value = events;
       _eventsController.add(events);
+      if (prefetchNeighbors) {
+        unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+      }
     } catch (error) {
       debugPrint('❌ MapDiscoveryService: Erro na query: $error');
       _eventsController.addError(error);
@@ -161,12 +263,213 @@ class MapDiscoveryService {
     }
   }
 
-  List<EventLocation>? _getFromCacheIfFresh(String quadkey) {
+  /// Tenta carregar cache imediatamente (sem debounce) para o bounds atual.
+  ///
+  /// Útil para cold start e pan rápido: mostra dados de cache antes do fetch.
+  bool tryLoadCachedEventsForBounds(MapBounds bounds) {
+    return tryLoadCachedEventsForBoundsWithPrefetch(bounds, prefetchNeighbors: false);
+  }
+
+  bool tryLoadCachedEventsForBoundsWithPrefetch(
+    MapBounds bounds, {
+    bool prefetchNeighbors = false,
+  }) {
+    final quadkey = bounds.toQuadkey();
+
+    // 1️⃣ Memory cache
+    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    if (memoryCached != null) {
+      nearbyEvents.value = memoryCached;
+      _eventsController.add(memoryCached);
+      if (prefetchNeighbors) {
+        unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+      }
+      return true;
+    }
+
+    // 2️⃣ Persistent cache
+    if (_persistentCacheReady) {
+      final persistentCached = _persistentCache.getEvents(quadkey);
+      if (persistentCached != null) {
+        nearbyEvents.value = persistentCached;
+        _eventsController.add(persistentCached);
+        _putInMemoryCache(quadkey, persistentCached);
+        if (prefetchNeighbors) {
+          unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+        }
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Soft-apply de cache: só publica se houver novos eventos
+  /// (evita setState desnecessário durante pan)
+  bool applyCachedEventsIfNew(MapBounds bounds) {
+    final quadkey = bounds.toQuadkey();
+
+    List<EventLocation>? cached;
+
+    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    if (memoryCached != null) {
+      cached = memoryCached;
+    } else if (_persistentCacheReady) {
+      final persisted = _persistentCache.getEvents(quadkey);
+      if (persisted != null) {
+        cached = persisted;
+        _putInMemoryCache(quadkey, persisted);
+      }
+    }
+
+    if (cached == null) return false;
+
+    final current = nearbyEvents.value;
+    if (current.isEmpty) {
+      nearbyEvents.value = cached;
+      _eventsController.add(cached);
+      return true;
+    }
+
+    final currentIds = current.map((e) => e.eventId).toSet();
+    final cachedIds = cached.map((e) => e.eventId).toSet();
+
+    final hasNew = !currentIds.containsAll(cachedIds);
+    final lengthChanged = current.length != cached.length;
+
+    if (hasNew || lengthChanged) {
+      nearbyEvents.value = cached;
+      _eventsController.add(cached);
+      return true;
+    }
+
+    return false;
+  }
+
+  Future<void> _prefetchAdjacentQuadkeys(MapBounds bounds, String centerQuadkey) async {
+    if (_isPrefetching) return;
+    if (_lastPrefetchQuadkey == centerQuadkey) return;
+    _isPrefetching = true;
+    _lastPrefetchQuadkey = centerQuadkey;
+
+    try {
+      final neighbors = _buildNeighborBounds(bounds, ring: 1);
+      final seen = <String>{centerQuadkey};
+      var fetched = 0;
+
+      for (final neighbor in neighbors) {
+        if (fetched >= _maxPrefetchNeighbors) break;
+
+        final quadkey = neighbor.toQuadkey();
+        if (seen.contains(quadkey)) continue;
+        seen.add(quadkey);
+
+        // Se já existe cache em memória, pula
+        if (_getFromMemoryCacheIfFresh(quadkey) != null) continue;
+
+        // Se existe no cache persistente, só aquece memória
+        if (_persistentCacheReady) {
+          final persisted = _persistentCache.getEvents(quadkey);
+          if (persisted != null) {
+            _putInMemoryCache(quadkey, persisted);
+            continue;
+          }
+        }
+
+        // Fetch best-effort em background
+        try {
+          final events = await _queryFirestore(neighbor);
+          if (events.isEmpty) continue;
+          _putInMemoryCache(quadkey, events);
+          if (_persistentCacheReady) {
+            unawaited(_persistentCache.saveEvents(quadkey, events, ttl: persistentCacheTTL));
+          }
+          fetched++;
+        } catch (_) {
+          // Ignorar falhas de prefetch
+        }
+      }
+    } finally {
+      _isPrefetching = false;
+    }
+  }
+
+  List<MapBounds> _buildNeighborBounds(MapBounds bounds, {int ring = 1}) {
+    final latSpan = bounds.maxLat - bounds.minLat;
+    final lngSpan = bounds.maxLng - bounds.minLng;
+
+    if (latSpan == 0 || lngSpan == 0) return const [];
+
+    final centerLat = (bounds.minLat + bounds.maxLat) / 2.0;
+    final centerLng = (bounds.minLng + bounds.maxLng) / 2.0;
+
+    double clampLat(double v) => v.clamp(-90.0, 90.0);
+    double clampLng(double v) => v.clamp(-180.0, 180.0);
+
+    final neighbors = <MapBounds>[];
+    for (var y = -ring; y <= ring; y++) {
+      for (var x = -ring; x <= ring; x++) {
+        if (x == 0 && y == 0) continue;
+
+        final newCenterLat = clampLat(centerLat + (y * latSpan));
+        final newCenterLng = clampLng(centerLng + (x * lngSpan));
+
+        final halfLat = latSpan / 2.0;
+        final halfLng = lngSpan / 2.0;
+
+        neighbors.add(MapBounds(
+          minLat: clampLat(newCenterLat - halfLat),
+          maxLat: clampLat(newCenterLat + halfLat),
+          minLng: clampLng(newCenterLng - halfLng),
+          maxLng: clampLng(newCenterLng + halfLng),
+        ));
+      }
+    }
+    return neighbors;
+  }
+
+  /// Revalida cache em background (Stale-While-Revalidate)
+  /// 
+  /// Busca dados frescos do Firestore e atualiza UI se houver diferença
+  Future<void> _revalidateInBackground(MapBounds bounds, String quadkey) async {
+    try {
+      final freshEvents = await _queryFirestore(bounds);
+      
+      // Atualiza caches
+      _putInMemoryCache(quadkey, freshEvents);
+      if (_persistentCacheReady) {
+        unawaited(_persistentCache.saveEvents(quadkey, freshEvents, ttl: persistentCacheTTL));
+      }
+      
+      // Só atualiza UI se o quadkey ainda for relevante (usuário não moveu o mapa)
+      final currentEvents = nearbyEvents.value;
+      if (_hasSignificantChanges(currentEvents, freshEvents)) {
+        debugPrint('🔄 [MapDiscovery] Background revalidation: ${freshEvents.length} eventos (atualizado)');
+        nearbyEvents.value = freshEvents;
+        _eventsController.add(freshEvents);
+      }
+    } catch (e) {
+      // Silencioso - já temos dados do cache
+      debugPrint('⚠️ [MapDiscovery] Background revalidation failed: $e');
+    }
+  }
+
+  /// Verifica se há diferenças significativas entre listas de eventos
+  bool _hasSignificantChanges(List<EventLocation> old, List<EventLocation> fresh) {
+    if (old.length != fresh.length) return true;
+    
+    final oldIds = old.map((e) => e.eventId).toSet();
+    final freshIds = fresh.map((e) => e.eventId).toSet();
+    
+    return !oldIds.containsAll(freshIds) || !freshIds.containsAll(oldIds);
+  }
+
+  List<EventLocation>? _getFromMemoryCacheIfFresh(String quadkey) {
     final entry = _quadkeyCache[quadkey];
     if (entry == null) return null;
 
     final elapsed = DateTime.now().difference(entry.fetchedAt);
-    if (elapsed >= cacheTTL) {
+    if (elapsed >= memoryCacheTTL) {
       // Expirou.
       _quadkeyCache.remove(quadkey);
       _quadkeyLru.remove(quadkey);
@@ -180,7 +483,7 @@ class MapDiscoveryService {
     return entry.events;
   }
 
-  void _putInCache(String quadkey, List<EventLocation> events) {
+  void _putInMemoryCache(String quadkey, List<EventLocation> events) {
     _quadkeyCache[quadkey] = _QuadkeyCacheEntry(
       events: events,
       fetchedAt: DateTime.now(),
@@ -247,12 +550,15 @@ class MapDiscoveryService {
   /// Força atualização imediata (ignora cache e debounce)
   Future<void> forceRefresh(MapBounds bounds) async {
     _debounceTimer?.cancel();
-  // Force refresh ignora TTL para o quadkey atual.
-  final quadkey = bounds.toQuadkey();
-  _quadkeyCache.remove(quadkey);
-  _quadkeyLru.remove(quadkey);
-  final int requestId = ++_requestSeq;
-  await _executeQuery(bounds, requestId);
+    // Force refresh ignora TTL para o quadkey atual (ambos os caches).
+    final quadkey = bounds.toQuadkey();
+    _quadkeyCache.remove(quadkey);
+    _quadkeyLru.remove(quadkey);
+    if (_persistentCacheReady) {
+      unawaited(_persistentCache.invalidate(quadkey));
+    }
+    final int requestId = ++_requestSeq;
+    await _executeQuery(bounds, requestId);
   }
 
   /// Remove um evento específico do cache (usado após deleção)
@@ -261,6 +567,7 @@ class MapDiscoveryService {
   void removeEvent(String eventId) {
     var removedSomewhere = false;
 
+    // Remove do cache em memória
     for (final key in _quadkeyCache.keys.toList(growable: false)) {
       final entry = _quadkeyCache[key];
       if (entry == null) continue;
@@ -270,6 +577,11 @@ class MapDiscoveryService {
         removedSomewhere = true;
         _quadkeyCache[key] = _QuadkeyCacheEntry(events: next, fetchedAt: entry.fetchedAt);
       }
+    }
+
+    // Remove do cache persistente também
+    if (_persistentCacheReady) {
+      unawaited(_persistentCache.removeEvent(eventId));
     }
 
     if (removedSomewhere) {
@@ -285,11 +597,14 @@ class MapDiscoveryService {
     }
   }
 
-  /// Limpa o cache
+  /// Limpa o cache (memória + persistente)
   void clearCache() {
-  _quadkeyCache.clear();
-  _quadkeyLru.clear();
-    debugPrint('🧹 MapDiscoveryService: Cache limpo');
+    _quadkeyCache.clear();
+    _quadkeyLru.clear();
+    if (_persistentCacheReady) {
+      unawaited(_persistentCache.clear());
+    }
+    debugPrint('🧹 MapDiscoveryService: Cache limpo (memória + persistente)');
   }
 
   /// Dispose

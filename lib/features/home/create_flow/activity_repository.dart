@@ -89,6 +89,7 @@ class ActivityRepository {
         'privacyType': _privacyTypeToString(draft.privacyType!),
         'currentCount': 1, // Criador já está participando
         'maxCount': 100, // Sempre ilimitado
+        'gender': draft.gender,
         'participantIds': [userId], // Criador é o primeiro participante
         'pendingApprovalIds': [], // Vazio inicialmente
       },
@@ -197,6 +198,7 @@ class ActivityRepository {
   String _privacyTypeToString(PrivacyType type) {
     switch (type) {
       case PrivacyType.open:
+      case PrivacyType.specificGender:
         return 'open';
       case PrivacyType.private:
         return 'private';

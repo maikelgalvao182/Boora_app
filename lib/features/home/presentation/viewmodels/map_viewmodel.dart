@@ -15,8 +15,14 @@ import 'package:partiu/services/location/location_stream_controller.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
+import 'package:partiu/features/location/data/repositories/location_repository.dart';
+import 'package:partiu/features/location/domain/repositories/location_repository_interface.dart';
+import 'package:partiu/shared/stores/user_store.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:get_it/get_it.dart';
 
-/// ViewModel responsável por gerenciar o estado e lógica do mapa Google Maps
+/// ViewModel responsável por gerenciurus a estado e lógica do mapa Google Maps
 /// 
 /// Responsabilidades:
 /// - Carregar eventos com filtro de raio
@@ -172,6 +178,85 @@ class MapViewModel extends ChangeNotifier {
   
   /// Subscription para mudanças de filtros/reload
   StreamSubscription<void>? _reloadSubscription;
+
+  /// Subscription para localização do usuário (Reverse Geocoding em tempo real)
+  StreamSubscription<Position>? _positionSubscription;
+  
+  /// Helper para obter repository de localização (via GetIt)
+  LocationRepositoryInterface get _locationRepository => GetIt.instance<LocationRepositoryInterface>();
+
+  void _startLocationTracking() {
+    if (_positionSubscription != null) return;
+    
+    // Configurações de precisão e filtro de distância
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.medium, // Cidade/Estado não precisa de alta precisão
+      distanceFilter: 2000, // Atualiza apenas se mover 2km
+    );
+
+    try {
+      AppLogger.info('📍 [MapViewModel] Iniciando rastreamento de localização para atualização de cidade/estado...', tag: 'MapViewModel');
+      _positionSubscription = Geolocator.getPositionStream(locationSettings: locationSettings)
+          .listen((Position position) {
+            _handleUserPositionUpdate(position);
+          }, onError: (e) {
+            AppLogger.error('❌ [MapViewModel] Erro no tracking de localização: $e', tag: 'MapViewModel');
+          });
+    } catch (e) {
+      AppLogger.error('❌ [MapViewModel] Falha ao iniciar stream de localização: $e', tag: 'MapViewModel');
+    }
+  }
+
+  void _stopLocationTracking() {
+    if (_positionSubscription != null) {
+      AppLogger.info('🛑 [MapViewModel] Parando rastreamento de localização.', tag: 'MapViewModel');
+      _positionSubscription?.cancel();
+      _positionSubscription = null;
+    }
+  }
+
+  Future<void> _handleUserPositionUpdate(Position position) async {
+    final userId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      AppLogger.info('🔄 [MapViewModel] Localização alterada. Atualizando endereço...', tag: 'MapViewModel');
+      
+      // Reverse Geocoding
+      final placemark = await _locationRepository.getUserAddress(
+        position.latitude, 
+        position.longitude
+      );
+      
+      final city = placemark.locality;
+      final state = placemark.administrativeArea;
+      final country = placemark.country;
+
+      if (city != null && state != null) {
+        // Atualiza Store (UI reage imediatamente)
+        UserStore.instance.updateCity(userId, city);
+        UserStore.instance.updateState(userId, state);
+        
+        AppLogger.success('✅ [MapViewModel] UserStore atualizado: $city - $state', tag: 'MapViewModel');
+
+        // Atualiza Firestore (Persistência)
+        await _locationRepository.updateUserLocation(
+            userId: userId,
+            latitude: position.latitude,
+            longitude: position.longitude,
+            displayLatitude: position.latitude, 
+            displayLongitude: position.longitude,
+            country: country ?? '',
+            locality: city,
+            state: state,
+        );
+      }
+    } catch (e) {
+      // Ignora erro de geocoding silenciosamente para não spammar logs em caso de falha de rede temporária
+      // AppLogger.error('❌ [MapViewModel] Falha ao atualizar endereço do usuário: $e', tag: 'MapViewModel');
+    }
+  }
+
   
   /// Subscription para stream de eventos em tempo real
   // (stream global removido)
@@ -249,6 +334,7 @@ class MapViewModel extends ChangeNotifier {
   /// Isso evita erros de permission-denied quando o usuário é deslogado
   void cancelAllStreams() {
     debugPrint('🔌 MapViewModel: Cancelando todos os streams...');
+    _stopLocationTracking();
     _radiusSubscription?.cancel();
     _radiusSubscription = null;
     _reloadSubscription?.cancel();
@@ -290,6 +376,9 @@ class MapViewModel extends ChangeNotifier {
     
     // ⬅️ LISTENER REATIVO PARA BLOQUEIOS
     BlockService.instance.addListener(_onBlockedUsersChanged);
+    
+    // 📍 Iniciar rastreamento de localização para atualizar cidade/estado
+    _startLocationTracking();
     
     // ✅ Importante: não iniciar mais um stream global de eventos aqui.
     // A fonte de verdade para o mapa deve ser o viewport/bounds do GoogleMapView
@@ -709,19 +798,48 @@ class MapViewModel extends ChangeNotifier {
   /// 
   /// Chamado pelo GoogleMapView quando a câmera para de mover.
   /// Isso mantém os chips de categoria sincronizados com o viewport.
-  Future<void> loadEventsInBounds(MapBounds bounds) async {
+  Future<void> loadEventsInBounds(
+    MapBounds bounds, {
+    bool prefetchNeighbors = false,
+  }) async {
     debugPrint('🔵 [MapVM] loadEventsInBounds start (events.length=${_events.length})');
     // Estratégia A (stale-while-revalidate): mantém eventos atuais durante o fetch.
     // A UI pode reagir ao loading (spinner), mas não apaga markers por um "vazio" transitório.
     _setLoading(true);
     try {
-      await _mapDiscoveryService.loadEventsInBounds(bounds);
+      await _mapDiscoveryService.ensurePersistentCacheReady();
+
+      // ✅ Cache imediato (sem debounce) para acelerar pan/cold start
+      final usedCache = _mapDiscoveryService.tryLoadCachedEventsForBoundsWithPrefetch(
+        bounds,
+        prefetchNeighbors: prefetchNeighbors,
+      );
+      if (usedCache) {
+        await _syncEventsFromBounds();
+      }
+
+      await _mapDiscoveryService.loadEventsInBounds(
+        bounds,
+        prefetchNeighbors: prefetchNeighbors,
+      );
       debugPrint('🔵 [MapVM] loadEventsInBounds after service (nearbyEvents.value.length=${_mapDiscoveryService.nearbyEvents.value.length})');
       await _syncEventsFromBounds();
       debugPrint('🔵 [MapVM] loadEventsInBounds after sync (events.length=${_events.length})');
     } finally {
       _setLoading(false);
     }
+  }
+
+  /// Lookahead de cache durante pan (soft apply)
+  ///
+  /// Usa cache sem debounce e só atualiza se tiver novos eventos.
+  Future<bool> softLookaheadForBounds(MapBounds bounds) async {
+    await _mapDiscoveryService.ensurePersistentCacheReady();
+    final applied = _mapDiscoveryService.applyCachedEventsIfNew(bounds);
+    if (!applied) return false;
+
+    await _syncEventsFromBounds();
+    return true;
   }
 
   /// Força refresh imediato das categorias do drawer
@@ -815,6 +933,9 @@ class MapViewModel extends ChangeNotifier {
             isAvailable = isPremium || distanceKm <= FREE_ACCOUNT_MAX_EVENT_DISTANCE_KM;
           }
           
+          // ✅ Extrair creatorFullName do eventData se disponível (desnormalizado)
+          final creatorFullName = data['creatorFullName'] as String?;
+          
           return EventModel(
             id: e.eventId,
             emoji: e.emoji,
@@ -835,10 +956,46 @@ class MapViewModel extends ChangeNotifier {
             // ✅ Campos de distância e disponibilidade
             distanceKm: distanceKm,
             isAvailable: isAvailable,
-            // creatorFullName será buscado no EventCardController se necessário
+            creatorFullName: creatorFullName,
           );
         })
-        .toList(growable: false);
+        .toList(); // ✅ Lista MUTÁVEL para permitir enriquecimento
+    
+    // ✅ ENRIQUECIMENTO: Buscar creatorFullName para eventos que não têm
+    // Faz em paralelo para não bloquear a UI
+    final eventsNeedingCreatorName = mapped.where((e) => e.creatorFullName == null).toList();
+    if (eventsNeedingCreatorName.isNotEmpty) {
+      // Coletar IDs únicos de criadores
+      final creatorIds = eventsNeedingCreatorName.map((e) => e.createdBy).toSet().toList();
+      
+      debugPrint('🔄 [MapVM] Buscando nomes de ${creatorIds.length} criadores...');
+      
+      // Buscar nomes em batch (usar cache do UserRepository)
+      try {
+        final usersData = await _userRepository.getUsersBasicInfo(creatorIds);
+        final creatorNames = <String, String>{};
+        for (final userData in usersData) {
+          final id = userData['userId'] as String?;
+          final name = userData['fullName'] as String?;
+          if (id != null && name != null) {
+            creatorNames[id] = name;
+          }
+        }
+        
+        // Atualizar os eventos com os nomes (lista mutável)
+        for (var i = 0; i < mapped.length; i++) {
+          final event = mapped[i];
+          if (event.creatorFullName == null && creatorNames.containsKey(event.createdBy)) {
+            mapped[i] = event.copyWith(creatorFullName: creatorNames[event.createdBy]);
+          }
+        }
+        
+        debugPrint('✅ [MapVM] Enriqueceu ${creatorNames.length} criadores para ${eventsNeedingCreatorName.length} eventos');
+      } catch (e) {
+        debugPrint('⚠️ [MapVM] Erro ao buscar nomes de criadores: $e');
+        // Continua sem os nomes - o EventCardController vai buscar sob demanda
+      }
+    }
 
     // Mantém o mesmo objeto se nada mudou (reduz rebuilds), mas sem criar
     // "zonas mortas" onde a UI fica visualmente errada e nunca é corrigida.

@@ -13,3 +13,4 @@ library;
 export 'cache_manager.dart';
 export 'user_cache_service.dart';
 export 'avatar_cache_service.dart';
+export 'hive_cache_service.dart';

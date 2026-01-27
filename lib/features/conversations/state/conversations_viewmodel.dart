@@ -11,6 +11,7 @@ import 'package:partiu/features/conversations/services/conversation_data_process
 import 'package:partiu/features/conversations/services/conversation_navigation_service.dart';
 import 'package:partiu/features/conversations/services/conversation_pagination_service.dart';
 import 'package:partiu/features/conversations/services/conversation_state_service.dart';
+import 'package:partiu/features/conversations/services/conversation_persistent_cache_repository.dart';
 import 'package:partiu/features/conversations/state/conversation_activity_bus.dart';
 import 'package:partiu/features/conversations/state/optimistic_removal_bus.dart';
 import 'package:partiu/core/services/auth_state_service.dart';
@@ -37,6 +38,8 @@ class ConversationsViewModel extends ChangeNotifier {
   late final ConversationPaginationService _paginationService;
   final SocketService _socket = SocketService.instance;
   final GlobalCacheService _globalCache = GlobalCacheService.instance;
+  final ConversationPersistentCacheRepository _persistentCache =
+      ConversationPersistentCacheRepository();
   
   // WebSocket-backed state (ainda não usado na UI)
   List<ConversationItem> _wsConversations = <ConversationItem>[];
@@ -363,6 +366,12 @@ class ConversationsViewModel extends ChangeNotifier {
       _log('⚠️ [Firestore Stream] currentUserId é null, não filtrando bloqueados');
       _wsConversations = items;
     }
+
+    // 🧊 Persistir lista para cold start
+    final authUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (authUserId != null && _wsConversations.isNotEmpty) {
+      unawaited(_persistentCache.cacheConversations(authUserId, _wsConversations));
+    }
     
     _hasReceivedFirstSnapshot = true;
     _updateVisibleUnreadCount();
@@ -469,6 +478,23 @@ class ConversationsViewModel extends ChangeNotifier {
   /// ✅ Pode ser chamado externamente pelo AppInitializer para pré-carregar conversas
   /// ✅ Usa GlobalCache para carregamento instantâneo
   Future<void> preloadConversations() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // 🧊 STEP 0: Cache persistente (Hive) para cold start
+    final persisted = await _persistentCache.getCached(userId);
+    if (persisted != null && persisted.isNotEmpty) {
+      _log('🧊 [Conversations] Hive cache HIT - ${persisted.length} conversas');
+      _wsConversations = persisted;
+      _updateVisibleUnreadCount();
+      _hasReceivedFirstSnapshot = true;
+      notifyListeners();
+
+      // Atualização silenciosa em background
+      _silentRefreshConversations();
+      return;
+    }
+
     // 🔵 STEP 1: Tentar buscar do cache global primeiro
     final cached = _globalCache.get<List<ConversationItem>>(CacheKeys.conversations);
     
@@ -580,6 +606,7 @@ class ConversationsViewModel extends ChangeNotifier {
             ttl: const Duration(minutes: 3),
           );
           _log('🗂️ [Conversations] Cache SAVED - ${filteredItems.length} conversas');
+          unawaited(_persistentCache.cacheConversations(userId, filteredItems));
         }
       }
     } catch (e, stack) {
@@ -683,6 +710,7 @@ class ConversationsViewModel extends ChangeNotifier {
           filteredItems,
           ttl: const Duration(minutes: 3),
         );
+        unawaited(_persistentCache.cacheConversations(userId, filteredItems));
         
         notifyListeners();
       } else {

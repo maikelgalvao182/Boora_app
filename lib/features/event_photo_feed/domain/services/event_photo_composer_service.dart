@@ -45,6 +45,15 @@ class EventPhotoComposerService {
     );
   }
 
+  Future<List<XFile>> pickMultipleImages() async {
+    final images = await _picker.pickMultiImage(
+      imageQuality: 95,
+      maxWidth: 4096,
+      maxHeight: 4096,
+    );
+    return images;
+  }
+
   Future<EventPhotoUploadResult> uploadPhotoAndThumb({
     required String eventId,
     required String photoId,
@@ -109,6 +118,8 @@ class EventPhotoComposerService {
     required String userId,
     required String imageUrl,
     required String? thumbnailUrl,
+    List<String> imageUrls = const [],
+    List<String> thumbnailUrls = const [],
     required String? caption,
     required String eventTitle,
     required String eventEmoji,
@@ -128,6 +139,8 @@ class EventPhotoComposerService {
       'userId': userId,
       'imageUrl': imageUrl,
       'thumbnailUrl': thumbnailUrl,
+      'imageUrls': imageUrls,
+      'thumbnailUrls': thumbnailUrls,
       'caption': safeCaption.isEmpty ? null : safeCaption,
       'createdAt': FieldValue.serverTimestamp(),
       'eventTitle': eventTitle,
@@ -137,7 +150,7 @@ class EventPhotoComposerService {
       'eventCityName': eventCityName,
       'userName': userName,
       'userPhotoUrl': userPhotoUrl,
-      'status': 'under_review',
+      'status': 'active',
       'reportCount': 0,
       'likesCount': 0,
       'commentsCount': 0,

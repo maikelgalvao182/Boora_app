@@ -8,20 +8,23 @@ import 'package:partiu/core/utils/app_localizations.dart';
 /// Tipos de privacidade disponíveis
 enum PrivacyType {
   open,
+  specificGender,
   private,
 }
 
 /// Widget de seleção de tipo de privacidade
-/// Exibe dois cards: Aberto e Privado
+/// Exibe cards: Aberto, Gênero Específico e Privado
 class PrivacyTypeSelector extends StatelessWidget {
   const PrivacyTypeSelector({
     required this.selectedType,
     required this.onTypeSelected,
+    this.genderPicker,
     super.key,
   });
 
   final PrivacyType? selectedType;
   final ValueChanged<PrivacyType> onTypeSelected;
+  final Widget? genderPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +34,7 @@ class PrivacyTypeSelector extends StatelessWidget {
       children: [
         _PrivacyTypeCard(
           type: PrivacyType.open,
-          title: i18n.translate('privacy_type_open_title'),
+          title: i18n.translate('gender_all'), // "Aberto para todos"
           subtitle: i18n.translate('privacy_type_open_subtitle'),
           icon: IconsaxPlusLinear.people,
           isSelected: selectedType == PrivacyType.open,
@@ -41,8 +44,22 @@ class PrivacyTypeSelector extends StatelessWidget {
         const SizedBox(height: 12),
 
         _PrivacyTypeCard(
+          type: PrivacyType.specificGender,
+          title: i18n.translate('gender_specific'), // "Selecionar gênero"
+          subtitle: i18n.translate('privacy_type_gender_subtitle'), // Need a key or reuse
+          icon: IconsaxPlusLinear.man, // Icon representing gender/person
+          isSelected: selectedType == PrivacyType.specificGender,
+          onTap: () => onTypeSelected(PrivacyType.specificGender),
+        ),
+
+        if (genderPicker != null)
+           genderPicker!,
+
+        const SizedBox(height: 12),
+
+        _PrivacyTypeCard(
           type: PrivacyType.private,
-          title: i18n.translate('privacy_type_private_title'),
+          title: i18n.translate('privacy_type_private_title'), // "Somente convidados" (check if key matches intent)
           subtitle: i18n.translate('privacy_type_private_subtitle'),
           icon: IconsaxPlusLinear.lock,
           isSelected: selectedType == PrivacyType.private,

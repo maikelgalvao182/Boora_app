@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,12 +16,14 @@ class NavigationButtons extends StatelessWidget {
     required this.onContinue,
     this.canContinue = true,
     this.showBackButton = true,
+    this.isLoading = false,
   });
 
   final VoidCallback onBack;
   final VoidCallback onContinue;
   final bool canContinue;
   final bool showBackButton;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -56,25 +59,32 @@ class NavigationButtons extends StatelessWidget {
           
           // Botão continuar com arrow right
           GestureDetector(
-            onTap: canContinue ? () {
-              HapticFeedback.lightImpact();
-              onContinue();
-            } : null,
+            onTap: canContinue && !isLoading
+                ? () {
+                    HapticFeedback.lightImpact();
+                    onContinue();
+                  }
+                : null,
             child: Container(
               width: 54,
               height: 54,
               decoration: BoxDecoration(
-                color: canContinue 
+                color: canContinue
                     ? GlimpseColors.primary 
                     : GlimpseColors.disabledButtonColorLight,
                 borderRadius: BorderRadius.circular(100),
               ),
-              child: const Center(
-                child: Icon(
-                  IconsaxPlusLinear.arrow_right,
-                  size: 24,
-                  color: Colors.white,
-                ),
+              child: Center(
+                child: isLoading
+                    ? const CupertinoActivityIndicator(
+                        radius: 12,
+                        color: Colors.white,
+                      )
+                    : const Icon(
+                        IconsaxPlusLinear.arrow_right,
+                        size: 24,
+                        color: Colors.white,
+                      ),
               ),
             ),
           ),

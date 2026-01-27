@@ -15,17 +15,19 @@ class MarkerBitmapGenerator {
   /// Cache de bitmaps de emoji pins
   static final Map<String, google.BitmapDescriptor> _emojiPinCache = {};
 
-  static double get _currentDevicePixelRatio {
-    final view = ui.PlatformDispatcher.instance.implicitView;
-    if (view != null) return view.devicePixelRatio;
-    final views = ui.PlatformDispatcher.instance.views;
-    return views.isNotEmpty ? views.first.devicePixelRatio : 1.0;
-  }
+  /// ✅ FIX ANDROID: Tamanho FINAL em pixels do marker no mapa.
+  /// Ao usar imagePixelRatio alto (ex: 3.0), o Google Maps divide o tamanho
+  /// da imagem por esse valor. Então se a imagem tem 360px e ratio=3.0,
+  /// o marker aparece com ~120dp na tela.
+  /// 
+  /// Fórmula: tamanhoVisual = tamanhoPx / imagePixelRatio
+  /// Com 360px e ratio 3.0 → marker de ~120dp
+  static const double _renderScale = 3.0; // escala de renderização para nitidez
 
   static google.BitmapDescriptor _descriptorFromPngBytes(Uint8List bytes) {
     return google.BitmapDescriptor.bytes(
       bytes,
-      imagePixelRatio: _currentDevicePixelRatio,
+      imagePixelRatio: _renderScale,
     );
   }
 
@@ -35,7 +37,7 @@ class MarkerBitmapGenerator {
   /// - [emoji]: Emoji representativo do cluster
   /// - [count]: Quantidade de eventos no cluster
   /// - [clusterId]: ID do cluster para gerar cor consistente (opcional)
-  /// - [size]: Tamanho do container
+  /// - [size]: IGNORADO - usa tamanho fixo interno para consistência
   /// 
   /// Visual:
   /// - Círculo colorido (via MarkerColorHelper) com emoji central
@@ -45,21 +47,20 @@ class MarkerBitmapGenerator {
     String emoji,
     int count, {
     String? clusterId,
-    int size = 160,
+    int size = 160, // ignorado
   }) async {
-    // Chave de cache baseada no emoji e contagem
-    final dprKey = _currentDevicePixelRatio.toStringAsFixed(2);
-    final cacheKey = 'cluster_${emoji}_${count}_${clusterId ?? ""}_$size@$dprKey';
+    // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
+    // O marker terá ~93dp em qualquer device (280px / 3.0 ratio)
+    const int markerSize = 220; // tamanho do círculo principal em px
+    const int canvasSize = 280; // com padding para sombra/badge
+    const double center = canvasSize / 2;
+    
+    final cacheKey = 'cluster_v8_${emoji}_$count${clusterId ?? ""}';
     if (_clusterCache.containsKey(cacheKey)) {
       return _clusterCache[cacheKey]!;
     }
 
     try {
-      // Padding extra para acomodar badge e sombra
-      final padding = (size * 0.18).round();
-      final canvasSize = size + (padding * 2);
-      final center = canvasSize / 2;
-      
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       
@@ -70,29 +71,28 @@ class MarkerBitmapGenerator {
       
       // 1. Sombra
       final shadowPaint = Paint()
-        ..color = Colors.black.withAlpha(89)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+        ..color = Colors.black.withAlpha(70)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
       canvas.drawCircle(
-        Offset(center, center + 5),
-        size / 2,
+        const Offset(center, center + 6),
+        markerSize / 2,
         shadowPaint,
       );
       
       // 2. Borda externa branca
-      final borderPaint = Paint()
-        ..color = Colors.white;
+      final borderPaint = Paint()..color = Colors.white;
       canvas.drawCircle(
-        Offset(center, center),
-        size / 2,
+        const Offset(center, center),
+        markerSize / 2,
         borderPaint,
       );
       
       // 3. Círculo colorido interno (container do emoji)
-      final borderWidth = 10.0;
+      const double borderWidth = 10.0;
       final containerPaint = Paint()..color = containerColor;
       canvas.drawCircle(
-        Offset(center, center),
-        (size / 2) - borderWidth,
+        const Offset(center, center),
+        (markerSize / 2) - borderWidth,
         containerPaint,
       );
 
@@ -100,7 +100,7 @@ class MarkerBitmapGenerator {
       final textPainter = TextPainter(
         text: TextSpan(
           text: emoji,
-          style: TextStyle(fontSize: size * 0.45),
+          style: const TextStyle(fontSize: 88),
         ),
         textDirection: TextDirection.ltr,
       );
@@ -109,21 +109,21 @@ class MarkerBitmapGenerator {
         canvas,
         Offset(
           (canvasSize - textPainter.width) / 2,
-          (canvasSize - textPainter.height) / 2 + 2, // Ajuste sutil para centralizar visualmente
+          (canvasSize - textPainter.height) / 2 + 2,
         ),
       );
 
       // 5. Badge de contagem (canto superior direito)
-      final badgeRadius = size * 0.22;
-      final badgeCenterX = center + (size / 2) * 0.55;
-      final badgeCenterY = center - (size / 2) * 0.55;
+      const double badgeRadius = 44;
+      const double badgeCenterX = center + (markerSize / 2) * 0.55;
+      const double badgeCenterY = center - (markerSize / 2) * 0.55;
       
       // Sombra do badge
       final badgeShadow = Paint()
-        ..color = Colors.black.withAlpha(77)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+        ..color = Colors.black.withAlpha(60)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
       canvas.drawCircle(
-        Offset(badgeCenterX, badgeCenterY + 2),
+        const Offset(badgeCenterX, badgeCenterY + 3),
         badgeRadius,
         badgeShadow,
       );
@@ -131,7 +131,7 @@ class MarkerBitmapGenerator {
       // Círculo branco do badge
       final badgePaint = Paint()..color = Colors.white;
       canvas.drawCircle(
-        Offset(badgeCenterX, badgeCenterY),
+        const Offset(badgeCenterX, badgeCenterY),
         badgeRadius,
         badgePaint,
       );
@@ -142,7 +142,7 @@ class MarkerBitmapGenerator {
         text: TextSpan(
           text: countText,
           style: TextStyle(
-            fontSize: badgeRadius * (countText.length > 2 ? 0.7 : 0.9),
+            fontSize: countText.length > 2 ? 28 : 35,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
@@ -200,24 +200,24 @@ class MarkerBitmapGenerator {
   /// Parâmetros:
   /// - [emoji]: Emoji a ser renderizado
   /// - [eventId]: ID do evento (usado para gerar cor consistente)
-  /// - [size]: Tamanho do container
+  /// - [size]: IGNORADO - usa tamanho fixo interno para consistência
   static Future<google.BitmapDescriptor> generateEmojiPinForGoogleMaps(
     String emoji, {
     String? eventId,
-    int size = 150,
+    int size = 150, // ignorado
   }) async {
-    // Cache key baseada no emoji, eventId e size
-    final cacheKey = 'emoji_${emoji}_${eventId ?? "default"}_$size';
+    // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
+    // O marker terá ~90dp em qualquer device (270px / 3.0 ratio)
+    const int markerSize = 220; // tamanho do círculo principal em px
+    const int canvasSize = 270; // com padding para sombra
+    const double center = canvasSize / 2;
+    
+    final cacheKey = 'emoji_v8_${emoji}_${eventId ?? "default"}';
     if (_emojiPinCache.containsKey(cacheKey)) {
       return _emojiPinCache[cacheKey]!;
     }
 
     try {
-      // Adicionar padding extra para acomodar a sombra
-      final padding = (size * 0.16).round();
-      final canvasSize = size + (padding * 2);
-      final center = canvasSize / 2;
-      
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       
@@ -227,11 +227,11 @@ class MarkerBitmapGenerator {
       
       // Sombra
       final shadowPaint = Paint()
-        ..color = Colors.black.withAlpha(77)
+        ..color = Colors.black.withAlpha(60)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
       canvas.drawCircle(
-        Offset(center, center + 4),
-        size / 2,
+        const Offset(center, center + 6),
+        markerSize / 2,
         shadowPaint,
       );
       
@@ -240,17 +240,17 @@ class MarkerBitmapGenerator {
         ..color = Colors.white
         ..style = PaintingStyle.fill;
       canvas.drawCircle(
-        Offset(center, center),
-        size / 2,
+        const Offset(center, center),
+        markerSize / 2,
         borderPaint,
       );
       
       // Círculo colorido interno
-      final borderWidth = 10.0;
+      const double borderWidth = 10.0;
       final paint = Paint()..color = backgroundColor;
       canvas.drawCircle(
-        Offset(center, center),
-        (size / 2) - borderWidth,
+        const Offset(center, center),
+        (markerSize / 2) - borderWidth,
         paint,
       );
 
@@ -258,7 +258,7 @@ class MarkerBitmapGenerator {
       final textPainter = TextPainter(
         text: TextSpan(
           text: emoji,
-          style: TextStyle(fontSize: size * 0.5),
+          style: const TextStyle(fontSize: 92),
         ),
         textDirection: TextDirection.ltr,
       );
@@ -276,7 +276,7 @@ class MarkerBitmapGenerator {
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final uint8list = byteData!.buffer.asUint8List();
 
-      final descriptor = await _descriptorFromPngBytes(uint8list);
+      final descriptor = _descriptorFromPngBytes(uint8list);
       _emojiPinCache[cacheKey] = descriptor;
       return descriptor;
     } catch (e) {
@@ -288,7 +288,7 @@ class MarkerBitmapGenerator {
   /// Gera bitmap circular de um avatar a partir de URL (Google Maps)
   static Future<google.BitmapDescriptor> generateAvatarPinForGoogleMaps(
     String url, {
-    int size = 100,
+    int size = 100, // ignorado
     fcm.BaseCacheManager? cacheManager,
     String? cacheKey,
   }) async {
@@ -310,32 +310,32 @@ class MarkerBitmapGenerator {
       final frame = await codec.getNextFrame();
       final image = frame.image;
 
-      // Sem padding extra - sombra removida
-      final padding = 0;
-      final canvasSize = size + (padding * 2);
-      final center = canvasSize / 2;
+      // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
+      // O avatar terá ~33dp em qualquer device (100px / 3.0 ratio)
+      const int avatarSize = 100;
+      const double center = avatarSize / 2;
       
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
       // Borda branca
-      final borderWidth = 8.0;
+      const double borderWidth = 6.0;
       final borderPaint = Paint()..color = Colors.white;
       canvas.drawCircle(
-        Offset(center, center),
-        size / 2,
+        const Offset(center, center),
+        avatarSize / 2,
         borderPaint,
       );
 
       // Clip para imagem circular
       final clipPath = Path()
         ..addOval(Rect.fromCircle(
-          center: Offset(center, center),
-          radius: (size / 2) - borderWidth,
+          center: const Offset(center, center),
+          radius: (avatarSize / 2) - borderWidth,
         ));
       canvas.clipPath(clipPath);
 
-      final availableSize = size - (borderWidth * 2);
+      const double availableSize = avatarSize - (borderWidth * 2);
       final imageWidth = image.width.toDouble();
       final imageHeight = image.height.toDouble();
       final imageAspect = imageWidth / imageHeight;
@@ -355,9 +355,9 @@ class MarkerBitmapGenerator {
         srcRect = Rect.fromLTWH(0, 0, imageWidth, imageHeight);
       }
       
-      dstRect = Rect.fromLTWH(
-        padding + borderWidth,
-        padding + borderWidth,
+      dstRect = const Rect.fromLTWH(
+        borderWidth,
+        borderWidth,
         availableSize,
         availableSize,
       );
@@ -370,7 +370,7 @@ class MarkerBitmapGenerator {
       );
 
       final picture = recorder.endRecording();
-      final img = await picture.toImage(canvasSize, canvasSize);
+      final img = await picture.toImage(avatarSize, avatarSize);
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final uint8list = byteData!.buffer.asUint8List();
 
@@ -382,37 +382,37 @@ class MarkerBitmapGenerator {
 
   static Future<google.BitmapDescriptor> _generateCircularAvatarFromBytes(
     Uint8List bytes,
-    int size,
+    int size, // ignorado
   ) async {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     final image = frame.image;
 
-    final padding = 0;
-    final canvasSize = size + (padding * 2);
-    final center = canvasSize / 2;
+    // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
+    const int avatarSize = 100;
+    const double center = avatarSize / 2;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    final borderWidth = 8.0;
+    const double borderWidth = 6.0;
     final borderPaint = Paint()..color = Colors.white;
     canvas.drawCircle(
-      Offset(center, center),
-      size / 2,
+      const Offset(center, center),
+      avatarSize / 2,
       borderPaint,
     );
 
     final clipPath = Path()
       ..addOval(
         Rect.fromCircle(
-          center: Offset(center, center),
-          radius: (size / 2) - borderWidth,
+          center: const Offset(center, center),
+          radius: (avatarSize / 2) - borderWidth,
         ),
       );
     canvas.clipPath(clipPath);
 
-    final availableSize = size - (borderWidth * 2);
+    const double availableSize = avatarSize - (borderWidth * 2);
     final imageWidth = image.width.toDouble();
     final imageHeight = image.height.toDouble();
     final imageAspect = imageWidth / imageHeight;
@@ -430,9 +430,9 @@ class MarkerBitmapGenerator {
       srcRect = Rect.fromLTWH(0, 0, imageWidth, imageHeight);
     }
 
-    final dstRect = Rect.fromLTWH(
-      padding + borderWidth,
-      padding + borderWidth,
+    const dstRect = Rect.fromLTWH(
+      borderWidth,
+      borderWidth,
       availableSize,
       availableSize,
     );
@@ -445,7 +445,7 @@ class MarkerBitmapGenerator {
     );
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(canvasSize, canvasSize);
+    final img = await picture.toImage(avatarSize, avatarSize);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     final uint8list = byteData!.buffer.asUint8List();
 
@@ -464,20 +464,24 @@ class MarkerBitmapGenerator {
       // Fallback abaixo.
     }
 
+    // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
+    const int avatarSize = 100;
+    const double center = avatarSize / 2;
+
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
     final paint = Paint()..color = Colors.grey[400]!;
     canvas.drawCircle(
-      Offset(size / 2, size / 2),
-      size / 2,
+      const Offset(center, center),
+      avatarSize / 2,
       paint,
     );
 
     final iconPainter = TextPainter(
       text: const TextSpan(
         text: '👤',
-        style: TextStyle(fontSize: 24),
+        style: TextStyle(fontSize: 40),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -485,13 +489,13 @@ class MarkerBitmapGenerator {
     iconPainter.paint(
       canvas,
       Offset(
-        (size - iconPainter.width) / 2,
-        (size - iconPainter.height) / 2,
+        (avatarSize - iconPainter.width) / 2,
+        (avatarSize - iconPainter.height) / 2,
       ),
     );
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(size, size);
+    final img = await picture.toImage(avatarSize, avatarSize);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     final uint8list = byteData!.buffer.asUint8List();
 

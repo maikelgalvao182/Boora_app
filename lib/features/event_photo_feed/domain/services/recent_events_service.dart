@@ -14,6 +14,14 @@ class RecentEventsService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
+  bool _isWithinPostWindow(EventModel event) {
+    final scheduleDate = event.scheduleDate;
+    if (scheduleDate == null) return false;
+    final now = DateTime.now();
+    final end = scheduleDate.add(const Duration(hours: 48));
+    return now.isAfter(scheduleDate) && now.isBefore(end);
+  }
+
   Future<List<EventModel>> fetchRecentEligibleEvents({int limit = 20}) async {
     print('🎯 [RecentEventsService] Iniciando fetchRecentEligibleEvents - limit: $limit');
     
@@ -76,10 +84,34 @@ class RecentEventsService {
         }
       }
 
+      // Também incluir eventos criados pelo usuário
+      try {
+        final ownerSnap = await _firestore
+            .collection('events')
+            .where('createdBy', isEqualTo: uid)
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
+
+        for (final doc in ownerSnap.docs) {
+          out.add(EventModel.fromMap(doc.data(), doc.id));
+        }
+      } catch (e) {
+        print('⚠️ [RecentEventsService] Falha ao buscar eventos do owner: $e');
+      }
+
       print('✅ [RecentEventsService] Total de eventos carregados: ${out.length}');
       
+      // Remover duplicados e aplicar janela de 48h pós-evento
+      final unique = <String, EventModel>{};
+      for (final e in out) {
+        unique[e.id] = e;
+      }
+
+      final filtered = unique.values.where(_isWithinPostWindow).toList();
+
       // Ordena por scheduleDate (desc), fallback id.
-      out.sort((a, b) {
+      filtered.sort((a, b) {
         final ad = a.scheduleDate;
         final bd = b.scheduleDate;
         if (ad == null && bd == null) return b.id.compareTo(a.id);
@@ -88,7 +120,7 @@ class RecentEventsService {
         return bd.compareTo(ad);
       });
 
-      return out.take(limit).toList(growable: false);
+      return filtered.take(limit).toList(growable: false);
     } catch (e, stack) {
       print('❌ [RecentEventsService] ERRO ao buscar eventos elegíveis: $e');
       print('📚 Stack trace: $stack');

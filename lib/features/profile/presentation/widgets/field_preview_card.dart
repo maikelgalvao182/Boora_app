@@ -77,6 +77,15 @@ class FieldPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Desativar da UI os campos: Nascimento, Localização e Origem
+    if (fieldType is PersonalFieldType) {
+      if (fieldType == PersonalFieldType.birthDate ||
+          fieldType == PersonalFieldType.locality ||
+          fieldType == PersonalFieldType.from) {
+        return const SizedBox.shrink();
+      }
+    }
+
     final i18n = AppLocalizations.of(context);
     final label = _getTitle(context);
     

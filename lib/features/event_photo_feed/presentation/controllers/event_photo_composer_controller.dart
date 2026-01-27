@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
+import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
 import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_composer_service.dart';
@@ -14,7 +16,7 @@ import 'package:partiu/features/home/data/models/event_model.dart';
 class EventPhotoComposerState {
   const EventPhotoComposerState({
     required this.selectedEvent,
-    required this.image,
+    required this.images,
     required this.caption,
     required this.progress,
     required this.isSubmitting,
@@ -23,7 +25,7 @@ class EventPhotoComposerState {
   });
 
   final EventModel? selectedEvent;
-  final XFile? image;
+  final List<XFile> images;
   final String caption;
   final double? progress;
   final bool isSubmitting;
@@ -32,7 +34,7 @@ class EventPhotoComposerState {
 
   factory EventPhotoComposerState.initial() => const EventPhotoComposerState(
         selectedEvent: null,
-        image: null,
+        images: [],
         caption: '',
         progress: null,
         isSubmitting: false,
@@ -42,18 +44,17 @@ class EventPhotoComposerState {
 
   EventPhotoComposerState copyWith({
     EventModel? selectedEvent,
-    XFile? image,
+    List<XFile>? images,
     String? caption,
     double? progress,
     bool? isSubmitting,
     String? error,
     List<TaggedParticipantModel>? taggedParticipants,
-    bool clearImage = false,
     bool clearEvent = false,
   }) {
     return EventPhotoComposerState(
       selectedEvent: clearEvent ? null : (selectedEvent ?? this.selectedEvent),
-      image: clearImage ? null : (image ?? this.image),
+      images: images ?? this.images,
       caption: caption ?? this.caption,
       progress: progress,
       isSubmitting: isSubmitting ?? this.isSubmitting,
@@ -97,31 +98,38 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
   }
 
   Future<void> pickImage() async {
-    final img = await _service.pickImage();
-    if (img == null) return;
-    state = state.copyWith(image: img, error: null);
+    final images = await _service.pickMultipleImages();
+    if (images.isEmpty) return;
+    final updatedImages = [...state.images, ...images];
+    state = state.copyWith(images: updatedImages, error: null);
   }
 
-  void removeImage() {
-    state = state.copyWith(clearImage: true, error: null);
+  void removeImage(int index) {
+    final updatedImages = [...state.images];
+    updatedImages.removeAt(index);
+    state = state.copyWith(images: updatedImages, error: null);
   }
 
   Future<void> submit() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      state = state.copyWith(error: 'Usuário não autenticado');
+      state = state.copyWith(error: 'event_photo_error_not_authenticated');
       return;
     }
 
     final selectedEvent = state.selectedEvent;
     if (selectedEvent == null) {
-      state = state.copyWith(error: 'Selecione um evento');
+      state = state.copyWith(error: 'event_photo_error_select_event');
       return;
     }
 
-    final image = state.image;
-    if (image == null) {
-      state = state.copyWith(error: 'Selecione uma imagem');
+    if ((state.caption ?? '').trim().isEmpty) {
+      state = state.copyWith(error: 'event_photo_error_add_caption');
+      return;
+    }
+
+    if (state.images.isEmpty) {
+      state = state.copyWith(error: 'event_photo_error_select_image');
       return;
     }
 
@@ -131,14 +139,31 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
       // photoId: doc id
       final photoId = FirebaseFirestore.instance.collection('EventPhotos').doc().id;
 
-      final upload = await _service.uploadPhotoAndThumb(
-        eventId: selectedEvent.id,
-        photoId: photoId,
-        image: image,
-        onProgress: (p) {
-          state = state.copyWith(progress: p);
-        },
-      );
+      // Upload de todas as imagens
+      final List<String> imageUrls = [];
+      final List<String> thumbnailUrls = [];
+      
+      debugPrint('📸 [EventPhotoComposer] Iniciando upload de ${state.images.length} imagens');
+      
+      for (int i = 0; i < state.images.length; i++) {
+        debugPrint('📸 [EventPhotoComposer] Uploading image ${i + 1}/${state.images.length}');
+        final upload = await _service.uploadPhotoAndThumb(
+          eventId: selectedEvent.id,
+          photoId: '$photoId-$i',
+          image: state.images[i],
+          onProgress: (p) {
+            final overallProgress = (i + p) / state.images.length;
+            state = state.copyWith(progress: overallProgress);
+          },
+        );
+        imageUrls.add(upload.photoUrl);
+        debugPrint('📸 [EventPhotoComposer] Image ${i + 1} uploaded: ${upload.photoUrl}');
+        if (upload.thumbUrl != null) {
+          thumbnailUrls.add(upload.thumbUrl!);
+        }
+      }
+      
+      debugPrint('📸 [EventPhotoComposer] Upload completo. imageUrls: ${imageUrls.length}, thumbnailUrls: ${thumbnailUrls.length}');
 
       // user info (MVP: via AppState)
       final currentUser = AppState.currentUser.value;
@@ -148,8 +173,10 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
       final payload = _service.buildCreatePayload(
         eventId: selectedEvent.id,
         userId: user.uid,
-        imageUrl: upload.photoUrl,
-        thumbnailUrl: upload.thumbUrl,
+        imageUrl: imageUrls.first,
+        thumbnailUrl: thumbnailUrls.isNotEmpty ? thumbnailUrls.first : null,
+        imageUrls: imageUrls,
+        thumbnailUrls: thumbnailUrls,
         caption: state.caption,
         eventTitle: selectedEvent.title,
         eventEmoji: selectedEvent.emoji,
@@ -163,7 +190,11 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
         taggedParticipants: state.taggedParticipants,
       );
 
+      debugPrint('📸 [EventPhotoComposer] Payload imageUrls: ${payload['imageUrls']}');
+      debugPrint('📸 [EventPhotoComposer] Payload thumbnailUrls: ${payload['thumbnailUrls']}');
+
       await FirebaseFirestore.instance.collection('EventPhotos').doc(photoId).set(payload);
+      debugPrint('📸 [EventPhotoComposer] Post salvo com id: $photoId');
 
       // Optimistic UI: insere imediatamente no topo do feed global.
       // Obs: `createdAt` ainda pode vir null (serverTimestamp), então o sort final pode mudar após refresh.
@@ -174,8 +205,10 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
               id: photoId,
               eventId: selectedEvent.id,
               userId: user.uid,
-              imageUrl: upload.photoUrl,
-              thumbnailUrl: upload.thumbUrl,
+              imageUrl: imageUrls.first,
+              thumbnailUrl: thumbnailUrls.isNotEmpty ? thumbnailUrls.first : null,
+              imageUrls: imageUrls,
+              thumbnailUrls: thumbnailUrls,
               caption: state.caption.trim().isEmpty ? null : state.caption.trim(),
               createdAt: Timestamp.now(),
               eventTitle: selectedEvent.title,
@@ -187,7 +220,7 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
               eventCityName: null,
               userName: userName,
               userPhotoUrl: userPhotoUrl,
-              status: 'under_review',
+              status: 'active',
               reportCount: 0,
               likesCount: 0,
               commentsCount: 0,

@@ -50,6 +50,7 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
   }
 
   void _updateParticipants(List<Map<String, dynamic>> next) {
+    final wasEmpty = _cachedParticipants.isEmpty;
     final oldIds = _cachedParticipants
         .map((p) => p['userId'] as String?)
         .whereType<String>()
@@ -61,13 +62,15 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
 
     final addedIds = newIds.difference(oldIds);
 
-    if (!_isFirstBuild && addedIds.isNotEmpty) {
+    // ✅ Se está carregando a primeira lista NÃO vazia, não animar (evita pop)
+    final isFirstNonEmptyLoad = _isFirstBuild || wasEmpty;
+    if (isFirstNonEmptyLoad) {
+      _newlyAddedIds.clear();
+      _isFirstBuild = false;
+    } else if (addedIds.isNotEmpty) {
       _newlyAddedIds
         ..clear()
         ..addAll(addedIds);
-    } else if (_isFirstBuild) {
-      _newlyAddedIds.clear();
-      _isFirstBuild = false;
     }
 
     // ✅ ORDEM ESTÁVEL: Manter o primeiro participante (criador) fixo,
@@ -106,7 +109,7 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
     final participants = _cachedParticipants;
 
     return SizedBox(
-      height: participants.isEmpty ? 0 : fixedHeight,
+      height: fixedHeight,
       child: participants.isEmpty
           ? const SizedBox.shrink()
           : _buildParticipantsList(participants),

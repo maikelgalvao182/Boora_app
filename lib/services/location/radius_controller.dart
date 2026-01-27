@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
+import 'package:partiu/core/services/cache/user_preferences_cache_repository.dart';
 
 /// Controller para gerenciar o raio de busca com debounce,
 /// agora SEM sobrescrever outros filtros dentro de advancedSettings.
@@ -19,6 +20,8 @@ class RadiusController extends ChangeNotifier {
   bool _isUpdating = false;
 
   final _radiusStreamController = StreamController<double>.broadcast();
+  final UserPreferencesCacheRepository _preferencesCache =
+      UserPreferencesCacheRepository();
 
   RadiusController();
 
@@ -30,6 +33,20 @@ class RadiusController extends ChangeNotifier {
   /// Carrega o valor do Firestore — sempre usado externamente,
   /// e NÃO no construtor (para evitar race condition).
   Future<void> loadFromFirestore() async {
+    try {
+      final cached = await _preferencesCache.getCached();
+      if (cached != null) {
+        final clamped = cached.radiusKm.clamp(minRadius, maxRadius).toDouble();
+        if (clamped != _radiusKm) {
+          _radiusKm = clamped;
+          notifyListeners();
+          _radiusStreamController.add(_radiusKm);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ RadiusController: Erro ao carregar cache local: $e');
+    }
+
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) return;
@@ -52,6 +69,12 @@ class RadiusController extends ChangeNotifier {
         _radiusKm = savedRadius.toDouble().clamp(minRadius, maxRadius);
         notifyListeners();
         _radiusStreamController.add(_radiusKm);
+        unawaited(_preferencesCache.cachePreferences(
+          radiusKm: _radiusKm,
+          advancedFilters: settings,
+          lastCategoryFilter: settings?['lastCategoryFilter'] as String?,
+          distanceUnit: settings?['distanceUnit'] as String?,
+        ));
       }
     } catch (e) {
       debugPrint('❌ RadiusController: Erro ao carregar raio: $e');
@@ -64,6 +87,7 @@ class RadiusController extends ChangeNotifier {
 
     _radiusKm = newRadius;
     notifyListeners();
+    unawaited(_preferencesCache.cachePreferences(radiusKm: _radiusKm));
 
     _debounceTimer?.cancel();
     _debounceTimer = Timer(debounceDuration, () => _saveToFirestore());
@@ -91,6 +115,7 @@ class RadiusController extends ChangeNotifier {
 
       _radiusStreamController.add(_radiusKm);
       LocationStreamController().emitRadiusChange(_radiusKm);
+      unawaited(_preferencesCache.cachePreferences(radiusKm: _radiusKm));
 
     } catch (e) {
       debugPrint('❌ RadiusController: Erro ao salvar raio: $e');
@@ -110,6 +135,7 @@ class RadiusController extends ChangeNotifier {
     _radiusKm = DEFAULT_RADIUS_KM;
     notifyListeners();
     _radiusStreamController.add(_radiusKm);
+    unawaited(_preferencesCache.cachePreferences(radiusKm: _radiusKm));
   }
 
   @override

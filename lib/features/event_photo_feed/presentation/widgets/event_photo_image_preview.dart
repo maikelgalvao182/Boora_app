@@ -15,34 +15,35 @@ class EventPhotoImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.file(
-            File(image.path),
-            width: double.infinity,
-            height: 280,
-            fit: BoxFit.cover,
-          ),
-        ),
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Material(
-            color: Colors.black54,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: onRemove,
-              customBorder: const CircleBorder(),
-              child: const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Icon(Icons.close, color: Colors.white, size: 18),
+    return GestureDetector(
+      onLongPress: onRemove,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: 140,
+              height: 180,
+              child: Image.file(
+                File(image.path),
+                fit: BoxFit.cover,
               ),
             ),
           ),
-        ),
-      ],
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

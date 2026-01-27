@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -6,6 +7,7 @@ import 'package:partiu/core/models/user.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/core/services/cache/cache_manager.dart' as app_cache;
+import 'package:partiu/core/services/cache/user_session_cache_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Gerenciador centralizado de sessão do usuário
@@ -35,6 +37,8 @@ class SessionManager {
   static SessionManager get instance => _instance;
 
   SharedPreferences? _prefs;
+  final UserSessionCacheRepository _userSessionCache = UserSessionCacheRepository();
+  User? _cachedUser;
 
   /// Inicializa o SessionManager
   /// 
@@ -47,6 +51,18 @@ class SessionManager {
     
     _prefs = await SharedPreferences.getInstance();
     _log('SessionManager initialized');
+
+    // Warmup do cache persistente do usuário (Hive)
+    try {
+      final cached = await _userSessionCache.getCachedUser();
+      if (cached != null && currentUser == null) {
+        _cachedUser = cached;
+        AppState.currentUser.value = cached;
+        AppState.isVerified.value = cached.userIsVerified == true;
+      }
+    } catch (e, stack) {
+      _logError('Failed to load cached user session', e, stack);
+    }
   }
 
   SharedPreferences get _prefsOrThrow {
@@ -64,13 +80,13 @@ class SessionManager {
   User? get currentUser {
     try {
       final json = _prefsOrThrow.getString(_Keys.currentUser);
-      if (json == null || json.isEmpty) return null;
+      if (json == null || json.isEmpty) return _cachedUser;
       
       final data = jsonDecode(json) as Map<String, dynamic>;
       return User.fromDocument(data);
     } catch (e, stack) {
       _logError('Failed to decode current user', e, stack);
-      return null;
+      return _cachedUser;
     }
   }
 
@@ -88,6 +104,8 @@ class SessionManager {
         // Atualiza AppState imediatamente
         AppState.currentUser.value = null;
         AppState.isVerified.value = false;
+        _cachedUser = null;
+        unawaited(_userSessionCache.clear());
       } else {
         // Usa método helper para serialização segura
         final safeMap = _sanitizeForJson(_userToMap(user));
@@ -97,6 +115,8 @@ class SessionManager {
         // Propaga para AppState para refletir antes do primeiro snapshot do Firestore
         AppState.currentUser.value = user;
         AppState.isVerified.value = user.userIsVerified == true;
+        _cachedUser = user;
+        unawaited(_userSessionCache.cacheUser(user));
       }
     } catch (e, stack) {
       _logError('Failed to save current user', e, stack);

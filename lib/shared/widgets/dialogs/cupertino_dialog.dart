@@ -55,6 +55,7 @@ class GlimpseCupertinoDialog {
   }) {
     return showCupertinoDialog<bool>(
       context: context,
+      barrierDismissible: true,
       builder: (context) => CupertinoAlertDialog(
         title: Text(title),
         content: Text(message),

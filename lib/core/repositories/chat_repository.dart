@@ -7,9 +7,11 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/repositories/chat_repository_interface.dart';
 import 'package:partiu/screens/chat/models/message.dart';
+import 'package:partiu/screens/chat/models/message_cache_item.dart';
 import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
 import 'package:partiu/core/services/block_service.dart';
+import 'package:partiu/screens/chat/services/message_persistent_cache_repository.dart';
 
 /// Implementação do repositório de chat
 class ChatRepository implements IChatRepository {
@@ -18,6 +20,7 @@ class ChatRepository implements IChatRepository {
   
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final MessagePersistentCacheRepository _messageCache = MessagePersistentCacheRepository();
 
   @override
   Stream<List<Message>> getMessages(String withUserId) {
@@ -26,10 +29,12 @@ class ChatRepository implements IChatRepository {
       return const Stream.empty();
     }
 
+    Stream<List<Message>> baseStream;
+
     // 🎯 EVENTO: Usa EventChats/{eventId}/Messages
     if (withUserId.startsWith('event_')) {
       final eventId = withUserId.replaceFirst('event_', '');
-      return _firestore
+      baseStream = _firestore
           .collection('EventChats')
           .doc(eventId)
           .collection('Messages')
@@ -47,22 +52,82 @@ class ChatRepository implements IChatRepository {
             .cast<Message>()
             .toList();
       });
+    } else {
+      // 👤 USUÁRIO: Usa Messages/{userId}/{partnerId}
+      baseStream = _firestore
+          .collection(C_MESSAGES)
+          .doc(currentUserId)
+          .collection(withUserId)
+          .orderBy(TIMESTAMP, descending: false)
+          .snapshots(includeMetadataChanges: true)
+          .map((snapshot) {
+        print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length}');
+        return snapshot.docs
+            .map((doc) => Message.fromDocument(doc.data(), doc.id))
+            .where((m) => m != null)
+            .cast<Message>()
+            .toList();
+      });
     }
 
-    // 👤 USUÁRIO: Usa Messages/{userId}/{partnerId}
-    return _firestore
-        .collection(C_MESSAGES)
-        .doc(currentUserId)
-        .collection(withUserId)
-        .orderBy(TIMESTAMP, descending: false)
-        .snapshots(includeMetadataChanges: true)
-        .map((snapshot) {
-      print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length}');
-      return snapshot.docs
-          .map((doc) => Message.fromDocument(doc.data(), doc.id))
-          .where((m) => m != null)
-          .cast<Message>()
+    // 🧊 Cache persistente: emite primeiro e atualiza cache a cada snapshot
+    return _getMessagesWithCache(currentUserId, withUserId, baseStream);
+  }
+
+  Stream<List<Message>> _getMessagesWithCache(
+    String currentUserId,
+    String withUserId,
+    Stream<List<Message>> baseStream,
+  ) async* {
+    final cached = await _messageCache.getCached(currentUserId, withUserId);
+    if (cached != null && cached.isNotEmpty) {
+      yield cached
+          .map((m) => Message(
+                id: m.id,
+                userId: m.userId,
+                senderId: m.senderId,
+                receiverId: m.receiverId,
+                type: m.type,
+                text: m.text,
+                imageUrl: m.imageUrl,
+                timestamp: m.timestamp,
+                isRead: m.isRead,
+                params: m.params,
+                replyTo: m.replyTo,
+                isDeleted: m.isDeleted,
+                deletedAt: m.deletedAt,
+                deletedBy: m.deletedBy,
+              ))
           .toList();
+    }
+
+    yield* baseStream.asyncMap((messages) async {
+      if (messages.isNotEmpty) {
+        final slice = messages.length > 30
+            ? messages.sublist(messages.length - 30)
+            : messages;
+        final cacheItems = slice
+            .map((m) => MessageCacheItem(
+                  id: m.id,
+                  userId: m.userId,
+                  senderId: m.senderId,
+                  receiverId: m.receiverId,
+                  type: m.type,
+                  text: m.text,
+                  imageUrl: m.imageUrl,
+                  timestampMs: m.timestamp?.millisecondsSinceEpoch,
+                  isRead: m.isRead,
+                  params: m.params,
+                  replyToMap: m.replyTo?.toMap(),
+                  isDeleted: m.isDeleted,
+                  deletedAtMs: m.deletedAt?.millisecondsSinceEpoch,
+                  deletedBy: m.deletedBy,
+                ))
+            .toList();
+
+        await _messageCache.cacheMessages(currentUserId, withUserId, cacheItems);
+      }
+      return messages;
     });
   }
 

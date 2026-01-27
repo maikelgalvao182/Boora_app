@@ -9,6 +9,7 @@ import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/create_flow/activity_repository.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/participants_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
+import 'package:partiu/features/home/presentation/widgets/participants/gender_picker_widget.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
@@ -68,11 +69,22 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
 
       // Salvar dados no coordinator
       if (widget.coordinator != null) {
+        // Obter dados do controller (já contém a lógica correta de gender)
+        final data = _controller.getParticipantsData();
+        
+        // Mapear PrivacyType UI enum para string 'open'/'private' apenas para o coordinator
+        // Se specificGender, é 'open' no backend
+        PrivacyType effectivePrivacyType = PrivacyType.open;
+        if (data['privacyType'] == PrivacyType.private) {
+          effectivePrivacyType = PrivacyType.private;
+        }
+
         widget.coordinator!.setParticipants(
-          minAge: _controller.minAge.round(),
-          maxAge: _controller.maxAge.round(),
-          privacyType: _controller.selectedPrivacyType!,
+          minAge: data['minAge'],
+          maxAge: data['maxAge'],
+          privacyType: effectivePrivacyType,
           maxParticipants: null,
+          gender: data['gender'],
         );
 
         // Verificar se o draft está completo
@@ -86,12 +98,16 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
             currentUser.uid,
           );
           
-          // ✅ Aguardar um momento para garantir que o Firestore processou os dados
-          // Isso garante que os listeners do EventCard receberão os dados completos
-          await Future.delayed(const Duration(milliseconds: 800));
-
-          // Injetar evento no ViewModel para garantir navegação imediata
+          // ✅ Injetar evento no ViewModel ANTES de fechar
+          // Isso garante que o marker apareça no mapa instantaneamente (sem esperar Firestore listener)
+          // permitindo navegação suave assim que os drawers fecharem.
           await widget.coordinator!.loadDraftEventIntoViewModel(activityId);
+          
+          // Debug visual
+          debugPrint('🚀 [ParticipantsDrawer] Evento injetado e pronto para navegação: $activityId');
+
+          // ✅ Pequeno delay aguardando mapa ficar pronto (evita navegação sem marker)
+          await _waitForMapReady();
 
           // ✅ NÃO chamar navigateToEvent aqui! 
           // O problema é que os drawers ainda estão na pilha de navegação,
@@ -131,6 +147,22 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
           _isSaving = false;
         });
       }
+    }
+  }
+
+  Future<void> _waitForMapReady({Duration timeout = const Duration(milliseconds: 1200)}) async {
+    final mapViewModel = widget.coordinator?.mapViewModel;
+    if (mapViewModel == null) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return;
+    }
+
+    if (mapViewModel.mapReady) return;
+
+    final start = DateTime.now();
+    while (!mapViewModel.mapReady) {
+      if (DateTime.now().difference(start) >= timeout) break;
+      await Future.delayed(const Duration(milliseconds: 150));
     }
   }
 
@@ -204,38 +236,58 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
 
               const SizedBox(height: 24),
 
-              // Filtro de idade
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: AgeRangeFilter(
-                  minAge: _controller.minAge,
-                  maxAge: _controller.maxAge,
-                  onRangeChanged: (RangeValues values) {
-                    _controller.setAgeRange(values.start, values.end);
-                  },
+              // Conteúdo Scrollável (Filtro IDADE + Privacidade/Gênero)
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Filtro de idade
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: AgeRangeFilter(
+                          minAge: _controller.minAge,
+                          maxAge: _controller.maxAge,
+                          onRangeChanged: (RangeValues values) {
+                            _controller.setAgeRange(values.start, values.end);
+                          },
+                        ),
+                      ),
+        
+                      const SizedBox(height: 24),
+        
+                      // Cards de seleção de privacidade e gênero
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: PrivacyTypeSelector(
+                          selectedType: _controller.selectedPrivacyType,
+                          onTypeSelected: (type) {
+                            _controller.setPrivacyType(type);
+                          },
+                          genderPicker: AnimatedExpandable(
+                            isExpanded: _controller.selectedPrivacyType == PrivacyType.specificGender,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 16, bottom: 4),
+                              child: GenderPickerWidget(
+                                selectedGender: _controller.selectedGender,
+                                onGenderChanged: (gender) => _controller.setGender(gender),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 24),
-
-              // Cards de seleção de privacidade
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: PrivacyTypeSelector(
-                  selectedType: _controller.selectedPrivacyType,
-                  onTypeSelected: (type) {
-                    _controller.setPrivacyType(type);
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Botões de navegação
+              // Botões de navegação (fixos na base)
               NavigationButtons(
                 onBack: () => Navigator.of(context).pop(),
                 onContinue: _handleContinue,
                 canContinue: _controller.canContinue && !_isSaving,
+                isLoading: _isSaving,
               ),
 
               // Padding bottom para safe area

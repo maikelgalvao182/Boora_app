@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
@@ -6,6 +5,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/helpers/app_notifications.dart';
 import 'package:partiu/features/notifications/helpers/notification_text_sanitizer.dart';
 import 'package:partiu/features/notifications/helpers/notification_message_translator.dart';
+import 'package:partiu/features/notifications/models/notification_cache_item.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +25,7 @@ class NotificationItemWidget extends StatelessWidget {
     this.isLocallyRead = false,
   });
   
-  final DocumentSnapshot<Map<String, dynamic>> notification;
+  final NotificationCacheItem notification;
   final bool isVipEffective;
   final AppLocalizations i18n;
   final int index;
@@ -35,7 +35,7 @@ class NotificationItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = notification.data() ?? {};
+    final data = notification.data;
     final senderId = (data[N_SENDER_ID] as String?) ?? '';
     // ⚠️ ARQUITETURA: senderName/senderPhotoUrl da notificação são APENAS fallback
     // Para usuários reais, SEMPRE usar UserStore/StableAvatar que busca do Firestore
