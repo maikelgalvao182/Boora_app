@@ -27,6 +27,8 @@ import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
 import 'package:partiu/features/notifications/widgets/simplified_notification_screen_wrapper.dart';
 import 'package:partiu/features/event_photo_feed/presentation/screens/event_photo_feed_screen.dart';
+import 'package:partiu/shared/repositories/user_repository.dart';
+import 'package:partiu/common/state/app_state.dart';
 
 /// Rotas da aplicação
 class AppRoutes {
@@ -272,12 +274,11 @@ GoRouter createAppRouter(BuildContext context) {
         }
         
         final extra = state.extra as Map<String, dynamic>?;
+        
+        // Se extra é null (ex: hot reload ou deep link), mostra tela de loading que busca os dados
         if (extra == null) {
-          return Scaffold(
-            body: Center(
-              child: Text(AppLocalizations.of(context).translate('profile_data_not_found')),
-            ),
-          );
+          debugPrint('⚠️ [AppRouter] Profile: extra é null para userId=$userId, usando fallback');
+          return _ProfileFallbackLoader(userId: userId);
         }
         
         final user = extra['user'] as User;
@@ -428,6 +429,112 @@ class SignupSuccessScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Fallback loader para quando o profile é acessado sem extra (deep link, hot reload)
+class _ProfileFallbackLoader extends StatefulWidget {
+  const _ProfileFallbackLoader({required this.userId});
+  
+  final String userId;
+
+  @override
+  State<_ProfileFallbackLoader> createState() => _ProfileFallbackLoaderState();
+}
+
+class _ProfileFallbackLoaderState extends State<_ProfileFallbackLoader> {
+  User? _user;
+  String? _currentUserId;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    debugPrint('🔄 [ProfileFallback] Carregando dados para userId=${widget.userId}');
+    try {
+      final currentUserId = AppState.currentUserId;
+      if (currentUserId == null || currentUserId.isEmpty) {
+        setState(() {
+          _error = 'user_not_authenticated';
+          _loading = false;
+        });
+        return;
+      }
+
+      // Import inline para evitar dependência circular
+      final userRepository = UserRepository();
+      final userData = await userRepository.getUserById(widget.userId);
+      
+      if (userData == null) {
+        debugPrint('❌ [ProfileFallback] Usuário não encontrado: ${widget.userId}');
+        setState(() {
+          _error = 'profile_data_not_found';
+          _loading = false;
+        });
+        return;
+      }
+
+      final normalized = <String, dynamic>{
+        ...userData,
+        'userId': widget.userId,
+      };
+      
+      debugPrint('✅ [ProfileFallback] Dados carregados para ${widget.userId}');
+      setState(() {
+        _user = User.fromDocument(normalized);
+        _currentUserId = currentUserId;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('❌ [ProfileFallback] Erro ao carregar: $e');
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(AppLocalizations.of(context).translate(_error!)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.pop(),
+                child: Text(AppLocalizations.of(context).translate('back')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ProfileScreenOptimized(
+      user: _user!,
+      currentUserId: _currentUserId!,
     );
   }
 }

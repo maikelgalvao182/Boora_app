@@ -22,6 +22,7 @@ import 'package:partiu/features/reviews/presentation/components/review_badges_se
 import 'package:partiu/features/reviews/presentation/components/reviewed_by_section.dart';
 import 'package:partiu/features/reviews/presentation/components/review_comments_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/profile_actions_section.dart';
+import 'package:partiu/features/profile/presentation/controllers/follow_controller.dart';
 
 /// Builder de conteúdo do perfil com NOVO sistema de reviews
 /// 
@@ -50,6 +51,7 @@ class ProfileContentBuilderV2 extends StatefulWidget {
 
 class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   final _reviewRepository = ReviewRepository();
+  late final FollowController _followController;
   
   // Stream controllers para reviews
   Stream<ReviewStatsModel>? _statsStream;
@@ -57,11 +59,37 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   
   // Widget de reviews cacheado para evitar rebuilds desnecessários
   late Widget _reviewsSectionWidget;
+  
+  // Stream do user doc cacheado para evitar rebuilds
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userDocStream;
 
   @override
   void initState() {
     super.initState();
+    
+    // Inicializa FollowController apenas se não for meu perfil
+    if (!widget.myProfile) {
+      _followController = FollowController(
+        myUid: widget.currentUserId,
+        targetUid: widget.displayUser.userId,
+      );
+      
+      // Cache do stream do documento do usuário
+      _userDocStream = FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.displayUser.userId)
+          .snapshots();
+    }
+    
     _loadReviewStreams();
+  }
+
+  @override
+  void dispose() {
+    if (!widget.myProfile) {
+      _followController.dispose();
+    }
+    super.dispose();
   }
 
   void _loadReviewStreams() {
@@ -78,6 +106,7 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('📄 [ProfileContentBuilderV2] build() chamado para userId: ${widget.displayUser.userId.substring(0, 8)}...');
     return Column(
       children: [
         // HEADER com foto, nome, idade
@@ -161,16 +190,15 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   }
 
   Widget _buildActions() {
+    debugPrint('📄 [ProfileContentBuilderV2] _buildActions() chamado');
     // Renderização condicional via stream do documento do usuário
     // Campo Firestore: message_button (bool). Default: true.
-    final userDocStream = FirebaseFirestore.instance
-        .collection('Users')
-        .doc(widget.displayUser.userId)
-        .snapshots();
+    // Stream cacheado no initState para evitar rebuilds
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: userDocStream,
+      stream: _userDocStream,
       builder: (context, snapshot) {
+        debugPrint('📄 [ProfileContentBuilderV2] StreamBuilder reconstruído');
         bool showMessageButton = true;
 
         if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
@@ -183,16 +211,15 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
           }
         }
 
-        if (!showMessageButton) {
-          return const SizedBox.shrink();
-        }
-
         return RepaintBoundary(
           child: ProfileActionsSection(
+            showFollowButton: true,
+            showMessageButton: showMessageButton,
+            followController: _followController,
             onAddFriend: () {
               debugPrint('👥 Adicionar amigo clicado');
             },
-            onMessage: () {
+            onMessage: showMessageButton ? () {
               // Verificar se usuário está bloqueado
               if (BlockService().isBlockedCached(widget.currentUserId, widget.displayUser.userId)) {
                 ToastService.showWarning(
@@ -210,7 +237,7 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
                   ),
                 ),
               );
-            },
+            } : null,
           ),
         );
       },

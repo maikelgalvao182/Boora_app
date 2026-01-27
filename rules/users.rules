@@ -67,7 +67,24 @@ match /Users/{userId} {
     allow create, update: if isSignedIn();
     allow delete: if isOwner(userId);
   }
+
+  /// 👥 Subcoleções de seguidores e seguindo
+  /// Path: Users/{userId}/followers/{followerId}
+  /// Path: Users/{userId}/following/{followeeId}
+  
+  match /followers/{followerId} {
+    allow read: if isSignedIn();
+    // Escrita apenas via Cloud Functions
+    allow write: if false;
+  }
+  
+  match /following/{followeeId} {
+    allow read: if isSignedIn();
+    // Escrita apenas via Cloud Functions
+    allow write: if false;
+  }
 }
+
 
 /// 👥 Coleção em minúsculo usada em algumas partes do app
 /// Path usado no app:

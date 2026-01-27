@@ -64,6 +64,17 @@ class PeopleMapDiscoveryService {
     return '${filters.gender ?? ''}|${filters.minAge ?? ''}|${filters.maxAge ?? ''}|${filters.isVerified ?? ''}|${filters.sexualOrientation ?? ''}|${filters.radiusKm ?? ''}|${interests.join(',')}';
   }
 
+  void _setNotifierValue<T>(ValueNotifier<T> notifier, T value) {
+    if (notifier.value == value) {
+      return;
+    }
+    scheduleMicrotask(() {
+      if (notifier.value != value) {
+        notifier.value = value;
+      }
+    });
+  }
+
   bool _shouldUseCache(String quadkey, String filtersSignature) {
     if (_lastQuadkey != quadkey) return false;
     if (_lastFiltersSignature != filtersSignature) return false;
@@ -143,8 +154,8 @@ class PeopleMapDiscoveryService {
   }) async {
     debugPrint('🔍 [PeopleMapDiscovery] _executeQuery iniciado...');
     if (reportLoading) {
-      isLoading.value = true;
-      lastError.value = null;
+      _setNotifierValue(isLoading, true);
+      _setNotifierValue(lastError, null);
     }
     final quadkey = bounds.toQuadkey();
 
@@ -154,11 +165,11 @@ class PeopleMapDiscoveryService {
     if (_shouldUseCache(quadkey, filtersSignature)) {
       debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${_cachedPeople.length} pessoas');
       if (publishToNotifiers) {
-        nearbyPeople.value = _cachedPeople;
-        nearbyPeopleCount.value = _cachedCount;
+        _setNotifierValue(nearbyPeople, _cachedPeople);
+        _setNotifierValue(nearbyPeopleCount, _cachedCount);
       }
       if (reportLoading) {
-        isLoading.value = false;
+        _setNotifierValue(isLoading, false);
       }
       return;
     }
@@ -168,7 +179,7 @@ class PeopleMapDiscoveryService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         debugPrint('⚠️ [PeopleMapDiscovery] Usuário não autenticado');
-        isLoading.value = false;
+        _setNotifierValue(isLoading, false);
         return;
       }
 
@@ -176,7 +187,7 @@ class PeopleMapDiscoveryService {
       if (userLocation == null) {
         debugPrint('⚠️ [PeopleMapDiscovery] Localização do usuário não disponível');
         if (reportLoading) {
-          isLoading.value = false;
+          _setNotifierValue(isLoading, false);
         }
         return;
       }
@@ -302,12 +313,12 @@ class PeopleMapDiscoveryService {
 
       debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
       if (publishToNotifiers) {
-        nearbyPeople.value = people;
-        nearbyPeopleCount.value = adjustedTotalCandidates;
+        _setNotifierValue(nearbyPeople, people);
+        _setNotifierValue(nearbyPeopleCount, adjustedTotalCandidates);
       }
 
       if (reportLoading) {
-        isLoading.value = false;
+        _setNotifierValue(isLoading, false);
       }
 
       debugPrint('✅ [PeopleMapDiscovery] ${people.length} pessoas encontradas (total: $adjustedTotalCandidates)');
@@ -315,8 +326,8 @@ class PeopleMapDiscoveryService {
       debugPrint('⚠️ [PeopleMapDiscovery] Falha ao buscar pessoas em bounds: $e');
       debugPrint('   Stack: $stack');
       if (reportLoading) {
-        lastError.value = e;
-        isLoading.value = false;
+        _setNotifierValue(lastError, e);
+        _setNotifierValue(isLoading, false);
       }
     }
   }

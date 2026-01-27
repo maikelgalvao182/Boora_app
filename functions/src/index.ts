@@ -16,6 +16,7 @@ export {patchAddCountryFlag} from "./patchAddCountryFlag";
 export {patchRemoveFormattedAddress} from "./patchRemoveFormattedAddress";
 export {onReportCreated} from "./reportModeration";
 export {onUserCreatedReferral} from "./referrals";
+export {followUser, unfollowUser} from "./users/followSystem";
 
 if (!admin.apps.length) {
   admin.initializeApp();
