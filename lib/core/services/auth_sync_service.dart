@@ -301,14 +301,22 @@ class AuthSyncService extends ChangeNotifier {
           }
           
           // ✅ Sessão pronta - todos os serviços inicializados
+          final wasSessionReady = _sessionReady;
           if (!_sessionReady) {
             _sessionReady = true;
             _log('✅ Sessão pronta - initialized: $initialized');
           }
           
-          _log('📊 [INIT] Chamando notifyListeners() final...');
-          notifyListeners();
-          _log('✅ [INIT] notifyListeners() completo - UI pode atualizar agora');
+          // 🔑 IMPORTANTE: Só notifica GoRouter se a sessão ACABOU de ficar pronta.
+          // Mudanças subsequentes no documento do usuário (ex: followersCount, followingCount)
+          // não devem disparar rebuild do GoRouter, pois isso causa flash na UI.
+          if (!wasSessionReady) {
+            _log('📊 [INIT] Chamando notifyListeners() final...');
+            notifyListeners();
+            _log('✅ [INIT] notifyListeners() completo - UI pode atualizar agora');
+          } else {
+            _log('🔕 [SNAPSHOT] Sessão já estava pronta, NÃO chamando notifyListeners() para evitar rebuild do GoRouter');
+          }
         } catch (e, stack) {
           _logError('Erro ao processar snapshot do usuário', e, stack);
           // Mesmo com erro, marca sessão como pronta para não travar

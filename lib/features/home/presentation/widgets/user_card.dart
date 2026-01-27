@@ -351,9 +351,8 @@ class _UserCardState extends State<UserCard> {
                             fallback: initialLocationText,
                           );
 
-                          final hasRow = (resolvedLocationText != null && resolvedLocationText.isNotEmpty) ||
-                              distanceText != null ||
-                              widget.trailingWidget != null;
+                            final hasRow = (resolvedLocationText != null && resolvedLocationText.isNotEmpty) ||
+                              distanceText != null;
 
                           if (!hasRow) {
                             return const SizedBox.shrink();
@@ -361,7 +360,7 @@ class _UserCardState extends State<UserCard> {
 
                           return Column(
                             children: [
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Row(
                                 children: [
                                   if (resolvedLocationText != null && resolvedLocationText.isNotEmpty)
@@ -392,10 +391,6 @@ class _UserCardState extends State<UserCard> {
                                       ),
                                     ),
 
-                                  if (widget.trailingWidget != null) ...[
-                                    const SizedBox(width: 8),
-                                    widget.trailingWidget!,
-                                  ],
                                 ],
                               ),
                             ],
@@ -447,6 +442,10 @@ class _UserCardState extends State<UserCard> {
                 ],
               ),
             ),
+            if (widget.trailingWidget != null) ...[
+              const SizedBox(width: 12),
+              Center(child: widget.trailingWidget!),
+            ],
           ],
         ),
       ),

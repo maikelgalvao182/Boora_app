@@ -92,13 +92,11 @@ class _FollowButtonIsolated extends StatelessWidget {
               textColor: followTextColor,
               icon: followIcon,
               outline: followOutline,
-              isProcessing: isLoading,
               onTap: () {
                 debugPrint('🔘 [_FollowButtonIsolated] GlimpseButton onTap() chamado');
                 controller.toggleFollow();
               },
               height: 52,
-              hideProcessingText: true,
             );
           },
         );

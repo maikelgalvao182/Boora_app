@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_reply_model.dart';
@@ -45,6 +46,36 @@ class EventPhotoRepository {
   final EventPhotoCacheService? _cacheService;
 
   CollectionReference<Map<String, dynamic>> get _photos => _firestore.collection('EventPhotos');
+
+  static const int _followingChunkSize = 10;
+
+  Future<List<String>> _fetchFollowingIds(String userId) async {
+    final snap = await _firestore
+        .collection('Users')
+        .doc(userId)
+        .collection('following')
+        .orderBy('createdAt', descending: true)
+        .limit(200)
+        .get();
+
+    return snap.docs.map((doc) => doc.id).toList(growable: false);
+  }
+
+  List<List<String>> _chunkIds(List<String> ids, int size) {
+    if (ids.isEmpty) return const [];
+    final chunks = <List<String>>[];
+    for (var i = 0; i < ids.length; i += size) {
+      final end = (i + size) > ids.length ? ids.length : (i + size);
+      chunks.add(ids.sublist(i, end));
+    }
+    return chunks;
+  }
+
+  dynamic _cursorCreatedAt(DocumentSnapshot<Map<String, dynamic>>? cursor) {
+    if (cursor == null) return null;
+    final data = cursor.data();
+    return data?['createdAt'];
+  }
 
   /// Feed público (status=active) + posts próprios em análise (status=under_review).
   ///
@@ -99,13 +130,11 @@ class EventPhotoRepository {
         print('🌍 [EventPhotoRepository] Scope global (sem filtros adicionais)');
         break;
       case EventPhotoFeedScopeFollowing():
-        print('👥 [EventPhotoRepository] Scope seguindo (não implementado)');
-        return const EventPhotoPage(
-          items: [],
-          nextCursor: null,
-          activeCursor: null,
-          pendingCursor: null,
-          hasMore: false,
+        print('👥 [EventPhotoRepository] Scope seguindo (seguindo ids)');
+        return _fetchFollowingPage(
+          currentUserId: currentUserId,
+          limit: limit,
+          cursor: activeCursor,
         );
       case EventPhotoFeedScopeEvent(:final eventId):
         print('🎉 [EventPhotoRepository] Aplicando filtro de evento: $eventId');
@@ -188,6 +217,74 @@ class EventPhotoRepository {
     );
   }
 
+  Future<EventPhotoPage> _fetchFollowingPage({
+    required String currentUserId,
+    required int limit,
+    required DocumentSnapshot<Map<String, dynamic>>? cursor,
+  }) async {
+    if (currentUserId.trim().isEmpty) {
+      return const EventPhotoPage(
+        items: [],
+        nextCursor: null,
+        activeCursor: null,
+        pendingCursor: null,
+        hasMore: false,
+      );
+    }
+    final followingIds = await _fetchFollowingIds(currentUserId);
+    if (followingIds.isEmpty) {
+      return const EventPhotoPage(
+        items: [],
+        nextCursor: null,
+        activeCursor: null,
+        pendingCursor: null,
+        hasMore: false,
+      );
+    }
+
+    final chunks = _chunkIds(followingIds, _followingChunkSize);
+    final cursorCreatedAt = _cursorCreatedAt(cursor);
+
+    final futures = chunks.map((chunk) {
+      var q = _photos
+          .where('status', isEqualTo: 'active')
+          .where('userId', whereIn: chunk)
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+      if (cursorCreatedAt != null) {
+        q = q.startAfter([cursorCreatedAt]);
+      }
+      return q.get();
+    }).toList();
+
+    final snaps = await Future.wait(futures);
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    for (final snap in snaps) {
+      docs.addAll(snap.docs);
+    }
+
+    docs.sort((a, b) {
+      final aTs = a.data()['createdAt'] as dynamic;
+      final bTs = b.data()['createdAt'] as dynamic;
+      final aMs = aTs is Timestamp ? aTs.millisecondsSinceEpoch : 0;
+      final bMs = bTs is Timestamp ? bTs.millisecondsSinceEpoch : 0;
+      return bMs.compareTo(aMs);
+    });
+
+    final items = docs.map(EventPhotoModel.fromFirestore).toList(growable: false);
+    final limited = items.length <= limit ? items : items.sublist(0, limit);
+    final nextCursor = docs.isNotEmpty ? docs.last : cursor;
+    final hasMore = docs.length >= limit;
+
+    return EventPhotoPage(
+      items: limited,
+      nextCursor: nextCursor,
+      activeCursor: nextCursor,
+      pendingCursor: null,
+      hasMore: hasMore,
+    );
+  }
+
   Future<EventPhotoPage> fetchFeedPage({
     required EventPhotoFeedScope scope,
     required int limit,
@@ -214,13 +311,11 @@ class EventPhotoRepository {
         print('🌍 [EventPhotoRepository] Scope global (sem filtros adicionais)');
         break;
       case EventPhotoFeedScopeFollowing():
-        print('👥 [EventPhotoRepository] Scope seguindo (não implementado)');
-        return const EventPhotoPage(
-          items: [],
-          nextCursor: null,
-          activeCursor: null,
-          pendingCursor: null,
-          hasMore: false,
+        print('👥 [EventPhotoRepository] Scope seguindo (seguindo ids)');
+        return _fetchFollowingPage(
+          currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+          limit: limit,
+          cursor: cursor,
         );
       case EventPhotoFeedScopeEvent(:final eventId):
         print('🎉 [EventPhotoRepository] Aplicando filtro de evento: $eventId');

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:partiu/common/state/app_state.dart';
@@ -11,6 +12,21 @@ import 'package:partiu/shared/repositories/user_repository.dart';
 /// Router para navegação de perfil
 /// Centraliza a navegação e decide qual versão da tela mostrar
 class ProfileScreenRouter {
+
+  static final Map<String, User> _profileCache = <String, User>{};
+
+  static void cacheUser(User user) {
+    if (user.userId.isEmpty) return;
+    debugPrint('💾 [ProfileScreenRouter] cacheUser: ${user.userId}');
+    _profileCache[user.userId] = user;
+  }
+
+  static User? getCachedUser(String userId) {
+    final cached = _profileCache[userId];
+    debugPrint('🔍 [ProfileScreenRouter] getCachedUser($userId): ${cached != null ? "FOUND" : "NOT FOUND"}');
+    debugPrint('🔍 [ProfileScreenRouter] Cache keys: ${_profileCache.keys.toList()}');
+    return cached;
+  }
   
   /// Navegar para visualização de perfil
   static Future<void> navigateToProfile(
@@ -32,6 +48,8 @@ class ProfileScreenRouter {
         'currentUserId': currentUserId,
       },
     );
+
+    cacheUser(user);
   }
 
   /// Navegar para edição de perfil
@@ -108,6 +126,8 @@ class ProfileScreenRouter {
         }
         return;
       }
+
+      cacheUser(userToShow);
 
       if (!context.mounted) return;
 

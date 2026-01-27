@@ -13,9 +13,11 @@ import 'package:partiu/features/home/presentation/screens/splash_screen.dart';
 import 'package:partiu/features/home/presentation/screens/advanced_filters_screen.dart';
 import 'package:partiu/features/home/presentation/widgets/referral_debug_screen.dart';
 import 'package:partiu/features/profile/presentation/screens/profile_screen_optimized.dart';
+import 'package:partiu/features/profile/presentation/screens/profile_screen_router.dart';
 import 'package:partiu/features/profile/presentation/screens/edit_profile_screen_advanced.dart';
 import 'package:partiu/features/profile/presentation/screens/profile_visits_screen.dart';
 import 'package:partiu/features/profile/presentation/screens/blocked_users_screen.dart';
+import 'package:partiu/features/profile/presentation/screens/followers_screen.dart';
 import 'package:partiu/features/events/presentation/screens/group_info/group_info_screen.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule_drawer.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -44,6 +46,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile';
   static const String profileVisits = '/profile-visits';
+  static const String followers = '/followers';
   static const String blockedUsers = '/blocked-users';
   static const String notifications = '/notifications';
   static const String advancedFilters = '/advanced-filters';
@@ -277,12 +280,28 @@ GoRouter createAppRouter(BuildContext context) {
         
         // Se extra é null (ex: hot reload ou deep link), mostra tela de loading que busca os dados
         if (extra == null) {
+          final cachedUser = ProfileScreenRouter.getCachedUser(userId);
+          final currentUserId = AppState.currentUserId;
+          debugPrint('🔍 [AppRouter] Profile: extra é null, verificando cache para userId=$userId');
+          debugPrint('🔍 [AppRouter] Profile: cachedUser=${cachedUser != null}, currentUserId=$currentUserId');
+          if (cachedUser != null && currentUserId != null && currentUserId.isNotEmpty) {
+            debugPrint('✅ [AppRouter] Profile: usando cache para userId=$userId');
+            return ProfileScreenOptimized(
+              user: cachedUser,
+              currentUserId: currentUserId,
+            );
+          }
+
           debugPrint('⚠️ [AppRouter] Profile: extra é null para userId=$userId, usando fallback');
           return _ProfileFallbackLoader(userId: userId);
         }
         
         final user = extra['user'] as User;
         final currentUserId = extra['currentUserId'] as String;
+        
+        // Cacheia o usuário para reconstruções futuras (ex: refresh do GoRouter)
+        ProfileScreenRouter.cacheUser(user);
+        debugPrint('💾 [AppRouter] Profile: cacheando user ${user.userId}');
         
         return ProfileScreenOptimized(
           user: user,
@@ -303,6 +322,13 @@ GoRouter createAppRouter(BuildContext context) {
       path: AppRoutes.profileVisits,
       name: 'profileVisits',
       builder: (context, state) => const ProfileVisitsScreen(),
+    ),
+
+    // Followers / Following
+    GoRoute(
+      path: AppRoutes.followers,
+      name: 'followers',
+      builder: (context, state) => const FollowersScreen(),
     ),
     
     // Blocked Users

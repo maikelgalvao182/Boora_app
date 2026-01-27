@@ -6,6 +6,7 @@ import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/profile/presentation/controllers/profile_controller.dart';
+import 'package:partiu/features/profile/presentation/controllers/follow_controller.dart';
 import 'package:partiu/features/profile/presentation/components/profile_content_builder_v2.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/report_widget.dart';
@@ -42,10 +43,17 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   late final ProfileController _controller;
   late AppLocalizations _i18n;
   bool _visitRecorded = false;
+  
+  // FollowController mantido no State para evitar recriação quando profile muda
+  FollowController? _followController;
+  
+  // Contador de builds para debug
+  int _buildCount = 0;
 
   @override
   void initState() {
     super.initState();
+    debugPrint('🏠 [ProfileScreenOptimized] initState() chamado - widget.hashCode: ${widget.hashCode}');
     
     AppLogger.info(
       'Inicializando para userId: ${widget.user.userId.substring(0, 8)}...',
@@ -56,6 +64,15 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
       userId: widget.user.userId,
       initialUser: widget.user,
     );
+    
+    // Cria FollowController apenas se não for o próprio perfil
+    final currentUserId = widget.currentUserId;
+    if (currentUserId != widget.user.userId) {
+      _followController = FollowController(
+        myUid: currentUserId,
+        targetUid: widget.user.userId,
+      );
+    }
     
     // Aguarda frame inicial para carregar dados
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -104,6 +121,8 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _buildCount++;
+    debugPrint('🏠 [ProfileScreenOptimized] build() #$_buildCount - hashCode: ${widget.hashCode}, followController: ${_followController?.hashCode}');
     final myProfile = _controller.isMyProfile(widget.currentUserId);
 
     return Scaffold(
@@ -254,6 +273,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
           child: ValueListenableBuilder<User?>(
             valueListenable: _controller.profile,
             builder: (context, profile, _) {
+              debugPrint('🏠 [ProfileScreenOptimized] ValueListenableBuilder<User?> rebuild - profile changed: ${profile?.userId.substring(0, 8) ?? "null"}');
               final displayUser = profile ?? widget.user;
 
               return ProfileContentBuilderV2(
@@ -262,6 +282,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
                 myProfile: myProfile,
                 i18n: _i18n,
                 currentUserId: widget.currentUserId,
+                followController: _followController,
               );
             },
           ),
@@ -279,6 +300,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
       'Dispose chamado para userId: ${widget.user.userId.substring(0, 8)}...',
       tag: 'ProfileScreen',
     );
+    _followController?.dispose();
     _controller.release();
     super.dispose();
   }

@@ -96,6 +96,23 @@ class _HomeAppBarState extends State<HomeAppBar> {
                 ),
                 const SizedBox(width: 12),
               ],
+              SizedBox(
+                width: 28,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(
+                    IconsaxPlusLinear.profile_2user,
+                    size: 24,
+                    color: GlimpseColors.textSubTitle,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    context.push(AppRoutes.followers);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
               // Botão de notificações (com badge reativo usando AppState)
               Builder(
                 builder: (context) {

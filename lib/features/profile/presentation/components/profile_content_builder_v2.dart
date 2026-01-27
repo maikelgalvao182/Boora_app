@@ -36,6 +36,7 @@ class ProfileContentBuilderV2 extends StatefulWidget {
     required this.myProfile,
     required this.i18n,
     required this.currentUserId,
+    this.followController,
     super.key,
   });
 
@@ -44,6 +45,9 @@ class ProfileContentBuilderV2 extends StatefulWidget {
   final bool myProfile;
   final AppLocalizations i18n;
   final String currentUserId;
+  /// FollowController é gerenciado pelo pai (ProfileScreenOptimized) para evitar
+  /// recriação quando profile.value muda no stream do Firestore.
+  final FollowController? followController;
 
   @override
   State<ProfileContentBuilderV2> createState() => _ProfileContentBuilderV2State();
@@ -51,7 +55,6 @@ class ProfileContentBuilderV2 extends StatefulWidget {
 
 class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   final _reviewRepository = ReviewRepository();
-  late final FollowController _followController;
   
   // Stream controllers para reviews
   Stream<ReviewStatsModel>? _statsStream;
@@ -62,19 +65,17 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   
   // Stream do user doc cacheado para evitar rebuilds
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userDocStream;
+  
+  // Contador de builds para debug
+  int _buildCount = 0;
 
   @override
   void initState() {
     super.initState();
+    debugPrint('📄 [ProfileContentBuilderV2] initState() - hashCode: ${widget.hashCode}, followController: ${widget.followController?.hashCode}');
     
-    // Inicializa FollowController apenas se não for meu perfil
+    // Cache do stream do documento do usuário (apenas para verificar message_button)
     if (!widget.myProfile) {
-      _followController = FollowController(
-        myUid: widget.currentUserId,
-        targetUid: widget.displayUser.userId,
-      );
-      
-      // Cache do stream do documento do usuário
       _userDocStream = FirebaseFirestore.instance
           .collection('Users')
           .doc(widget.displayUser.userId)
@@ -86,9 +87,7 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
 
   @override
   void dispose() {
-    if (!widget.myProfile) {
-      _followController.dispose();
-    }
+    // FollowController é gerenciado pelo pai, não descartamos aqui
     super.dispose();
   }
 
@@ -106,7 +105,8 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('📄 [ProfileContentBuilderV2] build() chamado para userId: ${widget.displayUser.userId.substring(0, 8)}...');
+    _buildCount++;
+    debugPrint('📄 [ProfileContentBuilderV2] build() #$_buildCount - hashCode: ${widget.hashCode}, State.hashCode: $hashCode, followController: ${widget.followController?.hashCode}');
     return Column(
       children: [
         // HEADER com foto, nome, idade
@@ -213,9 +213,9 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
 
         return RepaintBoundary(
           child: ProfileActionsSection(
-            showFollowButton: true,
+            showFollowButton: widget.followController != null,
             showMessageButton: showMessageButton,
-            followController: _followController,
+            followController: widget.followController,
             onAddFriend: () {
               debugPrint('👥 Adicionar amigo clicado');
             },

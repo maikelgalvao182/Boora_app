@@ -67,8 +67,11 @@ class ProfileController {
           .listen(
             (snapshot) {
               if (_isReleased) return;
+              debugPrint('📊 [ProfileController] Stream emitiu snapshot para userId: $targetUserId');
               if (snapshot.exists && snapshot.data() != null) {
-                profile.value = User.fromDocument(snapshot.data()!);
+                final data = snapshot.data()!;
+                debugPrint('📊 [ProfileController] Dados mudaram - followersCount: ${data['followersCount']}, followingCount: ${data['followingCount']}');
+                profile.value = User.fromDocument(data);
                 error.value = null;
               } else {
                 error.value = 'Usuário não encontrado';
