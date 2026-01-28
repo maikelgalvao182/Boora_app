@@ -28,7 +28,11 @@ export const testPushNotification = functions.https.onRequest(
       await sendPush({
         userId: userId,
         event: "system_alert",
+        origin: "testPushNotification",
         data: {
+          n_type: "system_alert",
+          relatedId: "test",
+          n_related_id: "test",
           test: "true",
           timestamp: new Date().toISOString(),
         },

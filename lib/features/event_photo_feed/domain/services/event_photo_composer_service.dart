@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
 
@@ -61,7 +62,10 @@ class EventPhotoComposerService {
     void Function(double progress)? onProgress,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Usuário não autenticado');
+    if (user == null) {
+      final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+      throw Exception(i18n.translate('user_not_authenticated'));
+    }
 
     final original = File(image.path);
 
@@ -113,7 +117,7 @@ class EventPhotoComposerService {
     return EventPhotoUploadResult(photoUrl: photoUrl, thumbUrl: thumbUrl);
   }
 
-  Map<String, dynamic> buildCreatePayload({
+  Future<Map<String, dynamic>> buildCreatePayload({
     required String eventId,
     required String userId,
     required String imageUrl,
@@ -129,10 +133,12 @@ class EventPhotoComposerService {
     required String userName,
     required String userPhotoUrl,
     List<TaggedParticipantModel> taggedParticipants = const [],
-  }) {
-    if (eventId.trim().isEmpty) throw Exception('eventId obrigatório');
+  }) async {
+    final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+    
+    if (eventId.trim().isEmpty) throw Exception(i18n.translate('error_event_id_required'));
     final safeCaption = (caption ?? '').trim();
-    if (safeCaption.length > 500) throw Exception('Legenda muito longa (max 500)');
+    if (safeCaption.length > 500) throw Exception(i18n.translate('error_caption_too_long'));
 
     return {
       'eventId': eventId,

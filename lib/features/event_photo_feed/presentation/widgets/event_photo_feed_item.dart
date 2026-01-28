@@ -342,8 +342,8 @@ class EventPhotoFeedItem extends StatelessWidget {
                                   '${item.commentsCount}',
                                   style: GoogleFonts.getFont(
                                     FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                     color: GlimpseColors.textSubTitle,
                                   ),
                                 ),

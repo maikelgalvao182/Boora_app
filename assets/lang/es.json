@@ -720,6 +720,11 @@
   "no_members_yet": "Aún no hay miembros",
   "cannot_remove_yourself": "No puedes eliminarte a ti mismo del evento",
   "user_not_authenticated": "Usuario no autenticado",
+  "default_user_name": "Usuario",
+  "default_location_name": "Lugar",
+  "error_event_id_required": "eventId requerido",
+  "error_caption_too_long": "Pie de foto muy largo (máx 500)",
+  "error_cannot_remove_last_image": "No se puede eliminar la última imagen",
   "activities_list": "Lista de actividades",
   "activities_in_region": "Actividades en la región",
   "no_activities_found": "No se encontraron actividades",
@@ -1110,6 +1115,8 @@
   "later": "Más tarde",
   "actions": "Acciones",
   "share_app_message": "Crea cosas para hacer en el mapa de tu ciudad y mira quién quiere acompañarte.",
-  "followers": "seguidores"
+  "followers": "seguidores",
+  "event_photo_one_participant_label": "con 1 persona",
+  "event_photo_participants_count_label": "con {count} personas"
 }
 

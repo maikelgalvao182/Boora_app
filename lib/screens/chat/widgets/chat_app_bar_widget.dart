@@ -336,18 +336,6 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                           Row(
                             children: [
                               Flexible(
-                                child: UserPresenceStatusWidget(
-                                  userId: user.userId,
-                                  chatService: chatService,
-                                ),
-                              ),
-                              Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 6),
-                                width: 1,
-                                height: 12,
-                                color: GlimpseColors.borderColorLight,
-                              ),
-                              Flexible(
                                 child: UserLocationTimeWidget(
                                   user: user,
                                   chatService: chatService,

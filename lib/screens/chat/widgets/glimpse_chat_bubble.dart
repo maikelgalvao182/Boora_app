@@ -528,13 +528,13 @@ class GlimpseChatBubble extends StatelessWidget {
           // Prioridade: display name resolvido (fonte única) via UserStore.
           final resolvedName = name?.trim() ?? '';
           if (resolvedName.isNotEmpty && !_isPlaceholderName(resolvedName)) {
-            return Text(resolvedName, style: style);
+            return Text(_formatDisplayName(resolvedName), style: style);
           }
 
           // Fallback 1 (se veio no payload local da msg, por ex. cache):
           final resolvedFullName = fullName?.trim() ?? '';
           if (resolvedFullName.isNotEmpty && !_isPlaceholderName(resolvedFullName)) {
-            return Text(resolvedFullName, style: style);
+            return Text(_formatDisplayName(resolvedFullName), style: style);
           }
 
           // Fallback 2 (raro): tenta query direta apenas se ainda não temos nada.
@@ -548,7 +548,7 @@ class GlimpseChatBubble extends StatelessWidget {
               if (fetched.isEmpty || _isPlaceholderName(fetched)) {
                 return const SizedBox.shrink();
               }
-              return Text(fetched, style: style);
+              return Text(_formatDisplayName(fetched), style: style);
             },
           );
         },
@@ -557,7 +557,7 @@ class GlimpseChatBubble extends StatelessWidget {
 
     final resolvedFullName = fullName?.trim() ?? '';
     if (resolvedFullName.isNotEmpty && !_isPlaceholderName(resolvedFullName)) {
-      return Text(resolvedFullName, style: style);
+      return Text(_formatDisplayName(resolvedFullName), style: style);
     }
     
     return const SizedBox.shrink();
@@ -570,6 +570,23 @@ class GlimpseChatBubble extends StatelessWidget {
         normalized == 'unknow user' ||
         normalized == 'usuário' ||
         normalized == 'usuario';
+  }
+
+  String _formatDisplayName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) return 'Usuário';
+
+    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'Usuário';
+
+    final first = parts.first;
+    if (parts.length == 1) {
+      return first.length > 15 ? first.substring(0, 15) : first;
+    }
+
+    final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final safeFirst = first.length > 15 ? first.substring(0, 15) : first;
+    return lastInitial.isEmpty ? safeFirst : '$safeFirst $lastInitial.';
   }
 
   @override

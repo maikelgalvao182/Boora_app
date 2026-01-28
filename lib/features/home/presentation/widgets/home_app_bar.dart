@@ -100,7 +100,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   return AutoUpdatingBadge(
                     count: count,
                     badgeColor: GlimpseColors.actionColor,
-                    top: -2,
+                    top: 6,
                     right: -2,
                     child: iconWidget,
                   );

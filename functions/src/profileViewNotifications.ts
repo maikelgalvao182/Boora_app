@@ -176,7 +176,7 @@ export const processProfileViewNotifications = functions
         // Marca visualizações como notificadas
         for (const viewId of data.viewIds) {
           const viewRef = db.collection("ProfileViews").doc(viewId);
-          batch.update(viewRef, {notified: true});
+          batch.set(viewRef, {notified: true}, {merge: true});
         }
 
         notificationsSent++;
@@ -203,12 +203,15 @@ export const processProfileViewNotifications = functions
           return sendPush({
             userId: userId,
             event: "profile_views_aggregated",
+            origin: "profileViewNotifications",
             notification: {
               title: title,
               body: "Novos amigos?",
             },
             data: {
               n_type: "profile_views_aggregated",
+              relatedId: "profile_visits",
+              n_related_id: "profile_visits",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
               deepLink: deepLink,
@@ -358,7 +361,7 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
 
         for (const viewId of data.viewIds) {
           const viewRef = db.collection("ProfileViews").doc(viewId);
-          batch.update(viewRef, {notified: true});
+          batch.set(viewRef, {notified: true}, {merge: true});
         }
 
         notificationsSent++;
@@ -384,12 +387,15 @@ export const processProfileViewNotificationsHttp = functions.https.onRequest(
           return sendPush({
             userId: userId,
             event: "profile_views_aggregated",
+            origin: "profileViewNotificationsHttp",
             notification: {
               title: "👀 Visitas ao perfil",
               body: body,
             },
             data: {
               n_type: "profile_views_aggregated",
+              relatedId: "profile_visits",
+              n_related_id: "profile_visits",
               count: data.count.toString(),
               viewerIds: data.viewerIds.join(","),
               deepLink: deepLink,

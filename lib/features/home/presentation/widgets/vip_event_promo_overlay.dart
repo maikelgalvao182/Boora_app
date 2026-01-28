@@ -363,13 +363,13 @@ class _PromoCardState extends State<_PromoCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$displayName quer',
+                        displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: titleStyle,
                       ),
                       Text(
-                        activityName,
+                        'quer $activityName',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: subtitleStyle,

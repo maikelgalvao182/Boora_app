@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import {sendPush} from "../services/pushDispatcher";
 
 const db = admin.firestore();
 
@@ -64,85 +65,25 @@ async function sendNewFollowerPush(params: {
   followerName: string;
 }): Promise<void> {
   try {
-    // Buscar FCM tokens do receiver na coleção DeviceTokens (raiz)
-    const tokensSnap = await db
-      .collection("DeviceTokens")
-      .where("userId", "==", params.receiverId)
-      .get();
-
-    if (tokensSnap.empty) {
-      console.log(`⚠️ Usuário ${params.receiverId} não tem FCM tokens`);
-      return;
-    }
-
-    // ✅ Extrair token do campo 'token' dentro de cada documento
-    const tokens: string[] = [];
-    const tokenDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
-
-    tokensSnap.docs.forEach((doc) => {
-      const token = doc.data().token;
-      if (token && typeof token === "string" && token.length > 0) {
-        tokens.push(token);
-        tokenDocs.push(doc);
-      }
-    });
-
-    if (tokens.length === 0) {
-      console.log(`⚠️ Usuário ${params.receiverId} sem tokens válidos`);
-      return;
-    }
-
-    console.log(
-      `📱 [FollowPush] Enviando para ${tokens.length} dispositivo(s)`
-    );
-
-    const message: admin.messaging.MulticastMessage = {
-      tokens,
+    await sendPush({
+      userId: params.receiverId,
+      event: "new_follower",
+      origin: "followSystem",
+      playSound: true,
       notification: {
         title: "Novo seguidor 👋",
         body: `${params.followerName} começou a te seguir`,
       },
       data: {
-        type: "new_follower",
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        n_type: "new_follower",
+        relatedId: params.followerId,
+        n_related_id: params.followerId,
         deepLink: `partiu://profile/${params.followerId}`,
         senderId: params.followerId,
         senderName: params.followerName,
+        n_sender_id: params.followerId,
+        n_sender_name: params.followerName,
       },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          sound: "default",
-          channelId: "boora_high_importance",
-        },
-      },
-    };
-
-    const response = await admin.messaging().sendEachForMulticast(message);
-    console.log(
-      `📱 Push enviado: ${response.successCount}/${tokens.length} sucesso`
-    );
-
-    // Limpar tokens inválidos
-    response.responses.forEach((resp, idx) => {
-      if (
-        !resp.success &&
-        (resp.error?.code === "messaging/invalid-registration-token" ||
-          resp.error?.code === "messaging/registration-token-not-registered")
-      ) {
-        // ✅ Usar o documento correto para deletar
-        tokenDocs[idx].ref
-          .delete()
-          .catch((e) => console.debug("Token cleanup:", e));
-      }
     });
   } catch (error) {
     console.error("❌ Erro ao enviar push de novo seguidor:", error);

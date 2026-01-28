@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 
 /// Busca eventos recentes para o seletor do composer.
@@ -28,7 +29,8 @@ class RecentEventsService {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
       print('❌ [RecentEventsService] Usuário não autenticado');
-      throw Exception('Usuário não autenticado');
+      final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+      throw Exception(i18n.translate('user_not_authenticated'));
     }
     
     print('👤 [RecentEventsService] userId: $uid');

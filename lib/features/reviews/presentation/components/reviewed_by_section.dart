@@ -89,9 +89,12 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
     }
 
     final i18n = AppLocalizations.of(context);
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    final topSpacing = isAndroid ? 16.0 : 0.0;
 
     return Container(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
+        top: topSpacing,
         left: 20,
         right: 20,
       ),
@@ -122,8 +125,8 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 6,
         crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.75, // Mais alto para acomodar nome
+        mainAxisSpacing: 4,
+        childAspectRatio: 0.95, // Mais compacto (-4px altura)
       ),
       itemCount: _reviewers.length,
       itemBuilder: (context, index) {
@@ -150,25 +153,47 @@ class _ReviewerCard extends StatelessWidget {
         // Avatar com navegação para perfil
         StableAvatar(
           userId: reviewer.userId,
-          size: 44,
+          size: 40,
           photoUrl: reviewer.photoUrl,
           enableNavigation: true,
         ),
-        const SizedBox(height: 4),
-        // Nome do reviewer
-        Text(
-          _getFirstName(reviewer.displayName),
-          style: GoogleFonts.getFont(
-            FONT_PLUS_JAKARTA_SANS,
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: GlimpseColors.primaryColorLight,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
+        const SizedBox(height: 2),
+        // Nome do reviewer - busca do UserStore se não disponível
+        _buildNameWidget(),
       ],
+    );
+  }
+
+  Widget _buildNameWidget() {
+    // Primeiro tenta usar o nome da review
+    final nameFromReview = _getFirstName(reviewer.displayName);
+    
+    if (nameFromReview.isNotEmpty) {
+      return _buildNameText(nameFromReview);
+    }
+    
+    // Se não tem nome, busca do UserStore (cache reativo)
+    return ValueListenableBuilder<String?>(
+      valueListenable: UserStore.instance.getNameNotifier(reviewer.userId),
+      builder: (context, cachedName, _) {
+        final firstName = _getFirstName(cachedName);
+        return _buildNameText(firstName);
+      },
+    );
+  }
+
+  Widget _buildNameText(String name) {
+    return Text(
+      name,
+      style: GoogleFonts.getFont(
+        FONT_PLUS_JAKARTA_SANS,
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+        color: GlimpseColors.primaryColorLight,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
     );
   }
 

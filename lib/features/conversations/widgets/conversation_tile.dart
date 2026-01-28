@@ -11,11 +11,13 @@ import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 import 'package:partiu/features/events/state/event_store.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/event_emoji_avatar.dart';
+import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:provider/provider.dart';
 
@@ -388,19 +390,16 @@ class ConversationTile extends StatelessWidget {
           Expanded(
             // ✅ 1:1: sempre resolver via UserStore (evita alternar com sender)
             child: (!isEventChat && displayData.otherUserId.isNotEmpty)
-                ? ValueListenableBuilder<String?>(
-                    valueListenable:
-                        UserStore.instance.getNameNotifier(displayData.otherUserId),
-                    builder: (context, name, _) {
-                      final resolved = (name ?? '').trim();
-                      final effective = (!isPlaceholderName(resolved) && resolved.isNotEmpty)
-                          ? resolved
-                          : (isPlaceholderName(displayName) ? '' : displayName);
-
-                      return ConversationStyles.buildEventNameText(
-                        name: effective.isNotEmpty ? truncateName(effective) : '',
-                      );
-                    },
+                ? ReactiveUserNameWithBadge(
+                    userId: displayData.otherUserId,
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: ConversationStyles.eventNameFontSize,
+                      fontWeight: ConversationStyles.eventNameFontWeight,
+                      color: GlimpseColors.primaryColorLight,
+                    ),
+                    iconSize: ConversationStyles.verifiedIconSize,
+                    spacing: ConversationStyles.verifiedIconSpacing,
                   )
                 : ConversationStyles.buildEventNameText(
                     name: isPlaceholderName(displayName) ? '' : truncateName(displayName),

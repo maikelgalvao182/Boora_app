@@ -25,6 +25,8 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    final topSpacing = isAndroid ? 16.0 : 0.0;
 
     // Filtrar apenas reviews que têm comentário
     final reviewsWithComments = widget.reviews.where((review) => 
@@ -40,7 +42,12 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
     final hasMoreReviews = reviewsWithComments.length > 3;
 
     return Container(
-      padding: GlimpseStyles.profileSectionPadding,
+      padding: EdgeInsets.only(
+        top: topSpacing,
+        left: GlimpseStyles.horizontalMargin,
+        right: GlimpseStyles.horizontalMargin,
+        bottom: GlimpseStyles.profileSectionBottomSpacing,
+      ),
       width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

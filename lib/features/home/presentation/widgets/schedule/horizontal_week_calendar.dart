@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Widget de calendário horizontal com 7 dias
 /// Permite selecionar um dia deslizando horizontalmente
@@ -42,6 +43,7 @@ class HorizontalWeekCalendar extends StatelessWidget {
               date: date,
               isSelected: isSelected,
               onTap: () => onDateSelected(date),
+              locale: AppLocalizations.of(context).locale,
             ),
           );
         },
@@ -56,16 +58,22 @@ class _DayCard extends StatelessWidget {
     required this.date,
     required this.isSelected,
     required this.onTap,
+    required this.locale,
   });
 
   final DateTime date;
   final bool isSelected;
   final VoidCallback onTap;
+  final Locale locale;
 
   @override
   Widget build(BuildContext context) {
+    // Usar o locale correto baseado no idioma do app
+    final localeString = locale.languageCode == 'pt' ? 'pt_BR' : 
+                        locale.languageCode == 'es' ? 'es_ES' : 'en_US';
+    
     // Formata dia da semana com primeira letra maiúscula
-    final weekDay = DateFormat('EEE', 'pt_BR').format(date);
+    final weekDay = DateFormat('EEE', localeString).format(date);
     final weekDayCapitalized = weekDay[0].toUpperCase() + weekDay.substring(1);
     
     return GestureDetector(
@@ -97,7 +105,7 @@ class _DayCard extends StatelessWidget {
 
             // Data
             Text(
-              DateFormat('d', 'pt_BR').format(date),
+              DateFormat('d', localeString).format(date),
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
                 fontSize: 20,

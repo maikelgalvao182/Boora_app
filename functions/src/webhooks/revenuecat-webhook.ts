@@ -779,11 +779,15 @@ async function sendUserNotification(
     await sendPush({
       userId: userId,
       event: "system_alert",
+      origin: "revenuecatWebhook",
       notification: {
         title: alertTitle,
         body: alertBody,
       },
       data: {
+        n_type: "system_alert",
+        relatedId: eventType,
+        n_related_id: eventType,
         event_type: eventType,
         is_active: isActive.toString(),
       },

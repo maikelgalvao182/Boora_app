@@ -77,7 +77,15 @@ class HiveCacheService<T> {
       return null;
     }
     
-    final value = _box!.get(key);
+    T? value;
+    try {
+      value = _box!.get(key);
+    } catch (e) {
+      _log('CACHE READ ERROR: $key ($e)');
+      _box!.delete(key);
+      _metaBox!.delete(key);
+      return null;
+    }
     
     if (value == null) {
       _log('CACHE MISS: $key');

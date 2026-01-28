@@ -143,6 +143,21 @@ class _EventPhotoCommentsSheetState extends ConsumerState<EventPhotoCommentsShee
         top: true,
         child: Column(
           children: [
+            // Handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: GlimpseColors.borderColorLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             GlimpseAppBar(title: i18n.translate('event_photo_comments_title')),
             Expanded(
               child: asyncComments.when(

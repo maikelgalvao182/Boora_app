@@ -44,6 +44,11 @@ export const onPrivateMessageCreated = functions.firestore
     try {
       const msgSenderId = messageData.sender_id;
       const msgReceiverId = messageData.receiver_id;
+      const messageGlobalId =
+        messageData.global_id ||
+        messageData.message_global_id ||
+        messageData.messageGlobalId ||
+        "";
 
       console.log("🔍 [ChatPush] Dados da mensagem:");
       console.log("   sender_id: " + msgSenderId);
@@ -119,6 +124,7 @@ export const onPrivateMessageCreated = functions.firestore
       await sendPush({
         userId: ownerId, // Notifica o dono da caixa (Destinatário)
         event: "chat_message",
+        origin: "chatPushNotifications",
         notification: {
           title: senderName,
           body: messagePreview,
@@ -126,6 +132,10 @@ export const onPrivateMessageCreated = functions.firestore
         data: {
           n_type: "chat_message",
           sub_type: "chat_message",
+          relatedId: messageGlobalId || messageId,
+          n_related_id: messageGlobalId || messageId,
+          messageId: messageId,
+          messageGlobalId: messageGlobalId || messageId,
           senderId: msgSenderId,
           n_sender_name: senderName,
           senderName: senderName,

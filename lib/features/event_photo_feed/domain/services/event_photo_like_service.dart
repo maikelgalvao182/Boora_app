@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 
 class EventPhotoLikeService {
   EventPhotoLikeService({
@@ -40,7 +41,8 @@ class EventPhotoLikeService {
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.trim().isEmpty) {
-      throw Exception('Usuário não autenticado');
+      final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+      throw Exception(i18n.translate('user_not_authenticated'));
     }
 
     final photoRef = _photos.doc(photoId);

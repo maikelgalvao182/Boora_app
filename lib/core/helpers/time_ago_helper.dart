@@ -53,7 +53,7 @@ class TimeAgoHelper {
       
       // Minutos (1-59)
       if (difference.inMinutes < 60) {
-        return '${difference.inMinutes}m';
+        return '${difference.inMinutes}min';
       }
       
       // Horas (1-23)

@@ -54,8 +54,8 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
                 IconsaxPlusLinear.arrow_left,
                 size: 24,
                 color: isBackEnabled
-                    ? GlimpseColors.primaryColorLight
-                    : GlimpseColors.primaryColorLight.withValues(alpha: 0.3),
+                    ? Colors.black
+                    : Colors.black.withValues(alpha: 0.6),
               ),
               onPressed: () {
                 HapticFeedback.lightImpact();

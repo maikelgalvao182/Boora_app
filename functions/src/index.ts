@@ -385,6 +385,7 @@ export const onApplicationApproved = functions.firestore
         await sendPush({
           userId: creatorId,
           event: "activity_new_participant",
+          origin: "onApplicationApproved",
           // Template: activityNewParticipant
           notification: {
             title: `${activityText} ${emoji}`,
@@ -393,6 +394,8 @@ export const onApplicationApproved = functions.firestore
           data: {
             n_type: "activity_new_participant",
             sub_type: "activity_new_participant",
+            relatedId: eventId,
+            n_related_id: eventId,
             eventId: eventId,
             chatId: `event_${eventId}`,
             n_sender_name: userName,

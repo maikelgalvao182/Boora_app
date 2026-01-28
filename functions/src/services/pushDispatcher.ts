@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import {randomUUID, createHash} from "crypto";
 
 /**
  * 🎯 EVENTOS DE PUSH DO PARTIU
@@ -12,7 +13,6 @@ export type PushEvent =
   // Chat
   | "chat_message"
   | "event_chat_message"
-  | "event_join"
   // Atividades
   | "activity_created"
   | "activity_heating_up"
@@ -24,8 +24,8 @@ export type PushEvent =
   | "activity_canceled"
   // Perfil & Reviews
   | "profile_views_aggregated"
-  | "review_pending"
   | "new_review_received"
+  | "new_follower"
   // Sistema
   | "system_alert"
   | "custom";
@@ -51,7 +51,6 @@ export type PushPreferenceType =
 const CHAT_EVENTS: PushEvent[] = [
   "chat_message",
   "event_chat_message",
-  "event_join",
 ];
 
 const ACTIVITY_EVENTS: PushEvent[] = [
@@ -81,15 +80,145 @@ export interface SendPushParams {
     body: string;
   };
   silent?: boolean;
+  playSound?: boolean;
   /**
    * Quando true, envia APENAS data (sem notification/aps.alert).
    * Útil para garantir que o app em foreground receba via onMessage
    * e o cliente mostre uma local notification controlada.
    */
   dataOnly?: boolean;
+  origin?: string;
   context?: {
     groupId?: string;
   };
+}
+
+/**
+ * Resolve identificador relacionado ao evento (idempotência).
+ * @param {Record<string, string | number | boolean>} data Dados do push.
+ * @return {string} RelatedId determinístico.
+ */
+function resolveRelatedId(
+  data: Record<string, string | number | boolean>
+): string {
+  const raw =
+    data.relatedId ||
+    data.n_related_id ||
+    data.messageId ||
+    data.message_id ||
+    data.messageGlobalId ||
+    data.message_global_id ||
+    data.globalId ||
+    data.global_id ||
+    data.activityId ||
+    data.eventId ||
+    data.conversationId ||
+    data.chatId ||
+    data.reviewId ||
+    data.followerId ||
+    data.userId ||
+    "";
+  return String(raw || "");
+}
+
+/**
+ * Resolve o tipo efetivo do evento para o payload.
+ * @param {PushEvent} event Tipo do evento.
+ * @param {Record<string, string | number | boolean>} data Dados do push.
+ * @return {string} Tipo efetivo.
+ */
+function resolveType(
+  event: PushEvent,
+  data: Record<string, string | number | boolean>
+): string {
+  const raw = data.n_type || data.type || event;
+  return String(raw || event);
+}
+
+/**
+ * Resolve a variante de idempotência (permite versionamento).
+ * @param {Record<string, string | number | boolean>} data Dados do push.
+ * @return {string} Variante da idempotência.
+ */
+function resolveVariant(
+  data: Record<string, string | number | boolean>
+): string {
+  const raw = data.idempotencyVariant || "v1";
+  return String(raw || "v1");
+}
+
+/**
+ * Gera um relatedId fallback quando não há identificador explícito.
+ * @param {object} params Parâmetros para hash determinístico.
+ * @param {string} params.nType Tipo do evento.
+ * @param {string} params.userId Usuário destinatário.
+ * @param {string} params.title Título da notificação.
+ * @param {string} params.body Corpo da notificação.
+ * @param {number} params.minuteBucket Bucket temporal (minutos).
+ * @return {string} relatedId fallback.
+ */
+function buildFallbackRelatedId(params: {
+  nType: string;
+  userId: string;
+  title: string;
+  body: string;
+  minuteBucket: number;
+}): string {
+  const source = `${params.nType}|${params.userId}|` +
+    `${params.title}|${params.body}|${params.minuteBucket}`;
+  return createHash("sha1").update(source).digest("hex");
+}
+
+/**
+ * Gera um ID curto (<= 64) para collapse/thread.
+ * @param {string} value Valor base.
+ * @return {string} ID curto.
+ */
+function buildShortId(value: string): string {
+  if (!value) return "";
+  if (value.length <= 64) return value;
+  return createHash("sha1").update(value).digest("hex");
+}
+
+/**
+ * JSON canônico: ordena chaves para hash estável.
+ * @param {unknown} value Valor a ser serializado.
+ * @return {string} JSON com ordenação determinística.
+ */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
+    return `{${entries.join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+/**
+ * Gera hash estável do payload para auditoria.
+ * @param {object} payload Payload do push.
+ * @param {string} [payload.title] Título da notificação.
+ * @param {string} [payload.body] Corpo da notificação.
+ * @param {object} payload.data Dados do push.
+ * @return {string} Hash SHA-1.
+ */
+function hashPayload(payload: {
+  title?: string;
+  body?: string;
+  data: Record<string, string | number | boolean>;
+}): string {
+  const canonical = stableStringify({
+    title: payload.title || "",
+    body: payload.body || "",
+    data: payload.data,
+  });
+  return createHash("sha1").update(canonical).digest("hex");
 }
 
 /**
@@ -114,7 +243,9 @@ export async function sendPush({
   data,
   notification: explicitNotification,
   silent = false,
+  playSound,
   dataOnly = false,
+  origin = "pushDispatcher",
   context,
 }: SendPushParams): Promise<void> {
   try {
@@ -251,19 +382,202 @@ export async function sendPush({
       return;
     }
 
-    const fcmTokens: string[] = [];
-    const tokenDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    type TokenEntry = {
+      token: string;
+      deviceId: string;
+      sortKey: number;
+      doc: FirebaseFirestore.QueryDocumentSnapshot;
+    };
+
+    const entries: TokenEntry[] = [];
 
     tokensSnapshot.docs.forEach((doc) => {
-      const token = doc.data().token;
-      if (token && token.length > 0) {
-        fcmTokens.push(token);
-        tokenDocs.push(doc);
+      const data = doc.data();
+      const token = data.token as string | undefined;
+      if (!token || token.length === 0) {
+        return;
       }
+
+      const deviceId = (data.deviceId as string | undefined) || "";
+      const updatedAt =
+        data.updatedAt as FirebaseFirestore.Timestamp | undefined;
+      const lastUsedAt =
+        data.lastUsedAt as FirebaseFirestore.Timestamp | undefined;
+      const createdAt =
+        data.createdAt as FirebaseFirestore.Timestamp | undefined;
+      const sortKey =
+        (lastUsedAt?.toMillis?.() ?? 0) ||
+        (updatedAt?.toMillis?.() ?? 0) ||
+        (createdAt?.toMillis?.() ?? 0) ||
+        0;
+
+      entries.push({
+        token,
+        deviceId,
+        sortKey,
+        doc,
+      });
     });
+
+    if (entries.length === 0) {
+      console.log(`ℹ️ [PushDispatcher] Usuário sem tokens válidos: ${userId}`);
+      return;
+    }
+
+    // ✅ Dedupe por token (evita tokens duplicados no Firestore)
+    const tokenMap = new Map<string, TokenEntry>();
+    for (const entry of entries) {
+      const existing = tokenMap.get(entry.token);
+      if (!existing || entry.sortKey >= existing.sortKey) {
+        tokenMap.set(entry.token, entry);
+      }
+    }
+
+    // ✅ Dedupe por deviceId (evita múltiplos tokens para o mesmo device)
+    const deviceMap = new Map<string, TokenEntry>();
+    const dedupedByToken = Array.from(tokenMap.values());
+    const finalEntries: TokenEntry[] = [];
+
+    for (const entry of dedupedByToken) {
+      if (!entry.deviceId) {
+        finalEntries.push(entry);
+        continue;
+      }
+
+      const existing = deviceMap.get(entry.deviceId);
+      if (!existing || entry.sortKey >= existing.sortKey) {
+        deviceMap.set(entry.deviceId, entry);
+      }
+    }
+
+    finalEntries.push(...deviceMap.values());
+
+    const fcmTokens: string[] = finalEntries.map((entry) => entry.token);
+    const tokenDocs: FirebaseFirestore.QueryDocumentSnapshot[] =
+      finalEntries.map((entry) => entry.doc);
 
     if (fcmTokens.length === 0) {
       console.log(`ℹ️ [PushDispatcher] Usuário sem tokens válidos: ${userId}`);
+      return;
+    }
+
+    if (isDev && finalEntries.length !== entries.length) {
+      console.log(
+        "🧹 [PushDispatcher] Dedupe tokens: " +
+        `entrada=${entries.length}, final=${finalEntries.length}`
+      );
+    }
+
+    const nType = resolveType(event, data);
+    const relatedId = resolveRelatedId(data);
+    const variant = resolveVariant(data);
+    const traceId = randomUUID();
+
+    // 📝 Texto da notificação (Fallback para quando o app não está rodando)
+    // Tenta replicar a lógica do NotificationTemplates.dart para consistência
+    const getNotificationContent = (): {title: string; body: string} => {
+      // 0. Se o caller forneceu notificação explícita, use-a
+      if (explicitNotification) {
+        return explicitNotification;
+      }
+
+      // 1. Default genérico
+      return {
+        title: "Notificação",
+        body: "Você tem uma nova atualização",
+      };
+    };
+
+    const notification = getNotificationContent();
+    const minuteBucket = Math.floor(Date.now() / 60000);
+    const effectiveRelatedId = relatedId || buildFallbackRelatedId({
+      nType,
+      userId,
+      title: notification.title,
+      body: notification.body,
+      minuteBucket,
+    });
+
+    const idempotencyKey =
+      String(data.idempotencyKey || "") ||
+      `${nType}:${effectiveRelatedId}:${userId}:${variant}`;
+
+    if (isDev) {
+      console.log("🧭 [PushDispatcher] Rastreio:");
+      console.log(`   - traceId: ${traceId}`);
+      console.log(`   - idempotencyKey: ${idempotencyKey}`);
+      console.log(`   - origin: ${origin}`);
+      console.log(`   - nType: ${nType}`);
+      console.log(`   - relatedId: ${effectiveRelatedId}`);
+    }
+
+    const payloadHash = hashPayload({
+      title: notification.title,
+      body: notification.body,
+      data,
+    });
+
+    // ETAPA 6: Idempotência global (push_receipts)
+    const receiptRef = admin
+      .firestore()
+      .collection("push_receipts")
+      .doc(idempotencyKey);
+
+    let shouldSkip = false;
+    await admin.firestore().runTransaction(async (tx) => {
+      const receipt = await tx.get(receiptRef);
+      if (receipt.exists) {
+        const data = receipt.data() || {};
+        const status = (data.status as string | undefined) || "pending";
+        if (status === "sent") {
+          shouldSkip = true;
+          return;
+        }
+
+        const updatedAt =
+          data.updatedAt as FirebaseFirestore.Timestamp | undefined;
+        const updatedMs = updatedAt?.toMillis?.() ?? 0;
+        const isRecent = Date.now() - updatedMs < 60 * 1000;
+
+        if (status === "pending" && isRecent) {
+          shouldSkip = true;
+          return;
+        }
+
+        tx.set(receiptRef, {
+          status: "pending",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          traceId,
+          origin,
+          recipientUserId: userId,
+          nType,
+          relatedId: effectiveRelatedId,
+          event,
+          payloadHash,
+        }, {merge: true});
+        return;
+      }
+
+      tx.create(receiptRef, {
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "pending",
+        traceId,
+        origin,
+        recipientUserId: userId,
+        nType,
+        relatedId: effectiveRelatedId,
+        event,
+        payloadHash,
+      });
+    });
+
+    if (shouldSkip) {
+      console.warn(
+        "⏭️ [PushDispatcher] Idempotência: receipt já existe. " +
+        "Ignorando envio. " +
+        `idempotencyKey=${idempotencyKey}`
+      );
       return;
     }
 
@@ -291,7 +605,7 @@ export async function sendPush({
     // ✅ Todos os eventos mostram UI (entrega garantida)
     // 🔊 Apenas chat_message toca som (atenção seletiva)
     // const shouldShowUI = true; // Unused
-    const shouldPlaySound = event === "chat_message" && !silent;
+    const shouldPlaySound = (playSound ?? event === "chat_message") && !silent;
 
     // Converter data para strings (FCM só aceita strings)
     const stringData: Record<string, string> = {};
@@ -299,25 +613,17 @@ export async function sendPush({
       stringData[key] = String(value);
     });
 
-    // 📝 Texto da notificação (Fallback para quando o app não está rodando)
-    // Tenta replicar a lógica do NotificationTemplates.dart para consistência
-    const getNotificationContent = (): {title: string; body: string} => {
-      // 0. Se o caller forneceu notificação explícita, use-a
-      if (explicitNotification) {
-        return explicitNotification;
-      }
-
-      // 1. Default genérico
-      return {
-        title: "Notificação",
-        body: "Você tem uma nova atualização",
-      };
-    };
-
-    const notification = getNotificationContent();
+    stringData.traceId = traceId;
+    stringData.idempotencyKey = idempotencyKey;
+    stringData.origin = origin;
+    stringData.payloadHash = payloadHash;
+    stringData.recipientUserId = userId;
 
     // Se for silent, sempre deve ser data-only.
     const effectiveDataOnly = dataOnly || silent;
+
+    const collapseId = buildShortId(idempotencyKey || effectiveRelatedId);
+    const threadId = buildShortId(effectiveRelatedId || nType);
 
     const payload = {
       data: {
@@ -334,6 +640,7 @@ export async function sendPush({
       // 🤖 Android
       android: {
         priority: (shouldPlaySound ? "high" : "normal") as "high" | "normal",
+        collapseKey: collapseId,
         ...(effectiveDataOnly ? {} : {
           notification: {
             title: notification.title,
@@ -350,6 +657,7 @@ export async function sendPush({
       apns: {
         payload: {
           aps: {
+            "thread-id": threadId,
             ...(effectiveDataOnly ? {
               // data-only: background push com content-available.
               // iOS entrega ao Flutter via onMessage.
@@ -368,6 +676,7 @@ export async function sendPush({
           // background = prioridade menor; alert = 10
           "apns-priority": effectiveDataOnly ? "5" : "10",
           "apns-push-type": effectiveDataOnly ? "background" : "alert",
+          "apns-collapse-id": collapseId,
         },
       },
     };
@@ -394,6 +703,20 @@ export async function sendPush({
       android: payload.android,
       apns: payload.apns,
     });
+
+    const firstSuccess = response.responses.find((r) => r.success);
+    const firstFailure = response.responses.find((r) => !r.success);
+    const status = response.successCount > 0 ? "sent" : "failed";
+
+    await receiptRef.set({
+      messageId: firstSuccess?.messageId || null,
+      status,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      lastErrorCode: firstFailure?.error?.code || null,
+      lastErrorMessage: firstFailure?.error?.message || null,
+    }, {merge: true});
 
     console.log(
       `✅ [PushDispatcher] Resultado: ${response.successCount} ` +
@@ -424,6 +747,14 @@ export async function sendPush({
         `${response.failureCount}/${fcmTokens.length} ` +
         `(event=${event}, user=${userId})`
       );
+      response.responses.forEach((result, idx) => {
+        if (!result.success) {
+          console.warn(
+            `   ❌ Token ${idx + 1}: ${result.error?.code} ` +
+            `(${result.error?.message || "sem mensagem"})`
+          );
+        }
+      });
     }
 
     // ETAPA 8: Limpar tokens inválidos

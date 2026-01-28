@@ -253,12 +253,15 @@ export const onActivityNotificationCreated = functions.firestore
       await sendPush({
         userId: receiverId,
         event: nType,
+        origin: "activityPushNotifications",
         notification: {
           title: notificationTitle,
           body: notificationBody,
         },
         data: {
           ...pushData,
+          relatedId: activityId,
+          n_related_id: activityId,
           deepLink: deepLink,
         },
         context: {

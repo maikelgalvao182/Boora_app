@@ -170,7 +170,7 @@ class EventPhotoComposerController extends Notifier<EventPhotoComposerState> {
   final userName = currentUser?.fullName ?? '';
       final userPhotoUrl = currentUser?.photoUrl ?? '';
 
-      final payload = _service.buildCreatePayload(
+      final payload = await _service.buildCreatePayload(
         eventId: selectedEvent.id,
         userId: user.uid,
         imageUrl: imageUrls.first,

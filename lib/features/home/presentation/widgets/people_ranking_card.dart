@@ -97,21 +97,18 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
     return Stack(
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Avatar
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: InkWell(
-                onTap: () {
-                  context.push('/profile/${widget.ranking.userId}');
-                },
+            InkWell(
+              onTap: () {
+                context.push('/profile/${widget.ranking.userId}');
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: StableAvatar(
+                userId: widget.ranking.userId,
+                size: 58,
                 borderRadius: BorderRadius.circular(8),
-                child: StableAvatar(
-                  userId: widget.ranking.userId,
-                  size: 58,
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
             ),
             

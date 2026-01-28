@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_reply_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
@@ -509,7 +510,8 @@ class EventPhotoRepository {
   }) async {
     if (index < 0 || index >= imageUrls.length) return;
     if (imageUrls.length <= 1) {
-      throw Exception('Não é possível remover a última imagem');
+      final i18n = await AppLocalizations.loadForLanguageCode(AppLocalizations.currentLocale);
+      throw Exception(i18n.translate('error_cannot_remove_last_image'));
     }
 
     final removedImageUrl = imageUrls[index];

@@ -149,6 +149,7 @@ export const onEventChatMessageCreated = functions.firestore
           sendPush({
             userId: participantId,
             event: "event_chat_message",
+            origin: "eventChatNotifications",
             // NÃO usar dataOnly: iOS foreground precisa de alert push.
             notification: {
               title: `${emoji} ${activityText}`,
@@ -157,6 +158,9 @@ export const onEventChatMessageCreated = functions.firestore
             data: {
               n_type: "event_chat_message",
               sub_type: "event_chat_message",
+              relatedId: messageId,
+              n_related_id: messageId,
+              messageId: messageId,
               eventId: eventId,
               senderId: senderId,
               n_sender_name: senderName,

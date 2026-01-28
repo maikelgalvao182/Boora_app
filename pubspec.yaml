@@ -2,7 +2,7 @@ name: partiu
 description: Boora - Não vá sozinho!
 publish_to: 'none'
 
-version: 1.0.25+27
+version: 1.0.27+29
 
 environment:
   sdk: ">=3.7.0 <4.0.0"

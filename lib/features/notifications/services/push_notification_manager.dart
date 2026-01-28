@@ -61,8 +61,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('╠═══════════════════════════════════════════════════════');
   print('║ Message ID: ${message.messageId}');
   print('║ Sent Time: ${message.sentTime}');
+  print('║ Collapse Key: ${message.collapseKey}');
   print('║ Data: ${message.data}');
   print('║ Notification: ${message.notification?.toMap()}');
+  print('║ traceId: ${message.data["traceId"]}');
+  print('║ idempotencyKey: ${message.data["idempotencyKey"]}');
+  print('║ origin: ${message.data["origin"]}');
+  print('║ n_type: ${message.data["n_type"] ?? message.data["type"] ?? message.data["sub_type"]}');
+  print('║ relatedId: ${message.data["relatedId"] ?? message.data["n_related_id"] ?? message.data["eventId"] ?? message.data["activityId"] ?? message.data["conversationId"] ?? message.data["chatId"] ?? message.data["reviewId"]}');
   print('╚═══════════════════════════════════════════════════════');
 
   // Dedup extra (handler): alguns iOS entregam o mesmo background message mais de uma vez.
@@ -725,8 +731,14 @@ class PushNotificationManager {
       print('╠═══════════════════════════════════════════════════════');
       print('║ Message ID: ${message.messageId}');
       print('║ Sent Time: ${message.sentTime}');
+      print('║ Collapse Key: ${message.collapseKey}');
       print('║ Data: ${message.data}');
       print('║ Notification: ${message.notification?.toMap()}');
+      print('║ traceId: ${message.data["traceId"]}');
+      print('║ idempotencyKey: ${message.data["idempotencyKey"]}');
+      print('║ origin: ${message.data["origin"]}');
+      print('║ n_type: ${message.data["n_type"] ?? message.data["type"] ?? message.data["sub_type"]}');
+      print('║ relatedId: ${message.data["relatedId"] ?? message.data["n_related_id"] ?? message.data["eventId"] ?? message.data["activityId"] ?? message.data["conversationId"] ?? message.data["chatId"] ?? message.data["reviewId"]}');
       print('╚═══════════════════════════════════════════════════════');
 
       // Verificar flag de silencioso PRIMEIRO
@@ -815,7 +827,13 @@ class PushNotificationManager {
       print('║ 👆 NOTIFICAÇÃO CLICADA (onMessageOpenedApp)');
       print('╠═══════════════════════════════════════════════════════');
       print('║ Message ID: ${message.messageId}');
+      print('║ Collapse Key: ${message.collapseKey}');
       print('║ Data: ${message.data}');
+      print('║ traceId: ${message.data["traceId"]}');
+      print('║ idempotencyKey: ${message.data["idempotencyKey"]}');
+      print('║ origin: ${message.data["origin"]}');
+      print('║ n_type: ${message.data["n_type"] ?? message.data["type"] ?? message.data["sub_type"]}');
+      print('║ relatedId: ${message.data["relatedId"] ?? message.data["n_related_id"] ?? message.data["eventId"] ?? message.data["activityId"] ?? message.data["conversationId"] ?? message.data["chatId"] ?? message.data["reviewId"]}');
       print('╚═══════════════════════════════════════════════════════');
       
       try {

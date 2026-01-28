@@ -38,12 +38,15 @@ export const onReviewCreated = functions.firestore
       await sendPush({
         userId: revieweeId,
         event: "new_review_received",
+        origin: "reviewNotifications",
         notification: {
           title: "Nova avaliação ⭐️",
           body: body,
         },
         data: {
           n_type: "new_review_received",
+          relatedId: reviewId,
+          n_related_id: reviewId,
           reviewId: reviewId,
           reviewerName: reviewerName,
           rating: overallRating.toString(),

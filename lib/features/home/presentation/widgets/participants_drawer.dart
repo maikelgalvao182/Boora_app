@@ -212,7 +212,8 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
     try {
       // Obter dados do usuário atual
       final currentUserData = AppState.currentUser.value;
-      final userFullName = currentUserData?.fullName ?? 'Usuário';
+      final userFullName = currentUserData?.fullName ?? 
+          AppLocalizations.of(context).translate('default_user_name');
       final userPhotoUrl = currentUserData?.photoUrl;
       
       debugPrint('   userFullName: $userFullName');
@@ -222,7 +223,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
       final emoji = draft.emoji ?? '🎉';
       final locationName = draft.location?.name ?? 
                           draft.location?.formattedAddress ?? 
-                          'Local';
+                          AppLocalizations.of(context).translate('default_location_name');
       
       debugPrint('   activityText: $activityText');
       debugPrint('   emoji: $emoji');

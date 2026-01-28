@@ -249,7 +249,7 @@ class ReplyBubbleWidget extends StatelessWidget {
         return const SizedBox.shrink();
       }
       return Text(
-        snapshotName,
+        _formatDisplayName(snapshotName),
         style: style,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -263,7 +263,7 @@ class ReplyBubbleWidget extends StatelessWidget {
         final storeName = name?.trim() ?? '';
         if (storeName.isNotEmpty && !_isPlaceholderName(storeName)) {
           return Text(
-            storeName,
+            _formatDisplayName(storeName),
             style: style,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -283,7 +283,7 @@ class ReplyBubbleWidget extends StatelessWidget {
               // Sem nome resolvido: tenta usar o snapshot se ele não for placeholder.
               if (snapshotName.isNotEmpty && !_isPlaceholderName(snapshotName)) {
                 return Text(
-                  snapshotName,
+                  _formatDisplayName(snapshotName),
                   style: style,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -294,7 +294,7 @@ class ReplyBubbleWidget extends StatelessWidget {
             }
 
             return Text(
-              fetched,
+              _formatDisplayName(fetched),
               style: style,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -303,6 +303,23 @@ class ReplyBubbleWidget extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _formatDisplayName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) return 'Usuário';
+
+    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'Usuário';
+
+    final first = parts.first;
+    if (parts.length == 1) {
+      return first.length > 15 ? first.substring(0, 15) : first;
+    }
+
+    final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final safeFirst = first.length > 15 ? first.substring(0, 15) : first;
+    return lastInitial.isEmpty ? safeFirst : '$safeFirst $lastInitial.';
   }
 
   bool _isPlaceholderName(String value) {
