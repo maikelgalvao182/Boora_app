@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/common/state/app_state.dart';
@@ -20,14 +21,125 @@ class EventPhotoFeedItem extends StatelessWidget {
     super.key,
     required this.item,
     required this.onCommentsTap,
-  required this.onDelete,
-  this.onDeleteImage,
+    required this.onDelete,
+    this.onDeleteImage,
+    this.onEditCaption,
   });
 
   final EventPhotoModel item;
   final VoidCallback onCommentsTap;
   final Future<void> Function() onDelete;
   final Future<void> Function(int index)? onDeleteImage;
+  final Future<void> Function()? onEditCaption;
+
+  void _showPostOptions(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    final canEdit = (AppState.currentUser.value?.userId ?? '') == item.userId;
+    
+    debugPrint('🔧 [EventPhotoFeedItem] _showPostOptions chamado');
+    debugPrint('   - photoId: ${item.id}');
+    debugPrint('   - userId do post: ${item.userId}');
+    debugPrint('   - currentUserId: ${AppState.currentUser.value?.userId}');
+    debugPrint('   - canEdit: $canEdit');
+    
+    if (!canEdit) {
+      debugPrint('   ❌ Usuário não pode editar, retornando');
+      return;
+    }
+    
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              debugPrint('📝 [EventPhotoFeedItem] Editar caption selecionado');
+              Navigator.of(context).pop();
+              onEditCaption?.call();
+            },
+            child: Text(
+              i18n.translate('event_photo_edit_caption'),
+              style: const TextStyle(
+                color: CupertinoColors.activeBlue,
+                fontSize: 18,
+              ),
+            ),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              debugPrint('🗑️ [EventPhotoFeedItem] Deletar post selecionado');
+              Navigator.of(context).pop();
+              _confirmDelete(context);
+            },
+            child: Text(
+              i18n.translate('event_photo_delete_post'),
+              style: const TextStyle(
+                color: CupertinoColors.destructiveRed,
+                fontSize: 18,
+              ),
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () {
+            debugPrint('❎ [EventPhotoFeedItem] Cancelar selecionado');
+            Navigator.of(context).pop();
+          },
+          child: Text(
+            i18n.translate('cancel'),
+            style: const TextStyle(
+              color: CupertinoColors.activeBlue,
+              fontSize: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    
+    debugPrint('🗑️ [EventPhotoFeedItem] _confirmDelete chamado');
+    debugPrint('   - photoId: ${item.id}');
+    debugPrint('   - eventId: ${item.eventId}');
+    
+    showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(i18n.translate('event_photo_delete_post_title')),
+        content: Text(i18n.translate('event_photo_delete_post_message')),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () {
+              debugPrint('   ❎ Cancelado pelo usuário');
+              Navigator.of(context).pop(false);
+            },
+            child: Text(
+              i18n.translate('cancel'),
+              style: const TextStyle(color: CupertinoColors.activeBlue),
+            ),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              debugPrint('   ✅ Confirmado pelo usuário, chamando onDelete...');
+              Navigator.of(context).pop(true);
+              debugPrint('   📤 Executando onDelete callback...');
+              onDelete().then((_) {
+                debugPrint('   ✅ onDelete completou com sucesso');
+              }).catchError((e, stack) {
+                debugPrint('   ❌ onDelete falhou: $e');
+                debugPrint('   📋 Stack: $stack');
+              });
+            },
+            child: Text(i18n.translate('delete')),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,64 +168,80 @@ class EventPhotoFeedItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header row: nome > Foi activity name emoji time ago
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                // Nome do usuário com badge
-                                WidgetSpan(
-                                  alignment: PlaceholderAlignment.baseline,
-                                  baseline: TextBaseline.alphabetic,
-                                  child: ReactiveUserNameWithBadge(
-                                    userId: item.userId,
-                                    style: GoogleFonts.getFont(
-                                      FONT_PLUS_JAKARTA_SANS,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: GlimpseColors.primaryColorLight,
+                    GestureDetector(
+                      onLongPress: canDelete ? () => _showPostOptions(context) : null,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  // Nome do usuário com badge
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.baseline,
+                                    baseline: TextBaseline.alphabetic,
+                                    child: ReactiveUserNameWithBadge(
+                                      userId: item.userId,
+                                      style: GoogleFonts.getFont(
+                                        FONT_PLUS_JAKARTA_SANS,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: GlimpseColors.primaryColorLight,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                // Separador >
-                                TextSpan(
-                                  text: ' > ',
-                                  style: GoogleFonts.getFont(
-                                    FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: GlimpseColors.textSubTitle,
-                                  ),
-                                ),
-                                // "Foi" + Activity name + Emoji
-                                TextSpan(
-                                  text: '${AppLocalizations.of(context).translate('feed_action_went')} ${item.eventTitle} ${item.eventEmoji}',
-                                  style: GoogleFonts.getFont(
-                                    FONT_PLUS_JAKARTA_SANS,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: GlimpseColors.primary,
-                                  ),
-                                ),
-                                // Time ago
-                                if (item.createdAt != null)
+                                  // Separador >
                                   TextSpan(
-                                    text: ' ${TimeAgoHelper.format(context, timestamp: item.createdAt!.toDate())}',
+                                    text: ' > ',
                                     style: GoogleFonts.getFont(
                                       FONT_PLUS_JAKARTA_SANS,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
                                       color: GlimpseColors.textSubTitle,
                                     ),
                                   ),
-                              ],
+                                  // "Foi" + Activity name + Emoji
+                                  TextSpan(
+                                    text: '${AppLocalizations.of(context).translate('feed_action_went')} ${item.eventTitle} ${item.eventEmoji}',
+                                    style: GoogleFonts.getFont(
+                                      FONT_PLUS_JAKARTA_SANS,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: GlimpseColors.primary,
+                                    ),
+                                  ),
+                                  // Time ago
+                                  if (item.createdAt != null)
+                                    TextSpan(
+                                      text: ' ${TimeAgoHelper.format(context, timestamp: item.createdAt!.toDate(), short: true)}',
+                                      style: GoogleFonts.getFont(
+                                        FONT_PLUS_JAKARTA_SANS,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: GlimpseColors.textSubTitle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                          if (canDelete)
+                            GestureDetector(
+                              onTap: () => _showPostOptions(context),
+                              child: const Padding(
+                                padding: EdgeInsets.only(left: 8, top: 2),
+                                child: Icon(
+                                  IconsaxPlusLinear.more,
+                                  size: 18,
+                                  color: GlimpseColors.textSubTitle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                     // Avatares dos participantes marcados
                     if (item.taggedParticipants.isNotEmpty)
@@ -144,13 +272,16 @@ class EventPhotoFeedItem extends StatelessWidget {
                       ),
                     if ((item.caption ?? '').trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
-                      Text(
-                        item.caption!.trim(),
-                        style: GoogleFonts.getFont(
-                          FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: GlimpseColors.primaryColorLight,
+                      GestureDetector(
+                        onLongPress: canDelete ? () => _showPostOptions(context) : null,
+                        child: Text(
+                          item.caption!.trim(),
+                          style: GoogleFonts.getFont(
+                            FONT_PLUS_JAKARTA_SANS,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: GlimpseColors.primaryColorLight,
+                          ),
                         ),
                       ),
                     ],
@@ -195,26 +326,29 @@ class EventPhotoFeedItem extends StatelessWidget {
                       children: [
                         InkWell(
                           onTap: onCommentsTap,
-                          borderRadius: BorderRadius.circular(999),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                IconsaxPlusLinear.message_2,
-                                size: 18,
-                                color: GlimpseColors.textSubTitle,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${item.commentsCount}',
-                                style: GoogleFonts.getFont(
-                                  FONT_PLUS_JAKARTA_SANS,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  IconsaxPlusLinear.message_2,
+                                  size: 20,
                                   color: GlimpseColors.textSubTitle,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${item.commentsCount}',
+                                  style: GoogleFonts.getFont(
+                                    FONT_PLUS_JAKARTA_SANS,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: GlimpseColors.textSubTitle,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),

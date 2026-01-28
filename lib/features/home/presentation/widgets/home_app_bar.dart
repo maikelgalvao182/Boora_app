@@ -8,15 +8,15 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/router/app_router.dart';
-import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/common/state/app_state.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_profile_completeness_ring.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_location.dart';
 import 'package:partiu/features/home/presentation/widgets/auto_updating_badge.dart';
 import 'package:partiu/features/home/presentation/widgets/home_app_bar_controller.dart';
-import 'package:partiu/shared/widgets/safety_tips_button.dart';
 
 /// AppBar personalizado para a tela home
 /// Exibido apenas na aba de descoberta (index 0)
@@ -74,33 +74,39 @@ class _HomeAppBarState extends State<HomeAppBar> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Botão de dicas de segurança
-              const SafetyTipsButton(),
-              const SizedBox(width: 12),
-              // Botão do feed de fotos (controlado por feature flag)
-              if (ENABLE_EVENT_PHOTO_FEED_ICON) ...[
-                SizedBox(
-                  width: 28,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: SvgPicture.asset(
-                      'assets/svg/fire.svg',
-                      width: 24,
-                      height: 24,
-                      colorFilter: const ColorFilter.mode(
-                        GlimpseColors.textSubTitle,
-                        BlendMode.srcIn,
+              // Botão de Actions (com badge)
+              ValueListenableBuilder<int>(
+                valueListenable: NotificationsCounterService.instance.pendingActionsCount,
+                builder: (context, count, _) {
+                  final iconWidget = SizedBox(
+                    width: 28,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(
+                        IconsaxPlusLinear.flash_1,
+                        size: 24,
+                        color: GlimpseColors.textSubTitle,
                       ),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.actions);
+                      },
                     ),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      context.push(AppRoutes.eventPhotoFeed);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
+                  );
+
+                  if (count == 0) return iconWidget;
+
+                  return AutoUpdatingBadge(
+                    count: count,
+                    badgeColor: GlimpseColors.actionColor,
+                    top: -2,
+                    right: -2,
+                    child: iconWidget,
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
               SizedBox(
                 width: 28,
                 child: IconButton(

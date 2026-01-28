@@ -9,7 +9,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Widget com ícone de segurança e dialog de dicas
 class SafetyTipsButton extends StatelessWidget {
-  const SafetyTipsButton({super.key});
+  const SafetyTipsButton({
+    super.key,
+    this.icon,
+    this.iconColor,
+    this.iconSize,
+  });
+
+  final IconData? icon;
+  final Color? iconColor;
+  final double? iconSize;
 
   void _showSafetyBottomSheet(BuildContext context) {
     showModalBottomSheet<void>(
@@ -29,10 +38,10 @@ class SafetyTipsButton extends StatelessWidget {
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
-        icon: const Icon(
-          IconsaxPlusLinear.shield_tick,
-          size: 24,
-          color: GlimpseColors.textSubTitle,
+        icon: Icon(
+          icon ?? IconsaxPlusLinear.shield_tick,
+          size: iconSize ?? 24,
+          color: iconColor ?? GlimpseColors.textSubTitle,
         ),
         onPressed: () => _showSafetyBottomSheet(context),
       ),

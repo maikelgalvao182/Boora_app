@@ -161,41 +161,40 @@ class EventPhotoHeader extends StatelessWidget {
             ),
           ],
         ),
-        // Imagem(ns) do post
+        // Imagem(ns) do post - consistente com EventPhotoFeedItem
+        // Padding left = avatar (38) + spacing (10) = 48
         const SizedBox(height: 10),
         Padding(
-          padding: const EdgeInsets.only(left: 24),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: SizedBox(
-                width: 200,
-                child: imageUrls.isNotEmpty
-                    ? EventPhotoImagesSlider(
-                        imageUrls: imageUrls,
-                        thumbnailUrls: thumbnailUrls,
-                        height: 200,
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: displayImageUrl,
-                        cacheManager: MediaCacheManager.forThumbnail(isThumbnail),
-                        width: 200,
-                        fit: BoxFit.contain,
-                        placeholder: (_, __) => Container(
-                          height: 200,
-                          color: GlimpseColors.lightTextField,
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 200,
-                          color: GlimpseColors.lightTextField,
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
-              ),
-            ),
-          ),
+          padding: const EdgeInsets.only(left: 48),
+          child: imageUrls.isNotEmpty
+              ? EventPhotoImagesSlider(
+                  imageUrls: imageUrls,
+                  thumbnailUrls: thumbnailUrls,
+                  imageWidth: 160,
+                  spacing: 10,
+                )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: displayImageUrl,
+                    cacheManager: MediaCacheManager.forThumbnail(isThumbnail),
+                    width: 160,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      width: 160,
+                      height: 180,
+                      color: GlimpseColors.lightTextField,
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      width: 160,
+                      height: 180,
+                      color: GlimpseColors.lightTextField,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined),
+                    ),
+                  ),
+                ),
         ),
       ],
     );

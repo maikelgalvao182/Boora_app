@@ -14,10 +14,12 @@ class UserLocationTimeWidget extends StatelessWidget {
     required this.user,
     required this.chatService,
     super.key,
+    this.showTime = true,
   });
 
   final User user;
   final ChatService chatService;
+  final bool showTime;
 
   @override
   Widget build(BuildContext context) {
@@ -117,9 +119,11 @@ class UserLocationTimeWidget extends StatelessWidget {
         Flexible(
           child: _buildLocationText(locality, state),
         ),
-        const SizedBox(width: 8),
-        // Last message time ago
-        _buildLastMessageTimeText(lastMessageTime),
+        if (showTime) ...[
+          const SizedBox(width: 8),
+          // Last message time ago
+          _buildLastMessageTimeText(lastMessageTime),
+        ],
       ],
     );
   }

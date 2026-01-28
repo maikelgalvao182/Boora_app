@@ -20,11 +20,13 @@ class TimeAgoHelper {
   /// 
   /// [context] - BuildContext para acessar AppLocalizations
   /// [timestamp] - Timestamp do Firestore ou DateTime
+  ///
+  /// [short] - Se true, retorna formato abreviado (5m, 2h, 3d, 1s)
   /// 
   /// Retorna:
   /// - String localizada (ex: "agora mesmo", "há 5 minutos", "há 2 horas")
   /// - String vazia se timestamp for inválido
-  static String format(BuildContext context, {required dynamic timestamp}) {
+  static String format(BuildContext context, {required dynamic timestamp, bool short = false}) {
     // Converter timestamp para DateTime
     DateTime dateTime;
     if (timestamp is Timestamp) {
@@ -41,6 +43,45 @@ class TimeAgoHelper {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
     final i18n = AppLocalizations.of(context);
+
+    // Formato abreviado (solicitado: h, d, s)
+    if (short) {
+      // Menos de 1 minuto
+      if (difference.inMinutes < 1) {
+        return 'agora'; 
+      }
+      
+      // Minutos (1-59)
+      if (difference.inMinutes < 60) {
+        return '${difference.inMinutes}m';
+      }
+      
+      // Horas (1-23)
+      if (difference.inHours < 24) {
+        return '${difference.inHours}h';
+      }
+      
+      // Dias (1-6) - até completar 1 semana
+      if (difference.inDays < 7) {
+        return '${difference.inDays}d';
+      }
+
+      // Semanas (1-4) - até completar ~1 mês (30 dias)
+      if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return '${weeks}s';
+      }
+      
+      // Meses (1-11)
+      final months = (difference.inDays / 30).floor();
+      if (months < 12) {
+        return '${months}mês';
+      }
+      
+      // Anos
+      final years = (difference.inDays / 365).floor();
+      return '${years}a';
+    }
     
     // Menos de 1 minuto
     if (difference.inMinutes < 1) {

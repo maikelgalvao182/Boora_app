@@ -27,25 +27,25 @@ class EventPhotoLikeButton extends ConsumerWidget {
     final likeCount = uiState.likesCount ?? (countAsync.value ?? initialCount);
 
     return LikeButton(
-      size: 18,
+      size: 20,
       isLiked: isLiked,
       likeCount: likeCount,
       likeBuilder: (liked) {
         return Icon(
           liked ? Iconsax.heart5 : Iconsax.heart,
           color: liked ? Colors.red : GlimpseColors.textSubTitle,
-          size: 18,
+          size: 20,
         );
       },
       countBuilder: (count, liked, text) {
         final display = text.isEmpty ? '0' : text;
         return Padding(
-          padding: const EdgeInsets.only(left: 4),
+          padding: const EdgeInsets.only(left: 6),
           child: Text(
             display,
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               color: GlimpseColors.textSubTitle,
             ),

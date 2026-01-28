@@ -20,6 +20,7 @@ import 'package:partiu/features/profile/presentation/screens/blocked_users_scree
 import 'package:partiu/features/profile/presentation/screens/followers_screen.dart';
 import 'package:partiu/features/events/presentation/screens/group_info/group_info_screen.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule_drawer.dart';
+import 'package:partiu/features/home/presentation/screens/actions_tab.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/features/auth/presentation/widgets/signup_widgets.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -55,6 +56,7 @@ class AppRoutes {
   static const String splash = '/splash';
   static const String referralDebug = '/referral-debug';
   static const String eventPhotoFeed = '/event-photo-feed';
+  static const String actions = '/actions';
 }
 
 /// GlobalKey para acessar o Navigator root do app
@@ -182,6 +184,12 @@ GoRouter createAppRouter(BuildContext context) {
       path: AppRoutes.eventPhotoFeed,
       name: 'eventPhotoFeed',
       builder: (context, state) => const EventPhotoFeedScreen(),
+    ),
+    
+    GoRoute(
+      path: AppRoutes.actions,
+      name: 'actions',
+      builder: (context, state) => const ActionsTab(),
     ),
     
     // Tela de Email/Senha Auth

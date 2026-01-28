@@ -1088,6 +1088,10 @@ function _isActivePhoto() {
   return resource.data.status == 'active';
 }
 
+function _isOwnPhoto() {
+  return isSignedIn() && resource.data.userId == request.auth.uid;
+}
+
 function _isOwnPendingReviewPhoto() {
   return isSignedIn() &&
     resource.data.status == 'under_review' &&
@@ -1095,7 +1099,10 @@ function _isOwnPendingReviewPhoto() {
 }
 
 function _isFeedReadable() {
-  return isSignedIn() && (_isActivePhoto() || _isOwnPendingReviewPhoto());
+  // Autenticado pode ler:
+  // - fotos ativas
+  // - suas próprias fotos (qualquer status - para poder deletar/editar)
+  return isSignedIn() && (_isActivePhoto() || _isOwnPhoto());
 }
 
 match /EventPhotos/{photoId} {
@@ -1131,7 +1138,8 @@ match /EventPhotos/{photoId} {
   );
 
   // 🗑️ DELETE:
-  // - só autor
+  // - só autor (qualquer status - inclusive hidden_by_reports, hidden_by_moderation)
+  // FIX: Force deploy 2026-01-28
   allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 
   // 💬 Comentários

@@ -9,6 +9,7 @@ import 'package:partiu/features/reviews/presentation/widgets/review_card.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
 import 'package:partiu/shared/widgets/action_card_shimmer.dart';
+import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 
 /// Tela de ações (Tab 1)
 /// 
@@ -49,6 +50,9 @@ class _ActionsTabState extends State<ActionsTab> {
           children: [
             GlimpseTabAppBar(
               title: tr('actions', 'Ações'),
+              leading: ModalRoute.of(context)?.canPop == true 
+                  ? GlimpseBackButton(onTap: () => Navigator.of(context).pop())
+                  : null,
             ),
             const SizedBox(height: 8),
             Expanded(

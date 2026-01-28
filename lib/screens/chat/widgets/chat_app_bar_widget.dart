@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -28,6 +29,7 @@ import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_widgets.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/shared/widgets/safety_tips_button.dart';
 
 class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   const ChatAppBarWidget({
@@ -331,9 +333,28 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                           ),
                         ] else ...[
                           const SizedBox(height: 2),
-                          UserLocationTimeWidget(
-                            user: user,
-                            chatService: chatService,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: UserPresenceStatusWidget(
+                                  userId: user.userId,
+                                  chatService: chatService,
+                                ),
+                              ),
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 6),
+                                width: 1,
+                                height: 12,
+                                color: GlimpseColors.borderColorLight,
+                              ),
+                              Flexible(
+                                child: UserLocationTimeWidget(
+                                  user: user,
+                                  chatService: chatService,
+                                  showTime: false,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ],
@@ -363,13 +384,6 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
           Flexible(
             child: ReactiveUserNameWithBadge(userId: user.userId),
           ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: UserPresenceStatusWidget(
-            userId: user.userId,
-            chatService: chatService,
-          ),
-        ),
       ],
     );
   }
@@ -381,25 +395,40 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     ChatAppBarController controller,
   ) {
     if (controller.isEvent) {
-      // Evento: ícone direto para group info
-      return SizedBox(
-        width: 28,
-        child: IconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          icon: const Icon(
-            Icons.info_outline,
-            size: 20,
-            color: GlimpseColors.primaryColorLight,
+      // Evento: ícone direto para group info + SafetyTipsButton (à esquerda)
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SafetyTipsButton(
+            icon: IconsaxPlusLinear.danger,
+            iconColor: Colors.black,
+            iconSize: 20,
           ),
-          onPressed: () {
-            context.push('${AppRoutes.groupInfo}/${controller.eventId}');
-          },
-        ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 28,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(
+                IconsaxPlusLinear.arrow_right_3,
+                size: 20,
+                color: Colors.black,
+              ),
+              onPressed: () {
+                context.push('${AppRoutes.groupInfo}/${controller.eventId}');
+              },
+            ),
+          ),
+        ],
       );
     }
 
-    // Chat 1:1: sem menu
-    return const SizedBox.shrink();
+    // Chat 1:1: apenas SafetyTipsButton
+    return const SafetyTipsButton(
+      icon: IconsaxPlusLinear.danger,
+      iconColor: Colors.black,
+      iconSize: 20,
+    );
   }
 }

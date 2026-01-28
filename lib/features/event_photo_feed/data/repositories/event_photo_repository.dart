@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment_reply_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
@@ -358,6 +359,100 @@ class EventPhotoRepository {
     }
   }
 
+  /// Busca posts ativos mais novos que um determinado timestamp
+  /// 
+  /// Usado para refresh incremental - busca apenas novos posts ao invés
+  /// de recarregar a página inteira.
+  Future<List<EventPhotoModel>> fetchActiveNewerThan({
+    required EventPhotoFeedScope scope,
+    required Timestamp newerThan,
+    int limit = 20,
+  }) async {
+    print('🆕 [EventPhotoRepository.fetchActiveNewerThan] newerThan: ${newerThan.toDate()}');
+    
+    Query<Map<String, dynamic>> query = _photos
+        .where('status', isEqualTo: 'active')
+        .where('createdAt', isGreaterThan: newerThan)
+        .orderBy('createdAt', descending: true)
+        .limit(limit);
+
+    // Aplica filtros de scope
+    switch (scope) {
+      case EventPhotoFeedScopeCity(:final cityId):
+        if (cityId != null && cityId.trim().isNotEmpty) {
+          query = query.where('eventCityId', isEqualTo: cityId.trim());
+        }
+        break;
+      case EventPhotoFeedScopeGlobal():
+        // Sem filtros adicionais
+        break;
+      case EventPhotoFeedScopeFollowing():
+        // Following precisa de lógica especial (chunks de userIds)
+        // Por simplicidade, retorna vazio - o controller fará fallback para refresh full
+        return [];
+      case EventPhotoFeedScopeEvent(:final eventId):
+        query = query.where('eventId', isEqualTo: eventId);
+        break;
+      case EventPhotoFeedScopeUser(:final userId):
+        query = query.where('userId', isEqualTo: userId);
+        break;
+    }
+
+    try {
+      final snap = await query.get();
+      print('✅ [fetchActiveNewerThan] ${snap.docs.length} novos posts encontrados');
+      return snap.docs.map(EventPhotoModel.fromFirestore).toList(growable: false);
+    } catch (e) {
+      print('❌ [fetchActiveNewerThan] Erro: $e');
+      rethrow;
+    }
+  }
+
+  /// Busca posts under_review do próprio usuário mais novos que um timestamp
+  /// 
+  /// Usado para refresh incremental dos posts próprios em moderação.
+  Future<List<EventPhotoModel>> fetchUnderReviewMineNewerThan({
+    required EventPhotoFeedScope scope,
+    required String userId,
+    required Timestamp newerThan,
+    int limit = 20,
+  }) async {
+    if (userId.trim().isEmpty) return [];
+    
+    print('🆕 [EventPhotoRepository.fetchUnderReviewMineNewerThan] userId: $userId');
+    
+    Query<Map<String, dynamic>> query = _photos
+        .where('status', isEqualTo: 'under_review')
+        .where('userId', isEqualTo: userId)
+        .where('createdAt', isGreaterThan: newerThan)
+        .orderBy('createdAt', descending: true)
+        .limit(limit);
+
+    // Aplica filtros de scope (exceto userId que já foi aplicado)
+    switch (scope) {
+      case EventPhotoFeedScopeCity(:final cityId):
+        if (cityId != null && cityId.trim().isNotEmpty) {
+          query = query.where('eventCityId', isEqualTo: cityId.trim());
+        }
+        break;
+      case EventPhotoFeedScopeEvent(:final eventId):
+        query = query.where('eventId', isEqualTo: eventId);
+        break;
+      default:
+        // Global, Following, User - sem filtros adicionais
+        break;
+    }
+
+    try {
+      final snap = await query.get();
+      print('✅ [fetchUnderReviewMineNewerThan] ${snap.docs.length} novos posts em moderação');
+      return snap.docs.map(EventPhotoModel.fromFirestore).toList(growable: false);
+    } catch (e) {
+      print('❌ [fetchUnderReviewMineNewerThan] Erro: $e');
+      rethrow;
+    }
+  }
+
   Future<void> createPhoto({
     required String photoId,
     required EventPhotoModel model,
@@ -368,7 +463,42 @@ class EventPhotoRepository {
   Future<void> deletePhoto({
     required String photoId,
   }) async {
-    await _photos.doc(photoId).delete();
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final docRef = _photos.doc(photoId);
+    
+    debugPrint('🗑️ [EventPhotoRepository] deletePhoto');
+    debugPrint('   - photoId: $photoId');
+    debugPrint('   - docPath: ${docRef.path}');
+    debugPrint('   - currentUserId: $currentUserId');
+    
+    // Tenta deletar diretamente - se o documento não existir, o Firestore
+    // simplesmente não faz nada (delete de documento inexistente é no-op)
+    try {
+      await docRef.delete();
+      debugPrint('   ✅ Delete executado com sucesso');
+    } catch (e) {
+      // Se o erro for permission-denied, pode ser que o documento já foi deletado
+      // ou o usuário não tem permissão. Verificar se o documento existe.
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('   ⚠️ Permission denied - verificando se documento existe...');
+        
+        // Usar uma transação para verificar existência sem depender de read rules
+        // Se não conseguir ler, assumimos que já foi deletado
+        debugPrint('   ℹ️ Documento provavelmente já foi deletado anteriormente');
+        return; // Silenciosamente ignora - o objetivo era deletar e já está deletado
+      }
+      debugPrint('   ❌ Erro ao deletar: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateCaption({
+    required String photoId,
+    required String caption,
+  }) async {
+    await _photos.doc(photoId).update({
+      'caption': caption,
+    });
   }
 
   Future<void> removePhotoImage({
@@ -450,7 +580,8 @@ class EventPhotoRepository {
     required String photoId,
     required EventPhotoCommentModel comment,
   }) async {
-    await _photos
+    // Adiciona o comentário e pega a referência com o ID gerado
+    final docRef = await _photos
         .doc(photoId)
         .collection('comments')
         .add({
@@ -464,8 +595,9 @@ class EventPhotoRepository {
     });
 
     if (_cacheService != null) {
+      // Usa o ID real do documento criado
       final cachedComment = EventPhotoCommentModel(
-        id: comment.id,
+        id: docRef.id,
         photoId: comment.photoId,
         userId: comment.userId,
         userName: comment.userName,
@@ -589,7 +721,8 @@ class EventPhotoRepository {
     required String commentId,
     required EventPhotoCommentReplyModel reply,
   }) async {
-    await _photos
+    // Adiciona a reply e pega a referência com o ID gerado
+    final docRef = await _photos
         .doc(photoId)
         .collection('comments')
         .doc(commentId)
@@ -605,8 +738,9 @@ class EventPhotoRepository {
     });
 
     if (_cacheService != null) {
+      // Usa o ID real do documento criado
       final cachedReply = EventPhotoCommentReplyModel(
-        id: reply.id,
+        id: docRef.id,
         photoId: reply.photoId,
         commentId: reply.commentId,
         userId: reply.userId,

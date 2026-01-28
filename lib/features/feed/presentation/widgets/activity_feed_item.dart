@@ -94,7 +94,7 @@ class ActivityFeedItem extends StatelessWidget {
                             // Time ago
                             if (item.createdAt != null)
                               TextSpan(
-                                text: ' ${TimeAgoHelper.format(context, timestamp: item.createdAt!.toDate())}',
+                                text: ' ${TimeAgoHelper.format(context, timestamp: item.createdAt!.toDate(), short: true)}',
                                 style: GoogleFonts.getFont(
                                   FONT_PLUS_JAKARTA_SANS,
                                   fontSize: 12,
@@ -152,7 +152,7 @@ class ActivityFeedItem extends StatelessWidget {
                       // Imagem de overlay com 50% opacidade
                       Positioned.fill(
                         child: Opacity(
-                          opacity: 0.0,
+                          opacity: 0.1,
                           child: Image.asset(
                             'assets/images/map.png',
                             fit: BoxFit.cover,

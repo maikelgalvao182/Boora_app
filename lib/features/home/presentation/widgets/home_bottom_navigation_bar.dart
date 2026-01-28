@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -121,33 +122,24 @@ class _BottomNavBarContent extends StatelessWidget {
           index: 0,
         ),
 
-        // Aba Actions (com badge)
+        // Aba Feed
         BottomNavigationBarItem(
-          icon: ValueListenableBuilder<int>(
-            valueListenable: NotificationsCounterService.instance.pendingActionsCount,
-            builder: (context, count, _) {
-              final iconWidget = Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  currentIndex == 1 ? _TabIcons.actionsBold : _TabIcons.actionsNormal,
-                  HomeBottomNavigationBar._spacer,
-                ],
-              );
-
-              // Se não há contador, retorna só o ícone
-              if (count == 0) return iconWidget;
-
-              // Se há contador, adiciona badge
-              return AutoUpdatingBadge(
-                count: count,
-                badgeColor: GlimpseColors.actionColor,
-                top: -4,
-                right: -4,
-                child: iconWidget,
-              );
-            },
+          icon: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SvgPicture.asset(
+                currentIndex == 1 ? 'assets/svg/fire2.svg' : 'assets/svg/fire.svg',
+                width: 26,
+                height: 26,
+                colorFilter: ColorFilter.mode(
+                  currentIndex == 1 ? Colors.black : Colors.grey,
+                  BlendMode.srcIn,
+                ),
+              ),
+              HomeBottomNavigationBar._spacer,
+            ],
           ),
-          label: 'Ações',
+          label: 'Feed',
         ),
 
         // Aba Ranking

@@ -11,6 +11,8 @@ import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart'
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/feed_preloader.dart';
+import 'package:partiu/features/event_photo_feed/presentation/screens/event_photo_feed_screen.dart';
 import 'package:partiu/core/services/app_initializer_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/features/home/presentation/coordinators/home_tab_coordinator.dart';
@@ -117,6 +119,27 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
         stackTrace: stackTrace is StackTrace ? stackTrace : StackTrace.current,
       );
     });
+    
+    // Preload silencioso do Feed (não bloqueia UI)
+    _preloadFeedInBackground();
+  }
+  
+  /// Faz preload silencioso do Feed em background (todas as 3 abas)
+  /// 
+  /// Isso evita o delay de 3-4s ao abrir o Feed pela primeira vez.
+  void _preloadFeedInBackground() {
+    FeedPreloader.instance.preloadAllTabs().then((_) {
+      // Após o preload, faz prefetch das thumbnails se tiver context
+      if (mounted) {
+        FeedPreloader.instance.prefetchThumbnails(context);
+      }
+    }).catchError((e) {
+      AppLogger.error(
+        'Feed preload falhou',
+        tag: 'HOME',
+        error: e,
+      );
+    });
   }
 
   /// Garante que a página está instanciada
@@ -133,7 +156,7 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
           builder: (context, mapViewModel, _) => DiscoverTab(mapViewModel: mapViewModel),
         );
       case 1:
-        return const ActionsTab();
+        return const EventPhotoFeedScreen(isMainTab: true);
       case 2:
         return Consumer2<PeopleRankingViewModel, RankingViewModel>(
           builder: (context, peopleRanking, locationsRanking, _) => RankingTab(

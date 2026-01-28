@@ -8,6 +8,7 @@ import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.d
 import 'package:partiu/features/event_photo_feed/data/models/unified_feed_item.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_cache_service.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/feed_preloader.dart';
 import 'package:partiu/features/feed/data/models/activity_feed_item_model.dart';
 import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
 import 'package:partiu/core/services/cache/media_cache_manager.dart';
@@ -104,9 +105,30 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
 
   @override
   Future<EventPhotoFeedState> build(EventPhotoFeedScope scope) async {
-    print('🎯 [EventPhotoFeedController.build] Iniciando build - scope: $scope');
+    debugPrint('🎯 [EventPhotoFeedController.build] Iniciando build - scope: $scope');
 
     await _cache.initialize();
+    
+    // CACHE-FIRST: Verifica se o FeedPreloader tem cache fresco para este scope
+    final preloader = FeedPreloader.instance;
+    final preloadedPhotos = preloader.getCachedPhotos(scope);
+    final preloadedActivities = preloader.getCachedActivities(scope);
+    
+    if (preloadedPhotos != null && preloadedPhotos.isNotEmpty) {
+      debugPrint('📦 [EventPhotoFeedController.build] Usando cache do FeedPreloader para $scope: ${preloadedPhotos.length} photos, ${preloadedActivities?.length ?? 0} activities');
+      
+      // Dispara refresh silencioso em background
+      Future.microtask(_refreshSilently);
+      
+      return EventPhotoFeedState.initial().copyWith(
+        items: preloadedPhotos,
+        activityItems: preloadedActivities ?? [],
+        hasMore: true,
+        lastUpdatedAt: DateTime.now(),
+      );
+    }
+    
+    // Fallback para cache do EventPhotoCacheService
     final cachedItems = _cache.getCachedFeed(scope);
     if (cachedItems != null && cachedItems.isNotEmpty) {
       Future.microtask(_refreshSilently);
@@ -122,14 +144,14 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     if (existing != null && existing.lastUpdatedAt != null) {
       final age = DateTime.now().difference(existing.lastUpdatedAt!);
       if (age < _ttl && existing.items.isNotEmpty) {
-        print('✅ [EventPhotoFeedController.build] Cache válido (age: ${age.inSeconds}s)');
+        debugPrint('✅ [EventPhotoFeedController.build] Cache válido (age: ${age.inSeconds}s)');
         return existing;
       }
     }
 
-    print('🔄 [EventPhotoFeedController.build] Carregando dados do Firestore...');
+    debugPrint('🔄 [EventPhotoFeedController.build] Carregando dados do Firestore...');
     final userId = _safeUserId();
-    print('👤 [EventPhotoFeedController.build] userId: $userId');
+    debugPrint('👤 [EventPhotoFeedController.build] userId: $userId');
     
     try {
       // Busca EventPhotos
@@ -209,6 +231,24 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     }
   }
 
+  /// Busca IDs dos usuários seguidos pelo usuário atual
+  Future<List<String>> _fetchFollowingIds(String userId) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .collection('following')
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .get();
+      
+      return snap.docs.map((doc) => doc.id).toList(growable: false);
+    } catch (e) {
+      debugPrint('❌ [EventPhotoFeedController._fetchFollowingIds] Erro: $e');
+      return [];
+    }
+  }
+
   /// Busca ActivityFeed items baseado no scope
   Future<List<ActivityFeedItemModel>> _fetchActivityFeed(EventPhotoFeedScope scope) async {
     try {
@@ -222,11 +262,16 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
         );
       }
       
-      // Para scope Following, busca apenas do usuário atual (por enquanto)
-      // TODO: Implementar busca por usuários seguidos
+      // Para scope Following, busca de todos os usuários seguidos
       if (scope is EventPhotoFeedScopeFollowing && userId != null) {
-        return await _activityRepo.fetchUserFeed(
-          userId: userId,
+        final followingIds = await _fetchFollowingIds(userId);
+        if (followingIds.isEmpty) {
+          debugPrint('ℹ️ [_fetchActivityFeed] Usuário não segue ninguém');
+          return [];
+        }
+        
+        return await _activityRepo.fetchFollowingFeed(
+          userIds: followingIds,
           limit: _pageSize,
         );
       }
@@ -241,11 +286,151 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
 
   Future<void> refresh() async {
     debugPrint('🔄 [EventPhotoFeedController.refresh] Iniciando refresh...');
+    
+    final current = state.valueOrNull;
+    final scope = arg;
+    
+    // Se não tem dados carregados ou lista vazia, faz refresh completo
+    if (current == null || current.items.isEmpty) {
+      debugPrint('📥 [refresh] Lista vazia, fazendo refresh completo');
+      return _refreshFull();
+    }
+    
+    // Tenta refresh incremental
+    final topCreatedAt = current.items.first.createdAt;
+    if (topCreatedAt == null) {
+      debugPrint('⚠️ [refresh] topCreatedAt nulo, fazendo refresh completo');
+      return _refreshFull();
+    }
+    
+    // Para scope Following, faz refresh completo (lógica de chunks é complexa)
+    if (scope is EventPhotoFeedScopeFollowing) {
+      debugPrint('👥 [refresh] Scope Following, fazendo refresh completo');
+      return _refreshFull();
+    }
+    
+    debugPrint('🆕 [refresh] Tentando refresh incremental desde ${topCreatedAt.toDate()}');
+    
+    try {
+      final userId = _safeUserId();
+      
+      // Busca novos posts em paralelo
+      final activeNewFuture = _repo.fetchActiveNewerThan(
+        scope: scope,
+        newerThan: topCreatedAt,
+        limit: 20,
+      );
+      
+      final underReviewNewFuture = userId != null
+          ? _repo.fetchUnderReviewMineNewerThan(
+              scope: scope,
+              userId: userId,
+              newerThan: topCreatedAt,
+              limit: 20,
+            )
+          : Future.value(<EventPhotoModel>[]);
+      
+      // Busca novos ActivityFeed items
+      final activityNewFuture = _fetchActivityFeedNewerThan(scope, topCreatedAt);
+      
+      final results = await Future.wait([
+        activeNewFuture,
+        underReviewNewFuture,
+        activityNewFuture,
+      ]);
+      
+      final newActivePhotos = results[0] as List<EventPhotoModel>;
+      final newUnderReviewPhotos = results[1] as List<EventPhotoModel>;
+      final newActivities = results[2] as List<ActivityFeedItemModel>;
+      
+      final totalNewPhotos = newActivePhotos.length + newUnderReviewPhotos.length;
+      debugPrint('✅ [refresh] Encontrados: $totalNewPhotos novos photos, ${newActivities.length} novos activities');
+      
+      // Se não tem nada novo, apenas atualiza timestamp
+      if (totalNewPhotos == 0 && newActivities.isEmpty) {
+        state = AsyncData(current.copyWith(lastUpdatedAt: DateTime.now()));
+        debugPrint('📭 [refresh] Nenhum post novo');
+        return;
+      }
+      
+      // Merge e dedupe photos por ID
+      final photosById = <String, EventPhotoModel>{};
+      for (final photo in newActivePhotos) {
+        photosById[photo.id] = photo;
+      }
+      for (final photo in newUnderReviewPhotos) {
+        photosById[photo.id] = photo;
+      }
+      for (final photo in current.items) {
+        photosById.putIfAbsent(photo.id, () => photo);
+      }
+      
+      // Ordena por createdAt desc
+      final mergedPhotos = photosById.values.toList()
+        ..sort((a, b) {
+          final aTs = a.createdAt?.millisecondsSinceEpoch ?? 0;
+          final bTs = b.createdAt?.millisecondsSinceEpoch ?? 0;
+          return bTs.compareTo(aTs);
+        });
+      
+      // Merge e dedupe activities por ID
+      final activitiesById = <String, ActivityFeedItemModel>{};
+      for (final activity in newActivities) {
+        activitiesById[activity.id] = activity;
+      }
+      for (final activity in current.activityItems) {
+        activitiesById.putIfAbsent(activity.id, () => activity);
+      }
+      
+      final mergedActivities = activitiesById.values.toList()
+        ..sort((a, b) {
+          final aTs = a.createdAt?.millisecondsSinceEpoch ?? 0;
+          final bTs = b.createdAt?.millisecondsSinceEpoch ?? 0;
+          return bTs.compareTo(aTs);
+        });
+      
+      debugPrint('📊 [refresh] Após merge: ${mergedPhotos.length} photos, ${mergedActivities.length} activities');
+      
+      // Atualiza state
+      state = AsyncData(current.copyWith(
+        items: mergedPhotos,
+        activityItems: mergedActivities,
+        lastUpdatedAt: DateTime.now(),
+      ));
+      
+      // Atualiza cache (limita a 60 items para não crescer infinito)
+      await _cache.setCachedFeed(scope, mergedPhotos.take(60).toList());
+      
+      // Invalida cache do preloader para este scope
+      FeedPreloader.instance.invalidateCacheFor(scope);
+      
+    } catch (e, stack) {
+      debugPrint('❌ [refresh] Erro no refresh incremental: $e');
+      debugPrint('📚 Stack: $stack');
+      // Fallback para refresh completo em caso de erro
+      return _refreshFull();
+    }
+  }
+
+  /// Refresh completo - recarrega a primeira página do zero
+  /// 
+  /// Usado quando:
+  /// - Lista está vazia
+  /// - Scope é Following (chunks complexos)
+  /// - Erro no refresh incremental
+  /// - Forçado pelo usuário
+  Future<void> _refreshFull() async {
+    debugPrint('🔄 [EventPhotoFeedController._refreshFull] Iniciando refresh completo...');
+    
+    final scope = arg;
+    
+    // Invalida o cache do preloader apenas para este scope
+    FeedPreloader.instance.invalidateCacheFor(scope);
+    
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final scope = arg;
       final userId = _safeUserId();
-      debugPrint('👤 [EventPhotoFeedController.refresh] userId: $userId, scope: $scope');
+      debugPrint('👤 [_refreshFull] userId: $userId, scope: $scope');
       
       try {
         final page = userId == null
@@ -259,7 +444,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
         // Busca ActivityFeed items
         final activityItems = await _fetchActivityFeed(scope);
         
-        debugPrint('✅ [EventPhotoFeedController.refresh] Refresh completo: ${page.items.length} photos, ${activityItems.length} activities');
+        debugPrint('✅ [_refreshFull] Refresh completo: ${page.items.length} photos, ${activityItems.length} activities');
         
         return EventPhotoFeedState.initial().copyWith(
           items: page.items,
@@ -271,7 +456,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
           lastUpdatedAt: DateTime.now(),
         );
       } catch (e, stack) {
-        debugPrint('❌ [EventPhotoFeedController.refresh] ERRO no refresh: $e');
+        debugPrint('❌ [_refreshFull] ERRO no refresh: $e');
         debugPrint('📚 Stack trace: $stack');
         rethrow;
       }
@@ -281,6 +466,46 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     if (refreshed != null && refreshed.items.isNotEmpty) {
       await _cache.setCachedFeed(arg, refreshed.items);
       await _prefetchInitialThumbnails(refreshed.items);
+    }
+  }
+  
+  /// Busca ActivityFeed items mais novos que um timestamp
+  Future<List<ActivityFeedItemModel>> _fetchActivityFeedNewerThan(
+    EventPhotoFeedScope scope,
+    Timestamp newerThan,
+  ) async {
+    try {
+      final userId = _safeUserId();
+      
+      // Para scope User, busca apenas do usuário específico
+      if (scope is EventPhotoFeedScopeUser) {
+        return await _activityRepo.fetchUserFeedNewerThan(
+          userId: scope.userId,
+          newerThan: newerThan,
+          limit: _pageSize,
+        );
+      }
+      
+      // Para scope Following, busca de todos os usuários seguidos
+      if (scope is EventPhotoFeedScopeFollowing && userId != null) {
+        final followingIds = await _fetchFollowingIds(userId);
+        if (followingIds.isEmpty) return [];
+        
+        return await _activityRepo.fetchFollowingFeedNewerThan(
+          userIds: followingIds,
+          newerThan: newerThan,
+          limit: _pageSize,
+        );
+      }
+      
+      // Para scope Global ou outros, busca global
+      return await _activityRepo.fetchGlobalFeedNewerThan(
+        newerThan: newerThan,
+        limit: _pageSize,
+      );
+    } catch (e) {
+      debugPrint('⚠️ [_fetchActivityFeedNewerThan] Erro: $e');
+      return [];
     }
   }
 
@@ -349,6 +574,28 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     _cache.setCachedFeed(arg, nextItems);
   }
 
+  /// Remove um post do feed local (optimistic UI) para feedback instantâneo ao deletar.
+  void optimisticRemovePhoto({required String photoId}) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+
+    final nextItems = current.items.where((e) => e.id != photoId).toList();
+    
+    // Se não mudou, retorna
+    if (nextItems.length == current.items.length) return;
+    
+    debugPrint('🗑️ [optimisticRemovePhoto] Removendo $photoId da UI (${current.items.length} -> ${nextItems.length})');
+
+    state = AsyncData(
+      current.copyWith(
+        items: nextItems,
+        lastUpdatedAt: DateTime.now(),
+      ),
+    );
+
+    _cache.setCachedFeed(arg, nextItems);
+  }
+
   /// Remove uma imagem do item localmente para evitar flicker após delete.
   void optimisticRemoveImage({
     required String photoId,
@@ -379,6 +626,55 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       imageUrls: nextImageUrls,
       thumbnailUrls: nextThumbnailUrls,
       caption: item.caption,
+      createdAt: item.createdAt,
+      eventTitle: item.eventTitle,
+      eventEmoji: item.eventEmoji,
+      eventDate: item.eventDate,
+      eventCityId: item.eventCityId,
+      eventCityName: item.eventCityName,
+      userName: item.userName,
+      userPhotoUrl: item.userPhotoUrl,
+      status: item.status,
+      reportCount: item.reportCount,
+      likesCount: item.likesCount,
+      commentsCount: item.commentsCount,
+      taggedParticipants: item.taggedParticipants,
+    );
+
+    final nextItems = [...current.items];
+    nextItems[itemIndex] = updatedItem;
+
+    state = AsyncData(
+      current.copyWith(
+        items: nextItems,
+        lastUpdatedAt: DateTime.now(),
+      ),
+    );
+
+    _cache.setCachedFeed(arg, nextItems);
+  }
+
+  void optimisticUpdateCaption({
+    required String photoId,
+    required String caption,
+  }) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+
+    final itemIndex = current.items.indexWhere((e) => e.id == photoId);
+    if (itemIndex < 0) return;
+
+    final item = current.items[itemIndex];
+
+    final updatedItem = EventPhotoModel(
+      id: item.id,
+      eventId: item.eventId,
+      userId: item.userId,
+      imageUrl: item.imageUrl,
+      thumbnailUrl: item.thumbnailUrl,
+      imageUrls: item.imageUrls,
+      thumbnailUrls: item.thumbnailUrls,
+      caption: caption,
       createdAt: item.createdAt,
       eventTitle: item.eventTitle,
       eventEmoji: item.eventEmoji,
