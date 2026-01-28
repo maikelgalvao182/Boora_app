@@ -35,42 +35,35 @@ class VisitsService {
     }
 
     try {
-      if (kDebugMode) {
-        debugPrint('📞 [VisitsService] Chamando Cloud Function getProfileVisitsCount...');
-      }
-      final result = await _functions.httpsCallable('getProfileVisitsCount').call({
-        'userId': userId,
-      });
+      // 🚀 Mudança para AggregateQuery: Conta documentos reais na coleção ProfileVisits
+      // Filtra por visitas recentes (últimos 7 dias) para coincidir com a lista
+      
+      final cutoffDate = DateTime.now().subtract(const Duration(days: 7));
+      
+      final snapshot = await _firestore
+          .collection('ProfileVisits')
+          .where('visitedUserId', isEqualTo: userId)
+          .where('visitedAt', isGreaterThan: Timestamp.fromDate(cutoffDate))
+          .orderBy('visitedAt', descending: true)
+          .count()
+          .get();
+
+      final count = snapshot.count ?? 0;
 
       if (kDebugMode) {
-        debugPrint('✅ [VisitsService] Cloud Function respondeu: ${result.data}');
+        debugPrint('📊 [VisitsService] Count (Aggregate): $count');
       }
       
-      final data = result.data;
-      final count = (data is Map && data['count'] is num)
-          ? (data['count'] as num).toInt()
-          : 0;
-
-      if (kDebugMode) {
-        debugPrint('📊 [VisitsService] Count extraído: $count (cache atualizado)');
-      }
       _cachedVisitsCount = count;
       _hasLoadedOnce = true;
       return count;
-    } on FirebaseFunctionsException catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ [VisitsService] FirebaseFunctionsException: ${e.code} - ${e.message}');
-      }
-      _cachedVisitsCount = 0;
-      _hasLoadedOnce = true;
-      return 0;
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('❌ [VisitsService] Erro inesperado: $e');
+        debugPrint('❌ [VisitsService] Erro ao contar visitas: $e');
       }
-      _cachedVisitsCount = 0;
-      _hasLoadedOnce = true;
-      return 0;
+      // Retorna 0 em caso de erro, ou mantém cache se preferir
+      // Mantendo lógica original de zerar cache em erro, mas aqui talvez seja melhor manter o cache antigo se houver
+      return _cachedVisitsCount;
     }
   }
 
@@ -90,48 +83,47 @@ class VisitsService {
       return;
     }
 
-    // Emite o valor inicial via Cloud Function (funciona mesmo quando ProfileVisits é VIP-only).
+    // Emite o valor inicial
     if (kDebugMode) {
       debugPrint('📤 [VisitsService] Emitindo valor inicial via getUserVisitsCount...');
     }
-    final initialCount = await getUserVisitsCount(userId);
-    if (kDebugMode) {
-      debugPrint('📤 [VisitsService] Valor inicial emitido: $initialCount');
-    }
-    yield initialCount;
+    yield await getUserVisitsCount(userId);
 
-    // Usa ProfileViews (legível pelo dono do perfil sem exigir VIP) como gatilho de atualização.
-    // Quando entra uma nova view, recalcula o contador (que vem de ProfileVisits.visitCount).
-    if (kDebugMode) {
-      debugPrint('👀 [VisitsService] Iniciando listener de ProfileViews...');
-    }
-    bool isFirstSnapshot = true;
-    await for (final snapshot in _firestore
-        .collection('ProfileViews')
-        .where('viewedUserId', isEqualTo: userId)
-        .orderBy('viewedAt', descending: true)
+    // Escuta mudanças na coleção REAL de visitas (ProfileVisits)
+    // Usamos limit(1) pois só queremos o trigger de mudança da collection
+    // Se documentos são DELETADOS, o snapshot também é disparado se mudar o resultado da query?
+    // snapshots() em uma query emite quando o conjunto de resultados muda (add/remove/modify).
+    // Mas se usamos limit(1), pode não disparar se a mudança for na posição 50.
+    // O ideal seria ouvir metadata changes ou sem limite se o custo permitir, mas ProfileVisits pode ser grande.
+    // Como queremos só saber se "perdemos" ou "ganhamos" visitas, o count é o que importa.
+    // Mas Firestore não tem "stream de count" nativo barato.
+    // Alternativa: Ouvir ProfileVisits limit(1) order by visitedAt desc.
+    // Se entrar visita nova, o topo muda -> dispara event.
+    // Se deletar visita antiga (expiração), o topo NÃO muda -> NÃO dispara event.
+    
+    // CORREÇÃO: Se a deleção é automática pelo backend, o cliente não recebe notificação a menos que afete o snapshot observado.
+    // Se monitoramos limit(1), só vemos mudanças no visitante mais recente.
+    // Para ver deleções, precisamos recarregar periodicamente ou quando o usuário entra na tela.
+    // Mas o usuário especificamente reclamou que o número "continua mostrando".
+    // Talvez o problema anterior fosse usar uma Cloud Function que retornava um "totalVisits" incremental que NUNCA diminuia.
+    // Agora usando count() direto, pelo menos ao entrar na tela (getUserVisitsCount) o numero estará correto.
+    // Para manter atualizado em tempo real com deleções em massa, é difícil sem polling ou stream de tudo.
+    // Vamos manter o stream no topo (novas visitas) e adicionar um timer de refresh periódico ou confiar que ao navegar o usuário atualiza.
+    // O watcher abaixo garante que NOVAS visitas atualizem o count.
+    
+    await for (final _ in _firestore
+        .collection('ProfileVisits')
+        .where('visitedUserId', isEqualTo: userId)
+        .orderBy('visitedAt', descending: true)
         .limit(1)
         .snapshots()) {
+      
       if (kDebugMode) {
-        debugPrint('🔄 [VisitsService] ProfileViews snapshot recebido (${snapshot.docs.length} docs)');
+        debugPrint('🔄 [VisitsService] Alteração detectada em ProfileVisits (topo)');
       }
       
-      if (isFirstSnapshot) {
-        if (kDebugMode) {
-          debugPrint('⏭️ [VisitsService] Pulando primeiro snapshot (inicial)');
-        }
-        isFirstSnapshot = false;
-        continue;
-      }
-
-      if (kDebugMode) {
-        debugPrint('🔄 [VisitsService] Nova view detectada, recalculando count...');
-      }
-      final count = await getUserVisitsCount(userId);
-      if (kDebugMode) {
-        debugPrint('📤 [VisitsService] Novo count emitido: $count');
-      }
-      yield count;
+      // Recalcula o total usando count() aggregation
+      yield await getUserVisitsCount(userId);
     }
   }
 }

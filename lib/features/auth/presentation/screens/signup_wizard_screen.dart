@@ -196,12 +196,16 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return model.imageFile != null;
       case SignupWizardStep.personalInfo:
         return model.fullName.trim().isNotEmpty && model.isUserOldEnough();
+      case SignupWizardStep.gender:
+        return model.selectedGender.isNotEmpty;
+      case SignupWizardStep.lookingFor:
+        return model.lookingFor.isNotEmpty;
       case SignupWizardStep.bio:
         return model.bio.trim().isNotEmpty;
       case SignupWizardStep.interests:
         return model.interests.trim().isNotEmpty;
       case SignupWizardStep.instagram:
-        return true; // Opcional
+        return model.instagram.trim().isNotEmpty; // Obrigatório
       case SignupWizardStep.country:
         return model.country != null && model.country!.isNotEmpty;
       case SignupWizardStep.origin:
@@ -223,8 +227,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
     // Dados de onboarding consolidados
     final onboardingData = <String, dynamic>{
       'fullName': model.fullName.trim(),
-      'gender': '', // Será preenchido posteriormente
+      'gender': model.selectedGender, // Gênero selecionado
       'sexualOrientation': '', // Será preenchido posteriormente
+      'lookingFor': model.lookingFor, // O que está procurando
       'birthDay': model.userBirthDay,
       'birthMonth': model.userBirthMonth,
       'birthYear': model.userBirthYear,
@@ -299,6 +304,10 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return i18n.translate('add_a_profile_photo');
       case SignupWizardStep.personalInfo:
         return i18n.translate('basic_information_title');
+      case SignupWizardStep.gender:
+        return i18n.translate('select_gender_title');
+      case SignupWizardStep.lookingFor:
+        return i18n.translate('looking_for_title');
       case SignupWizardStep.bio:
         return i18n.translate('tell_us_about_yourself');
       case SignupWizardStep.interests:
@@ -324,6 +333,10 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return i18n.translate('people_like_to_see_you');
       case SignupWizardStep.personalInfo:
         return i18n.translate('this_data_cannot_be_changed_later');
+      case SignupWizardStep.gender:
+        return i18n.translate('select_gender_subtitle');
+      case SignupWizardStep.lookingFor:
+        return i18n.translate('looking_for_subtitle');
       case SignupWizardStep.bio:
         return i18n.translate('share_a_bit_about_yourself');
       case SignupWizardStep.interests:
@@ -467,6 +480,36 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
                   },
                 ),
               ],
+            ),
+          ),
+        );
+      
+      case SignupWizardStep.gender:
+        return Container(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: GenderSelectorWidget(
+              initialGender: _cadastroViewModel.selectedGender,
+              onGenderChanged: (value) {
+                _cadastroViewModel.setGender(value ?? '');
+                _onCadastroChanged();
+              },
+            ),
+          ),
+        );
+      
+      case SignupWizardStep.lookingFor:
+        return Container(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: LookingForSelectorWidget(
+              initialSelection: _cadastroViewModel.lookingFor,
+              onSelectionChanged: (value) {
+                _cadastroViewModel.setLookingFor(value ?? '');
+                _onCadastroChanged();
+              },
             ),
           ),
         );

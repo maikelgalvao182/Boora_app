@@ -8,7 +8,8 @@ import 'package:flutter/material.dart';
 /// 2. EventChats (documento principal)
 /// 3. Conversations de todos os participantes
 /// 4. EventApplications
-/// 5. Documento do evento
+/// 5. Notificações relacionadas ao evento
+/// 6. Documento do evento
 class EventDeletionService {
   factory EventDeletionService() => _instance;
   EventDeletionService._internal();
@@ -92,6 +93,12 @@ class EventDeletionService {
       batch.delete(eventRef);
       debugPrint('✅ Evento adicionado ao batch');
       
+      // 7. Deletar notificações relacionadas ao evento (ANTES do batch principal)
+      // Necessário fazer antes para que as regras de segurança (isEventCreator) funcionem
+      debugPrint('🔔 Deletando notificações do evento (pre-cleanup)...');
+      final notificationsDeleted = await _deleteEventNotifications(eventId);
+      debugPrint('✅ $notificationsDeleted notificações deletadas');
+
       // Executar batch
       debugPrint('🔥 Executando batch com ${participantIds.length + applicationsSnapshot.docs.length + 1} operações...');
       debugPrint('   - ${participantIds.length} conversas');
@@ -111,5 +118,68 @@ class EventDeletionService {
       debugPrint('📚 StackTrace: $stackTrace');
       return false;
     }
+  }
+  
+  /// Deleta todas as notificações relacionadas a um evento
+  /// 
+  /// Busca por múltiplos campos que podem referenciar o evento:
+  /// - eventId (campo direto)
+  /// - n_params.activityId (nested - nome usado nas notificações)
+  /// - n_related_id (relacionamento)
+  Future<int> _deleteEventNotifications(String eventId) async {
+    int totalDeleted = 0;
+    
+    try {
+      // Busca paralela em todos os campos que podem referenciar o evento
+      final results = await Future.wait([
+        _firestore
+            .collection('Notifications')
+            .where('eventId', isEqualTo: eventId)
+            .get(),
+        _firestore
+            .collection('Notifications')
+            .where('n_params.activityId', isEqualTo: eventId)
+            .get(),
+        _firestore
+            .collection('Notifications')
+            .where('n_related_id', isEqualTo: eventId)
+            .get(),
+      ]);
+      
+      // Combinar resultados únicos (evitar duplicatas)
+      final docsToDelete = <String, DocumentReference>{};
+      
+      for (final snapshot in results) {
+        for (final doc in snapshot.docs) {
+          docsToDelete[doc.id] = doc.reference;
+        }
+      }
+      
+      if (docsToDelete.isEmpty) {
+        debugPrint('📭 Nenhuma notificação encontrada para evento $eventId');
+        return 0;
+      }
+      
+      // Deletar em batches de 500 (limite do Firestore)
+      final refs = docsToDelete.values.toList();
+      const batchSize = 500;
+      
+      for (int i = 0; i < refs.length; i += batchSize) {
+        final batchEnd = (i + batchSize < refs.length) ? i + batchSize : refs.length;
+        final batchRefs = refs.sublist(i, batchEnd);
+        
+        final deleteBatch = _firestore.batch();
+        for (final ref in batchRefs) {
+          deleteBatch.delete(ref);
+        }
+        await deleteBatch.commit();
+      }
+      
+      totalDeleted = refs.length;
+    } catch (e) {
+      debugPrint('❌ Erro ao deletar notificações do evento $eventId: $e');
+    }
+    
+    return totalDeleted;
   }
 }

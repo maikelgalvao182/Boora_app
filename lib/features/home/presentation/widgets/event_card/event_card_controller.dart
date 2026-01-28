@@ -21,6 +21,7 @@ class EventCardController extends ChangeNotifier {
   final EventApplicationRepository _applicationRepo;
   final EventRepository _eventRepo;
   final UserRepository _userRepo;
+  final MapViewModel? _mapViewModel; // Injected dependency
   final String eventId;
   final EventModel? _preloadedEvent;
 
@@ -77,11 +78,15 @@ class EventCardController extends ChangeNotifier {
     EventApplicationRepository? applicationRepo,
     EventRepository? eventRepo,
     UserRepository? userRepo,
+    MapViewModel? mapViewModel,
   })  : _preloadedEvent = preloadedEvent,
         _auth = auth ?? FirebaseAuth.instance,
         _applicationRepo = applicationRepo ?? EventApplicationRepository(),
         _eventRepo = eventRepo ?? EventRepository(),
-        _userRepo = userRepo ?? UserRepository() {
+        _userRepo = userRepo ?? UserRepository(),
+        _mapViewModel = mapViewModel {
+    debugPrint('🎫 [EventCardController] injected mapVM hash=${_mapViewModel != null ? identityHashCode(_mapViewModel) : 'NULL'}');
+    debugPrint('🎫 [EventCardController] singleton mapVM hash=${identityHashCode(MapViewModel.instance)}');
     _initializeFromPreload();
     // ✅ Iniciar listeners imediatamente para garantir reatividade dos botões
     _setupRealtimeListeners();
@@ -376,7 +381,18 @@ class EventCardController extends ChangeNotifier {
         .snapshots()
         .listen((doc) {
       if (_disposed) return;
-      if (!doc.exists) return;
+      
+      // ✅ TRATAMENTO DE DELEÇÃO REMOTA
+      if (!doc.exists) {
+        debugPrint('🗑️ [EventCard] Evento deletado remotamente detectado via stream');
+        _error = 'Este evento foi cancelado ou removido.';
+        _loaded = false;
+        notifyListeners();
+        
+        // Remover do mapa imediatamente se a dependência estiver injetada
+        _mapViewModel?.removeEvent(eventId);
+        return;
+      }
 
       final data = doc.data() as Map<String, dynamic>;
 
@@ -952,8 +968,12 @@ class EventCardController extends ChangeNotifier {
       debugPrint('✅ Evento deletado com sucesso');
       
       // ✅ Remover marker do mapa instantaneamente
-      MapViewModel.instance?.removeEvent(eventId);
-      debugPrint('✅ Marker removido do mapa');
+      final mapVM = _mapViewModel;
+      if (mapVM == null) {
+        debugPrint('❌ [EventCardController] mapViewModel não injetado. Não consigo remover marker local.');
+        return;
+      }
+      mapVM.removeEvent(eventId);
     } catch (e, stackTrace) {
       debugPrint('❌ Erro ao deletar evento: $e');
       debugPrint('📚 StackTrace: $stackTrace');

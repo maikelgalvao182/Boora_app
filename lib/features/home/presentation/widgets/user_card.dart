@@ -33,6 +33,7 @@ class UserCard extends StatefulWidget {
     this.trailingWidget,
     this.index,
     this.showTimeAgo = false,
+    this.showRating = true,
     super.key,
   });
 
@@ -45,6 +46,7 @@ class UserCard extends StatefulWidget {
   final Widget? trailingWidget;
   final int? index;
   final bool showTimeAgo;
+  final bool showRating;
 
   @override
   State<UserCard> createState() => _UserCardState();
@@ -331,7 +333,7 @@ class _UserCardState extends State<UserCard> {
                           ),
                         ),
                       ],
-                      if (overallRating != null && overallRating > 0) ...[
+                      if (widget.showRating && overallRating != null && overallRating > 0) ...[
                         const SizedBox(width: 8),
                         StarBadge(rating: overallRating),
                       ],

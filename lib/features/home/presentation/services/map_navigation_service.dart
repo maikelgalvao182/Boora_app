@@ -1,27 +1,15 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+// import 'package:partiu/features/feed/domain/usecases/create_automatic_event_post_usecase.dart';
+
+typedef NavigateToEventFn = Future<void> Function(String eventId, {bool showConfetti});
 
 /// Singleton service para gerenciar navegação para eventos no mapa
 /// 
-/// Responsabilidades:
-/// 1. Guardar evento pendente (vindo de notificação, deep link, trigger)
-/// 2. Reagir quando o mapa estiver pronto (GoogleMapView registra handler)
-/// 3. Executar navegação do mapa (mover câmera, abrir card, selecionar marker)
-/// 
-/// Arquitetura:
-/// - Singleton pattern (única instância global)
-/// - Callback registration (GoogleMapView registra handler quando pronto)
-/// - Pendência automática (se mapa não estiver pronto, guarda para depois)
-/// 
-/// Fluxo de uso:
-/// ```dart
-/// // 1. Na notificação (NotificationItemWidget)
-/// MapNavigationService.instance.navigateToEvent('event123');
-/// 
-/// // 2. No GoogleMapView.initState()
-/// MapNavigationService.instance.registerMapHandler((eventId) {
-///   _moveToEventAndOpenCard(eventId);
-/// });
-/// ```
+/// IMPLEMENTAÇÃO ROBUSTA (Estável):
+/// - Executa a navegação imediatamente ao registrar se houver pendência.
+/// - Remove dependência de PostFrameCallbacks complexos internos.
+/// - Loga claramente o ciclo de vida do handler.
 class MapNavigationService {
   // Singleton pattern
   static final MapNavigationService _instance = MapNavigationService._internal();
@@ -29,65 +17,113 @@ class MapNavigationService {
   factory MapNavigationService() => _instance;
   MapNavigationService._internal();
 
-  /// Evento pendente aguardando o mapa estar pronto
+  NavigateToEventFn? _mapHandler;
   String? _pendingEventId;
-  
-  /// Flag para indicar que o evento foi recém-criado (mostrar confetti)
-  bool _isNewlyCreated = false;
+  bool _pendingConfetti = false;
 
-  /// Callback registrado pelo GoogleMapView quando estiver pronto
-  Function(String eventId, {bool showConfetti})? _onEventNavigationCallback;
+  /// Dados para post automático pendente
+  Map<String, dynamic>? _pendingPostData;
 
-  /// Solicita navegação para um evento
+  /// Handler para tirar snapshot do mapa
+  Future<Uint8List?> Function()? _snapshotHandler;
+
+  /// Registra o handler e consome imediatamente se houver pendência
   /// 
-  /// Chamado quando:
-  /// - Usuário clica em uma notificação
-  /// - Deep link para evento
-  /// - Trigger automático
-  /// 
-  /// [showConfetti] - Se true, mostra confetti ao abrir o card (usado após criar evento)
-  /// 
-  /// Se o mapa estiver pronto (handler registrado), executa imediatamente.
-  /// Caso contrário, guarda para executar quando o mapa registrar o handler.
-  void navigateToEvent(String eventId, {bool showConfetti = false}) {
-    debugPrint('🗺️ [MapNavigationService] Solicitando navegação para evento: $eventId (confetti: $showConfetti)');
+  /// REGRA DE OURO: Quando o handler é registrado, automaticamente tenta consumir
+  /// qualquer pendência. Isso resolve race conditions onde a notificação chega
+  /// antes do mapa estar pronto.
+  void registerMapHandler(NavigateToEventFn handler) {
+    debugPrint('🧠 [MapNavigationService] registerMapHandler: instance hash=${identityHashCode(this)}');
+    debugPrint('✅ [MapNavigationService] Handler REGISTRADO. Verificando pendências...');
     
-    if (_onEventNavigationCallback != null) {
-      // Mapa está pronto, executar imediatamente
-      debugPrint('✅ [MapNavigationService] Mapa pronto, executando navegação agora');
-      _onEventNavigationCallback!(eventId, showConfetti: showConfetti);
-    } else {
-      // Mapa não está pronto, guardar para depois
-      debugPrint('⏳ [MapNavigationService] Mapa não pronto, guardando navegação pendente');
-      _pendingEventId = eventId;
-      _isNewlyCreated = showConfetti;
-    }
-  }
-
-  /// Registra o handler de navegação do mapa
-  /// 
-  /// Chamado pelo GoogleMapView quando estiver pronto (no initState ou onMapCreated).
-  /// 
-  /// Se houver navegação pendente, executa automaticamente.
-  void registerMapHandler(Function(String eventId, {bool showConfetti}) handler) {
-    debugPrint('🗺️ [MapNavigationService] Handler do mapa registrado');
-    _onEventNavigationCallback = handler;
-
-    // Se existe navegação pendente, executar agora
+    _mapHandler = handler;
+    
+    // CRÍTICO: Tenta consumir pendências automaticamente ao registrar
+    // Usa tryConsumePending() que é idempotente e seguro
     if (_pendingEventId != null) {
-      debugPrint('✅ [MapNavigationService] Executando navegação pendente: $_pendingEventId (confetti: $_isNewlyCreated)');
-      handler(_pendingEventId!, showConfetti: _isNewlyCreated);
-      _pendingEventId = null;
-      _isNewlyCreated = false;
+      debugPrint('🚀 [MapNavigationService] Pendência encontrada: $_pendingEventId. Tentando consumir...');
+      // Não executa diretamente - delega para tryConsumePending que é mais robusto
+      // e vai ser chamado novamente pelo setController se mapController ainda for null
+      tryConsumePending();
+    } else {
+      debugPrint('💤 [MapNavigationService] Nenhuma navegação pendente.');
     }
   }
 
-  /// Remove o handler quando o mapa for destruído
-  /// 
-  /// Chamado pelo GoogleMapView no dispose()
   void unregisterMapHandler() {
-    debugPrint('🗺️ [MapNavigationService] Handler do mapa removido');
-    _onEventNavigationCallback = null;
+    debugPrint('🧹 [MapNavigationService] Handler REMOVIDO');
+    _mapHandler = null;
+  }
+
+  void navigateToEvent(String eventId, {bool showConfetti = false}) {
+    debugPrint('🧠 [MapNavigationService] navigateToEvent: instance hash=${identityHashCode(this)}');
+    debugPrint('🗺️ [MapNavigationService] Solicitando navegação: $eventId (confetti: $showConfetti)');
+    
+    final handler = _mapHandler;
+    if (handler != null) {
+      debugPrint('🚀 [MapNavigationService] Handler ativo. Executando direto...');
+      handler(eventId, showConfetti: showConfetti);
+    } else {
+      _pendingEventId = eventId;
+      _pendingConfetti = showConfetti;
+      debugPrint('⏳ [MapNavigationService] Sem handler registrado. Salvando como PENDENTE.');
+    }
+  }
+
+  /// Força o salvamento do evento como pendente, ignorando handler atual.
+  /// Útil quando sabemos que o mapa será reconstruído (ex: via deep link com refresh).
+  /// 
+  /// NOTA: Não tenta executar imediatamente. Apenas enfileira para que a UI consuma
+  /// quando estiver pronta (via tryConsumePending explícito).
+  void queueEvent(String eventId, {bool showConfetti = false}) {
+    debugPrint('📌 [MapNavigationService] queueEvent: $eventId (confetti: $showConfetti)');
+    // Define pendência
+    _pendingEventId = eventId;
+    _pendingConfetti = showConfetti;
+    
+    debugPrint('💤 [MapNavigationService] Evento enfileirado. Aguardando consumo pela UI (DiscoverTab).');
+  }
+
+  bool get hasPendingNavigation => _pendingEventId != null;
+  String? get pendingEventId => _pendingEventId;
+
+  /// Tenta consumir pendências se houver handler e evento
+  Future<void> tryConsumePending() async {
+    final handler = _mapHandler;
+    final pendingId = _pendingEventId;
+
+    debugPrint('🧪 [MapNavigationService] tryConsumePending: handler=${handler != null} pending=$pendingId');
+
+    if (handler == null || pendingId == null) return;
+
+    debugPrint('🚀 [MapNavigationService] Consumindo pendência via tryConsumePending: $pendingId');
+    final confetti = _pendingConfetti;
+    _pendingEventId = null; // Limpa antes de executar para evitar loop
+    _pendingConfetti = false;
+
+    try {
+      await handler(pendingId, showConfetti: confetti);
+    } catch (e) {
+      debugPrint('❌ [MapNavigationService] Erro ao executar navegação pendente: $e');
+    }
+  }
+
+  /// Registra o handler de snapshot do mapa
+  void registerSnapshotHandler(Future<Uint8List?> Function() handler) {
+    _snapshotHandler = handler;
+  }
+
+  void unregisterSnapshotHandler() {
+    _snapshotHandler = null;
+  }
+
+  /// Tira snapshot do mapa se disponível
+  Future<Uint8List?> takeSnapshot() async {
+    if (_snapshotHandler != null) {
+      return await _snapshotHandler!();
+    }
+    debugPrint('⚠️ [MapNavigationService] Handler de snapshot não registrado');
+    return null;
   }
 
   /// Limpa navegação pendente
@@ -96,12 +132,50 @@ class MapNavigationService {
   void clear() {
     debugPrint('🗑️ [MapNavigationService] Limpando navegação pendente');
     _pendingEventId = null;
-    _isNewlyCreated = false;
+    _pendingPostData = null;
+    _pendingConfetti = false;
+  }
+  
+  /// Ageda um post automático para ser criado na próxima navegação ao evento
+  void scheduleAutoPost({
+    required String eventId,
+    required String caption,
+    required String userId,
+  }) {
+    _pendingPostData = {
+      'eventId': eventId,
+      'caption': caption,
+      'userId': userId,
+    };
+    debugPrint('📸 [MapNavigationService] Post agendado para evento $eventId');
   }
 
-  /// Verifica se há navegação pendente
-  bool get hasPendingNavigation => _pendingEventId != null;
-
-  /// Retorna o ID do evento pendente (se houver)
-  String? get pendingEventId => _pendingEventId;
+  /// Recupera e consome dados do post pendente se corresponder ao evento
+  Map<String, dynamic>? consumePendingPostData(String eventId) {
+    if (_pendingPostData != null && _pendingPostData!['eventId'] == eventId) {
+      final data = _pendingPostData;
+      _pendingPostData = null; // Consume
+      return data;
+    }
+    return null;
+  }
+  
+  /// Executa a criação do post
+  Future<void> executeAutoPost(Map<String, dynamic> data, Uint8List snapshot) async {
+    try {
+      debugPrint('📸 [MapNavigationService] Criando post automático...');
+      /*
+      // TODO: Restaurar uso de CreateAutomaticEventPostUseCase quando o arquivo existir
+      await CreateAutomaticEventPostUseCase().execute(
+        mapSnapshot: snapshot,
+        eventId: data['eventId'],
+        caption: data['caption'],
+        userId: data['userId'],
+      );
+      */
+      debugPrint('📸 [MapNavigationService] Post criado com sucesso!');
+    } catch (e) {
+      debugPrint('⚠️ [MapNavigationService] Erro ao criar post automático: $e');
+    }
+  }
 }

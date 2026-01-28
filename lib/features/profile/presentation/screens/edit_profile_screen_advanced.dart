@@ -91,6 +91,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
   // Controllers adicionais para outros campos (read-only ou selecionáveis)
   late final TextEditingController _genderController;
   late final TextEditingController _sexualOrientationController;
+  late final TextEditingController _lookingForController;
+  late final TextEditingController _maritalStatusController;
   late final TextEditingController _birthDayController;
   late final TextEditingController _birthMonthController;
   late final TextEditingController _birthYearController;
@@ -111,6 +113,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
     // Inicializa controllers adicionais
     _genderController = TextEditingController();
     _sexualOrientationController = TextEditingController();
+    _lookingForController = TextEditingController();
+    _maritalStatusController = TextEditingController();
     _birthDayController = TextEditingController();
     _birthMonthController = TextEditingController();
     _birthYearController = TextEditingController();
@@ -141,6 +145,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
     // Dispose dos controllers adicionais
     _genderController.dispose();
     _sexualOrientationController.dispose();
+    _lookingForController.dispose();
+    _maritalStatusController.dispose();
     _birthDayController.dispose();
     _birthMonthController.dispose();
     _birthYearController.dispose();
@@ -221,6 +227,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
     // Inicializa controllers adicionais
     _genderController.text = formData.gender ?? '';
     _sexualOrientationController.text = formData.sexualOrientation ?? '';
+    _lookingForController.text = formData.lookingFor ?? '';
+    _maritalStatusController.text = formData.maritalStatus ?? '';
     _birthDayController.text = formData.birthDay?.toString() ?? '';
     _birthMonthController.text = formData.birthMonth?.toString() ?? '';
     _birthYearController.text = formData.birthYear?.toString() ?? '';
@@ -434,6 +442,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
       jobTitle: _jobController.text.trim(),
       gender: _genderController.text.trim().isEmpty ? null : _genderController.text.trim(),
       sexualOrientation: _sexualOrientationController.text.trim().isEmpty ? null : _sexualOrientationController.text.trim(),
+      lookingFor: _lookingForController.text.trim().isEmpty ? null : _lookingForController.text.trim(),
+      maritalStatus: _maritalStatusController.text.trim().isEmpty ? null : _maritalStatusController.text.trim(),
       birthDay: birthDay,
       birthMonth: birthMonth,
       birthYear: birthYear,
@@ -584,6 +594,8 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
       bioController: _bioController,
       genderController: _genderController,
       sexualOrientationController: _sexualOrientationController,
+      lookingForController: _lookingForController,
+      maritalStatusController: _maritalStatusController,
       birthDayController: _birthDayController,
       birthMonthController: _birthMonthController,
       birthYearController: _birthYearController,

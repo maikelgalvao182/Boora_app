@@ -23,7 +23,7 @@ class GenderSelectorWidget extends StatelessWidget {
     final genderTranslationMap = {
       GENDER_MAN: i18n.translate('gender_male'),
       GENDER_WOMAN: i18n.translate('gender_female'),
-      GENDER_TRANS: 'Trans',
+      GENDER_TRANS: i18n.translate('gender_trans'),
       GENDER_OTHER: i18n.translate('gender_non_binary'),
     };
     

@@ -55,6 +55,31 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     }
   }
 
+  /// Constrói o label para o botão de filtros/participantes
+  String? _buildParticipantsLabel(AppLocalizations i18n) {
+    final parts = <String>[];
+    
+    // Idade
+    final minAge = _controller.eventMinAge;
+    final maxAge = _controller.eventMaxAge;
+    if (minAge != null && maxAge != null) {
+      parts.add('$minAge-$maxAge');
+    }
+    
+    // Gênero
+    final gender = _controller.eventGender;
+    if (gender != null && gender.isNotEmpty && gender != 'all') {
+      final genderKey = 'gender_$gender';
+      parts.add(i18n.translate(genderKey));
+    }
+    
+    if (parts.isEmpty) {
+      return i18n.translate('filters');
+    }
+    
+    return parts.join(' • ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
@@ -95,6 +120,20 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   isCreator: _controller.isCreator,
                   onEditName: () => _controller.showEditNameDialog(context),
                   onEditDate: () => _controller.showEditScheduleDialog(context),
+                  onEditCategory: _controller.isCreator
+                      ? () => _controller.showEditCategoryDialog(context)
+                      : null,
+                  onEditParticipants: _controller.isCreator
+                      ? () => _controller.showEditParticipantsDialog(context)
+                      : null,
+                  onEditLocation: _controller.isCreator
+                      ? () => _controller.showEditLocationDialog(context)
+                      : null,
+                  categoryLabel: _controller.eventCategory != null
+                      ? i18n.translate('category_${_controller.eventCategory}')
+                      : null,
+                  participantsLabel: _buildParticipantsLabel(i18n),
+                  locationLabel: _controller.eventLocation,
                 ),
                 const SizedBox(height: 32),
                 _buildSettings(i18n),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
@@ -20,6 +21,9 @@ import 'package:partiu/features/home/presentation/screens/find_people_screen.dar
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
+
+import 'package:partiu/features/home/presentation/coordinators/home_tab_coordinator.dart';
+import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 
 /// Tela de descoberta (Tab 0)
 /// Exibe mapa interativo com atividades próximas
@@ -49,6 +53,42 @@ class _DiscoverTabState extends State<DiscoverTab> {
   static const double _filtersSpacing = 16;
 
   bool _isShowingOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Escuta mudanças de aba para tentar consumir pendências quando esta aba virar ativa
+    HomeTabCoordinator.instance.addListener(_onTabCoordinatorChanged);
+    
+    // Tenta consumir pendências (caso inicialização direta em aba 0)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tryConsumePending();
+    });
+  }
+  
+  @override
+  void dispose() {
+    HomeTabCoordinator.instance.removeListener(_onTabCoordinatorChanged);
+    super.dispose();
+  }
+
+  void _onTabCoordinatorChanged() {
+    if (HomeTabCoordinator.instance.currentIndex == 0) {
+      _tryConsumePending();
+    }
+  }
+
+  void _tryConsumePending() {
+    final pendingId = MapNavigationService.instance.pendingEventId;
+    if (pendingId == null) return;
+
+    // Só faz sentido se eu estiver montado
+    if (!mounted) return;
+    
+    debugPrint('🔎 [DiscoverTab] _tryConsumePending: Encontrado $pendingId. Disparando navegação...');
+    // Se o mapa estiver pronto e registrado, ele consumirá agora.
+    MapNavigationService.instance.tryConsumePending();
+  }
 
   void _showCreateDrawer() async {
     final coordinator = CreateFlowCoordinator(mapViewModel: widget.mapViewModel);
@@ -383,12 +423,48 @@ class _DiscoverTabState extends State<DiscoverTab> {
           ),
         ),
         
-        // Botão de centralizar no usuário
+        // Botão de centralizar no usuário + Spinner de carregamento (Zoom Out)
         Positioned(
           right: 16,
           bottom: 96, // 24 (bottom do CreateButton) + 56 (tamanho do FAB) + 16 (espaçamento)
-          child: NavigateToUserButton(
-            onPressed: _centerOnUser,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListenableBuilder(
+                listenable: widget.mapViewModel,
+                builder: (context, _) {
+                  // Mostrar apenas se estiver carregando E em zoom baixo (≤5.0)
+                  final isZoomOut = widget.mapViewModel.currentZoom <= 5.0;
+                  final isLoading = widget.mapViewModel.isLoading;
+
+                  if (isLoading && isZoomOut) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: CupertinoActivityIndicator(radius: 10),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              NavigateToUserButton(
+                onPressed: _centerOnUser,
+              ),
+            ],
           ),
         ),
         

@@ -70,13 +70,24 @@ class UserLocationService {
         );
       }
 
-      // 3. Obter posição atual
+      // 3. Tentar obter a última posição conhecida (rápido e não bloqueante)
+      // No Android/iOS, isso retorna a última leitura de GPS/Wi-Fi armazenada pelo sistema.
+      // Útil para evitar timeout se o GPS estiver demorando para travar.
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        return LocationResult(
+          location: LatLng(lastKnown.latitude, lastKnown.longitude),
+          isDefaultLocation: false,
+        );
+      }
+
+      // 4. Se não houver última posição, tenta obter posição atual com timeout
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.medium, // Medium é mais rápido que High e suficiente para carregar o mapa inicial
         ),
       ).timeout(
-        const Duration(seconds: 5),
+        const Duration(seconds: 8), // Aumentado um pouco para evitar falso negativo em dispositivos lentos
         onTimeout: () => throw TimeoutException('Timeout ao obter localização'),
       );
 

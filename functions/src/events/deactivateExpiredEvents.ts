@@ -1,9 +1,13 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import {DateTime} from "luxon";
 
 // Constantes de configuração
 const BATCH_SIZE = 500;
-const MAX_CONCURRENT_NOTIFICATION_DELETES = 10;
+// Configurável via variável de ambiente (padrão: 5 para segurança)
+const MAX_CONCURRENT_NOTIFICATION_DELETES = Number(
+  process.env.NOTIF_DELETE_CONCURRENCY ?? 5
+);
 
 /**
  * Desativa eventos expirados automaticamente
@@ -35,13 +39,16 @@ export const deactivateExpiredEvents = functions
   .timeZone("America/Sao_Paulo")
   .onRun(async () => {
     const now = admin.firestore.Timestamp.now();
-    const todayStart = new Date(now.toDate());
 
-    // Definir início do dia atual (00:00:00)
-    todayStart.setHours(0, 0, 0, 0);
-
-    const todayStartTimestamp = admin.firestore.Timestamp
-      .fromDate(todayStart);
+    // ✅ Uso do Luxon para garantir que o startOf('day') respeite
+    // o timezone correto (America/Sao_Paulo), incluindo horário de verão
+    // e mudanças históricas, convertendo para UTC corretamente.
+    const todayStartTimestamp = admin.firestore.Timestamp.fromDate(
+      DateTime.now()
+        .setZone("America/Sao_Paulo")
+        .startOf("day")
+        .toJSDate()
+    );
 
     console.log(
       "🗓️ [DeactivateEvents] Verificando eventos expirados..."
@@ -64,6 +71,7 @@ export const deactivateExpiredEvents = functions
       let totalBatchCount = 0;
       let totalBatches = 0;
       let totalNotificationsDeleted = 0;
+      let pageNumber = 0;
 
       // ✅ Loop paginado para processar TODOS os eventos expirados
       let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
@@ -93,11 +101,18 @@ export const deactivateExpiredEvents = functions
           break;
         }
 
-        // Atualizar cursor para próxima página
-        lastDoc = eventsSnapshot.docs[eventsSnapshot.docs.length - 1];
+        pageNumber++;
+
+        // Se retornou menos que o batch size, é a última página
+        if (eventsSnapshot.size < BATCH_SIZE) {
+          lastDoc = null;
+        } else {
+          // Atualizar cursor para próxima página
+          lastDoc = eventsSnapshot.docs[eventsSnapshot.docs.length - 1];
+        }
 
         console.log(
-          `📅 [DeactivateEvents] Página ${totalBatches + 1}: ` +
+          `📅 [DeactivateEvents] Página ${pageNumber}: ` +
           `${eventsSnapshot.size} eventos encontrados`
         );
 
@@ -112,22 +127,28 @@ export const deactivateExpiredEvents = functions
           const data = doc.data();
           const eventDate = data.schedule?.date?.toDate?.();
 
-          console.log(`🔍 [DeactivateEvents] Evento ${doc.id}:`);
-          console.log(
-            `   - Título: ${data.title || data.activityText || "Sem título"}`
-          );
-          console.log(
-            `   - Data do evento: ${
-              eventDate?.toISOString() || "Sem data"}`
-          );
+          // 🔇 Reduce logs: only log details if DEBUG is enabled
+          if (process.env.DEBUG === "true") {
+            console.log(`🔍 [DeactivateEvents] Evento ${doc.id}:`);
+            console.log(
+              `   - Título: ${data.title || data.activityText || "Sem título"}`
+            );
+            console.log(
+              `   - Data do evento: ${
+                eventDate?.toISOString() || "Sem data"}`
+            );
+          }
 
           // Pular eventos já deletados
           if (data.deleted === true) {
-            console.log("   ❌ Pulando - evento deletado");
+            if (process.env.DEBUG === "true") {
+              console.log("   ❌ Pulando - evento deletado");
+            }
             continue;
           }
 
-          // Coletar ID do evento para deletar notificações desta página
+          // ✅ Coletar ID do evento para deletar notificações desta página
+          // Apenas se o evento NÃO estiver deletado
           pageEventIds.push(doc.id);
 
           // Adicionar ao batch
@@ -139,7 +160,8 @@ export const deactivateExpiredEvents = functions
           });
 
           batchCount++;
-          console.log("   ✅ Marcado para desativação");
+          // console.log("   ✅ Marcado para desativação");
+          // Removido por excesso de logs
         }
 
         // Commit batch desta página
@@ -158,7 +180,7 @@ export const deactivateExpiredEvents = functions
         if (pageEventIds.length > 0) {
           console.log(
             "🗑️ [DeactivateEvents] Deletando notificações de " +
-            `${pageEventIds.length} eventos da página ${totalBatches}...`
+            `${pageEventIds.length} eventos da página ${pageNumber}...`
           );
 
           const pageNotificationsDeleted = await deleteNotificationsInParallel(
@@ -244,38 +266,65 @@ async function deleteNotificationsInParallel(
  */
 async function deleteEventNotifications(eventId: string): Promise<number> {
   const db = admin.firestore();
-  let totalDeleted = 0;
+  if (!eventId) return 0;
 
   try {
-    // Buscar notificações com eventId no campo direto
-    const directQuery = await db
-      .collection("Notifications")
-      .where("eventId", "==", eventId)
-      .get();
+    let docs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
 
-    // Buscar notificações com eventId em n_params
-    const paramsQuery = await db
-      .collection("Notifications")
-      .where("n_params.eventId", "==", eventId)
-      .get();
+    try {
+      // Tentativa 1: OR filter (mais barato)
+      // Pode exigir índice composto: Notifications(eventId, n_params.eventId)
+      const snap = await db
+        .collection("Notifications")
+        .where(
+          admin.firestore.Filter.or(
+            admin.firestore.Filter.where("eventId", "==", eventId),
+            admin.firestore.Filter.where("n_params.eventId", "==", eventId)
+          )
+        )
+        .get();
 
-    // Combinar resultados únicos (evitar duplicatas)
-    const docsToDelete = new Map<string, FirebaseFirestore.DocumentReference>();
+      docs = snap.docs;
+    } catch (orError) {
+      // Fallback: duas queries + dedupe (para compatibilidade/falta de índice)
+      console.warn(
+        `⚠️ [DeactivateEvents] OR filter falhou para ${eventId}. ` +
+        "Usando fallback lento.",
+        orError
+      );
 
-    directQuery.docs.forEach((doc) => {
-      docsToDelete.set(doc.id, doc.ref);
-    });
+      const [direct, nested] = await Promise.all([
+        db.collection("Notifications").where("eventId", "==", eventId).get(),
+        db.collection("Notifications")
+          .where("n_params.eventId", "==", eventId).get(),
+      ]);
 
-    paramsQuery.docs.forEach((doc) => {
-      docsToDelete.set(doc.id, doc.ref);
-    });
+      const map = new Map<string, FirebaseFirestore.DocumentReference>();
+      direct.docs.forEach((d) => map.set(d.id, d.ref));
+      nested.docs.forEach((d) => map.set(d.id, d.ref));
 
-    if (docsToDelete.size === 0) {
+      // Se houver documentos no fallback, deleta e retorna aqui mesmo
+      const refs = Array.from(map.values());
+      console.warn(
+        `⚠️ [DeactivateEvents] Fallback retornou ${refs.length} notificações.`
+      );
+
+      if (refs.length > 0) {
+        for (let i = 0; i < refs.length; i += BATCH_SIZE) {
+          const batch = db.batch();
+          refs.slice(i, i + BATCH_SIZE).forEach((ref) => batch.delete(ref));
+          await batch.commit();
+        }
+      }
+      return refs.length;
+    }
+
+    if (docs.length === 0) {
       return 0;
     }
 
-    // Deletar em batch (máximo 500 por batch)
-    const refs = Array.from(docsToDelete.values());
+    // Deletar em batch (máximo 500 por batch) - Fluxo principal (OR Filter)
+    const refs = docs.map((doc) => doc.ref);
 
     for (let i = 0; i < refs.length; i += BATCH_SIZE) {
       const batchRefs = refs.slice(i, i + BATCH_SIZE);
@@ -285,7 +334,7 @@ async function deleteEventNotifications(eventId: string): Promise<number> {
       await batch.commit();
     }
 
-    totalDeleted = refs.length;
+    return refs.length;
   } catch (error) {
     console.error(
       `   ❌ Erro ao deletar notificações do evento ${eventId}:`,
@@ -293,5 +342,5 @@ async function deleteEventNotifications(eventId: string): Promise<number> {
     );
   }
 
-  return totalDeleted;
+  return 0;
 }

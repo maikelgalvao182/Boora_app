@@ -32,32 +32,80 @@ class _PeopleButtonState extends State<PeopleButton> {
   @override
   void initState() {
     super.initState();
+    
+    if (kDebugMode) {
+      print('[PeopleButton] initState - Inicializando widget');
+    }
 
     _cachedNearbyUser = ValueNotifier<app_user.User?>(null);
     _peopleCountService.nearbyPeople.addListener(_updateCachedNearbyUser);
+    _peopleCountService.isLoading.addListener(_logLoadingState);
+    _peopleCountService.nearbyPeopleCount.addListener(_logPeopleCount);
+    _peopleCountService.isViewportActive.addListener(_logViewportState);
 
     // Seed imediato: ValueNotifier não notifica o valor atual ao adicionar listener.
     _updateCachedNearbyUser();
+    
+    if (kDebugMode) {
+      print('[PeopleButton] initState - Estado inicial:');
+      print('  - isLoading: ${_peopleCountService.isLoading.value}');
+      print('  - isViewportActive: ${_peopleCountService.isViewportActive.value}');
+      print('  - nearbyPeopleCount: ${_peopleCountService.nearbyPeopleCount.value}');
+      print('  - nearbyPeople.length: ${_peopleCountService.nearbyPeople.value.length}');
+    }
   }
 
   @override
   void dispose() {
+    if (kDebugMode) {
+      print('[PeopleButton] dispose - Limpando listeners');
+    }
     _peopleCountService.nearbyPeople.removeListener(_updateCachedNearbyUser);
+    _peopleCountService.isLoading.removeListener(_logLoadingState);
+    _peopleCountService.nearbyPeopleCount.removeListener(_logPeopleCount);
+    _peopleCountService.isViewportActive.removeListener(_logViewportState);
     _cachedNearbyUser.dispose();
     super.dispose();
   }
 
   void _updateCachedNearbyUser() {
     final people = _peopleCountService.nearbyPeople.value;
+    if (kDebugMode) {
+      print('[PeopleButton] _updateCachedNearbyUser - people.length: ${people.length}');
+    }
     if (people.isEmpty) return;
 
     final first = people.first;
     final current = _cachedNearbyUser.value;
     if (current?.userId == first.userId && current?.photoUrl == first.photoUrl) {
+      if (kDebugMode) {
+        print('[PeopleButton] _updateCachedNearbyUser - Cache já atualizado (userId: ${first.userId})');
+      }
       return;
     }
 
+    if (kDebugMode) {
+      print('[PeopleButton] _updateCachedNearbyUser - Atualizando cache com userId: ${first.userId}');
+    }
     _cachedNearbyUser.value = first;
+  }
+  
+  void _logLoadingState() {
+    if (kDebugMode) {
+      print('[PeopleButton] isLoading mudou para: ${_peopleCountService.isLoading.value}');
+    }
+  }
+  
+  void _logPeopleCount() {
+    if (kDebugMode) {
+      print('[PeopleButton] nearbyPeopleCount mudou para: ${_peopleCountService.nearbyPeopleCount.value}');
+    }
+  }
+  
+  void _logViewportState() {
+    if (kDebugMode) {
+      print('[PeopleButton] isViewportActive mudou para: ${_peopleCountService.isViewportActive.value}');
+    }
   }
 
   @override

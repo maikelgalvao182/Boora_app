@@ -17,6 +17,7 @@ export {patchRemoveFormattedAddress} from "./patchRemoveFormattedAddress";
 export {onReportCreated} from "./reportModeration";
 export {onUserCreatedReferral} from "./referrals";
 export {followUser, unfollowUser} from "./users/followSystem";
+export {cleanupOldProfileVisits} from "./profileVisitsCleanup";
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -369,42 +370,47 @@ export const onApplicationApproved = functions.firestore
         `✅ Participante ${userName} adicionado ao chat do evento ${eventId}`
       );
 
-      // Push notification para participantes existentes (exceto novo)
-      const existingParticipants = participantIds.filter((id) => id !== userId);
+      // Push notification APENAS para o criador do evento
+      // (evita spam para todos os participantes)
+      const creatorId = eventData.createdBy || eventData.userId;
       const emoji = eventData.emoji || "🎉";
 
-      if (existingParticipants.length > 0) {
+      // Só envia push se:
+      // 1. O evento tem um criador
+      // 2. O novo participante NÃO é o próprio criador
+      if (creatorId && creatorId !== userId) {
         // DeepLink: abre o evento no mapa
         const deepLink = `partiu://home?event=${eventId}`;
 
-        const promises = existingParticipants.map((participantId) =>
-          sendPush({
-            userId: participantId,
-            event: "event_join",
-            // Template: activityNewParticipant
-            notification: {
-              title: `${activityText} ${emoji}`,
-              body: `${userName} entrou na sua atividade!`,
-            },
-            data: {
-              n_type: "event_join",
-              sub_type: "event_join",
-              eventId: eventId,
-              chatId: `event_${eventId}`,
-              n_sender_name: userName,
-              userName: userName,
-              activityText: activityText,
-              eventTitle: activityText,
-              emoji: emoji,
-              deepLink: deepLink,
-            },
-          })
-        );
+        await sendPush({
+          userId: creatorId,
+          event: "activity_new_participant",
+          // Template: activityNewParticipant
+          notification: {
+            title: `${activityText} ${emoji}`,
+            body: `${userName} entrou na sua atividade!`,
+          },
+          data: {
+            n_type: "activity_new_participant",
+            sub_type: "activity_new_participant",
+            eventId: eventId,
+            chatId: `event_${eventId}`,
+            n_sender_name: userName,
+            userName: userName,
+            activityText: activityText,
+            eventTitle: activityText,
+            emoji: emoji,
+            deepLink: deepLink,
+          },
+        });
 
-        await Promise.all(promises);
         console.log(
-          "✅ Push enviado via dispatcher para " +
-          `${existingParticipants.length} participantes`
+          `✅ Push enviado para criador ${creatorId} sobre novo participante`
+        );
+      } else {
+        console.log(
+          `⏭️ Push não enviado: criador=${creatorId}, ` +
+          `novo=${userId} (mesmo ou sem criador)`
         );
       }
     } catch (error) {

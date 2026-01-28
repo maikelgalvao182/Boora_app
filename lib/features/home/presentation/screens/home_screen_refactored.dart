@@ -13,6 +13,7 @@ import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.d
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/core/services/app_initializer_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
+import 'package:partiu/features/home/presentation/coordinators/home_tab_coordinator.dart';
 import 'package:provider/provider.dart';
 
 /// Tela principal do app com navegação por tabs
@@ -49,6 +50,17 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
       _ensureInitialPage();
       _startWarmupAfterFirstFrame();
     });
+
+    // Escuta mudanças solicitadas externamente (Coordinator)
+    HomeTabCoordinator.instance.addListener(_onCoordinatorTabChanged);
+  }
+
+  void _onCoordinatorTabChanged() {
+    final targetIndex = HomeTabCoordinator.instance.currentIndex;
+    if (targetIndex != _selectedIndex) {
+      AppLogger.info('🔄 [HomeScreen] Coordinator solicitou troca para aba $targetIndex', tag: 'HOME');
+      _onTappedNavBar(targetIndex);
+    }
   }
 
   @override
@@ -170,6 +182,7 @@ class _HomeScreenRefactoredState extends State<HomeScreenRefactored> {
     // ❌ DESATIVADO: Listener automático removido
     // PendingReviewsListenerService.instance.stopListening();
     // widget.mapViewModel.dispose(); // Agora gerenciado pelo Provider
+    HomeTabCoordinator.instance.removeListener(_onCoordinatorTabChanged);
     super.dispose();
   }
 

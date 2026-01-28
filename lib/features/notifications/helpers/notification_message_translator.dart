@@ -93,6 +93,16 @@ class NotificationMessageTranslator {
           viewerNames: null,
         ).body;
       
+      case 'new_follower':
+        final followerName = params?['followerName'] as String? ?? senderName;
+        final followerId = params?['followerId'] as String? ?? '';
+        
+        return NotificationTemplates.newFollower(
+          i18n: i18n,
+          followerName: followerName,
+          followerId: followerId,
+        ).body;
+      
       case 'alert':
         // Alertas podem ter mensagem customizada nos parâmetros
         final customMessage = params?['message'] as String?;

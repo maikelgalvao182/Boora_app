@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,10 +30,11 @@ final eventParticipantsProvider = FutureProvider.family<List<_ParticipantInfo>, 
   }
 
   // Extrair userIds únicos
+  final currentUserId = FirebaseAuth.instance.currentUser?.uid;
   final userIds = appsSnap.docs
       .map((d) => d.data()['userId'] as String?)
       .whereType<String>()
-      .where((id) => id.isNotEmpty)
+      .where((id) => id.isNotEmpty && id != currentUserId) // Filtra o usuário atual
       .toSet()
       .toList();
 
@@ -48,15 +50,24 @@ final eventParticipantsProvider = FutureProvider.family<List<_ParticipantInfo>, 
     final chunk = userIds.sublist(i, (i + chunkSize).clamp(0, userIds.length));
     
     final usersSnap = await firestore
-        .collection('users')
+        .collection('Users')
         .where(FieldPath.documentId, whereIn: chunk)
         .get();
 
     for (final doc in usersSnap.docs) {
       final data = doc.data();
+      // Tenta fullName, se vazio tenta displayName, senão fallback
+      String name = (data['fullName'] as String?) ?? '';
+      if (name.trim().isEmpty) {
+        name = (data['displayName'] as String?) ?? '';
+      }
+      if (name.trim().isEmpty) {
+        name = fallbackUserName;
+      }
+
       participants.add(_ParticipantInfo(
         userId: doc.id,
-        userName: (data['fullName'] as String?) ?? fallbackUserName,
+        userName: name,
         userPhotoUrl: data['photoUrl'] as String?,
       ));
     }
@@ -201,8 +212,8 @@ class _EventPhotoParticipantSelectorSheetState extends ConsumerState<EventPhotoP
                       onPressed: () => _confirm(participants),
                       style: TextButton.styleFrom(
                         backgroundColor: _selectedUserIds.isEmpty
-                            ? Colors.transparent
-                            : GlimpseColors.primaryColorLight,
+                            ? GlimpseColors.primaryLight
+                            : GlimpseColors.primary,
                         foregroundColor: _selectedUserIds.isEmpty
                             ? GlimpseColors.primary
                             : Colors.white,

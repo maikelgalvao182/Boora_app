@@ -24,12 +24,15 @@ class LocationPickerPageRefactored extends StatefulWidget {
     this.localizationItem,
     this.defaultLocation = const LatLng(-23.5505, -46.6333), // São Paulo
     this.coordinator,
+    this.editMode = false,
   });
 
   final LatLng? displayLocation;
   final LocalizationItem? localizationItem;
   final LatLng defaultLocation;
   final CreateFlowCoordinator? coordinator;
+  /// Se true, apenas retorna a localização sem abrir ParticipantsDrawer
+  final bool editMode;
 
   @override
   State<LocationPickerPageRefactored> createState() => _LocationPickerPageRefactoredState();
@@ -419,6 +422,19 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
                       }
 
                       final navigator = Navigator.of(context);
+
+                      // Se editMode, apenas retorna a localização
+                      if (widget.editMode) {
+                        final result = <String, dynamic>{
+                          'latitude': _controller.selectedLocation!.latitude,
+                          'longitude': _controller.selectedLocation!.longitude,
+                          'locationText': _controller.locationResult?.formattedAddress ?? 
+                                          _controller.locationResult?.name,
+                          'location': _controller.locationResult,
+                        };
+                        navigator.pop(result);
+                        return;
+                      }
 
                       // Abrir drawer de participantes (último passo)
                       final participantsResult = await showModalBottomSheet<Map<String, dynamic>>(

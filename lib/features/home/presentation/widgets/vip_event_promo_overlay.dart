@@ -249,9 +249,12 @@ class _PromoCardState extends State<_PromoCard> {
   const double kAvatarAndEmojiBorderWidth = 4;
   const double kAvatarInnerSize = kAvatarAndEmojiSize - (kAvatarAndEmojiBorderWidth * 2);
 
-    final activityName = widget.event.title.trim().isEmpty 
+    final rawActivityName = widget.event.title.trim().isEmpty 
         ? 'um rolê' 
         : widget.event.title.trim();
+    final activityName = rawActivityName.length > 17
+        ? '${rawActivityName.substring(0, 17)}...'
+        : rawActivityName;
 
     // Tipografia idêntica ao PeopleButton (GoogleFonts Plus Jakarta Sans) - cores pretas
     final titleStyle = GoogleFonts.getFont(

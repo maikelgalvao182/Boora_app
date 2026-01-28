@@ -14,6 +14,7 @@ export 'bio_widget.dart';
 export 'specialty_selector_widget.dart';
 export 'country_selector_widget.dart';
 export 'origin_selector_widget.dart';
+export 'looking_for_selector_widget.dart';
 
 // Widgets informativos
 export 'onboarding_list_widget.dart';

@@ -127,6 +127,7 @@ class DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
 
+        // Spinner quando mapa ainda não foi criado
         if (!_platformMapCreated)
           Positioned.fill(
             child: ColoredBox(

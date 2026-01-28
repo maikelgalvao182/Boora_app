@@ -111,6 +111,8 @@ class EditProfileViewModelRefactored extends ChangeNotifier {
         jobTitle: currentUser.jobTitle ?? '',
         gender: currentUser.gender,
         sexualOrientation: currentUser.sexualOrientation,
+        lookingFor: currentUser.lookingFor,
+        maritalStatus: currentUser.maritalStatus,
         birthDay: currentUser.birthDay,
         birthMonth: currentUser.birthMonth,
         birthYear: currentUser.birthYear,
@@ -334,6 +336,12 @@ class EditProfileViewModelRefactored extends ChangeNotifier {
       if (data.gender != null) updateData['gender'] = data.gender;
       if (data.sexualOrientation != null && data.sexualOrientation!.isNotEmpty) {
         updateData['sexualOrientation'] = data.sexualOrientation!.trim();
+      }
+      if (data.lookingFor != null && data.lookingFor!.trim().isNotEmpty) {
+        updateData['lookingFor'] = data.lookingFor!.trim();
+      }
+      if (data.maritalStatus != null && data.maritalStatus!.trim().isNotEmpty) {
+        updateData['maritalStatus'] = data.maritalStatus!.trim();
       }
       if (data.birthDay != null) updateData['birthDay'] = data.birthDay;
       if (data.birthMonth != null) updateData['birthMonth'] = data.birthMonth;

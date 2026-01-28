@@ -5,8 +5,10 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/create_flow/activity_repository.dart';
+import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
 import 'package:partiu/features/home/presentation/widgets/controllers/participants_drawer_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/age_range_filter.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/gender_picker_widget.dart';
@@ -18,9 +20,22 @@ import 'package:partiu/core/config/dependency_provider.dart';
 
 /// Bottom sheet para seleção de participantes e privacidade da atividade
 class ParticipantsDrawer extends StatefulWidget {
-  const ParticipantsDrawer({super.key, this.coordinator});
+  const ParticipantsDrawer({
+    super.key,
+    this.coordinator,
+    this.editMode = false,
+    this.initialMinAge,
+    this.initialMaxAge,
+    this.initialPrivacyType,
+    this.initialGender,
+  });
 
   final CreateFlowCoordinator? coordinator;
+  final bool editMode;
+  final int? initialMinAge;
+  final int? initialMaxAge;
+  final PrivacyType? initialPrivacyType;
+  final String? initialGender;
 
   @override
   State<ParticipantsDrawer> createState() => _ParticipantsDrawerState();
@@ -29,6 +44,7 @@ class ParticipantsDrawer extends StatefulWidget {
 class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
   late final ParticipantsDrawerController _controller;
   late final ActivityRepository _repository;
+  late final ActivityFeedRepository _feedRepository;
   bool _isSaving = false;
 
   @override
@@ -37,7 +53,24 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
     _controller = ParticipantsDrawerController();
     // ✅ SEMPRE obter ActivityRepository via DI (com todas as 4 camadas de notificações)
     _repository = ServiceLocator().get<ActivityRepository>();
+    _feedRepository = ActivityFeedRepository();
     _controller.addListener(_onControllerChanged);
+    
+    // Se editMode, inicializar com valores existentes
+    if (widget.editMode) {
+      if (widget.initialMinAge != null && widget.initialMaxAge != null) {
+        _controller.setAgeRange(
+          widget.initialMinAge!.toDouble(),
+          widget.initialMaxAge!.toDouble(),
+        );
+      }
+      if (widget.initialPrivacyType != null) {
+        _controller.setPrivacyType(widget.initialPrivacyType!);
+      }
+      if (widget.initialGender != null) {
+        _controller.setGender(widget.initialGender!);
+      }
+    }
   }
 
   @override
@@ -55,6 +88,12 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
 
   void _handleContinue() async {
     if (!_controller.canContinue || _isSaving) return;
+
+    // Se estiver em modo de edição, apenas retornar o valor
+    if (widget.editMode) {
+      Navigator.of(context).pop(_controller.getParticipantsData());
+      return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -96,6 +135,13 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
           final activityId = await _repository.saveActivity(
             widget.coordinator!.draft,
             currentUser.uid,
+          );
+          
+          // ✅ Criar item no feed do usuário (dados congelados)
+          await _createFeedItem(
+            eventId: activityId,
+            userId: currentUser.uid,
+            draft: widget.coordinator!.draft,
           );
           
           // ✅ Injetar evento no ViewModel ANTES de fechar
@@ -147,6 +193,63 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
           _isSaving = false;
         });
       }
+    }
+  }
+
+  /// Cria um item no feed do usuário quando o evento é criado
+  /// 
+  /// Os dados são "congelados" no momento da criação para que o feed
+  /// mostre o estado original do evento, mesmo se ele for editado depois.
+  Future<void> _createFeedItem({
+    required String eventId,
+    required String userId,
+    required dynamic draft,
+  }) async {
+    debugPrint('📰 [ParticipantsDrawer] Iniciando criação de FeedItem...');
+    debugPrint('   eventId: $eventId');
+    debugPrint('   userId: $userId');
+    
+    try {
+      // Obter dados do usuário atual
+      final currentUserData = AppState.currentUser.value;
+      final userFullName = currentUserData?.fullName ?? 'Usuário';
+      final userPhotoUrl = currentUserData?.photoUrl;
+      
+      debugPrint('   userFullName: $userFullName');
+
+      // Extrair dados do draft (congelados)
+      final activityText = draft.activityText ?? '';
+      final emoji = draft.emoji ?? '🎉';
+      final locationName = draft.location?.name ?? 
+                          draft.location?.formattedAddress ?? 
+                          'Local';
+      
+      debugPrint('   activityText: $activityText');
+      debugPrint('   emoji: $emoji');
+      debugPrint('   locationName: $locationName');
+      
+      // Data do evento (usar selectedTime se disponível, senão selectedDate)
+      final eventDate = draft.selectedTime ?? draft.selectedDate ?? DateTime.now();
+      debugPrint('   eventDate: $eventDate');
+
+      debugPrint('📰 [ParticipantsDrawer] Chamando _feedRepository.createFeedItem...');
+      
+      await _feedRepository.createFeedItem(
+        eventId: eventId,
+        userId: userId,
+        userFullName: userFullName,
+        activityText: activityText,
+        emoji: emoji,
+        locationName: locationName,
+        eventDate: eventDate,
+        userPhotoUrl: userPhotoUrl,
+      );
+
+      debugPrint('✅ [ParticipantsDrawer] FeedItem criado para evento $eventId');
+    } catch (e, stack) {
+      // Não bloquear criação do evento se o feed falhar
+      debugPrint('⚠️ [ParticipantsDrawer] Erro ao criar FeedItem (não crítico): $e');
+      debugPrint('   Stack: $stack');
     }
   }
 

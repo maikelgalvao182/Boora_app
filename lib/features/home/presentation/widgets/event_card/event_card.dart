@@ -130,8 +130,8 @@ class _EventCardState extends State<EventCard> {
                       children: [
                         // Stack de Emoji + Avatar
                         SizedBox(
-                          height: 64, // Sem espaço extra abaixo dos avatares
-                          width: 104, // Largura suficiente para o overlap
+                          height: 80, // Aumentado de 64 para 80
+                          width: 130, // Largura suficiente para o overlap (aumentado)
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -139,8 +139,8 @@ class _EventCardState extends State<EventCard> {
                               Positioned(
                                 left: 0,
                                 child: Container(
-                                  width: 64,
-                                  height: 64,
+                                  width: 80,
+                                  height: 80,
                                   decoration: BoxDecoration(
                                     color: CardColorHelper.getColor(_controller.eventId.hashCode),
                                     shape: BoxShape.circle,
@@ -153,8 +153,8 @@ class _EventCardState extends State<EventCard> {
                                     child: ListEmojiAvatar(
                                       emoji: _controller.emoji ?? ListEmojiAvatar.defaultEmoji,
                                       eventId: _controller.eventId,
-                                      size: 64,
-                                      emojiSize: 32,
+                                      size: 80,
+                                      emojiSize: 40,
                                     ),
                                   ),
                                 ),
@@ -165,8 +165,8 @@ class _EventCardState extends State<EventCard> {
                                 Positioned(
                                   right: 0,
                                   child: Container(
-                                    width: 64,
-                                    height: 64,
+                                    width: 80,
+                                    height: 80,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
@@ -176,7 +176,7 @@ class _EventCardState extends State<EventCard> {
                                     ),
                                     child: StableAvatar(
                                       userId: _controller.creatorId!,
-                                      size: 64,
+                                      size: 80,
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                   ),

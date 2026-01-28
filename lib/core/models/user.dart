@@ -109,6 +109,8 @@ class User {
     this.userInstagram,
     this.interests,
     this.languages,
+    this.lookingFor,
+    this.maritalStatus,
     this.from,
     this.flag,
     this.distance,
@@ -242,6 +244,8 @@ class User {
       userInstagram: doc['instagram'],
       interests: (doc['interests'] as List?)?.cast<String>(),
       languages: doc['languages'] as String?,
+      lookingFor: doc['lookingFor'] as String?,
+      maritalStatus: doc['maritalStatus'] as String?,
       from: doc['from'],
       flag: doc['flag'] as String?,
       distance: (doc['distance'] as num?)?.toDouble(),
@@ -287,6 +291,8 @@ class User {
   final String? userInstagram;
   final List<String>? interests;
   final String? languages;
+  final String? lookingFor; // O que procura (comma-separated: friendship,networking,etc)
+  final String? maritalStatus; // Estado civil
   final String? from; // País de origem
   final String? flag; // Bandeira emoji do país
   final double? distance; // Distância em km do usuário atual
@@ -345,6 +351,8 @@ class User {
     String? userInstagram,
     List<String>? interests,
     String? languages,
+    String? lookingFor,
+    String? maritalStatus,
     String? from,
     String? flag,
     double? distance,
@@ -386,6 +394,8 @@ class User {
       userInstagram: userInstagram ?? this.userInstagram,
       interests: interests ?? this.interests,
       languages: languages ?? this.languages,
+      lookingFor: lookingFor ?? this.lookingFor,
+      maritalStatus: maritalStatus ?? this.maritalStatus,
       from: from ?? this.from,
       flag: flag ?? this.flag,
       distance: distance ?? this.distance,
@@ -473,6 +483,8 @@ class User {
       'instagram': userInstagram,
       'interests': interests,
       'languages': languages,
+      'lookingFor': lookingFor,
+      'maritalStatus': maritalStatus,
       'from': from,
       'flag': flag,
       'distance': distance,

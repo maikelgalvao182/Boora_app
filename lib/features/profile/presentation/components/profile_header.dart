@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -446,7 +448,6 @@ class _ProfileHeaderState extends State<ProfileHeader> {
             if (parts.isEmpty) return const SizedBox.shrink();
             
             return Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Iconsax.location,
@@ -454,17 +455,63 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                   color: Colors.white.withValues(alpha: 0.8),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  parts.join(', '),
-                  style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white.withValues(alpha: 0.8),
+                Expanded(
+                  child: Text(
+                    parts.join(', '),
+                    style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
                   ),
                 ),
+                // Distância do usuário atual
+                if (!widget.isMyProfile) _buildDistanceText(),
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  /// Calcula e exibe a distância entre o usuário logado e o perfil visualizado
+  Widget _buildDistanceText() {
+    final profileLat = widget.user.displayLatitude;
+    final profileLng = widget.user.displayLongitude;
+    
+    // Se não tem coordenadas do perfil, não exibe
+    if (profileLat == null || profileLng == null) {
+      return const SizedBox.shrink();
+    }
+    
+    return FutureBuilder<Position?>(
+      future: Geolocator.getLastKnownPosition(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const SizedBox.shrink();
+        }
+        
+        final myPosition = snapshot.data!;
+        
+        // Calcula distância em metros
+        final distanceMeters = Geolocator.distanceBetween(
+          myPosition.latitude,
+          myPosition.longitude,
+          profileLat,
+          profileLng,
+        );
+        
+        // Converte para km
+        final distanceKm = distanceMeters / 1000.0;
+        
+        return Text(
+          '${distanceKm.toStringAsFixed(1)} km',
+          style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.8),
+          ),
         );
       },
     );
@@ -544,31 +591,77 @@ class _ProfileHeaderState extends State<ProfileHeader> {
       builder: (context, instagram, _) {
         if (instagram == null || instagram.isEmpty) return const SizedBox.shrink();
         
-        return GestureDetector(
-          onTap: () => _openInstagram(instagram),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Iconsax.instagram,
-                size: 18,
-                color: Colors.white.withValues(alpha: 0.8),
+        return Row(
+          children: [
+            GestureDetector(
+              onTap: () => _openInstagram(instagram),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Iconsax.instagram,
+                    size: 18,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    instagram,
+                    style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                instagram,
-                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.white.withValues(alpha: 0.8),
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ],
+            ),
+            const Spacer(),
+            // Followers count reativo
+            _buildFollowersCount(),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Exibe o número de seguidores de forma reativa usando StreamBuilder
+  Widget _buildFollowersCount() {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.user.userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+        
+        final data = snapshot.data!.data();
+        final followersCount = data?['followersCount'] as int? ?? 0;
+        
+        if (followersCount == 0) return const SizedBox.shrink();
+        
+        return Text(
+          '${_formatFollowersCount(followersCount)} ${widget.i18n.translate('followers')}',
+          style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.8),
           ),
         );
       },
     );
+  }
+  
+  /// Formata o número de seguidores (ex: 1.2K, 10K, 1M)
+  String _formatFollowersCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
   }
 
   Future<void> _openInstagram(String username) async {

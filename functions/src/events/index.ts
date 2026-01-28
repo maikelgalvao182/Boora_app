@@ -10,3 +10,4 @@ export {
   removeParticipant,
 } from "./removeUserApplication";
 export {deactivateExpiredEvents} from "./deactivateExpiredEvents";
+export {cleanupOnEventDelete} from "./cleanupOnDelete";

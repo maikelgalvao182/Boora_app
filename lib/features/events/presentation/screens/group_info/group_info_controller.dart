@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -10,6 +11,11 @@ import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_type_selector.dart';
+import 'package:partiu/features/home/presentation/widgets/category_drawer.dart';
+import 'package:partiu/features/home/presentation/widgets/category/activity_category.dart';
+import 'package:partiu/features/home/presentation/widgets/participants_drawer.dart';
+import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
+import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
 import 'package:partiu/screens/chat/services/event_application_removal_service.dart';
@@ -59,6 +65,20 @@ class GroupInfoController extends ChangeNotifier {
   String get eventEmoji => _eventData?['emoji'] as String? ?? '🎉';
   String? get eventLocation => _eventData?['locationText'] as String?;
   String? get eventDescription => _eventData?['description'] as String?;
+  
+  // Categoria do evento
+  String? get eventCategory => _eventData?['category'] as String?;
+  
+  // Dados de participantes/filtros
+  int? get eventMinAge => _eventData?['minAge'] as int?;
+  int? get eventMaxAge => _eventData?['maxAge'] as int?;
+  String? get eventGender => _eventData?['gender'] as String?;
+  String? get eventPrivacyType => _eventData?['privacyType'] as String?;
+  
+  // Localização
+  double? get eventLatitude => _eventData?['latitude'] as double?;
+  double? get eventLongitude => _eventData?['longitude'] as double?;
+  
   DateTime? get eventDate {
     final schedule = _eventData?['schedule'];
     if (schedule == null || schedule is! Map) return null;
@@ -500,6 +520,232 @@ class GroupInfoController extends ChangeNotifier {
       if (context.mounted) {
         ToastService.showError(
           message: i18n.translate('failed_to_update_event_schedule'),
+        );
+      }
+    }
+  }
+
+  /// Abre drawer de edição de categoria
+  void showEditCategoryDialog(BuildContext context) async {
+    if (!isCreator) return;
+
+    // Parse categoria atual
+    ActivityCategory? currentCategory;
+    if (eventCategory != null) {
+      currentCategory = categoryFromString(eventCategory!);
+    }
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CategoryDrawer(
+        coordinator: null,
+        initialCategory: currentCategory,
+        editMode: true,
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      final newCategory = result['category'] as String?;
+      if (newCategory != null) {
+        await _updateEventCategory(context, newCategory);
+      }
+    }
+  }
+
+  Future<void> _updateEventCategory(BuildContext context, String category) async {
+    final i18n = AppLocalizations.of(context);
+    final progressDialog = ProgressDialog(context);
+
+    try {
+      progressDialog.show(i18n.translate('updating'));
+
+      await FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .update({'category': category});
+
+      _eventData?['category'] = category;
+      notifyListeners();
+
+      await progressDialog.hide();
+
+      if (context.mounted) {
+        ToastService.showSuccess(
+          message: i18n.translate('event_category_updated'),
+        );
+      }
+    } catch (e) {
+      await progressDialog.hide();
+      debugPrint('❌ Error updating event category: $e');
+
+      if (context.mounted) {
+        ToastService.showError(
+          message: i18n.translate('failed_to_update_event_category'),
+        );
+      }
+    }
+  }
+
+  /// Abre drawer de edição de filtros/participantes
+  void showEditParticipantsDialog(BuildContext context) async {
+    if (!isCreator) return;
+
+    // Parse PrivacyType atual
+    PrivacyType? currentPrivacyType;
+    if (eventPrivacyType == 'private') {
+      currentPrivacyType = PrivacyType.private;
+    } else if (eventGender != null && eventGender!.isNotEmpty && eventGender != 'all') {
+      currentPrivacyType = PrivacyType.specificGender;
+    } else {
+      currentPrivacyType = PrivacyType.open;
+    }
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ParticipantsDrawer(
+        coordinator: null,
+        editMode: true,
+        initialMinAge: eventMinAge,
+        initialMaxAge: eventMaxAge,
+        initialPrivacyType: currentPrivacyType,
+        initialGender: eventGender,
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      await _updateEventParticipants(context, result);
+    }
+  }
+
+  Future<void> _updateEventParticipants(BuildContext context, Map<String, dynamic> data) async {
+    final i18n = AppLocalizations.of(context);
+    final progressDialog = ProgressDialog(context);
+
+    try {
+      progressDialog.show(i18n.translate('updating'));
+
+      final updates = <String, dynamic>{
+        'minAge': data['minAge'],
+        'maxAge': data['maxAge'],
+        'gender': data['gender'],
+      };
+
+      // Mapear PrivacyType
+      final privacyType = data['privacyType'];
+      if (privacyType == PrivacyType.private) {
+        updates['privacyType'] = 'private';
+      } else {
+        updates['privacyType'] = 'open';
+      }
+
+      await FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .update(updates);
+
+      // Atualizar dados locais
+      _eventData?['minAge'] = data['minAge'];
+      _eventData?['maxAge'] = data['maxAge'];
+      _eventData?['gender'] = data['gender'];
+      _eventData?['privacyType'] = updates['privacyType'];
+      notifyListeners();
+
+      await progressDialog.hide();
+
+      if (context.mounted) {
+        ToastService.showSuccess(
+          message: i18n.translate('event_filters_updated'),
+        );
+      }
+    } catch (e) {
+      await progressDialog.hide();
+      debugPrint('❌ Error updating event participants: $e');
+
+      if (context.mounted) {
+        ToastService.showError(
+          message: i18n.translate('failed_to_update_event_filters'),
+        );
+      }
+    }
+  }
+
+  /// Abre tela de edição de localização
+  void showEditLocationDialog(BuildContext context) async {
+    if (!isCreator) return;
+
+    // Localização atual
+    LatLng? currentLocation;
+    if (eventLatitude != null && eventLongitude != null) {
+      currentLocation = LatLng(eventLatitude!, eventLongitude!);
+    }
+
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (context) => LocationPickerPageRefactored(
+          displayLocation: currentLocation,
+          coordinator: null,
+          editMode: true,
+        ),
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      final lat = result['latitude'] as double?;
+      final lng = result['longitude'] as double?;
+      final locationText = result['locationText'] as String?;
+      
+      if (lat != null && lng != null) {
+        await _updateEventLocation(context, lat, lng, locationText);
+      }
+    }
+  }
+
+  Future<void> _updateEventLocation(BuildContext context, double lat, double lng, String? locationText) async {
+    final i18n = AppLocalizations.of(context);
+    final progressDialog = ProgressDialog(context);
+
+    try {
+      progressDialog.show(i18n.translate('updating'));
+
+      final updates = <String, dynamic>{
+        'latitude': lat,
+        'longitude': lng,
+      };
+      
+      if (locationText != null) {
+        updates['locationText'] = locationText;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .update(updates);
+
+      _eventData?['latitude'] = lat;
+      _eventData?['longitude'] = lng;
+      if (locationText != null) {
+        _eventData?['locationText'] = locationText;
+      }
+      notifyListeners();
+
+      await progressDialog.hide();
+
+      if (context.mounted) {
+        ToastService.showSuccess(
+          message: i18n.translate('event_location_updated'),
+        );
+      }
+    } catch (e) {
+      await progressDialog.hide();
+      debugPrint('❌ Error updating event location: $e');
+
+      if (context.mounted) {
+        ToastService.showError(
+          message: i18n.translate('failed_to_update_event_location'),
         );
       }
     }

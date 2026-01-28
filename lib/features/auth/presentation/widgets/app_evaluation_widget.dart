@@ -151,7 +151,7 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 8),
-        const _RatingSummary(rating: 4.8, reviewsCount: 100000),
+        const _RatingSummary(rating: 4.5, reviewsCount: 63),
         const SizedBox(height: 20),
         Center(
           child: Text(

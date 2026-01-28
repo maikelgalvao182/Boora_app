@@ -1,0 +1,49 @@
+/// 📰 Feed de Atividades (Activity Feed)
+/// Path usado no app:
+/// - ActivityFeed/{feedItemId}
+///   - eventId: string (referência ao evento)
+///   - userId: string (quem criou o evento)
+///   - userFullName: string (congelado)
+///   - activityText: string (congelado)
+///   - emoji: string (congelado)
+///   - locationName: string (congelado)
+///   - eventDate: timestamp (congelado)
+///   - createdAt: timestamp
+///   - userPhotoUrl: string (opcional, congelado)
+///   - status: string ('active' | 'deleted')
+///
+/// Quando um usuário cria um evento, um item é adicionado ao feed
+/// com os dados "congelados" no momento da criação.
+
+match /ActivityFeed/{feedItemId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler itens ativos
+  /// - Autor pode ler seus próprios itens (incluindo deletados)
+  allow read: if isSignedIn() && (
+    resource.data.status == 'active' ||
+    resource.data.userId == request.auth.uid
+  );
+  
+  /// ✍️ CRIAR item no feed:
+  /// - Apenas o próprio usuário pode criar seu item
+  /// - userId deve ser o próprio
+  /// - status deve iniciar em 'active'
+  allow create: if isSignedIn() &&
+    request.resource.data.userId == request.auth.uid &&
+    request.resource.data.status == 'active' &&
+    request.resource.data.keys().hasAll(['eventId', 'userId', 'userFullName', 'activityText', 'emoji', 'locationName', 'eventDate']);
+  
+  /// ✏️ UPDATE:
+  /// - Apenas o autor pode fazer soft delete (mudar status para 'deleted')
+  /// - Não pode mudar outros campos
+  allow update: if isSignedIn() &&
+    resource.data.userId == request.auth.uid &&
+    request.resource.data.userId == request.auth.uid &&
+    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+    request.resource.data.status == 'deleted';
+  
+  /// 🗑️ DELETAR:
+  /// - Apenas via Cloud Function (deleteEvent)
+  /// - Client não pode hard delete
+  allow delete: if false;
+}

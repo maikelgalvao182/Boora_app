@@ -31,6 +31,8 @@ class ProfileFormData {
     this.school = '',
     this.gender,
     this.sexualOrientation,
+    this.lookingFor,
+    this.maritalStatus,
     this.birthDay,
     this.birthMonth,
     this.birthYear,
@@ -60,6 +62,8 @@ class ProfileFormData {
   final String school;
   final String? gender;
   final String? sexualOrientation;
+  final String? lookingFor; // CSV: friendship,networking,serious_relationship,casual
+  final String? maritalStatus; // single|dating|married|divorced
   final int? birthDay;
   final int? birthMonth;
   final int? birthYear;
@@ -89,6 +93,8 @@ class ProfileFormData {
     String? school,
     String? gender,
     String? sexualOrientation,
+    String? lookingFor,
+    String? maritalStatus,
     int? birthDay,
     int? birthMonth,
     int? birthYear,
@@ -118,6 +124,8 @@ class ProfileFormData {
       school: school ?? this.school,
       gender: gender ?? this.gender,
       sexualOrientation: sexualOrientation ?? this.sexualOrientation,
+      lookingFor: lookingFor ?? this.lookingFor,
+      maritalStatus: maritalStatus ?? this.maritalStatus,
       birthDay: birthDay ?? this.birthDay,
       birthMonth: birthMonth ?? this.birthMonth,
       birthYear: birthYear ?? this.birthYear,

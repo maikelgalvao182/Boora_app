@@ -172,6 +172,7 @@ class SimplifiedNotificationController extends ChangeNotifier {
       case 1: return 'activity'; // Atividades (todos os tipos activity_*)
       case 2: return 'profile_views_aggregated'; // Visualizações de Perfil
       case 3: return 'reviews'; // Avaliações
+      case 4: return 'new_follower'; // Novos seguidores
       default: return null;
     }
   }
@@ -184,6 +185,7 @@ class SimplifiedNotificationController extends ChangeNotifier {
     'notif_filter_activities',
     'notif_filter_profile_views',
     'notif_filter_reviews',
+    'notif_filter_followers',
   ];
 
   /// Inicializa o controller com status VIP e carrega dados iniciais

@@ -243,6 +243,7 @@ class _FollowersListTab extends StatelessWidget {
                       key: ValueKey(user.userId),
                       userId: user.userId,
                       user: user,
+                      showRating: false,
                       trailingWidget: _FollowActionButton(
                         currentUserId: currentUserId,
                         targetUserId: user.userId,
@@ -353,6 +354,7 @@ class _FollowingListTab extends StatelessWidget {
                       key: ValueKey(user.userId),
                       userId: user.userId,
                       user: user,
+                      showRating: false,
                       trailingWidget: _FollowActionButton(
                         currentUserId: currentUserId,
                         targetUserId: user.userId,
@@ -428,6 +430,12 @@ class _FollowActionButtonState extends State<_FollowActionButton> {
                   backgroundColor: outline ? Colors.transparent : bgColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
+                    side: outline
+                        ? const BorderSide(
+                            color: GlimpseColors.borderColorLight,
+                            width: 1,
+                          )
+                        : BorderSide.none,
                   ),
                 ),
                 onPressed: isLoading ? null : _controller.toggleFollow,

@@ -154,7 +154,7 @@ class ProfileVisitsService {
         .collection('ProfileVisits')
         .where('visitedUserId', isEqualTo: userId)
         .orderBy('visitedAt', descending: true)
-        .limit(50)
+        .limit(200) // Listener limitado para evitar overfetch em realtime, mas reload carrega 1000
         .snapshots()
         .listen(
           (snapshot) {
@@ -208,12 +208,17 @@ class ProfileVisitsService {
     try {
       debugPrint('📥 [ProfileVisitsService] Buscando visitas de $userId...');
 
+      // Definir data de corte (agora - TTL)
+      // Usamos visitedAt para filtro pois já existe índice com orderedBy
+      final cutoffDate = DateTime.now().subtract(_visitTTL);
+
       // 1. Buscar visitas do Firestore
       final visitsSnapshot = await _firestore
           .collection('ProfileVisits')
           .where('visitedUserId', isEqualTo: userId)
+          .where('visitedAt', isGreaterThan: Timestamp.fromDate(cutoffDate))
           .orderBy('visitedAt', descending: true)
-          .limit(50)
+          .limit(1000) // Aumentado limite para cobrir casos de uso reais
           .get();
 
       if (visitsSnapshot.docs.isEmpty) {

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
+import 'package:partiu/features/home/presentation/coordinators/home_navigation_coordinator.dart';
 import 'package:partiu/features/notifications/models/activity_notification_types.dart';
 import 'package:partiu/features/subscription/services/vip_access_service.dart';
 import 'package:partiu/screens/chat/chat_screen_refactored.dart';
@@ -83,9 +84,13 @@ class AppNotifications {
         }
         break;
       
+      // Pedido de entrada -> Aba de Ações
+      case ActivityNotificationTypes.activityJoinRequest:
+        await _handleActionTabNotification(context);
+        break;
+
       // Notificações de atividades/eventos
       case ActivityNotificationTypes.activityCreated:
-      case ActivityNotificationTypes.activityJoinRequest:
       case ActivityNotificationTypes.activityJoinApproved:
       case ActivityNotificationTypes.activityJoinRejected:
       case ActivityNotificationTypes.activityNewParticipant:
@@ -103,33 +108,72 @@ class AppNotifications {
     }
   }
 
+
+  /// Navega para a aba de ações (Solicitações/Reviews)
+  Future<void> _handleActionTabNotification(BuildContext context) async {
+    debugPrint('📝 [AppNotifications] Opening actions tab');
+    
+    // Usar rootNavigatorKey para garantir navegação estável
+    final navigator = rootNavigatorKey.currentState;
+    
+    if (navigator == null) {
+      if (context.mounted) {
+        context.go('${AppRoutes.home}?tab=1');
+      }
+      return;
+    }
+    
+    // Fechar TODAS as rotas/modais até a raiz
+    navigator.popUntil((route) => route.isFirst);
+    
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final ctx = navigator.context;
+      if (ctx.mounted) {
+        ctx.go('${AppRoutes.home}?tab=1');
+      }
+    });
+  }
+
   /// Trata notificações relacionadas a atividades/eventos
   /// 
   /// Usa o MapNavigationService singleton para:
   /// 1. Registrar navegação pendente
-  /// 2. Navegar para a aba do mapa (Discover)
-  /// 3. Quando o mapa estiver pronto, executar navegação automaticamente
+  /// 2. Fechar modais/sheets (limpeza)
+  /// 3. Navegar para a aba do mapa via GoRouter
   Future<void> _handleActivityNotification(
     BuildContext context,
     String eventId,
   ) async {
     debugPrint('🗺️ [AppNotifications] Opening activity: $eventId');
     
-    if (!context.mounted) return;
+    // Teste de isolamento de contexto e estado
+    debugPrint('🧪 [TEST] rootCtx = ${rootNavigatorKey.currentContext}');
+    debugPrint('🧪 [TEST] rootState = ${rootNavigatorKey.currentState}');
     
-    // 1. Registrar navegação pendente no singleton ANTES de navegar
-    MapNavigationService.instance.navigateToEvent(eventId);
+    // 2. Usar rootNavigatorKey para obter contexto estável
+    final rootCtx = rootNavigatorKey.currentContext;
     
-    // 2. Agendar navegação para o próximo frame para evitar Navigator lock
-    // Isso garante que a navegação aconteça quando o Navigator estiver disponível
-    SchedulerBinding.instance.addPostFrameCallback((_) {
+    if (rootCtx == null) {
+      debugPrint('⚠️ [AppNotifications] rootNavigatorKey.currentContext é null. Usando fallback.');
       if (context.mounted) {
-        context.go(AppRoutes.home);
+        // Fallback simples
+        MapNavigationService.instance.navigateToEvent(eventId);
+        context.go('${AppRoutes.home}?tab=0');
       }
-    });
+      return;
+    }
     
-    // NOTA: O GoogleMapView vai registrar o handler quando estiver pronto
-    // e executar a navegação automaticamente (mover câmera + abrir card)
+    // 3. Limpar modais/sheets (opcional, mas garante que não haja overlays sobre o mapa)
+    // popUntil garante que voltamos à base (geralmente o ShellRoute)
+    Navigator.of(rootCtx).popUntil((route) => route.isFirst);
+
+    // 4. Delegar navegação para o HomeNavigationCoordinator (NOVO PADRÃO)
+    // Isso garante que a aba seja trocada via Switcher (sem rebuild total)
+    // e o evento seja enfileirado e consumido de forma robusta.
+    debugPrint('🗺️ [AppNotifications] Delegando para HomeNavigationCoordinator: $eventId');
+    HomeNavigationCoordinator.instance.openEventOnMap(eventId);
   }
 
   /// Navigate to conversations tab
@@ -225,13 +269,12 @@ class AppNotifications {
         break;
       
       // Reviews: partiu://reviews/{userId}
+      // NOTA: Reviews são exibidas no perfil do usuário, então navegamos para lá
       case String p when p.startsWith('reviews/'):
         final userId = p.replaceFirst('reviews/', '');
         debugPrint('⭐ [AppNotifications] Opening reviews for: $userId');
-        // TODO: Navegar para tela de reviews quando implementada
-        if (context.mounted) {
-          context.go(AppRoutes.home);
-        }
+        // Navega para o perfil do usuário onde as reviews são exibidas
+        await _handleProfileNotification(context, userId);
         break;
       
       // Activity/Event: partiu://activity/{activityId}
@@ -245,10 +288,7 @@ class AppNotifications {
       case String p when p.startsWith('profile/'):
         final userId = p.replaceFirst('profile/', '');
         debugPrint('👤 [AppNotifications] Opening profile: $userId');
-        // TODO: Implementar navegação para perfil
-        if (context.mounted) {
-          context.go(AppRoutes.home);
-        }
+        await _handleProfileNotification(context, userId);
         break;
       
       default:
@@ -501,6 +541,61 @@ class AppNotifications {
         MapNavigationService.instance.navigateToEvent(eventId);
         if (context.mounted) context.go(AppRoutes.home);
       } catch (_) {}
+    }
+  }
+
+  /// Handle profile navigation from notification
+  /// 
+  /// Navega para o perfil do usuário usando ProfileScreenRouter
+  Future<void> _handleProfileNotification(BuildContext context, String userId) async {
+    debugPrint('👤 [AppNotifications] _handleProfileNotification iniciado para: $userId');
+    try {
+      if (!context.mounted) {
+        debugPrint('❌ [AppNotifications] Context not mounted!');
+        return;
+      }
+
+      // Buscar dados do usuário do Firestore
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .get();
+
+      if (!userDoc.exists) {
+        debugPrint('❌ [AppNotifications] User not found: $userId');
+        if (context.mounted) {
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
+
+      final userData = userDoc.data() ?? {};
+      final user = _createUserFromData(userData, userId);
+      
+      debugPrint('✅ [AppNotifications] User encontrado, navegando para perfil...');
+      
+      // Navegar para o perfil usando ProfileScreenRouter
+      if (context.mounted) {
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId != null) {
+          context.push(
+            '${AppRoutes.profile}/$userId',
+            extra: {
+              'user': user,
+              'currentUserId': currentUserId,
+            },
+          );
+        } else {
+          debugPrint('❌ [AppNotifications] Current user not logged in');
+          context.go(AppRoutes.home);
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ [AppNotifications] Error opening profile: $e');
+      debugPrint('   Stack: $stack');
+      if (context.mounted) {
+        context.go(AppRoutes.home);
+      }
     }
   }
 

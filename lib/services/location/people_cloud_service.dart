@@ -205,30 +205,20 @@ class PeopleCloudService {
       return [];
     }
     
-    // Calcular distâncias via Isolate
-    debugPrint('📊 [PeopleCloud] Executando compute() com ${userLocations.length} usuários...');
-    debugPrint('   - centerLat: $centerLat');
-    debugPrint('   - centerLng: $centerLng');
-    debugPrint('   - radiusKm: $radiusKm');
-    
-    try {
-      final request = UserDistanceFilterRequest(
+    // Calcular distâncias na thread principal (mais rápido para listas pequenas < 500 itens)
+    // Evita overhead de serialização/startup de Isolate
+    final filteredUsers = filterUsersByDistance(
+      UserDistanceFilterRequest(
         users: userLocations,
         centerLat: centerLat,
         centerLng: centerLng,
         radiusKm: radiusKm,
-      );
-      
-      final filtered = await compute(filterUsersByDistance, request);
-      
-      debugPrint('📊 [PeopleCloud] ${filtered.length} usuários após filtro de distância');
-      
-      return filtered;
-    } catch (e, stackTrace) {
-      debugPrint('❌ [PeopleCloud] Erro no compute(): $e');
-      debugPrint('❌ [PeopleCloud] StackTrace: $stackTrace');
-      rethrow;
-    }
+      ),
+    );
+
+      debugPrint('📊 [PeopleCloud] ${filteredUsers.length} usuários após filtro de distância');
+
+      return filteredUsers;
   }
 }
 

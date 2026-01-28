@@ -10,6 +10,7 @@ import 'package:partiu/features/event_photo_feed/presentation/widgets/event_phot
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card/list_card_controller.dart';
+import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 
 final recentEligibleEventsProvider = FutureProvider<List<EventModel>>((ref) async {
   print('🎯 [recentEligibleEventsProvider] Iniciando carregamento de eventos...');
@@ -98,7 +99,7 @@ class EventPhotoEventSelectorSheet extends ConsumerWidget {
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: visibleEvents.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
                       itemBuilder: (_, i) {
                         final e = visibleEvents[i];
                         return _EventListCardItem(
@@ -227,13 +228,15 @@ class _EventListCardItemState extends State<_EventListCardItem> {
   @override
   void initState() {
     super.initState();
-    _controller = ListCardController(eventId: widget.event.id);
+    // Usa o cache para evitar rebuilds desnecessários ao abrir/fechar o sheet
+    _controller = ListCardControllerCache.get(widget.event.id);
     _controller.load();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    // Não damos dispose aqui pois o controller vive no cache
+    // _controller.dispose(); 
     super.dispose();
   }
 

@@ -75,6 +75,52 @@ class FieldPreviewCard extends StatelessWidget {
     return i18n.translate('add');
   }
 
+  String _formatPreview(BuildContext context) {
+    if (preview.trim().isEmpty) return '';
+
+    if (fieldType is! PersonalFieldType) return preview;
+
+    final i18n = AppLocalizations.of(context);
+    final personalFieldType = fieldType as PersonalFieldType;
+
+    switch (personalFieldType) {
+      case PersonalFieldType.lookingFor:
+        final options = preview
+            .split(',')
+            .map((opt) => opt.trim())
+            .where((opt) => opt.isNotEmpty)
+            .toList();
+        if (options.isEmpty) return preview;
+
+        final translated = options.map((opt) {
+          final key = 'looking_for_${opt.toLowerCase()}';
+          final value = i18n.translate(key);
+          return value.trim().isNotEmpty && value != key ? value : opt;
+        }).toList();
+
+        return translated.join(', ');
+
+      case PersonalFieldType.maritalStatus:
+        final key = 'marital_status_${preview.toLowerCase()}';
+        final value = i18n.translate(key);
+        return value.trim().isNotEmpty && value != key ? value : preview;
+
+      case PersonalFieldType.fullName:
+      case PersonalFieldType.bio:
+      case PersonalFieldType.jobTitle:
+      case PersonalFieldType.school:
+      case PersonalFieldType.gender:
+      case PersonalFieldType.sexualOrientation:
+      case PersonalFieldType.birthDate:
+      case PersonalFieldType.locality:
+      case PersonalFieldType.state:
+      case PersonalFieldType.from:
+      case PersonalFieldType.languages:
+      case PersonalFieldType.instagram:
+        return preview;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Desativar da UI os campos: Nascimento, Localização e Origem
@@ -88,6 +134,7 @@ class FieldPreviewCard extends StatelessWidget {
 
     final i18n = AppLocalizations.of(context);
     final label = _getTitle(context);
+    final formattedPreview = _formatPreview(context);
     
     // Campo "from" bloqueado se já preenchido
     final isFromFieldLocked = fieldType is PersonalFieldType && 
@@ -156,14 +203,14 @@ class FieldPreviewCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      preview.isEmpty ? _getAddText(context) : preview,
+                      formattedPreview.isEmpty ? _getAddText(context) : formattedPreview,
                       style: TextStyle(
                         fontSize: 14,
                         color: effectivelyDisabled
                           ? const Color(0xFF999999)
-                          : (preview.isEmpty 
+                          : (formattedPreview.isEmpty 
                             ? const Color(0xFF999999)
-                            : const Color(0xFF333333)),
+                            : Colors.black),
                         fontWeight: FontWeight.w400,
                       ),
                       maxLines: 2,

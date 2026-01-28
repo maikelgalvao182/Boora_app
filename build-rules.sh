@@ -134,9 +134,15 @@ cat "$RULES_DIR/event_photos.rules" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 echo "    // ======================================" >> "$OUTPUT_FILE"
-echo "    // �🚫 Bloqueio de Usuários" >> "$OUTPUT_FILE"
+echo "    // 🚫 Bloqueio de Usuários" >> "$OUTPUT_FILE"
 echo "    // ======================================" >> "$OUTPUT_FILE"
 cat "$RULES_DIR/blocked_users.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 📰 Feed de Atividades" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/activity_feed.rules" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 # Fechar o arquivo

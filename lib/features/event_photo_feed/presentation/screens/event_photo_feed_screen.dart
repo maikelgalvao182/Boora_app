@@ -7,6 +7,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
+import 'package:partiu/features/event_photo_feed/data/models/unified_feed_item.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/presentation/controllers/event_photo_feed_controller.dart';
 import 'package:partiu/features/event_photo_feed/presentation/screens/event_photo_composer_screen.dart';
@@ -15,6 +16,8 @@ import 'package:partiu/features/event_photo_feed/presentation/widgets/event_phot
 import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_feed_tabs.dart';
 import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_feed_onboarding.dart';
 import 'package:partiu/features/event_photo_feed/presentation/services/feed_onboarding_service.dart';
+import 'package:partiu/features/feed/presentation/widgets/activity_feed_item.dart';
+import 'package:partiu/features/home/presentation/coordinators/home_navigation_coordinator.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
@@ -72,11 +75,11 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
         isBackEnabled: true,
         actionWidget: Container(
           padding: EdgeInsets.zero,
-          child: TextButton.icon(
+          child: IconButton(
             onPressed: () {
               _handleCreateTap(context);
             },
-            style: TextButton.styleFrom(
+            style: IconButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -87,16 +90,7 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
             icon: const Icon(
               Icons.add,
               color: GlimpseColors.primary,
-              size: 18,
-            ),
-            label: Text(
-              i18n.translate('event_photo_create_button'),
-              style: GoogleFonts.getFont(
-                FONT_PLUS_JAKARTA_SANS,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: GlimpseColors.primary,
-              ),
+              size: 28,
             ),
           ),
         ),
@@ -116,7 +110,8 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
           Expanded(
             child: asyncState.when(
               data: (state) {
-                if (state.items.isEmpty) {
+                final unifiedItems = state.unifiedItems;
+                if (unifiedItems.isEmpty) {
                   return RefreshIndicator(
                     onRefresh: () => ref.read(eventPhotoFeedControllerProvider(scope).notifier).refresh(),
                     child: LayoutBuilder(
@@ -151,16 +146,38 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
                   child: RefreshIndicator(
                     onRefresh: () => ref.read(eventPhotoFeedControllerProvider(scope).notifier).refresh(),
                     child: ListView.builder(
-                      itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
+                      itemCount: unifiedItems.length + (state.isLoadingMore ? 1 : 0),
                       itemBuilder: (_, i) {
-                        if (i >= state.items.length) {
+                        if (i >= unifiedItems.length) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
                             child: Center(child: CupertinoActivityIndicator(radius: 14)),
                           );
                         }
 
-                        final item = state.items[i];
+                        final unifiedItem = unifiedItems[i];
+                        
+                        // Renderiza ActivityFeedItem ou EventPhotoFeedItem
+                        if (unifiedItem.type == UnifiedFeedItemType.activity) {
+                          return Column(
+                            children: [
+                              ActivityFeedItem(
+                                item: unifiedItem.activity!,
+                                onTap: () {
+                                  // Navega para o evento no mapa
+                                  HomeNavigationCoordinator.instance.openEventOnMap(
+                                    unifiedItem.eventId,
+                                  );
+                                  Navigator.of(context).pop();
+                                },
+                              ),
+                              const Divider(height: 1, color: GlimpseColors.borderColorLight),
+                            ],
+                          );
+                        }
+                        
+                        // EventPhotoFeedItem
+                        final item = unifiedItem.photo!;
                         return Column(
                           children: [
                             EventPhotoFeedItem(

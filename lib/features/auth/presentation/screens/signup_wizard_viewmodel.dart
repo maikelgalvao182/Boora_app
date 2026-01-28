@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 enum SignupWizardStep {
   profilePhoto,
   personalInfo,
+  gender,
+  lookingFor,
   bio,
   instagram,
   interests,
@@ -30,6 +32,8 @@ class SignupWizardViewModel extends ChangeNotifier {
   final List<SignupWizardStep> _steps = [
     SignupWizardStep.profilePhoto,
     SignupWizardStep.personalInfo,
+    SignupWizardStep.gender,
+    SignupWizardStep.lookingFor,
     SignupWizardStep.bio,
     SignupWizardStep.instagram,
     SignupWizardStep.interests,

@@ -105,6 +105,7 @@ class _EventPhotoComposerScreenState extends ConsumerState<EventPhotoComposerScr
             onPressed: state.isSubmitting
                 ? null
                   : () async {
+                    _focusNode.unfocus();
                     await controller.submit();
                     if (context.mounted && ref.read(eventPhotoComposerControllerProvider).error == null) {
                       Navigator.of(context).pop();
@@ -137,6 +138,7 @@ class _EventPhotoComposerScreenState extends ConsumerState<EventPhotoComposerScr
                 userId: user?.userId ?? '',
                 userPhotoUrl: user?.photoUrl ?? '',
                 topicText: topicText,
+                taggedParticipants: state.taggedParticipants,
                 onSelectEvent: () {
                   showModalBottomSheet<void>(
                     context: context,
@@ -150,13 +152,23 @@ class _EventPhotoComposerScreenState extends ConsumerState<EventPhotoComposerScr
                 focusNode: _focusNode,
                 controller: _captionController,
                 maxLines: null,
+                style: GoogleFonts.getFont(
+                  FONT_PLUS_JAKARTA_SANS,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                  letterSpacing: -0.3,
+                  color: Colors.black,
+                ),
                 decoration: InputDecoration(
                   hintText: i18n.translate('event_photo_caption_hint'),
                   border: InputBorder.none,
                   hintStyle: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
+                    letterSpacing: -0.3,
                     color: Colors.black38,
                   ),
                 ),

@@ -9,6 +9,8 @@ enum PersonalFieldType {
   school,
   gender,
   sexualOrientation,
+  lookingFor,
+  maritalStatus,
   birthDate,
   locality,
   state,
@@ -34,6 +36,10 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('field_gender');
       case PersonalFieldType.sexualOrientation:
         return 'Orientação Sexual';
+      case PersonalFieldType.lookingFor:
+        return i18n.translate('field_looking_for');
+      case PersonalFieldType.maritalStatus:
+        return i18n.translate('field_marital_status');
       case PersonalFieldType.birthDate:
         return i18n.translate('field_birth_date');
       case PersonalFieldType.locality:
@@ -65,6 +71,10 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('placeholder_gender');
       case PersonalFieldType.sexualOrientation:
         return 'Selecione sua orientação sexual';
+      case PersonalFieldType.lookingFor:
+        return i18n.translate('placeholder_looking_for');
+      case PersonalFieldType.maritalStatus:
+        return i18n.translate('placeholder_marital_status');
       case PersonalFieldType.birthDate:
         return i18n.translate('placeholder_birth_date');
       case PersonalFieldType.locality:
@@ -96,6 +106,10 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
         return i18n.translate('add_gender');
       case PersonalFieldType.sexualOrientation:
         return 'Adicionar orientação sexual';
+      case PersonalFieldType.lookingFor:
+        return i18n.translate('add_looking_for');
+      case PersonalFieldType.maritalStatus:
+        return i18n.translate('add_marital_status');
       case PersonalFieldType.birthDate:
         return i18n.translate('add_birth_date');
       case PersonalFieldType.locality:
@@ -121,6 +135,8 @@ extension PersonalFieldTypeExtension on PersonalFieldType {
       case PersonalFieldType.school:
       case PersonalFieldType.gender:
       case PersonalFieldType.sexualOrientation:
+      case PersonalFieldType.lookingFor:
+      case PersonalFieldType.maritalStatus:
       case PersonalFieldType.birthDate:
       case PersonalFieldType.locality:
       case PersonalFieldType.state:

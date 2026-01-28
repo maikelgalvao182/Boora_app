@@ -13,6 +13,8 @@ class ProfileFormData {
   final String? jobTitle;
   final String? gender;
   final String? sexualOrientation;
+  final String? lookingFor; // O que procura (comma-separated)
+  final String? maritalStatus; // Estado civil
   
   // Data de nascimento
   final int? birthDay;
@@ -63,6 +65,8 @@ class ProfileFormData {
     this.jobTitle,
     this.gender,
     this.sexualOrientation,
+    this.lookingFor,
+    this.maritalStatus,
     this.birthDay,
     this.birthMonth,
     this.birthYear,
@@ -89,6 +93,8 @@ class ProfileFormData {
     String? jobTitle,
     String? gender,
     String? sexualOrientation,
+    String? lookingFor,
+    String? maritalStatus,
     int? birthDay,
     int? birthMonth,
     int? birthYear,
@@ -113,6 +119,8 @@ class ProfileFormData {
       jobTitle: jobTitle ?? this.jobTitle,
       gender: gender ?? this.gender,
       sexualOrientation: sexualOrientation ?? this.sexualOrientation,
+      lookingFor: lookingFor ?? this.lookingFor,
+      maritalStatus: maritalStatus ?? this.maritalStatus,
       birthDay: birthDay ?? this.birthDay,
       birthMonth: birthMonth ?? this.birthMonth,
       birthYear: birthYear ?? this.birthYear,
@@ -149,6 +157,8 @@ class ProfileFormData {
       jobTitle: data['userJobTitle'] as String?,
       gender: data['userGender'] as String?,
       sexualOrientation: data['sexualOrientation'] as String?,
+      lookingFor: data['lookingFor'] as String?,
+      maritalStatus: data['maritalStatus'] as String?,
       birthDay: data['userBirthDay'] as int?,
       birthMonth: data['userBirthMonth'] as int?,
       birthYear: data['userBirthYear'] as int?,
@@ -178,6 +188,8 @@ class ProfileFormData {
     if (jobTitle != null) map['userJobTitle'] = jobTitle;
     if (gender != null) map['userGender'] = gender;
     if (sexualOrientation != null) map['sexualOrientation'] = sexualOrientation;
+    if (lookingFor != null) map['lookingFor'] = lookingFor;
+    if (maritalStatus != null) map['maritalStatus'] = maritalStatus;
     if (birthDay != null) map['userBirthDay'] = birthDay;
     if (birthMonth != null) map['userBirthMonth'] = birthMonth;
     if (birthYear != null) map['userBirthYear'] = birthYear;

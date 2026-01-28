@@ -54,6 +54,11 @@ class ActivityNotificationTypes {
   /// Params: {count, lastViewedAt}
   static const String profileViewsAggregated = 'profile_views_aggregated';
 
+  /// TRIGGER: Novo seguidor
+  /// Chave i18n: 'notification_new_follower'
+  /// Params: {followerName, followerId, deepLink}
+  static const String newFollower = 'new_follower';
+
   /// Lista de todos os tipos de notificação de atividades
   static const List<String> all = [
     activityCreated,
@@ -65,6 +70,7 @@ class ActivityNotificationTypes {
     activityExpiringSoon,
     activityCanceled,
     profileViewsAggregated,
+    newFollower,
   ];
 
   /// Verifica se um tipo é de atividade

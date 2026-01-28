@@ -382,6 +382,38 @@ class PushNotificationManager {
   final FlutterLocalNotificationsPlugin _localNotifications = 
       FlutterLocalNotificationsPlugin();
 
+  // Debounce fields
+  String? _lastOpenedId;
+  DateTime _lastOpenedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  bool _shouldIgnore(String id) {
+    final now = DateTime.now();
+    if (_lastOpenedId == id && now.difference(_lastOpenedAt) < const Duration(seconds: 1)) {
+      return true;
+    }
+    _lastOpenedId = id;
+    _lastOpenedAt = now;
+    return false;
+  }
+
+  // Click throttling
+  final Map<String, int> _clicktimestamps = {};
+  
+  bool _shouldProcessClick(String clickKey, {int windowMs = 2000}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastClick = _clicktimestamps[clickKey] ?? 0;
+    
+    if (now - lastClick < windowMs) {
+      return false;
+    }
+    
+    _clicktimestamps[clickKey] = now;
+    // Cleanup old keys
+    _clicktimestamps.removeWhere((key, ts) => now - ts > 60000);
+    
+    return true;
+  }
+
   // iOS: evita processar o mesmo clique 2x (resume + launchDetails)
   String? _lastProcessedPayload;
 
@@ -465,11 +497,19 @@ class PushNotificationManager {
         if (pending != null && pending.isNotEmpty) {
           print('📬 [PushManager] Payload pendente encontrado no resume!');
           print('   - Payload: $pending');
+          
           if (ts != null) {
             print('   - SavedAt(ms): $ts');
           }
           await prefs.remove('pending_notification_payload');
           await prefs.remove('pending_notification_payload_ts');
+          
+          // ✅ Verifica se já foi processado (dedupe no resume)
+          if (_lastProcessedPayload == pending) {
+            print('⚠️ [PushManager] Payload pendente JÁ foi processado. Ignorando.');
+            return;
+          }
+          _lastProcessedPayload = pending;
           
           final data = (json.decode(pending) as Map).map(
             (k, v) => MapEntry(k.toString(), v.toString()),
@@ -721,9 +761,15 @@ class PushNotificationManager {
 
       // ✅ iOS: Com alert:true no setForegroundNotificationPresentationOptions,
       // o SO mostra o banner automaticamente para notificações com `notification` payload.
-      // Para data-only (n_origin=data), mostramos notificação local que também aparece como banner.
+      // Somente exibimos local se message.notification for NULL (data-only).
       if (Platform.isIOS) {
-        print('🍎 [PushManager] iOS foreground: exibindo notificação local');
+        if (message.notification != null) {
+          print('🍎 [PushManager] iOS foreground: já exibido pelo sistema (alert:true). Ignorando local.');
+          _lastForegroundMessage = message;
+          return;
+        }
+        
+        print('🍎 [PushManager] iOS foreground (data-only): exibindo notificação local');
         _lastForegroundMessage = message;
         final translatedMessage = await _translateMessage(message);
         await _showLocalNotification(translatedMessage);
@@ -819,24 +865,30 @@ class PushNotificationManager {
     print('╔═══════════════════════════════════════════════════════');
     print('║ 👆 NOTIFICAÇÃO LOCAL CLICADA (FOREGROUND)');
     print('╠═══════════════════════════════════════════════════════');
-    print('║ Payload: ${response.payload}');
-    print('║ ActionId: ${response.actionId}');
-    print('║ NotificationResponseType: ${response.notificationResponseType}');
-    print('╚═══════════════════════════════════════════════════════');
     
-    if (response.payload != null && response.payload!.isNotEmpty) {
+    final payload = response.payload;
+    if (payload != null && payload.isNotEmpty) {
+      // ✅ Dedupe imediato: se este payload já foi processado recentemente, ignora.
+      if (_lastProcessedPayload == payload) {
+        print('⚠️ [PushManager] Payload já processado recentemente. Ignorando.');
+        return;
+      }
+      _lastProcessedPayload = payload;
+      
       try {
-        final data = json.decode(response.payload!) as Map<String, dynamic>;
+        final data = json.decode(payload) as Map<String, dynamic>;
         print('✅ [PushManager] Payload decodificado: $data');
 
-        // ✅ Também salva como pendente para cobrir cenários onde a navegação ainda não está pronta
-        // (ex.: cold-start/resume com Navigator ainda null).
-        SharedPreferences.getInstance().then((prefs) async {
-          try {
-            await prefs.setString('pending_notification_payload', response.payload!);
-            await prefs.setInt('pending_notification_payload_ts', DateTime.now().millisecondsSinceEpoch);
-          } catch (_) {}
-        });
+        // ✅ Só salva como pendente se o Navigator NÃO estiver pronto
+        final nav = rootNavigatorKey.currentState;
+        if (nav == null) {
+          SharedPreferences.getInstance().then((prefs) async {
+            try {
+              await prefs.setString('pending_notification_payload', payload);
+              await prefs.setInt('pending_notification_payload_ts', DateTime.now().millisecondsSinceEpoch);
+            } catch (_) {}
+          });
+        }
 
         // ✅ Convertemos valores para string para manter compatibilidade.
         navigateFromNotificationData(
@@ -856,22 +908,42 @@ class PushNotificationManager {
     print('╔═══════════════════════════════════════════════════════');
     print('║ 🧭 NAVEGANDO BASEADO EM NOTIFICAÇÃO');
     print('╠═══════════════════════════════════════════════════════');
+    
+    // Identificador único do clique para deduplicação
+    final clickKey = data['click_uuid'] ?? 
+                     data['messageId'] ?? 
+                     '${data['n_type']}_${data['n_related_id']}_${data['activityId']}';
+                     
+    if (!_shouldProcessClick(clickKey, windowMs: 2000)) {
+      print('🛑 [PushManager] Abortando navegação duplicada.');
+      return;
+    }
+    
     print('║ Data keys: ${data.keys.toList()}');
     print('║ Full data: $data');
     print('╚═══════════════════════════════════════════════════════');
     
     final nType = data['n_type'] ?? data['type'] ?? '';
     final nSenderId = data['n_sender_id'] ?? data['senderId'] ?? '';
-    // ✅ Prioriza conversationId, depois eventId, depois fallbacks
+    // ✅ StableId: Adiciona activityId da data nativa para evitar que notificações 
+    // de atividades diferentes sejam agrupadas ou causem confusão no dedupe
     final nRelatedId =
       data['conversationId'] ??
       data['n_conversation_id'] ??
       data['eventId'] ??
+      data['activityId'] ??
       data['n_related_id'] ??
       data['relatedId'] ??
       '';
     final deepLink = data['deepLink'] ?? data['deep_link'] ?? '';
     final screen = data['screen'] ?? '';
+
+    // Debounce check
+    final uniqueId = '$nType-$nRelatedId-$deepLink';
+    if (_shouldIgnore(uniqueId)) {
+      print('🔕 [PushManager] Navegação duplicada ignorada (debounce): $uniqueId');
+      return;
+    }
 
     print('🧭 [PushManager] Parsed values:');
     print('   - nType: $nType');

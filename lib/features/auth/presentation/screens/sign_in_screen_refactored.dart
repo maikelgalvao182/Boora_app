@@ -134,7 +134,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                         style: const TextStyle(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
                           color: Colors.white,
-                          fontSize: 26,
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           height: 1.1,
                           letterSpacing: 0.0,
@@ -158,7 +158,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                         style: TextStyles.authSubtitle.copyWith(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 15,
                           shadows: [
                             const Shadow(
                               offset: Offset(0, 1),
@@ -261,7 +261,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                       fontFamily: FONT_PLUS_JAKARTA_SANS,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.black,
-                                      fontSize: 16,
+                                      fontSize: 14,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -357,7 +357,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                     fontFamily: FONT_PLUS_JAKARTA_SANS,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.black,
-                                    fontSize: 16,
+                                    fontSize: 14,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -380,7 +380,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                   context.push(AppRoutes.emailAuth);
                                 },
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white, width: 1.5),
+                            side: BorderSide(color: Colors.white.withOpacity(0.4), width: 1.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -399,7 +399,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                   fontFamily: FONT_PLUS_JAKARTA_SANS,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                 ),
                                 textAlign: TextAlign.center,
                               ),

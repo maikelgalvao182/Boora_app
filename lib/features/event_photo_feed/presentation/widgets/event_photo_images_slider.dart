@@ -14,7 +14,7 @@ class EventPhotoImagesSlider extends StatefulWidget {
     super.key,
     required this.imageUrls,
     required this.thumbnailUrls,
-    this.height = 200,
+    this.height,
     this.imageWidth = 180,
     this.spacing = 10,
     this.onDeleteImage,
@@ -22,7 +22,7 @@ class EventPhotoImagesSlider extends StatefulWidget {
 
   final List<String> imageUrls;
   final List<String> thumbnailUrls;
-  final double height;
+  final double? height;
   final double imageWidth;
   final double spacing;
   final Future<void> Function(int index)? onDeleteImage;
@@ -102,28 +102,37 @@ class _EventPhotoImagesSliderState extends State<EventPhotoImagesSlider> {
         onLongPress: widget.onDeleteImage != null ? () => _confirmDelete(context, 0) : null,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: widget.height,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: widget.imageWidth),
             width: widget.imageWidth,
+            height: widget.height,
             child: Stack(
-              fit: StackFit.expand,
+              fit: widget.height != null ? StackFit.expand : StackFit.loose,
               children: [
                 CachedNetworkImage(
                   imageUrl: displayUrl,
                   cacheManager: MediaCacheManager.forThumbnail(isThumbnail),
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: GlimpseColors.lightTextField),
+                  fit: widget.height != null ? BoxFit.cover : BoxFit.fitWidth,
+                  placeholder: (_, __) => Container(
+                    height: widget.height ?? 180,
+                    width: widget.imageWidth,
+                    color: GlimpseColors.lightTextField,
+                  ),
                   errorWidget: (_, __, ___) => Container(
+                    height: widget.height ?? 180,
+                    width: widget.imageWidth,
                     color: GlimpseColors.lightTextField,
                     alignment: Alignment.center,
                     child: const Icon(Icons.broken_image_outlined),
                   ),
                 ),
                 if (isDeleting)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    alignment: Alignment.center,
-                    child: const CupertinoActivityIndicator(radius: 14),
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      alignment: Alignment.center,
+                      child: const CupertinoActivityIndicator(radius: 14),
+                    ),
                   ),
               ],
             ),
@@ -134,7 +143,7 @@ class _EventPhotoImagesSliderState extends State<EventPhotoImagesSlider> {
 
     // Múltiplas imagens: ListView horizontal com cada imagem em seu container
     return SizedBox(
-      height: widget.height,
+      height: widget.height ?? 220,
       child: ListView.builder(
         padding: EdgeInsets.zero,
         primary: false,

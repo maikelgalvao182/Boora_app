@@ -385,7 +385,36 @@ class NotificationTemplates {
   }
 
   // --------------------------------------------------
-  //  TEMPLATE 14: Nova avaliação recebida
+  //  TEMPLATE 14: Novo seguidor
+  // --------------------------------------------------
+  /// Notificação quando alguém começa a seguir o usuário
+  /// 
+  /// Título (negrito): "{followerName} começou a te seguir"
+  /// Body: "Toque para ver o perfil"
+  /// Avatar: foto do seguidor
+  /// Deep link: partiu://profile/{followerId}
+  static NotificationMessage newFollower({
+    required AppLocalizations i18n,
+    required String followerName,
+    required String followerId,
+  }) {
+    return NotificationMessage(
+      title: i18n
+          .translate('notification_template_new_follower_title')
+          .replaceAll('{followerName}', followerName),
+      body: i18n.translate('notification_template_new_follower_body'),
+      preview: i18n
+          .translate('notification_template_new_follower_preview')
+          .replaceAll('{followerName}', followerName),
+      extra: {
+        'followerId': followerId,
+        'deepLink': 'partiu://profile/$followerId',
+      },
+    );
+  }
+
+  // --------------------------------------------------
+  //  TEMPLATE 15: Nova avaliação recebida
   // --------------------------------------------------
   /// Texto: "{reviewerName} avaliou você!"
   /// Título: "Nova avaliação ⭐️"

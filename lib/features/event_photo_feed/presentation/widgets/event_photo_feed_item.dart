@@ -6,6 +6,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/helpers/time_ago_helper.dart';
 import 'package:partiu/core/services/cache/media_cache_manager.dart';
+import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
 import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_images_slider.dart';
@@ -54,7 +55,7 @@ class EventPhotoFeedItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header row: nome > activity name time ago + menu
+                    // Header row: nome > Foi activity name emoji time ago
                     Row(
                       children: [
                         Expanded(
@@ -85,9 +86,9 @@ class EventPhotoFeedItem extends StatelessWidget {
                                     color: GlimpseColors.textSubTitle,
                                   ),
                                 ),
-                                // Emoji + Activity name
+                                // "Foi" + Activity name + Emoji
                                 TextSpan(
-                                  text: '${item.eventEmoji} ${item.eventTitle}',
+                                  text: '${AppLocalizations.of(context).translate('feed_action_went')} ${item.eventTitle} ${item.eventEmoji}',
                                   style: GoogleFonts.getFont(
                                     FONT_PLUS_JAKARTA_SANS,
                                     fontSize: 13,
@@ -126,6 +127,18 @@ class EventPhotoFeedItem extends StatelessWidget {
                               avatarSize: 22,
                               overlap: 8,
                             ),
+                            const SizedBox(width: 8),
+                            Text(
+                              item.taggedParticipants.length == 1
+                                  ? AppLocalizations.of(context).translate('event_photo_one_participant_label')
+                                  : AppLocalizations.of(context).translate('event_photo_participants_count_label').replaceAll('{count}', item.taggedParticipants.length.toString()),
+                              style: GoogleFonts.getFont(
+                                FONT_PLUS_JAKARTA_SANS,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: GlimpseColors.textSubTitle,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -147,7 +160,8 @@ class EventPhotoFeedItem extends StatelessWidget {
                       EventPhotoImagesSlider(
                         imageUrls: item.imageUrls,
                         thumbnailUrls: item.thumbnailUrls,
-                        height: 180,
+                        // Height null para single image se adaptar.
+                        // Para múltiplos, usa fallback do slider (220).
                         imageWidth: 160,
                         spacing: 10,
                         onDeleteImage: canDeleteImages ? onDeleteImage : null,

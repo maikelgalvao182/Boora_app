@@ -53,7 +53,7 @@ class BasicInformationProfileSection extends StatelessWidget {
     // Idade
     if (user.age != null) {
       entries.add(BasicInfoEntry(
-        label: _tr(i18n, 'age_label', fallback: 'Idade'),
+        label: i18n.translate('age_label'),
         value: _formatYearsOld(i18n, user.age!),
       ));
     }
@@ -69,8 +69,26 @@ class BasicInformationProfileSection extends StatelessWidget {
     // Orientação Sexual
     if (user.sexualOrientation != null && user.sexualOrientation!.trim().isNotEmpty) {
       entries.add(BasicInfoEntry(
-        label: _tr(i18n, 'sexual_orientation_label', fallback: 'Orientação'),
+        label: i18n.translate('sexual_orientation_label'),
         value: _translateSexualOrientation(i18n, user.sexualOrientation!),
+      ));
+    }
+
+    // O que busco
+    final lookingForValue = user.lookingFor?.trim() ?? '';
+    if (lookingForValue.isNotEmpty) {
+      entries.add(BasicInfoEntry(
+        label: i18n.translate('field_looking_for'),
+        value: _formatLookingFor(i18n, lookingForValue),
+      ));
+    }
+
+    // Estado civil
+    final maritalStatusValue = user.maritalStatus?.trim() ?? '';
+    if (maritalStatusValue.isNotEmpty) {
+      entries.add(BasicInfoEntry(
+        label: i18n.translate('field_marital_status'),
+        value: _formatMaritalStatus(i18n, maritalStatusValue),
       ));
     }
 
@@ -94,15 +112,38 @@ class BasicInformationProfileSection extends StatelessWidget {
     return entries;
   }
 
-  String _formatYearsOld(AppLocalizations i18n, int age) {
-    final template = i18n.translate('years_old');
-    if (template.trim().isEmpty) return '$age anos';
-    return template.replaceAll('{age}', '$age');
+  String _formatLookingFor(AppLocalizations i18n, String lookingFor) {
+    final options = lookingFor
+        .split(',')
+        .map((opt) => opt.trim())
+        .where((opt) => opt.isNotEmpty)
+        .toList();
+    if (options.isEmpty) return lookingFor;
+
+    final translatedOptions = options.map((opt) {
+      final key = 'looking_for_${opt.toLowerCase()}';
+      final translated = i18n.translate(key);
+      return translated.trim().isNotEmpty && translated != key ? translated : opt;
+    }).toList();
+
+    return translatedOptions.join(', ');
   }
 
-  String _tr(AppLocalizations i18n, String key, {required String fallback}) {
+  String _formatMaritalStatus(AppLocalizations i18n, String maritalStatus) {
+    final key = 'marital_status_${maritalStatus.toLowerCase()}';
     final translated = i18n.translate(key);
-    return translated.trim().isNotEmpty ? translated : fallback;
+    return translated.trim().isNotEmpty && translated != key ? translated : maritalStatus;
+  }
+
+  String _formatYearsOld(AppLocalizations i18n, int age) {
+    final template = i18n.translate('years_old');
+    if (template.trim().isEmpty) {
+      final languageCode = i18n.locale.languageCode;
+      if (languageCode == 'es') return '$age años';
+      if (languageCode == 'en') return '$age years old';
+      return '$age anos';
+    }
+    return template.replaceAll('{age}', '$age');
   }
 
   /// Traduz valor de gênero do banco (inglês) para o idioma atual

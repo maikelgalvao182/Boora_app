@@ -25,17 +25,29 @@ class ListCardShimmer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título e badges
+            // Topo: Emoji Avatar + Texto
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Emoji Avatar Placeholder
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    color: GlimpseColors.lightTextField,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Texto Placeholder (3 linhas)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Título
+                      const SizedBox(height: 4),
                       Container(
-                        height: 20,
+                        height: 14,
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: GlimpseColors.lightTextField,
@@ -43,27 +55,22 @@ class ListCardShimmer extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Badges
-                      Row(
-                        children: [
-                          Container(
-                            height: 24,
-                            width: 80,
-                            decoration: BoxDecoration(
-                              color: GlimpseColors.lightTextField,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            height: 24,
-                            width: 60,
-                            decoration: BoxDecoration(
-                              color: GlimpseColors.lightTextField,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                        ],
+                      Container(
+                        height: 14,
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: GlimpseColors.lightTextField,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 14,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: GlimpseColors.lightTextField,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ],
                   ),
@@ -71,20 +78,20 @@ class ListCardShimmer extends StatelessWidget {
               ],
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             
-            // Avatares empilhados (redondos)
+            // Base: Participantes Empilhados
             SizedBox(
-              height: 46,
+              height: 40,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Avatar 1 (Emoji)
+                  // Avatar 1
                   Positioned(
                     left: 0,
                     child: Container(
-                      width: 46,
-                      height: 46,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: GlimpseColors.lightTextField,
                         shape: BoxShape.circle,
@@ -97,10 +104,10 @@ class ListCardShimmer extends StatelessWidget {
                   ),
                   // Avatar 2
                   Positioned(
-                    left: 30,
+                    left: 28,
                     child: Container(
-                      width: 46,
-                      height: 46,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: GlimpseColors.lightTextField,
                         shape: BoxShape.circle,
@@ -113,26 +120,10 @@ class ListCardShimmer extends StatelessWidget {
                   ),
                   // Avatar 3
                   Positioned(
-                    left: 60,
+                    left: 56,
                     child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: GlimpseColors.lightTextField,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Contador
-                  Positioned(
-                    left: 90,
-                    child: Container(
-                      width: 52,
-                      height: 52,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: GlimpseColors.lightTextField,
                         shape: BoxShape.circle,

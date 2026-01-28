@@ -13,6 +13,8 @@ class PersonalTab extends StatelessWidget {
     required this.bioController,
     required this.genderController,
     required this.sexualOrientationController,
+    required this.lookingForController,
+    required this.maritalStatusController,
     required this.birthDayController,
     required this.birthMonthController,
     required this.birthYearController,
@@ -35,6 +37,8 @@ class PersonalTab extends StatelessWidget {
   final TextEditingController bioController;
   final TextEditingController genderController;
   final TextEditingController sexualOrientationController;
+  final TextEditingController lookingForController;
+  final TextEditingController maritalStatusController;
   final TextEditingController birthDayController;
   final TextEditingController birthMonthController;
   final TextEditingController birthYearController;
@@ -63,6 +67,8 @@ class PersonalTab extends StatelessWidget {
       'bio': bioController,
       'gender': genderController,
       'sexualOrientation': sexualOrientationController,
+      'lookingFor': lookingForController,
+      'maritalStatus': maritalStatusController,
       'birthDay': birthDayController,
       'birthMonth': birthMonthController,
       'birthYear': birthYearController,
@@ -127,6 +133,20 @@ class PersonalTab extends StatelessWidget {
               ? 'Não informado' 
               : sexualOrientationController.text,
           onTap: () => _openFieldEditor(context, PersonalFieldType.sexualOrientation),
+        ),
+
+        // Looking For
+        FieldPreviewCard(
+          fieldType: PersonalFieldType.lookingFor,
+          preview: _formatLookingForPreview(context),
+          onTap: () => _openFieldEditor(context, PersonalFieldType.lookingFor),
+        ),
+
+        // Marital Status
+        FieldPreviewCard(
+          fieldType: PersonalFieldType.maritalStatus,
+          preview: _formatMaritalStatusPreview(context),
+          onTap: () => _openFieldEditor(context, PersonalFieldType.maritalStatus),
         ),
 
         // Birth Date (Read-only - não pode ser alterado)
@@ -248,6 +268,35 @@ class PersonalTab extends StatelessWidget {
     
     // Retorna lista com vírgulas
     return translatedLanguages.join(', ');
+  }
+
+  String _formatLookingForPreview(BuildContext context) {
+    final text = lookingForController.text.trim();
+    if (text.isEmpty) return '';
+    
+    final i18n = AppLocalizations.of(context);
+    final options = text.split(',').map((opt) => opt.trim()).where((opt) => opt.isNotEmpty).toList();
+    
+    if (options.isEmpty) return '';
+    
+    // Traduz cada opção (friendship, networking, serious_relationship, casual)
+    final translatedOptions = options.map((opt) {
+      final key = 'looking_for_${opt.toLowerCase()}';
+      return i18n.translate(key);
+    }).toList();
+    
+    // Retorna lista com vírgulas
+    return translatedOptions.join(', ');
+  }
+
+  String _formatMaritalStatusPreview(BuildContext context) {
+    final text = maritalStatusController.text.trim();
+    if (text.isEmpty) return '';
+    
+    final i18n = AppLocalizations.of(context);
+    // Traduz o status (single, dating, married, divorced)
+    final key = 'marital_status_${text.toLowerCase()}';
+    return i18n.translate(key);
   }
 }
 

@@ -14,7 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// [MVVM] Constantes da View - evita magic numbers
 class _NotificationScreenConstants {
-  static const int filterCount = 4; // All, Activities, Profile Views, Reviews
+  static const int filterCount = 5; // All, Activities, Profile Views, Reviews, Followers
   static const double loadingIndicatorPadding = 16;
 }
 

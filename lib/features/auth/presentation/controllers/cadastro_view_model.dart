@@ -24,6 +24,7 @@ class CadastroViewModel extends ChangeNotifier {
   // Additional info
   String selectedGender = '';
   String sexualOrientation = '';
+  String lookingFor = ''; // O que está procurando (amizades, networking, etc)
   String interests = ''; // Categorias de atividades selecionadas
   String bio = '';
   String instagram = '';
@@ -44,6 +45,7 @@ class CadastroViewModel extends ChangeNotifier {
     age = null;
     selectedGender = '';
     sexualOrientation = '';
+    lookingFor = '';
     interests = '';
     bio = '';
     instagram = '';
@@ -115,6 +117,11 @@ class CadastroViewModel extends ChangeNotifier {
   
   void setGender(String gender) {
     selectedGender = gender;
+    notifyListeners();
+  }
+  
+  void setLookingFor(String value) {
+    lookingFor = value;
     notifyListeners();
   }
   
@@ -216,6 +223,7 @@ class CadastroViewModel extends ChangeNotifier {
         'instagram': onboardingData['instagram'],
         'jobTitle': onboardingData['jobTitle'],
         'gender': onboardingData['gender'],
+        'lookingFor': onboardingData['lookingFor'],
         'bio': onboardingData['bio'],
         'originSource': onboardingData['originSource'],
 

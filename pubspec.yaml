@@ -2,7 +2,7 @@ name: partiu
 description: Boora - Não vá sozinho!
 publish_to: 'none'
 
-version: 1.0.24+26
+version: 1.0.25+27
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -166,7 +166,6 @@ flutter:
     - assets/lang/
     - assets/images/avatar/
     - assets/images/onboarding/
-    - assets/images/background_image.jpg
     - assets/map_styles/
 
   fonts:

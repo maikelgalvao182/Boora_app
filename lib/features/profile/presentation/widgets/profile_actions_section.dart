@@ -50,6 +50,7 @@ class ProfileActionsSection extends StatelessWidget {
                 icon: Iconsax.message,
                 onTap: onMessage ?? () {},
                 height: 52,
+                fontSize: 14,
               ),
             ),
         ],
@@ -97,6 +98,7 @@ class _FollowButtonIsolated extends StatelessWidget {
                 controller.toggleFollow();
               },
               height: 52,
+              fontSize: 14,
             );
           },
         );

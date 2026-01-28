@@ -43,7 +43,10 @@ match /Notifications/{notificationId} {
     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['n_read']);
   
   /// 🗑️ DELETAR notificação:
-  /// - Apenas o destinatário pode deletar suas notificações
+  /// - Destinatário pode deletar (limpar histórico)
+  /// - Remetente pode deletar (cancelar invite ou limpar rastro de evento deletado)
   allow delete: if isSignedIn() && 
-    (resource.data.userId == request.auth.uid || resource.data.n_receiver_id == request.auth.uid);
+    (resource.data.userId == request.auth.uid || 
+     resource.data.n_receiver_id == request.auth.uid ||
+     resource.data.n_sender_id == request.auth.uid);
 }

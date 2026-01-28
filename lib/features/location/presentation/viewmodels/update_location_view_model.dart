@@ -132,18 +132,30 @@ class UpdateLocationViewModel extends ChangeNotifier {
         latitude,
         longitude,
       );
+
+      AppLogger.info('Geocoding raw result: locality=${place.locality}, subAdmin=${place.subAdministrativeArea}, subLocality=${place.subLocality}, admin=${place.administrativeArea}', tag: 'UpdateLocationVM');
       
       // Get locality and state
-      String? locality;
-      String? state;
-      // Check locality
-      if (place.locality == null || place.locality!.isEmpty) {
-        locality = place.administrativeArea;
-      } else {
-        locality = place.locality;
+      String? locality = place.locality;
+      
+      // Correção para Android: Se locality for nulo, tenta subAdministrativeArea (Município)
+      // Evita o problema de salvar "Minas Gerais" como cidade
+      if (locality == null || locality.isEmpty) {
+        locality = place.subAdministrativeArea;
       }
+
+      // Se ainda vazio, tenta subLocality (Bairro/Distrito)
+      if (locality == null || locality.isEmpty) {
+        locality = place.subLocality;
+      }
+
+      // Último caso: usa administrativeArea (Estado) se não tiver nada mais específico
+      if (locality == null || locality.isEmpty) {
+        locality = place.administrativeArea;
+      }
+
       // Get state from administrativeArea
-      state = place.administrativeArea ?? '';
+      String? state = place.administrativeArea ?? '';
       
       // Abrevia o estado antes de salvar
       final stateAbbr = StateAbbreviationService.getAbbreviation(state);

@@ -21,6 +21,8 @@ class UserEntry {
     this.age,
     this.gender,
     this.sexualOrientation,
+    this.lookingFor,
+    this.maritalStatus,
     this.bio,
     this.jobTitle,
     this.isVerified = false,
@@ -43,6 +45,8 @@ class UserEntry {
   int? age;
   String? gender;
   String? sexualOrientation;
+  String? lookingFor;
+  String? maritalStatus;
   String? bio;
   String? jobTitle;
   
@@ -774,6 +778,20 @@ class UserStore {
     final bio = userData['bio'] as String?;
     final gender = userData['gender'] as String?;
     final sexualOrientation = userData['sexualOrientation'] as String?;
+    final String? maritalStatus = userData['maritalStatus'] as String?;
+    String? lookingFor;
+    final rawLookingFor = userData['lookingFor'];
+    if (rawLookingFor is String) {
+      lookingFor = rawLookingFor;
+    } else if (rawLookingFor is List) {
+      final items = rawLookingFor
+          .map((e) => e?.toString().trim() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) {
+        lookingFor = items.join(',');
+      }
+    }
     final jobTitle = userData['jobTitle'] as String?;
 
     // Verificação de booleano
@@ -885,6 +903,8 @@ class UserStore {
       age: age,
       gender: gender,
       sexualOrientation: sexualOrientation,
+      lookingFor: lookingFor,
+      maritalStatus: maritalStatus,
       bio: bio,
       jobTitle: jobTitle,
       avatarUrl: effectiveAvatarUrl,

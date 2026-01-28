@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -83,10 +84,14 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   child: IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    icon: const Icon(
-                      IconsaxPlusLinear.gallery,
-                      size: 24,
-                      color: GlimpseColors.textSubTitle,
+                    icon: SvgPicture.asset(
+                      'assets/svg/fire.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: const ColorFilter.mode(
+                        GlimpseColors.textSubTitle,
+                        BlendMode.srcIn,
+                      ),
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();

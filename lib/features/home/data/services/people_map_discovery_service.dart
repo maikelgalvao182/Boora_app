@@ -48,7 +48,7 @@ class PeopleMapDiscoveryService {
 
   /// TTL do cache por quadkey + filtros. 30s balanceia freshness vs economia de reads.
   static const Duration cacheTTL = Duration(seconds: 30);
-  static const Duration debounceTime = Duration(milliseconds: 500);
+  static const Duration debounceTime = Duration(milliseconds: 300);
 
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
@@ -68,11 +68,7 @@ class PeopleMapDiscoveryService {
     if (notifier.value == value) {
       return;
     }
-    scheduleMicrotask(() {
-      if (notifier.value != value) {
-        notifier.value = value;
-      }
-    });
+    notifier.value = value;
   }
 
   bool _shouldUseCache(String quadkey, String filtersSignature) {
@@ -183,7 +179,16 @@ class PeopleMapDiscoveryService {
         return;
       }
 
-      final userLocation = await _locationService.getCurrentLocation();
+      // Otimização: Tenta usar location em memória primeiro para resposta rápida
+      var userLocation = _locationService.lastKnownPosition;
+
+      if (userLocation == null) {
+        // Se não houver, busca com timeout curto (2s) para evitar "spinner infinito"
+        // se o GPS estiver demorando. O fallback do LocationService entrara em ação.
+        userLocation = await _locationService.getCurrentLocation(
+            timeout: const Duration(seconds: 2));
+      }
+
       if (userLocation == null) {
         debugPrint('⚠️ [PeopleMapDiscovery] Localização do usuário não disponível');
         if (reportLoading) {
@@ -209,31 +214,37 @@ class PeopleMapDiscoveryService {
       debugPrint('   📏 Radius: ${radiusKm.toStringAsFixed(1)}km');
       debugPrint('   📐 Bounds: ${bounds.minLat.toStringAsFixed(4)},${bounds.maxLat.toStringAsFixed(4)},${bounds.minLng.toStringAsFixed(4)},${bounds.maxLng.toStringAsFixed(4)}');
 
-      final result = await _cloudService.getPeopleNearby(
-        userLatitude: userLocation.latitude,
-        userLongitude: userLocation.longitude,
-        radiusKm: radiusKm,
-        boundingBox: {
-          'minLat': bounds.minLat,
-          'maxLat': bounds.maxLat,
-          'minLng': bounds.minLng,
-          'maxLng': bounds.maxLng,
-        },
-        filters: UserCloudFilters(
-          gender: activeFilters.gender,
-          minAge: activeFilters.minAge,
-          maxAge: activeFilters.maxAge,
-          isVerified: activeFilters.isVerified,
-          interests: activeFilters.interests,
-          sexualOrientation: activeFilters.sexualOrientation,
+      // Paralelismo: Busca dados da nuvem e do usuário local ao mesmo tempo
+      final results = await Future.wait([
+        _cloudService.getPeopleNearby(
+          userLatitude: userLocation.latitude,
+          userLongitude: userLocation.longitude,
+          radiusKm: radiusKm,
+          boundingBox: {
+            'minLat': bounds.minLat,
+            'maxLat': bounds.maxLat,
+            'minLng': bounds.minLng,
+            'maxLng': bounds.maxLng,
+          },
+          filters: UserCloudFilters(
+            gender: activeFilters.gender,
+            minAge: activeFilters.minAge,
+            maxAge: activeFilters.maxAge,
+            isVerified: activeFilters.isVerified,
+            interests: activeFilters.interests,
+            sexualOrientation: activeFilters.sexualOrientation,
+          ),
         ),
-      );
+        _userRepository.getCurrentUserData(),
+      ]);
+
+      final result = results[0] as PeopleCloudResult;
+      final myUserData = results[1] as Map<String, dynamic>?;
 
       debugPrint('☁️ [PeopleMapDiscovery] Cloud Function retornou ${result.users.length} usuários');
 
         // Buscar interesses do usuário atual (cacheado no UserRepository)
         // para calcular commonInterests (matchs) nos cards.
-        final myUserData = await _userRepository.getCurrentUserData();
         final myInterests = (myUserData?['interests'] as List?)
             ?.whereType<String>()
             .toList() ??
@@ -273,17 +284,36 @@ class PeopleMapDiscoveryService {
 
           final user = app_user.User.fromDocument(userData);
           people.add(user);
-          debugPrint('   ✅ Convertido: ${user.userFullname} (${uwd.distanceKm.toStringAsFixed(1)}km)');
         } catch (e) {
           debugPrint('   ❌ Erro ao converter usuário: $e');
         }
       }
 
-      // ✅ Pré-carregar avatares no UserStore para o StableAvatar renderizar sem delay.
-      // Estratégia viewport-first:
-      // - Só tenta aquecer cache quando a lista atual do viewport chega
-      // - Limita concorrência global via fila no UserStore
-      // - Prioriza usuários mais próximos
+      final adjustedTotalCandidates = selfIncludedInPage
+          ? (result.totalCandidates - 1).clamp(0, 1 << 30)
+          : result.totalCandidates;
+
+      _cachedPeople = people;
+      _cachedCount = adjustedTotalCandidates;
+      _lastFetchTime = DateTime.now();
+      _lastQuadkey = quadkey;
+      _lastFiltersSignature = filtersSignature;
+
+      debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
+
+      // 🚀 Prioridade: Atualizar UI primeiro!
+      // Libera o indicador de "digitando..." imediatamente
+      if (publishToNotifiers) {
+        _setNotifierValue(nearbyPeople, people);
+        _setNotifierValue(nearbyPeopleCount, adjustedTotalCandidates);
+      }
+
+      if (reportLoading) {
+        _setNotifierValue(isLoading, false);
+      }
+      
+      // ✅ Tarefas de background (Preload de avatares)
+      // Executa APÓS liberar a UI para não travar a exibição da contagem
       final userStore = UserStore.instance;
       final usersWithPhoto = people.where((u) => u.photoUrl.isNotEmpty).toList()
         ..sort((a, b) {
@@ -299,26 +329,6 @@ class PeopleMapDiscoveryService {
 
       for (final user in usersWithPhoto.take(preloadLimit)) {
         userStore.preloadAvatar(user.userId, user.photoUrl);
-      }
-
-      final adjustedTotalCandidates = selfIncludedInPage
-          ? (result.totalCandidates - 1).clamp(0, 1 << 30)
-          : result.totalCandidates;
-
-      _cachedPeople = people;
-      _cachedCount = adjustedTotalCandidates;
-      _lastFetchTime = DateTime.now();
-      _lastQuadkey = quadkey;
-      _lastFiltersSignature = filtersSignature;
-
-      debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
-      if (publishToNotifiers) {
-        _setNotifierValue(nearbyPeople, people);
-        _setNotifierValue(nearbyPeopleCount, adjustedTotalCandidates);
-      }
-
-      if (reportLoading) {
-        _setNotifierValue(isLoading, false);
       }
 
       debugPrint('✅ [PeopleMapDiscovery] ${people.length} pessoas encontradas (total: $adjustedTotalCandidates)');

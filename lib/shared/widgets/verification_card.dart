@@ -99,9 +99,9 @@ class _CardContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+              Flexible(
                 child: Text(
                   i18n.translate('verification_card_title'),
                   style: GoogleFonts.getFont(
@@ -114,16 +114,19 @@ class _CardContent extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Text(
-                i18n.translate('verification_card_subtitle'),
-                style: GoogleFonts.getFont(
-                  FONT_PLUS_JAKARTA_SANS,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.8),
+              const SizedBox(height: 4),
+              Flexible(
+                child: Text(
+                  i18n.translate('verification_card_subtitle'),
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

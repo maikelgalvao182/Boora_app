@@ -1,16 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
+import 'package:partiu/features/event_photo_feed/data/models/unified_feed_item.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_cache_service.dart';
+import 'package:partiu/features/feed/data/models/activity_feed_item_model.dart';
+import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
 import 'package:partiu/core/services/cache/media_cache_manager.dart';
 
 class EventPhotoFeedState {
   const EventPhotoFeedState({
     required this.items,
+    required this.activityItems,
     required this.cursor,
   required this.activeCursor,
   required this.pendingCursor,
@@ -20,6 +25,17 @@ class EventPhotoFeedState {
   });
 
   final List<EventPhotoModel> items;
+  final List<ActivityFeedItemModel> activityItems;
+  
+  /// Retorna lista unificada ordenada por data (mais recente primeiro)
+  List<UnifiedFeedItem> get unifiedItems {
+    final unified = <UnifiedFeedItem>[
+      ...items.map(UnifiedFeedItem.fromPhoto),
+      ...activityItems.map(UnifiedFeedItem.fromActivity),
+    ];
+    return unified.sortedByDate();
+  }
+  
   // cursor antigo (compat) - mantém o último cursor "dominante".
   final DocumentSnapshot<Map<String, dynamic>>? cursor;
 
@@ -32,6 +48,7 @@ class EventPhotoFeedState {
 
   factory EventPhotoFeedState.initial() => const EventPhotoFeedState(
         items: [],
+        activityItems: [],
         cursor: null,
   activeCursor: null,
   pendingCursor: null,
@@ -42,6 +59,7 @@ class EventPhotoFeedState {
 
   EventPhotoFeedState copyWith({
     List<EventPhotoModel>? items,
+    List<ActivityFeedItemModel>? activityItems,
     DocumentSnapshot<Map<String, dynamic>>? cursor,
     DocumentSnapshot<Map<String, dynamic>>? activeCursor,
     DocumentSnapshot<Map<String, dynamic>>? pendingCursor,
@@ -51,6 +69,7 @@ class EventPhotoFeedState {
   }) {
     return EventPhotoFeedState(
       items: items ?? this.items,
+      activityItems: activityItems ?? this.activityItems,
       cursor: cursor ?? this.cursor,
       activeCursor: activeCursor ?? this.activeCursor,
       pendingCursor: pendingCursor ?? this.pendingCursor,
@@ -66,6 +85,10 @@ final eventPhotoRepositoryProvider = Provider<EventPhotoRepository>((ref) {
   return EventPhotoRepository(cacheService: cacheService);
 });
 
+final activityFeedRepositoryProvider = Provider<ActivityFeedRepository>((ref) {
+  return ActivityFeedRepository();
+});
+
 final eventPhotoFeedControllerProvider =
     AsyncNotifierProviderFamily<EventPhotoFeedController, EventPhotoFeedState, EventPhotoFeedScope>(
   EventPhotoFeedController.new,
@@ -77,6 +100,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
 
   EventPhotoRepository get _repo => ref.read(eventPhotoRepositoryProvider);
   EventPhotoCacheService get _cache => ref.read(eventPhotoCacheServiceProvider);
+  ActivityFeedRepository get _activityRepo => ref.read(activityFeedRepositoryProvider);
 
   @override
   Future<EventPhotoFeedState> build(EventPhotoFeedScope scope) async {
@@ -108,6 +132,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     print('👤 [EventPhotoFeedController.build] userId: $userId');
     
     try {
+      // Busca EventPhotos
       final page = userId == null
           ? await _repo.fetchFeedPage(scope: scope, limit: _pageSize)
           : await _repo.fetchFeedPageWithOwnPending(
@@ -116,10 +141,14 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
               currentUserId: userId,
             );
       
-      print('✅ [EventPhotoFeedController.build] Dados carregados: ${page.items.length} items, hasMore: ${page.hasMore}');
+      // Busca ActivityFeed items (global por enquanto)
+      final activityItems = await _fetchActivityFeed(scope);
+      
+      debugPrint('✅ [EventPhotoFeedController.build] Dados carregados: ${page.items.length} photos, ${activityItems.length} activities');
 
       final nextState = EventPhotoFeedState.initial().copyWith(
         items: page.items,
+        activityItems: activityItems,
         cursor: page.nextCursor,
         activeCursor: page.activeCursor,
         pendingCursor: page.pendingCursor,
@@ -149,9 +178,13 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
               limit: _pageSize,
               currentUserId: userId,
             );
+      
+      // Busca ActivityFeed items
+      final activityItems = await _fetchActivityFeed(scope);
 
       final nextState = EventPhotoFeedState.initial().copyWith(
         items: page.items,
+        activityItems: activityItems,
         cursor: page.nextCursor,
         activeCursor: page.activeCursor,
         pendingCursor: page.pendingCursor,
@@ -168,7 +201,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
 
   String? _safeUserId() {
     try {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null || uid.trim().isEmpty) return null;
       return uid;
     } catch (_) {
@@ -176,13 +209,43 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     }
   }
 
+  /// Busca ActivityFeed items baseado no scope
+  Future<List<ActivityFeedItemModel>> _fetchActivityFeed(EventPhotoFeedScope scope) async {
+    try {
+      final userId = _safeUserId();
+      
+      // Para scope User, busca apenas do usuário específico
+      if (scope is EventPhotoFeedScopeUser) {
+        return await _activityRepo.fetchUserFeed(
+          userId: scope.userId,
+          limit: _pageSize,
+        );
+      }
+      
+      // Para scope Following, busca apenas do usuário atual (por enquanto)
+      // TODO: Implementar busca por usuários seguidos
+      if (scope is EventPhotoFeedScopeFollowing && userId != null) {
+        return await _activityRepo.fetchUserFeed(
+          userId: userId,
+          limit: _pageSize,
+        );
+      }
+      
+      // Para scope Global ou outros, busca global
+      return await _activityRepo.fetchGlobalFeed(limit: _pageSize);
+    } catch (e) {
+      debugPrint('⚠️ [EventPhotoFeedController] Erro ao buscar ActivityFeed: $e');
+      return [];
+    }
+  }
+
   Future<void> refresh() async {
-    print('🔄 [EventPhotoFeedController.refresh] Iniciando refresh...');
+    debugPrint('🔄 [EventPhotoFeedController.refresh] Iniciando refresh...');
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final scope = arg;
       final userId = _safeUserId();
-      print('👤 [EventPhotoFeedController.refresh] userId: $userId, scope: $scope');
+      debugPrint('👤 [EventPhotoFeedController.refresh] userId: $userId, scope: $scope');
       
       try {
         final page = userId == null
@@ -193,10 +256,14 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
             currentUserId: userId,
           );
         
-        print('✅ [EventPhotoFeedController.refresh] Refresh completo: ${page.items.length} items');
+        // Busca ActivityFeed items
+        final activityItems = await _fetchActivityFeed(scope);
+        
+        debugPrint('✅ [EventPhotoFeedController.refresh] Refresh completo: ${page.items.length} photos, ${activityItems.length} activities');
         
         return EventPhotoFeedState.initial().copyWith(
           items: page.items,
+          activityItems: activityItems,
           cursor: page.nextCursor,
           activeCursor: page.activeCursor,
           pendingCursor: page.pendingCursor,
@@ -204,8 +271,8 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
           lastUpdatedAt: DateTime.now(),
         );
       } catch (e, stack) {
-        print('❌ [EventPhotoFeedController.refresh] ERRO no refresh: $e');
-        print('📚 Stack trace: $stack');
+        debugPrint('❌ [EventPhotoFeedController.refresh] ERRO no refresh: $e');
+        debugPrint('📚 Stack trace: $stack');
         rethrow;
       }
     });

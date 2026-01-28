@@ -28,6 +28,7 @@ class _OriginSelectorWidgetState extends State<OriginSelectorWidget> {
   final List<String> _options = const [
     'Instagram',
     'Tiktok',
+    'Threads',
     'Reddit',
     'Youtube',
     'X',
@@ -53,6 +54,7 @@ class _OriginSelectorWidgetState extends State<OriginSelectorWidget> {
     final localizedOptions = <String>[
       'Instagram',
       'Tiktok',
+      'Threads',
       'Reddit',
       'Youtube',
       'X',
@@ -97,6 +99,7 @@ class _OriginSelectorWidgetState extends State<OriginSelectorWidget> {
   String? _mapOriginOptionToIcon(String label) {
     if (label.contains('instagram')) return 'instagram';
     if (label.contains('tiktok')) return 'tiktok';
+    if (label.contains('threads')) return 'threads';
     if (label.contains('reddit')) return 'reedit';
     if (label.contains('youtube')) return 'youtube';
     if (label == 'x') return 'x';

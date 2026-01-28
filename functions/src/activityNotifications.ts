@@ -446,6 +446,33 @@ export const onJoinRequestNotification = functions.firestore
         return;
       }
 
+      // 🔒 DEDUPLICAÇÃO: Evitar disparos duplos (Client + Server)
+      // Verifica se já existe notificação deste tipo nos últimos 2 minutos
+      const existingSnap = await admin.firestore().collection("Notifications")
+        .where("userId", "==", creatorId)
+        .where("n_related_id", "==", eventId)
+        .get();
+
+      const isDuplicate = existingSnap.docs.some((doc) => {
+        const d = doc.data();
+        if (d.n_type !== "activity_join_request") return false;
+        if (d.n_sender_id !== requesterId) return false;
+
+        // Se foi criada há menos de 2 min, é duplicidade
+        const ts = d.timestamp || d.n_created_at;
+        if (ts && ts.toMillis) {
+          return (Date.now() - ts.toMillis()) < 2 * 60 * 1000;
+        }
+        return true; // Sem timestamp ou formato inválido, considera duplicata
+      });
+
+      if (isDuplicate) {
+        console.log(
+          `⏭️ [JoinRequest] Duplicata detectada para ${requesterId}, ignorando`
+        );
+        return;
+      }
+
       // 2. Buscar dados do solicitante
       const requesterDoc = await admin
         .firestore()
