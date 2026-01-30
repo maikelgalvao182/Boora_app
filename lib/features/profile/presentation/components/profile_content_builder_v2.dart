@@ -9,9 +9,7 @@ import 'package:partiu/features/profile/presentation/widgets/about_me_section.da
 import 'package:partiu/features/profile/presentation/widgets/basic_information_profile_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/interests_profile_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/languages_profile_section.dart';
-import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/screens/chat/chat_screen_refactored.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Novo sistema de reviews
 import 'package:partiu/features/reviews/data/repositories/review_repository.dart';
@@ -23,6 +21,7 @@ import 'package:partiu/features/reviews/presentation/components/reviewed_by_sect
 import 'package:partiu/features/reviews/presentation/components/review_comments_section.dart';
 import 'package:partiu/features/profile/presentation/widgets/profile_actions_section.dart';
 import 'package:partiu/features/profile/presentation/controllers/follow_controller.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Builder de conteúdo do perfil com NOVO sistema de reviews
 /// 
@@ -63,9 +62,6 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   // Widget de reviews cacheado para evitar rebuilds desnecessários
   late Widget _reviewsSectionWidget;
   
-  // Stream do user doc cacheado para evitar rebuilds
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userDocStream;
-  
   // Contador de builds para debug
   int _buildCount = 0;
 
@@ -73,14 +69,6 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   void initState() {
     super.initState();
     debugPrint('📄 [ProfileContentBuilderV2] initState() - hashCode: ${widget.hashCode}, followController: ${widget.followController?.hashCode}');
-    
-    // Cache do stream do documento do usuário (apenas para verificar message_button)
-    if (!widget.myProfile) {
-      _userDocStream = FirebaseFirestore.instance
-          .collection('Users')
-          .doc(widget.displayUser.userId)
-          .snapshots();
-    }
     
     _loadReviewStreams();
   }
@@ -140,47 +128,31 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   }
 
   Widget _buildAboutMe() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getBioNotifier(widget.displayUser.userId),
-      builder: (context, bio, _) {
-        if (bio == null || bio.trim().isEmpty) return const SizedBox();
-        return RepaintBoundary(
-          child: AboutMeSection(
-            userId: widget.displayUser.userId,
-            hasActionsBelow: !widget.myProfile,
-          ),
-        );
-      },
+    final bio = widget.displayUser.userBio;
+    if (bio.trim().isEmpty) return const SizedBox();
+    return RepaintBoundary(
+      child: AboutMeSection(
+        bio: bio,
+        hasActionsBelow: !widget.myProfile,
+      ),
     );
   }
 
   Widget _buildBasicInfo() {
     return RepaintBoundary(
-      child: BasicInformationProfileSection(userId: widget.displayUser.userId),
+      child: BasicInformationProfileSection(user: widget.displayUser),
     );
   }
 
   Widget _buildInterests() {
-    return ValueListenableBuilder<List<String>?>(
-      valueListenable: UserStore.instance.getInterestsNotifier(widget.displayUser.userId),
-      builder: (context, interests, _) {
-        if (interests == null || interests.isEmpty) return const SizedBox();
-        return RepaintBoundary(
-          child: InterestsProfileSection(userId: widget.displayUser.userId),
-        );
-      },
+    return RepaintBoundary(
+      child: InterestsProfileSection(interests: widget.displayUser.interests),
     );
   }
 
   Widget _buildLanguages() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getLanguagesNotifier(widget.displayUser.userId),
-      builder: (context, languages, _) {
-        if (languages == null || languages.trim().isEmpty) return const SizedBox();
-        return RepaintBoundary(
-          child: LanguagesProfileSection(userId: widget.displayUser.userId),
-        );
-      },
+    return RepaintBoundary(
+      child: LanguagesProfileSection(languages: widget.displayUser.languages),
     );
   }
 
@@ -191,26 +163,14 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
 
   Widget _buildActions() {
     debugPrint('📄 [ProfileContentBuilderV2] _buildActions() chamado');
-    // Renderização condicional via stream do documento do usuário
+    // Renderização condicional via UserStore
     // Campo Firestore: message_button (bool). Default: true.
-    // Stream cacheado no initState para evitar rebuilds
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _userDocStream,
-      builder: (context, snapshot) {
-        debugPrint('📄 [ProfileContentBuilderV2] StreamBuilder reconstruído');
-        bool showMessageButton = true;
-
-        if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-          final data = snapshot.data!.data();
-          final raw = data?['message_button'];
-          if (raw is bool) {
-            showMessageButton = raw;
-          } else if (raw is String) {
-            showMessageButton = raw.toLowerCase() == 'true';
-          }
-        }
-
+    return ValueListenableBuilder<bool>(
+      valueListenable: UserStore.instance.getMessageButtonNotifier(
+        widget.displayUser.userId,
+      ),
+      builder: (context, showMessageButton, _) {
         return RepaintBoundary(
           child: ProfileActionsSection(
             showFollowButton: widget.followController != null,

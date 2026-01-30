@@ -225,14 +225,17 @@ class ConversationsViewModel extends ChangeNotifier {
     _log('🔄 _initFirestoreStream: Iniciando stream para userId=$userId');
     _log('🔄 _initFirestoreStream: Path = Connections/$userId/Conversations');
     
+    // ✅ COLD START INSTANTÂNEO: Carregar cache Hive ANTES do stream
+    _loadCachedConversationsFirst(userId);
+    
     _firestoreSubscription?.cancel();
     _firestoreSubscription = FirebaseFirestore.instance
         .collection('Connections')
         .doc(userId)
         .collection('Conversations')
         .orderBy('timestamp', descending: true)
-        .limit(50)
-        .snapshots(includeMetadataChanges: false) // ✅ Remover metadata changes para evitar eventos duplicados
+        .limit(30) // ✅ OTIMIZADO: 30 conversas no first paint (era 50)
+        .snapshots() // ✅ Sem includeMetadataChanges para reduzir eventos
         .listen(
       (snapshot) {
         _log('🔄 Firestore stream: ${snapshot.docs.length} conversas recebidas (source: ${snapshot.metadata.isFromCache ? "cache" : "server"})');
@@ -250,6 +253,26 @@ class ConversationsViewModel extends ChangeNotifier {
     );
     
     _log('✅ _initFirestoreStream: Stream listener configurado');
+  }
+  
+  /// ✅ COLD START: Carrega conversas do cache Hive imediatamente
+  /// UI mostra dados cacheados no primeiro frame, stream atualiza depois
+  Future<void> _loadCachedConversationsFirst(String userId) async {
+    try {
+      final cached = await _persistentCache.getCached(userId);
+      
+      if (cached != null && cached.isNotEmpty && !_hasReceivedFirstSnapshot) {
+        _log('⚡ COLD START: ${cached.length} conversas carregadas do cache Hive');
+        _wsConversations = cached;
+        _hasReceivedFirstSnapshot = true; // Mostra UI imediatamente
+        _updateVisibleUnreadCount();
+        notifyListeners();
+      } else {
+        _log('⚠️ COLD START: Cache vazio ou já recebeu snapshot');
+      }
+    } catch (e) {
+      _log('❌ COLD START: Erro ao carregar cache: $e');
+    }
   }
 
   void _handleLoggedOut() {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -8,6 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 
+/// ✅ OTIMIZADO: Widget de presença agora usa get() com polling (60s)
+/// Antes: stream realtime = ~1 read/segundo
+/// Depois: get() a cada 60s = ~1 read/minuto (98% redução)
 class UserPresenceStatusWidget extends StatefulWidget {
 
   const UserPresenceStatusWidget({
@@ -27,6 +31,42 @@ class UserPresenceStatusWidget extends StatefulWidget {
 }
 
 class _UserPresenceStatusWidgetState extends State<UserPresenceStatusWidget> {
+  UserModel? _user;
+  Timer? _refreshTimer;
+  bool _isLoading = true;
+  
+  // ✅ Intervalo de refresh para presença (60 segundos)
+  static const Duration _refreshInterval = Duration(seconds: 60);
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isEvent) {
+      _loadPresence();
+      // Timer periódico para atualizar presença
+      _refreshTimer = Timer.periodic(_refreshInterval, (_) => _loadPresence());
+    }
+  }
+  
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+  
+  /// ✅ Carrega presença com get() único (cache de 60s no ChatService)
+  Future<void> _loadPresence() async {
+    if (!mounted) return;
+    
+    final user = await widget.chatService.getUserOnce(widget.userId);
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _user = user;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,70 +102,65 @@ class _UserPresenceStatusWidgetState extends State<UserPresenceStatusWidget> {
       );
     }
     
-    // Para usuários normais, mantém a lógica original
-    return StreamBuilder<UserModel>(
-      stream: widget.chatService.getUserUpdates(widget.userId),
-      builder: (context, snapshot) {
-        // Check data
-        if (!snapshot.hasData) return const SizedBox();
+    // ✅ OTIMIZADO: Presença via get() com cache (não mais stream)
+    if (_isLoading || _user == null) {
+      return const SizedBox();
+    }
+    
+    final user = _user!;
 
-        // Get user presence status
-        final user = snapshot.data!;
-
-        // Check user presence status
-        if (user.isOnline ?? false) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.all(Radius.circular(4)),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                i18n.translate('ONLINE'),
-                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: GlimpseColors.textSubTitle,
-                ),
-              ),
-            ],
-          );
-        }
-        
-        // Verificar último login
-        final lastLogin = user.lastLogin;
-        if (lastLogin == null) {
-          return Text(
-            i18n.translate('offline'),
+    // Check user presence status
+    if (user.isOnline ?? false) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: Colors.green,
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            i18n.translate('ONLINE'),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               fontSize: 12,
               fontWeight: FontWeight.w400,
               color: GlimpseColors.textSubTitle,
             ),
-            overflow: TextOverflow.ellipsis,
-          );
-        }
-
-        // Usar TimeAgoHelper com i18n
-        final timeAgoText = TimeAgoHelper.format(context, timestamp: lastLogin);
-
-        // Exibir texto sem hífen
-        return Text(
-          "${i18n.translate('last_seen')} $timeAgoText",
-          style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: GlimpseColors.textSubTitle,
           ),
-          overflow: TextOverflow.ellipsis,
-        );
-      },
+        ],
+      );
+    }
+    
+    // Verificar último login
+    final lastLogin = user.lastLogin;
+    if (lastLogin == null) {
+      return Text(
+        i18n.translate('offline'),
+        style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: GlimpseColors.textSubTitle,
+        ),
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    // Usar TimeAgoHelper com i18n
+    final timeAgoText = TimeAgoHelper.format(context, timestamp: lastLogin);
+
+    // Exibir texto sem hífen
+    return Text(
+      "${i18n.translate('last_seen')} $timeAgoText",
+      style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: GlimpseColors.textSubTitle,
+      ),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

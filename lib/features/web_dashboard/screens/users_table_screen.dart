@@ -4,8 +4,78 @@ import 'package:flutter/material.dart';
 import 'package:partiu/shared/models/user_model.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
-class UsersTableScreen extends StatelessWidget {
+class UsersTableScreen extends StatefulWidget {
   const UsersTableScreen({super.key});
+
+  @override
+  State<UsersTableScreen> createState() => _UsersTableScreenState();
+}
+
+class _UsersTableScreenState extends State<UsersTableScreen> {
+  List<UserModel> _users = [];
+  bool _loading = true;
+  String? _error;
+  DocumentSnapshot? _lastDoc;
+  static const int _pageSize = 50;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  /// ✅ Carrega usuários uma vez com paginação
+  Future<void> _loadUsers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Users')
+          .orderBy('createdAt', descending: true)
+          .limit(_pageSize)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        _users = snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
+        _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  /// ✅ Carrega mais usuários (paginação)
+  Future<void> _loadMore() async {
+    if (_lastDoc == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Users')
+          .orderBy('createdAt', descending: true)
+          .startAfterDocument(_lastDoc!)
+          .limit(_pageSize)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        _users.addAll(snapshot.docs.map((doc) => UserModel.fromFirestore(doc)));
+        _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+      });
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar mais usuários: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,34 +86,59 @@ class UsersTableScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {}, // StreamBuilder updates automatically, but good for UI
+            onPressed: _loadUsers,
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('Users').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('${i18n.translate('error')}: ${snapshot.error}'));
-          }
+      body: _buildBody(i18n),
+    );
+  }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+  Widget _buildBody(AppLocalizations i18n) {
+    if (_loading && _users.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          final docs = snapshot.data!.docs;
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('${i18n.translate('error')}: $_error'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadUsers,
+              child: Text(i18n.translate('try_again')),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final docs = _users;
           
           // Convert docs to UserModels
-          final users = docs.map((doc) => UserModel.fromFirestore(doc)).toList();
+          final users = docs;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  '${i18n.translate('web_dashboard_total_users_prefix')}: ${users.length}',
-                  style: Theme.of(context).textTheme.titleLarge,
+                child: Row(
+                  children: [
+                    Text(
+                      '${i18n.translate('web_dashboard_total_users_prefix')}: ${users.length}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    if (_lastDoc != null)
+                      TextButton.icon(
+                        icon: const Icon(Icons.arrow_downward),
+                        label: Text(i18n.translate('load_more')),
+                        onPressed: _loadMore,
+                      ),
+                  ],
                 ),
               ),
               Expanded(
@@ -88,7 +183,7 @@ class UsersTableScreen extends StatelessWidget {
               ),
             ],
           );
-        },
+        }
       ),
     );
   }

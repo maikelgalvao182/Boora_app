@@ -10,6 +10,7 @@ enum ActivityCategory {
   wellness,
   networking,
   games,
+  romance,
   other,
 }
 
@@ -91,6 +92,12 @@ const List<ActivityCategoryInfo> activityCategories = [
     subtitleKey: 'category_games_subtitle',
   ),
   ActivityCategoryInfo(
+    category: ActivityCategory.romance,
+    emoji: '❤️',
+    titleKey: 'category_romance',
+    subtitleKey: 'category_romance_subtitle',
+  ),
+  ActivityCategoryInfo(
     category: ActivityCategory.other,
     emoji: '✨',
     titleKey: 'category_other',
@@ -121,6 +128,8 @@ String categoryToString(ActivityCategory category) {
       return 'networking';
     case ActivityCategory.games:
       return 'games';
+    case ActivityCategory.romance:
+      return 'romance';
     case ActivityCategory.other:
       return 'other';
   }
@@ -150,6 +159,8 @@ ActivityCategory? categoryFromString(String? value) {
       return ActivityCategory.networking;
     case 'games':
       return ActivityCategory.games;
+    case 'romance':
+      return ActivityCategory.romance;
     case 'other':
       return ActivityCategory.other;
     default:

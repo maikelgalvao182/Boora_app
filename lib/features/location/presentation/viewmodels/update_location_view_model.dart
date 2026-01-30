@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/utils/location_offset_helper.dart';
+import 'package:partiu/core/utils/geohash_helper.dart';
 import 'package:partiu/features/location/domain/repositories/location_repository_interface.dart';
 import 'package:partiu/core/services/state_abbreviation_service.dart';
 import 'package:partiu/core/services/location_service.dart';
@@ -118,6 +119,7 @@ class UpdateLocationViewModel extends ChangeNotifier {
     required String userId,
     required double latitude,
     required double longitude,
+    String? geohash,
   }) async {
     _saveState = LocationSaveState.loading;
     _saveError = null;
@@ -207,6 +209,10 @@ class UpdateLocationViewModel extends ChangeNotifier {
       );
       final displayLatitude = displayCoords['displayLatitude']!;
       final displayLongitude = displayCoords['displayLongitude']!;
+
+        final resolvedGeohash = (geohash == null || geohash.isEmpty)
+          ? GeohashHelper.encode(latitude, longitude, precision: 7)
+          : geohash;
       
       AppLogger.info('🔒 Generated display offset:', tag: 'UpdateLocationVM');
       AppLogger.info('   Real: ($latitude, $longitude)', tag: 'UpdateLocationVM');
@@ -219,6 +225,7 @@ class UpdateLocationViewModel extends ChangeNotifier {
         longitude: longitude,
         displayLatitude: displayLatitude,
         displayLongitude: displayLongitude,
+        geohash: resolvedGeohash,
         country: countryStr,
         locality: localityStr,
         state: stateStr,

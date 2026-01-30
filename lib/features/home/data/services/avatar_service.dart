@@ -37,14 +37,16 @@ class AvatarService {
     }
 
     try {
-      final doc = await _firestore
-          .collection('Users')
+        final doc = await _firestore
+          .collection('users_preview')
           .doc(userId)
           .get();
 
       if (doc.exists) {
         final data = doc.data();
-        final photoUrl = data?['photoUrl'] as String? ?? defaultAvatarUrl;
+        final photoUrl = data?['avatarThumbUrl'] as String? ??
+          data?['photoUrl'] as String? ??
+          defaultAvatarUrl;
         
         // Salvar no cache
         if (useCache) {

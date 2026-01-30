@@ -296,16 +296,17 @@ class SimplifiedNotificationController extends ChangeNotifier {
         ];
       }
       
-      // ✅ PRELOAD: Carregar avatares dos remetentes antes da UI renderizar
-      for (final doc in filteredDocs) {
-        final data = doc.data();
-        if (data == null) continue;
-        final senderId = data['n_sender_id'] as String?;
-        final senderPhotoUrl = data['n_sender_photo_url'] as String?;
-        if (senderId != null && senderId.isNotEmpty && 
-            senderPhotoUrl != null && senderPhotoUrl.isNotEmpty) {
-          UserStore.instance.preloadAvatar(senderId, senderPhotoUrl);
-        }
+      // ✅ PRELOAD OTIMIZADO (SWR): Carregar avatares via UserStore com cache
+      // Extrai IDs únicos e dispara warmup em microtask
+      final senderIds = filteredDocs
+          .map((doc) => doc.data()?['n_sender_id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      if (senderIds.isNotEmpty) {
+        Future.microtask(() => UserStore.instance.warmingUpUsers(senderIds));
       }
 
       if (filteredDocs.isNotEmpty) {

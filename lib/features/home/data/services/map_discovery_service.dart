@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/core/services/analytics_service.dart';
+import 'package:partiu/core/services/cache/hive_cache_service.dart';
+import 'package:partiu/core/services/cache/hive_initializer.dart';
 import 'package:partiu/features/home/data/models/event_location.dart';
+import 'package:partiu/features/home/data/models/event_location_cache.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -21,9 +25,13 @@ class MapDiscoveryService {
   
   MapDiscoveryService._internal() {
     debugPrint('🎉 MapDiscoveryService: Singleton criado (primeira vez)');
+    unawaited(_initializePersistentCache());
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const String _eventsMapCollection = 'events_map';
+  static const String _eventsCollection = 'events';
+  static const bool _allowEventsFallback = true;
   
   // ValueNotifier para eventos próximos (evita rebuilds desnecessários)
   final ValueNotifier<List<EventLocation>> nearbyEvents = ValueNotifier([]);
@@ -49,13 +57,20 @@ class MapDiscoveryService {
   final List<String> _quadkeyLru = <String>[];
 
   // Configurações
-  /// TTL do cache em memória por quadkey. 30s balanceia freshness vs economia de reads.
-  /// Em uso casual, usuário pode pan/zoom e voltar pro mesmo lugar.
-  static const Duration memoryCacheTTL = Duration(seconds: 30);
+  /// TTL do cache em memória por quadkey.
+  /// 60–120s balanceia freshness vs economia real de reads.
+  static const Duration memoryCacheTTL = Duration(seconds: 90);
+
+  /// TTL do cache persistente (Hive) por quadkey.
+  /// 5–15 minutos reduz cold starts e retorno do background.
+  static const Duration persistentCacheTTL = Duration(minutes: 10);
+
+  /// Refresh em background quando o cache persistente estiver "velho".
+  static const Duration persistentSoftRefreshAge = Duration(minutes: 3);
   
   // Para mapa, 500ms costuma dar sensação de lag e aumenta a janela de corrida.
-  // 200ms mantém proteção contra spam sem prejudicar a UX.
-  static const Duration debounceTime = Duration(milliseconds: 200);
+  // 600ms (Aumentado de 200ms) protege conta micro-ajustes/pans rápidos.
+  static const Duration debounceTime = Duration(milliseconds: 600);
   static const int maxEventsPerQuery = 100;
 
   // Sequência monotônica de requests para descartar respostas antigas.
@@ -75,6 +90,11 @@ class MapDiscoveryService {
   // Tombstones: IDs de eventos deletados na sessão atual
   // Previne ressurreição de markers se o cache I/O for lento ou falhar
   final Set<String> _tombstones = <String>{};
+
+  // Cache persistente (Hive)
+  final HiveCacheService<List<EventLocationCache>> _persistentCache =
+      HiveCacheService<List<EventLocationCache>>('events_map_tiles');
+  bool _persistentCacheReady = false;
 
   // Estado
   bool _isLoading = false;
@@ -183,6 +203,9 @@ class MapDiscoveryService {
       
       // 3️⃣ Salva no cache em memória
       _putInMemoryCache(quadkey, events);
+
+      // 4️⃣ Salva no cache persistente (Hive)
+      await _putInPersistentCache(quadkey, events);
       
       debugPrint('✅ MapDiscoveryService: ${events.length} eventos encontrados');
       
@@ -227,6 +250,28 @@ class MapDiscoveryService {
       return true;
     }
 
+    // 2️⃣ Hive cache (persistente)
+    final persistentEntries = _getPersistentCacheEntriesIfFresh(quadkey);
+    if (persistentEntries != null) {
+      final persistentCached = _convertPersistentCacheEntries(persistentEntries);
+      _putInMemoryCache(quadkey, persistentCached);
+
+      final filtered =
+          persistentCached.where((e) => !_tombstones.contains(e.eventId)).toList();
+      nearbyEvents.value = filtered;
+      _eventsController.add(filtered);
+      if (prefetchNeighbors) {
+        unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
+      }
+
+      final age = _getPersistentCacheAge(persistentEntries);
+      if (age != null && age >= persistentSoftRefreshAge) {
+        unawaited(_revalidateInBackground(bounds, quadkey));
+      }
+
+      return true;
+    }
+
     return false;
   }
 
@@ -240,6 +285,14 @@ class MapDiscoveryService {
     final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
     if (memoryCached != null) {
       cached = memoryCached;
+    }
+
+    if (cached == null) {
+      final persistentEntries = _getPersistentCacheEntriesIfFresh(quadkey);
+      if (persistentEntries != null) {
+        cached = _convertPersistentCacheEntries(persistentEntries);
+        _putInMemoryCache(quadkey, cached);
+      }
     }
 
     if (cached == null) return false;
@@ -296,6 +349,7 @@ class MapDiscoveryService {
           final events = await _queryFirestore(neighbor);
           if (events.isEmpty) continue;
           _putInMemoryCache(quadkey, events);
+          await _putInPersistentCache(quadkey, events);
           fetched++;
         } catch (_) {
           // Ignorar falhas de prefetch
@@ -349,6 +403,7 @@ class MapDiscoveryService {
       
       // Atualiza caches
       _putInMemoryCache(quadkey, freshEvents);
+      await _putInPersistentCache(quadkey, freshEvents);
       
       // Só atualiza UI se o quadkey ainda for relevante (usuário não moveu o mapa)
       final currentEvents = nearbyEvents.value;
@@ -408,6 +463,64 @@ class MapDiscoveryService {
     }
   }
 
+  Future<void> _initializePersistentCache() async {
+    if (_persistentCacheReady) return;
+    try {
+      await HiveInitializer.initialize();
+      await _persistentCache.initialize();
+      _persistentCacheReady = true;
+    } catch (e) {
+      debugPrint('📦 [MapDiscovery] Hive init error: $e');
+    }
+  }
+
+  List<EventLocationCache>? _getPersistentCacheEntriesIfFresh(String quadkey) {
+    if (!_persistentCacheReady || !_persistentCache.isInitialized) return null;
+    return _persistentCache.get(quadkey);
+  }
+
+  List<EventLocation> _convertPersistentCacheEntries(
+    List<EventLocationCache> entries,
+  ) {
+    return entries
+        .map((e) => EventLocation(
+              eventId: e.eventId,
+              latitude: e.latitude,
+              longitude: e.longitude,
+              eventData: e.toMinimalEventData(),
+            ))
+        .toList();
+  }
+
+  Duration? _getPersistentCacheAge(List<EventLocationCache> entries) {
+    if (entries.isEmpty) return null;
+    final cachedAtMillis = entries.first.cachedAtMillis;
+    final ageMillis =
+        DateTime.now().millisecondsSinceEpoch - cachedAtMillis;
+    return Duration(milliseconds: ageMillis);
+  }
+
+  Future<void> _putInPersistentCache(
+    String quadkey,
+    List<EventLocation> events,
+  ) async {
+    if (!_persistentCacheReady || !_persistentCache.isInitialized) return;
+    final cacheEntries = events
+        .map((e) => EventLocationCache.fromEventLocation(
+              e.eventId,
+              e.latitude,
+              e.longitude,
+              e.eventData,
+            ))
+        .toList();
+
+    await _persistentCache.put(
+      quadkey,
+      cacheEntries,
+      ttl: persistentCacheTTL,
+    );
+  }
+
   /// Query no Firestore usando bounding box
   /// 
   /// Firestore suporta apenas 1 range query por vez,
@@ -416,16 +529,19 @@ class MapDiscoveryService {
   /// Filtra eventos com isActive = false (desativados pela Cloud Function)
   Future<List<EventLocation>> _queryFirestore(MapBounds bounds) async {
     final query = await _firestore
-        .collection('events')
-        .where('isActive', isEqualTo: true) // ⭐ Filtrar apenas eventos ativos
-        .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
-        .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
-        .limit(maxEventsPerQuery)
-        .get();
+      .collection(_eventsMapCollection)
+      .where('isActive', isEqualTo: true) // ⭐ Filtrar apenas eventos ativos
+      .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
+      .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
+      .limit(maxEventsPerQuery)
+      .get();
 
     final events = <EventLocation>[];
+    int docsFetched = 0;
+    int docsKept = 0;
 
     for (final doc in query.docs) {
+      docsFetched++;
       try {
         final data = doc.data();
 
@@ -447,11 +563,65 @@ class MapDiscoveryService {
         // Filtrar por longitude (Firestore não permite 2 ranges)
         if (bounds.contains(event.latitude, event.longitude)) {
           events.add(event);
+          docsKept++;
         }
       } catch (error) {
         debugPrint('⚠️ MapDiscoveryService: Erro ao processar evento ${doc.id}: $error');
       }
     }
+
+
+    if (docsFetched > 0) {
+      final waste = (docsFetched - docsKept).clamp(0, docsFetched);
+      final wastePct = (waste / docsFetched) * 100.0;
+      debugPrint(
+        '📉 [MapDiscovery] Waste longitude: fetched=$docsFetched kept=$docsKept waste=${wastePct.toStringAsFixed(1)}%'
+      );
+    }
+
+    if (events.isEmpty && _allowEventsFallback) {
+      final fallbackQuery = await _firestore
+          .collection(_eventsCollection)
+          .where('isActive', isEqualTo: true)
+          .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
+          .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
+          .limit(maxEventsPerQuery)
+          .get();
+
+      for (final doc in fallbackQuery.docs) {
+        try {
+          final data = doc.data();
+
+          final isCanceled = data['isCanceled'] as bool? ?? false;
+          if (isCanceled) {
+            continue;
+          }
+
+          final status = data['status'] as String?;
+          if (status != null && status != 'active') {
+            continue;
+          }
+
+          final event = EventLocation.fromFirestore(doc.id, doc.data());
+          if (bounds.contains(event.latitude, event.longitude)) {
+            events.add(event);
+          }
+        } catch (error) {
+          debugPrint('⚠️ MapDiscoveryService: Erro ao processar evento fallback ${doc.id}: $error');
+        }
+      }
+    }
+
+    AnalyticsService.instance.logEvent('map_bounds_query', parameters: {
+      'docs_returned': events.length,
+      'docs_fetched_count': docsFetched,
+      'docs_kept_count': docsKept,
+      'waste_ratio': docsFetched > 0 ? (1.0 - (docsKept / docsFetched)).toStringAsFixed(2) : '0.00',
+      'bounds_min_lat': bounds.minLat,
+      'bounds_max_lat': bounds.maxLat,
+      'bounds_min_lng': bounds.minLng,
+      'bounds_max_lng': bounds.maxLng,
+    });
 
     return events;
   }

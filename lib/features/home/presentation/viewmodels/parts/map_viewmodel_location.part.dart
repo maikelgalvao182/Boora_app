@@ -4,8 +4,21 @@ extension MapViewModelLocation on MapViewModel {
   /// Helper para obter repository de localização (via GetIt)
   LocationRepositoryInterface get _locationRepository => GetIt.instance<LocationRepositoryInterface>();
 
-  void _startLocationTracking() {
+  Future<void> _startLocationTracking() async {
     if (_positionSubscription != null) return;
+
+    // Verificar permissões antes de iniciar stream para evitar kCLErrorDenied
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        AppLogger.warning('⚠️ [MapViewModel] Sem permissão para location tracking ($permission). Abortando.', tag: 'MapViewModel');
+        return;
+      }
+    } catch (e) {
+      // Se falhar checkPermission (raro), loga e tenta continuar ou aborta
+       AppLogger.error('❌ [MapViewModel] Falha ao verificar permissões: $e', tag: 'MapViewModel');
+       // return; // Talvez não retornar, deixar o try-catch abaixo pegar se falhar o stream
+    }
     
     // Configurações de precisão e filtro de distância
     const locationSettings = LocationSettings(
@@ -52,6 +65,12 @@ extension MapViewModelLocation on MapViewModel {
       final country = placemark.country;
 
       if (city != null && state != null) {
+        final geohash = GeohashHelper.encode(
+          position.latitude,
+          position.longitude,
+          precision: 7,
+        );
+
         // Atualiza Store (UI reage imediatamente)
         UserStore.instance.updateCity(userId, city);
         UserStore.instance.updateState(userId, state);
@@ -65,6 +84,7 @@ extension MapViewModelLocation on MapViewModel {
             longitude: position.longitude,
             displayLatitude: position.latitude, 
             displayLongitude: position.longitude,
+          geohash: geohash,
             country: country ?? '',
             locality: city,
             state: state,

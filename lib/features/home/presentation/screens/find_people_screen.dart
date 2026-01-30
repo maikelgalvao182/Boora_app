@@ -67,7 +67,9 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     debugPrint('   📐 currentBounds: ${_peopleDiscoveryService.currentBounds.value}');
     debugPrint('   📋 nearbyPeople.length: ${_peopleDiscoveryService.nearbyPeople.value.length}');
     
-    _peopleDiscoveryService.refreshCurrentBounds();
+    _peopleDiscoveryService.refreshCurrentBoundsIfStale(
+      ttl: const Duration(minutes: 10),
+    );
   }
 
   @override

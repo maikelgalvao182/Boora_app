@@ -291,7 +291,7 @@ class MapBoundsController {
       final viewportActive = currentZoom > clusterZoomThreshold;
       peopleController.setViewportActive(viewportActive);
       if (viewportActive) {
-        await peopleController.forceRefresh(bounds);
+        await peopleController.forceRefresh(bounds, zoom: currentZoom);
       }
       
       if (viewModel.events.isNotEmpty) {

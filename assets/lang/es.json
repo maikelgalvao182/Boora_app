@@ -122,6 +122,9 @@
   "search": "Buscar",
   "notifications": "Notificaciones",
   "no_notifications_yet": "Aún no hay notificaciones",
+  "clear": "Limpiar",
+  "delete_notifications": "Limpiar notificaciones",
+  "all_notifications_will_be_deleted": "Todas tus notificaciones serán eliminadas. Esta acción no se puede deshacer.",
   "messages": "Mensajes",
   "conversations": "Conversaciones",
   "no_conversations_yet": "Aún no hay conversaciones",
@@ -422,6 +425,9 @@
   "retry": "Reintentar",
   "profile_id_not_found": "ID de perfil no encontrado",
   "profile_data_not_found": "Datos del perfil no encontrados",
+  "profile_not_available": "Perfil no disponible",
+  "profile_not_available_description": "Este perfil no existe o ha sido eliminado.",
+  "go_back": "Volver",
   "rating_label": "Calificación",
   "review_singular": "reseña",
   "reviews_plural": "reseñas",
@@ -579,6 +585,8 @@
   "category_networking_subtitle": "Trabajo, charlas, meetups",
   "category_games": "Juegos",
   "category_games_subtitle": "Juegos de mesa, billar, gaming",
+  "category_romance": "Romance",
+  "category_romance_subtitle": "Citas, encuentros, ligue",
   "category_other": "Otros",
   "category_other_subtitle": "Cualquier otro tipo de plan",
   "category_carnaval": "Carnaval 2026",
@@ -1115,8 +1123,12 @@
   "later": "Más tarde",
   "actions": "Acciones",
   "share_app_message": "Crea cosas para hacer en el mapa de tu ciudad y mira quién quiere acompañarte.",
-  "followers": "seguidores",
+  "followers": "Seguidores",
   "event_photo_one_participant_label": "con 1 persona",
-  "event_photo_participants_count_label": "con {count} personas"
+  "event_photo_participants_count_label": "con {count} personas",
+  "location_picker_tab_map": "Ubicar",
+  "location_picker_tab_search": "Buscar",
+  "location_picker_map_hint": "Haz clic en el mapa para marcar el punto de encuentro",
+  "tap_map_to_confirm": "Arrastra el mapa o toca para confirmar"
 }
 

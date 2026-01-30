@@ -9,19 +9,31 @@ class GlimpseSegmentedTabs extends StatelessWidget {
     required this.labels,
     required this.currentIndex,
     required this.onChanged,
+    this.backgroundColor,
+    this.selectedTabColor,
+    this.selectedTextColor,
+    this.unselectedTextColor,
+    this.margin,
+    this.padding,
   });
 
   final List<String> labels;
   final int currentIndex;
   final ValueChanged<int> onChanged;
+  final Color? backgroundColor;
+  final Color? selectedTabColor;
+  final Color? selectedTextColor;
+  final Color? unselectedTextColor;
+  final EdgeInsetsGeometry? margin;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: const EdgeInsets.all(4),
+      margin: margin ?? const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: padding ?? const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: GlimpseColors.lightTextField,
+        color: backgroundColor ?? GlimpseColors.lightTextField,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -31,6 +43,9 @@ class GlimpseSegmentedTabs extends StatelessWidget {
             label: labels[index],
             isActive: isActive,
             onTap: () => onChanged(index),
+            selectedTabColor: selectedTabColor,
+            selectedTextColor: selectedTextColor,
+            unselectedTextColor: unselectedTextColor,
           );
         }),
       ),
@@ -43,11 +58,17 @@ class _SegmentedTabItem extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.selectedTabColor,
+    this.selectedTextColor,
+    this.unselectedTextColor,
   });
 
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final Color? selectedTabColor;
+  final Color? selectedTextColor;
+  final Color? unselectedTextColor;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +78,7 @@ class _SegmentedTabItem extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
+            color: isActive ? (selectedTabColor ?? Colors.white) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Center(
@@ -68,8 +89,8 @@ class _SegmentedTabItem extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: isActive
-                    ? GlimpseColors.primaryColorLight
-                    : GlimpseColors.textSubTitle,
+                    ? (selectedTextColor ?? GlimpseColors.primaryColorLight)
+                    : (unselectedTextColor ?? GlimpseColors.textSubTitle),
               ),
             ),
           ),

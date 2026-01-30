@@ -8,6 +8,7 @@ import 'package:partiu/screens/chat/models/message.dart';
 import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/screens/chat/services/chat_message_deletion_service.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
+import 'package:partiu/screens/chat/services/chat_analytics_service.dart'; // ✅ INSTRUMENTAÇÃO
 import 'package:partiu/screens/chat/widgets/glimpse_chat_bubble.dart';
 import 'package:partiu/shared/widgets/my_circular_progress.dart';
 import 'package:partiu/shared/widgets/auto_scroll_list_handler.dart';
@@ -87,6 +88,12 @@ class _MessageListWidgetState extends State<MessageListWidget> {
     final ChatMessageDeletionService _messageDeletionService =
       ChatMessageDeletionService();
   
+  // ✅ INSTRUMENTAÇÃO: Analytics service
+  final ChatAnalyticsService _analytics = ChatAnalyticsService.instance;
+  bool _hasLoggedFirstPaint = false;
+  bool _firstSnapshotWasCache = false;
+  int _snapshotCount = 0;
+  
   // State for messages
   List<Message>? _messages;
   List<Message>? _allMessages; // Armazena todas as mensagens antes da filtragem
@@ -126,6 +133,10 @@ class _MessageListWidgetState extends State<MessageListWidget> {
     _subscription?.cancel();
     _highlightTimer?.cancel(); // 🆕 Cancelar timer de highlight
     BlockService.instance.removeListener(_onBlockedUsersChanged);
+    
+    // ✅ INSTRUMENTAÇÃO: Desregistrar stream ao fechar
+    _analytics.unregisterMessageStream(widget.remoteUserId);
+    
     super.dispose();
   }
   
@@ -211,9 +222,27 @@ class _MessageListWidgetState extends State<MessageListWidget> {
     
     debugPrint("🔄 MessageListWidget: Initializing stream for ${widget.remoteUserId} (Attempt ${_retryCount + 1})");
     
+    // ✅ INSTRUMENTAÇÃO: Registrar stream de mensagens
+    _analytics.registerMessageStream(widget.remoteUserId);
+    _snapshotCount = 0;
+    
     _subscription = widget.chatService.getMessages(widget.remoteUserId).listen(
       (messages) {
+        _snapshotCount++;
         debugPrint("📋 MessageListWidget: Received ${messages.length} messages");
+        
+        // ✅ INSTRUMENTAÇÃO: Log do snapshot
+        // Primeiro snapshot geralmente é do cache Hive (se existir)
+        final isFirstSnapshot = _snapshotCount == 1;
+        if (isFirstSnapshot) {
+          _firstSnapshotWasCache = messages.isNotEmpty; // Assume cache hit se veio rápido com dados
+        }
+        
+        _analytics.logStreamSnapshot(
+          chatId: widget.remoteUserId,
+          docsInSnapshot: messages.length,
+          isFromCache: isFirstSnapshot && _firstSnapshotWasCache,
+        );
         
         // Confirmar deleções otimistas: quando o backend marcar como deleted
         // (ou a doc sumir), removemos do set local.
@@ -462,6 +491,16 @@ class _MessageListWidgetState extends State<MessageListWidget> {
     if (_isLoading || _messages == null) {
       debugPrint("⏳ No data yet, showing loading spinner");
       return const Center(child: MyCircularProgress());
+    }
+    
+    // 📊 ANALYTICS: Log do tempo até primeiro paint (uma vez só)
+    if (!_hasLoggedFirstPaint && _messages!.isNotEmpty) {
+      _hasLoggedFirstPaint = true;
+      _analytics.logTimeToFirstPaint(
+        chatId: widget.remoteUserId,
+        cacheHit: _firstSnapshotWasCache,
+        messagesRendered: _messages!.length,
+      );
     }
     
     // Aplicar deleção otimista sem mexer no stream: filtra no build.

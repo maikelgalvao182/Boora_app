@@ -48,6 +48,13 @@ class EventPhotoRepository {
   final EventPhotoCacheService? _cacheService;
 
   CollectionReference<Map<String, dynamic>> get _photos => _firestore.collection('EventPhotos');
+  
+  /// Coleção de feeds materializados (fanout)
+  CollectionReference<Map<String, dynamic>> get _feeds => _firestore.collection('feeds');
+  
+  /// Flag para usar fanout (pode ser controlada via Remote Config no futuro)
+  /// Por enquanto, sempre true para novos usuários
+  static const bool _useFanout = true;
 
   static const int _followingChunkSize = 10;
 
@@ -219,7 +226,22 @@ class EventPhotoRepository {
     );
   }
 
-  Future<EventPhotoPage> _fetchFollowingPage({
+  /// =========================================================================
+  /// FEED FANOUT - Busca do feed materializado
+  /// =========================================================================
+  /// 
+  /// Quando `_useFanout` está ativo, usa a coleção `feeds/{userId}/items`
+  /// que é populada por Cloud Functions quando posts são criados.
+  /// 
+  /// Benefícios:
+  /// - 1 query simples ao invés de N queries (whereIn chunking)
+  /// - Escala melhor com muitos seguidos
+  /// - Reads muito mais baratos
+  /// 
+  /// A Cloud Function `onEventPhotoWriteFanout` distribui os posts para
+  /// os feeds dos seguidores automaticamente.
+
+  Future<EventPhotoPage> _fetchFollowingPageViaFanout({
     required String currentUserId,
     required int limit,
     required DocumentSnapshot<Map<String, dynamic>>? cursor,
@@ -233,6 +255,120 @@ class EventPhotoRepository {
         hasMore: false,
       );
     }
+
+    debugPrint('📥 [EventPhotoRepository] Usando FANOUT para feed Following');
+
+    try {
+      // Query simples na coleção de fanout - apenas 1 query!
+      Query<Map<String, dynamic>> query = _feeds
+          .doc(currentUserId)
+          .collection('items')
+          .where('sourceType', isEqualTo: 'event_photo')
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      if (cursor != null) {
+        query = query.startAfterDocument(cursor);
+      }
+
+      final fanoutSnap = await query.get();
+      
+      debugPrint('✅ [EventPhotoRepository] Fanout retornou ${fanoutSnap.docs.length} items');
+
+      if (fanoutSnap.docs.isEmpty) {
+        return const EventPhotoPage(
+          items: [],
+          nextCursor: null,
+          activeCursor: null,
+          pendingCursor: null,
+          hasMore: false,
+        );
+      }
+
+      // Busca os documentos originais de EventPhotos
+      // (fanout armazena apenas referência + preview)
+      final sourceIds = fanoutSnap.docs
+          .map((doc) => doc.data()['sourceId'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      if (sourceIds.isEmpty) {
+        return const EventPhotoPage(
+          items: [],
+          nextCursor: null,
+          activeCursor: null,
+          pendingCursor: null,
+          hasMore: false,
+        );
+      }
+
+      // Busca os EventPhotos originais em batch
+      // Usa chunks de 10 (limite do whereIn)
+      final chunks = _chunkIds(sourceIds, 10);
+      final photoFutures = chunks.map((chunk) {
+        return _photos
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+      }).toList();
+
+      final photoSnaps = await Future.wait(photoFutures);
+      
+      // Mapeia por ID para manter ordem do fanout
+      final photosById = <String, EventPhotoModel>{};
+      for (final snap in photoSnaps) {
+        for (final doc in snap.docs) {
+          // Só inclui se ainda está ativo
+          final status = doc.data()['status'] as String?;
+          if (status == 'active') {
+            photosById[doc.id] = EventPhotoModel.fromFirestore(doc);
+          }
+        }
+      }
+
+      // Reconstrói lista na ordem do fanout
+      final items = <EventPhotoModel>[];
+      for (final fanoutDoc in fanoutSnap.docs) {
+        final sourceId = fanoutDoc.data()['sourceId'] as String?;
+        if (sourceId != null && photosById.containsKey(sourceId)) {
+          items.add(photosById[sourceId]!);
+        }
+      }
+
+      final nextCursor = fanoutSnap.docs.isNotEmpty ? fanoutSnap.docs.last : cursor;
+      final hasMore = fanoutSnap.docs.length >= limit;
+
+      debugPrint('📊 [EventPhotoRepository] Fanout resultado: ${items.length} photos, hasMore: $hasMore');
+
+      return EventPhotoPage(
+        items: items,
+        nextCursor: nextCursor,
+        activeCursor: nextCursor,
+        pendingCursor: null,
+        hasMore: hasMore,
+      );
+    } catch (e) {
+      debugPrint('⚠️ [EventPhotoRepository] Erro no fanout, fallback para chunking: $e');
+      // Fallback para método legado em caso de erro
+      return _fetchFollowingPageLegacy(
+        currentUserId: currentUserId,
+        limit: limit,
+        cursor: cursor,
+      );
+    }
+  }
+
+  /// Método legado de busca Following (whereIn chunking)
+  /// 
+  /// Mantido como fallback caso o fanout não esteja disponível
+  /// ou ocorra algum erro.
+  Future<EventPhotoPage> _fetchFollowingPageLegacy({
+    required String currentUserId,
+    required int limit,
+    required DocumentSnapshot<Map<String, dynamic>>? cursor,
+  }) async {
+    debugPrint('📥 [EventPhotoRepository] Usando LEGACY (chunking) para feed Following');
+    
     final followingIds = await _fetchFollowingIds(currentUserId);
     if (followingIds.isEmpty) {
       return const EventPhotoPage(
@@ -284,6 +420,41 @@ class EventPhotoRepository {
       activeCursor: nextCursor,
       pendingCursor: null,
       hasMore: hasMore,
+    );
+  }
+
+  /// Método principal para buscar feed Following
+  /// 
+  /// Usa fanout se disponível, fallback para legacy (chunking)
+  Future<EventPhotoPage> _fetchFollowingPage({
+    required String currentUserId,
+    required int limit,
+    required DocumentSnapshot<Map<String, dynamic>>? cursor,
+  }) async {
+    if (currentUserId.trim().isEmpty) {
+      return const EventPhotoPage(
+        items: [],
+        nextCursor: null,
+        activeCursor: null,
+        pendingCursor: null,
+        hasMore: false,
+      );
+    }
+
+    // Usa fanout se habilitado
+    if (_useFanout) {
+      return _fetchFollowingPageViaFanout(
+        currentUserId: currentUserId,
+        limit: limit,
+        cursor: cursor,
+      );
+    }
+
+    // Fallback para método legado
+    return _fetchFollowingPageLegacy(
+      currentUserId: currentUserId,
+      limit: limit,
+      cursor: cursor,
     );
   }
 

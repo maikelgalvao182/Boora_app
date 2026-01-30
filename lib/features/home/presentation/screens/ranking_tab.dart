@@ -58,7 +58,8 @@ class _RankingTabState extends State<RankingTab> {
       if (!_peopleViewModel.hasLoadedOnce && !_peopleViewModel.isLoading) {
         unawaited(() async {
           try {
-            await _peopleViewModel.initialize();
+            // 🚫 Evitar requests extras de estados/cidades (UI deriva filtros localmente)
+            await _peopleViewModel.initialize(loadFilters: false);
           } catch (_) {
             // Erro já é tratado/exposto pelo ViewModel.
           }
@@ -214,7 +215,8 @@ class _RankingTabState extends State<RankingTab> {
               debugPrint('   - ANTES: loadState = ${_peopleViewModel.loadState}');
               debugPrint('   - ANTES: shouldShowEmptyState = ${_peopleViewModel.shouldShowEmptyState}');
               
-              await _peopleViewModel.refresh();
+              // 🚫 Evitar refresh de estados/cidades (derivados da lista master)
+              await _peopleViewModel.refresh(loadFilters: false);
               
               debugPrint('🔄 [RankingTab] Pull-to-refresh COMPLETO (pessoas)');
               debugPrint('   - DEPOIS: displayedRankings.length = ${_peopleState.displayedRankings.length}');

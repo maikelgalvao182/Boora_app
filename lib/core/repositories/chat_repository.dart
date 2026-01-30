@@ -32,41 +32,49 @@ class ChatRepository implements IChatRepository {
     Stream<List<Message>> baseStream;
 
     // 🎯 EVENTO: Usa EventChats/{eventId}/Messages
+    // ✅ OTIMIZADO: limit(50) + orderBy desc + sem includeMetadataChanges
     if (withUserId.startsWith('event_')) {
       final eventId = withUserId.replaceFirst('event_', '');
       baseStream = _firestore
           .collection('EventChats')
           .doc(eventId)
           .collection('Messages')
-          .orderBy(TIMESTAMP, descending: false)
-          .snapshots(includeMetadataChanges: true)
+          .orderBy(TIMESTAMP, descending: true) // ✅ DESC para pegar as últimas
+          .limit(50) // ✅ Realtime só nas últimas 50 mensagens
+          .snapshots() // ✅ Removido includeMetadataChanges para reduzir eventos
           .map((snapshot) {
-        print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length}');
+        print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length} (limit 50)');
         if (snapshot.docs.isNotEmpty) {
           final lastDocs = snapshot.docs.length > 3 ? snapshot.docs.sublist(snapshot.docs.length - 3) : snapshot.docs;
           print('🔍 [REPO DEBUG] Last 3 docs IDs: ${lastDocs.map((d) => d.id).toList()}');
         }
-        return snapshot.docs
+        // ✅ Inverter lista para ordem cronológica (query retorna desc)
+        final messages = snapshot.docs
             .map((doc) => Message.fromDocument(doc.data(), doc.id))
             .where((m) => m != null)
             .cast<Message>()
             .toList();
+        return messages.reversed.toList(); // ✅ Cronológico: mais antiga primeiro
       });
     } else {
       // 👤 USUÁRIO: Usa Messages/{userId}/{partnerId}
+      // ✅ OTIMIZADO: limit(50) + orderBy desc + sem includeMetadataChanges
       baseStream = _firestore
           .collection(C_MESSAGES)
           .doc(currentUserId)
           .collection(withUserId)
-          .orderBy(TIMESTAMP, descending: false)
-          .snapshots(includeMetadataChanges: true)
+          .orderBy(TIMESTAMP, descending: true) // ✅ DESC para pegar as últimas
+          .limit(50) // ✅ Realtime só nas últimas 50 mensagens
+          .snapshots() // ✅ Removido includeMetadataChanges para reduzir eventos
           .map((snapshot) {
-        print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length}');
-        return snapshot.docs
+        print('🔍 [REPO DEBUG] Snapshot docs: ${snapshot.docs.length} (limit 50)');
+        // ✅ Inverter lista para ordem cronológica (query retorna desc)
+        final messages = snapshot.docs
             .map((doc) => Message.fromDocument(doc.data(), doc.id))
             .where((m) => m != null)
             .cast<Message>()
             .toList();
+        return messages.reversed.toList(); // ✅ Cronológico: mais antiga primeiro
       });
     }
 
@@ -103,8 +111,11 @@ class ChatRepository implements IChatRepository {
 
     yield* baseStream.asyncMap((messages) async {
       if (messages.isNotEmpty) {
-        final slice = messages.length > 30
-            ? messages.sublist(messages.length - 30)
+        // ✅ Cache sempre salva em ordem ASC (cronológica)
+        // A query retorna DESC mas já invertemos para ASC antes de chegar aqui
+        // Salvar as últimas 50 mensagens (alinhado com limit da query)
+        final slice = messages.length > 50
+            ? messages.sublist(messages.length - 50)
             : messages;
         final cacheItems = slice
             .map((m) => MessageCacheItem(

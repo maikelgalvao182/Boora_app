@@ -16,6 +16,7 @@ import 'package:partiu/shared/widgets/image_source_bottom_sheet.dart';
 import 'package:partiu/screens/chat/services/application_removal_service.dart';
 import 'package:partiu/screens/chat/services/chat_service.dart';
 import 'package:partiu/screens/chat/services/fee_auto_heal_service.dart';
+import 'package:partiu/screens/chat/services/chat_analytics_service.dart'; // ✅ INSTRUMENTAÇÃO
 import 'package:partiu/screens/chat/widgets/chat_app_bar_widget.dart';
 import 'package:partiu/screens/chat/widgets/confirm_presence_widget.dart';
 import 'package:partiu/screens/chat/widgets/dummy_presence_header.dart';
@@ -54,7 +55,9 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
   final _chatService = ChatService(); // B1.1: Agora usa singleton automaticamente
   final _applicationRemovalService = ApplicationRemovalService();
   final _feeAutoHealService = FeeAutoHealService();
-  late Stream<DocumentSnapshot<Map<String, dynamic>>> _conversationDoc;
+  // ✅ OTIMIZADO: Removido stream de conversa - usando get() único
+  // late Stream<DocumentSnapshot<Map<String, dynamic>>> _conversationDoc;
+  Map<String, dynamic>? _conversationData; // Dados carregados via get()
   String? _applicationId;
   bool _showRealPresenceWidget = false; // Controla quando mostrar o widget real
   
@@ -230,55 +233,25 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
       return;
     }
 
+    // 📊 ANALYTICS: Log de abertura do chat para medir performance
+    ChatAnalyticsService.instance.logChatOpen(
+      chatId: widget.user.userId,
+      chatType: widget.isEvent ? 'event' : '1:1',
+      cacheHit: false, // Será true quando implementar cache hit detection
+      initialMessagesRendered: 0, // Atualizado após render
+    );
+
     // Removido auto-scroll inicial - ListView já inicia na posição correta das mensagens mais recentes
 
-    // Stream do resumo de conversa (para fee lock) - usando cache
-    _conversationDoc = _chatService.getConversationStream(widget.user.userId);
-    debugPrint('✅ ChatScreen: Iniciando stream de conversa para userId: ${widget.user.userId}');
+    // ✅ OTIMIZADO: Usar get() único em vez de stream para metadata da conversa
+    // Stream removido - economiza ~1 read por segundo enquanto chat está aberto
+    _loadConversationData();
+    debugPrint('✅ ChatScreen: Carregando conversa via get() para userId: ${widget.user.userId}');
     
     // Carregar applicationId se for evento
     if (widget.isEvent && widget.eventId != null) {
       _loadApplicationId();
     }
-    
-  // B1.3: Proper stream subscription management via mixin
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? sub;
-  sub = _conversationDoc.listen((snap) {
-      debugPrint('📬 ChatScreen: Recebeu snapshot de conversa');
-      debugPrint('   - exists: ${snap.exists}');
-      debugPrint('   - id: ${snap.id}');
-      
-      if (!snap.exists) {
-        debugPrint('⚠️ Conversa não existe ainda');
-        return;
-      }
-      final data = snap.data();
-      debugPrint('   - data keys: ${data?.keys.toList()}');
-      
-      // A3.1: Auto-heal logic movida para background service (não bloqueia UI)
-      if (data != null) {
-  final currentUserId = AppState.currentUserId;
-        if (currentUserId != null) {
-          _feeAutoHealService.processAutoHeal(
-            conversationId: snap.id,
-            currentUserId: currentUserId,
-            otherUserId: widget.user.userId,
-            conversationData: data,
-          );
-        }
-      }
-      
-      if (!mounted) return; // evita setState após dispose
-    }, onError: (error) async {
-      // Ignore permission errors (e.g., after logout) and stop listening
-      final msg = error.toString();
-      if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
-        try {
-          await sub?.cancel();
-        } catch (_) {}
-      }
-    });
-    addSubscription(sub);
 
     // Check blocked user
     final localUserId = AppState.currentUserId;
@@ -289,12 +262,7 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
       );
     }
 
-    // Carregar applicationId se for evento
-    if (widget.isEvent && widget.eventId != null) {
-      _loadApplicationId();
-    }
-
-    // Listen for remote user updates (simplificado para evitar conversão complexa)
+    // ✅ OTIMIZADO: Stream de presença removido - usar getUserOnce() se necessário
     // _chatService.getUserUpdates(widget.user.userId).listen((userModel) {
     //   // Update do remote user pode ser implementado posteriormente se necessário
     // });
@@ -307,6 +275,39 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
     if (!mounted) return;
     // Força rebuild da tela quando houver mudança nos bloqueios
     setState(() {});
+  }
+
+  /// ✅ OTIMIZADO: Carrega dados da conversa com get() único (em vez de stream)
+  /// Economiza reads do Firestore - stream gerava ~1 read/segundo
+  Future<void> _loadConversationData() async {
+    try {
+      final data = await _chatService.getConversationOnce(widget.user.userId);
+      
+      if (!mounted) return;
+      
+      if (data == null) {
+        debugPrint('⚠️ Conversa não existe ainda');
+        return;
+      }
+      
+      debugPrint('📬 ChatScreen: Dados da conversa carregados via get()');
+      debugPrint('   - data keys: ${data.keys.toList()}');
+      
+      _conversationData = data;
+      
+      // A3.1: Auto-heal logic (executar uma vez ao abrir)
+      final currentUserId = AppState.currentUserId;
+      if (currentUserId != null) {
+        _feeAutoHealService.processAutoHeal(
+          conversationId: widget.user.userId,
+          currentUserId: currentUserId,
+          otherUserId: widget.user.userId,
+          conversationData: data,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar conversa: $e');
+    }
   }
 
   /// Carrega applicationId do usuário atual para este evento

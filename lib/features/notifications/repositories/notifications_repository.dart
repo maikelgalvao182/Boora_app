@@ -350,20 +350,45 @@ class NotificationsRepository implements INotificationsRepository {
         return;
       }
 
-      final snapshot = await _notificationsCollection
+      // Coletar IDs únicos de notificações de ambas as queries
+      // (compatibilidade com campo legado n_receiver_id)
+      final Set<String> notificationIds = {};
+
+      // Query 1: por userId (campo novo)
+      final snapshotByUserId = await _notificationsCollection
           .where(_fieldUserId, isEqualTo: userId)
           .get();
-
-      if (snapshot.docs.isEmpty) return;
-
-      // Usar WriteBatch para operações em lote
-      final batch = _firestore.batch();
-
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
+      for (final doc in snapshotByUserId.docs) {
+        notificationIds.add(doc.id);
       }
 
-      await batch.commit();
+      // Query 2: por n_receiver_id (campo legado)
+      final snapshotByReceiverId = await _notificationsCollection
+          .where(_fieldReceiverIdLegacy, isEqualTo: userId)
+          .get();
+      for (final doc in snapshotByReceiverId.docs) {
+        notificationIds.add(doc.id);
+      }
+
+      if (notificationIds.isEmpty) return;
+
+      // Usar WriteBatch para operações em lote (limite de 500 por batch)
+      final allIds = notificationIds.toList();
+      for (int i = 0; i < allIds.length; i += 500) {
+        final batch = _firestore.batch();
+        final chunk = allIds.sublist(i, (i + 500).clamp(0, allIds.length));
+        
+        for (final docId in chunk) {
+          batch.delete(_notificationsCollection.doc(docId));
+        }
+        
+        await batch.commit();
+      }
+
+      AppLogger.info(
+        'Deletadas ${notificationIds.length} notificações do usuário',
+        tag: 'NOTIFICATIONS',
+      );
     } catch (e) {
       AppLogger.error(
         'Error deleting user notifications',

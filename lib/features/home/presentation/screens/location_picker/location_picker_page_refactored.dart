@@ -3,18 +3,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/services/google_maps_config_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_controller.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_map.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/place_service.dart';
-import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_search_card.dart';
+import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_picker_header_card.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/location_suggestions_overlay.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/widgets/map_center_pin.dart';
 import 'package:partiu/features/home/presentation/widgets/participants_drawer.dart';
 import 'package:partiu/plugins/locationpicker/entities/localization_item.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
+import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 
 /// Location picker refatorado e modularizado
 class LocationPickerPageRefactored extends StatefulWidget {
@@ -51,6 +53,9 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
   OverlayEntry? _overlayEntry;
   bool _isProgrammaticMove = false; // Flag para indicar movimento programático do mapa
   bool _isUpdatingSearchText = false; // Flag para ignorar onChange programático
+
+  // 0: Mapa, 1: Busca
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -201,10 +206,23 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
     // A localização já será carregada pelo timeout no _initializeAsync
   }
 
-  /// Callback quando usuário toca no mapa - não usado com pin fixo
-  void _onMapTap(LatLng location) {
+  /// Callback quando usuário toca no mapa
+  Future<void> _onMapTap(LatLng location) async {
     _clearOverlay();
     FocusScope.of(context).unfocus();
+    
+    // Mover a câmera para o local clicado com animação
+    _isProgrammaticMove = true;
+    await _mapKey.currentState?.animateToLocation(location);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _isProgrammaticMove = false;
+      // Após mover, forçar atualização do pin central (o onCameraIdle pode ter sido suprimido)
+      _updateLocationFromMapCenter();
+      // Confirmar localização se estiver na tab Mapa
+      if (_selectedTabIndex == 0) {
+        _controller.confirmCurrentLocation();
+      }
+    });
   }
 
   /// Atualiza localização selecionada baseado no centro do mapa
@@ -267,6 +285,9 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
     // Atualizar input com o nome do lugar selecionado (sem disparar onChange)
     _isUpdatingSearchText = true;
     _searchController.text = placeName;
+    
+    // Força o cursor para o início do texto
+    _searchController.selection = const TextSelection.collapsed(offset: 0);
     
     // Limpar sugestões para evitar re-exibição do overlay
     _controller.clearSearch();
@@ -359,11 +380,16 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
             initialLocation: _controller.currentLocation ?? widget.defaultLocation,
             selectedLocation: _controller.selectedLocation,
             markers: const {}, // Sem markers, usamos pin fixo
+            circles: _controller.circles,
             onMapCreated: _onMapCreated,
             onTap: _onMapTap,
             onCameraIdle: () {
               if (_controller.isLocked) return;
               _updateLocationFromMapCenter();
+              // Se estiver na tab Mapa, confirmar localização automaticamente
+              if (_selectedTabIndex == 0) {
+                _controller.confirmCurrentLocation();
+              }
             },
             onCameraMoveStarted: () {
               // Só desbloquear se for movimento manual (não programático)
@@ -378,39 +404,83 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
             child: MapCenterPin(),
           ),
 
-          // Widget flutuante no topo com busca
+          // Card unificado com tabs + título/subtítulo + busca
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 16,
             right: 16,
             child: KeyedSubtree(
               key: _searchBarKey,
-              child: LocationSearchCard(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                onChanged: _onSearchChanged,
-                onBack: () => Navigator.of(context).pop({'action': 'back'}), // Volta para ScheduleDrawer
-                onClose: () {
-                  // Limpar o campo de busca e resetar seleção
-                  _isUpdatingSearchText = true; // Evitar que onChange seja disparado durante clear
+              child: LocationPickerHeaderCard(
+                selectedTabIndex: _selectedTabIndex,
+                onTabChanged: (index) {
+                  setState(() {
+                    _selectedTabIndex = index;
+                    if (index == 0) {
+                      _searchFocusNode.unfocus();
+                      _clearOverlay();
+                    } else {
+                      if (_searchController.text.isNotEmpty) {
+                        _showSuggestionsOverlay();
+                      }
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        if (mounted && _selectedTabIndex == 1) {
+                          _searchFocusNode.requestFocus();
+                        }
+                      });
+                    }
+                  });
+                },
+                searchController: _searchController,
+                searchFocusNode: _searchFocusNode,
+                onSearchChanged: _onSearchChanged,
+                onSearchClose: () {
+                  _isUpdatingSearchText = true;
                   _searchController.clear();
                   _isUpdatingSearchText = false;
                   _clearOverlay();
-                  _controller.clearSearch(); // Limpa _previousSearchTerm para permitir nova busca
-                  _controller.unlockLocation(); // Isso limpa isLocationConfirmed e permite nova busca
-                  _controller.clearPhotos(); // Limpa as fotos do carousel
+                  _controller.clearSearch();
+                  _controller.unlockLocation();
+                  _controller.clearPhotos();
                   FocusScope.of(context).unfocus();
                 },
               ),
             ),
           ),
 
-          // Botão fixo no rodapé
+          // Botões fixos no rodapé
           Positioned(
             bottom: MediaQuery.of(context).padding.bottom + 16,
             left: 16,
             right: 16,
-            child: GlimpseButton(
+            child: Row(
+              children: [
+                // Botão voltar
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: GlimpseColors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: GlimpseBackButton(
+                      color: Colors.white,
+                      onTap: () => Navigator.of(context).pop({'action': 'back'}),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Botão principal
+                Expanded(
+                  child: GlimpseButton(
               text: i18n.translate('set_activity_location'),
               onPressed: _controller.selectedLocation != null && _controller.isLocationConfirmed
                   ? () async {
@@ -458,6 +528,9 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
                       }
                     }
                   : null,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

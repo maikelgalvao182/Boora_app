@@ -6,6 +6,7 @@ import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/features/location/presentation/viewmodels/update_location_view_model.dart';
 import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
+import 'package:partiu/core/utils/geohash_helper.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
@@ -115,11 +116,18 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
         return;
       }
       
+      final geohash = GeohashHelper.encode(
+        position.latitude,
+        position.longitude,
+        precision: 7,
+      );
+
       // 4. Salva no Firestore via ViewModel
       await _viewModel.saveLocationDirectly(
         userId: userId,
         latitude: position.latitude,
         longitude: position.longitude,
+        geohash: geohash,
       );
       
       // Aguarda o estado mudar

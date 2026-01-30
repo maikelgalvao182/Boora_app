@@ -1,16 +1,21 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:partiu/core/models/user.dart' as app_user;
 import 'package:partiu/core/services/location_service.dart';
+import 'package:partiu/core/services/cache/hive_cache_service.dart';
+import 'package:partiu/core/services/cache/hive_initializer.dart';
 import 'package:partiu/core/utils/interests_helper.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/services/location/location_query_service.dart';
 import 'package:partiu/services/location/people_cloud_service.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/shared/stores/user_store.dart';
+import 'package:partiu/core/services/analytics_service.dart';
 
 /// Serviço exclusivo para descoberta de pessoas por bounding box do mapa.
 ///
@@ -22,7 +27,9 @@ class PeopleMapDiscoveryService {
   static final PeopleMapDiscoveryService _instance = PeopleMapDiscoveryService._internal();
   factory PeopleMapDiscoveryService() => _instance;
 
-  PeopleMapDiscoveryService._internal();
+  PeopleMapDiscoveryService._internal() {
+    unawaited(_initializePersistentCache());
+  }
 
   final PeopleCloudService _cloudService = PeopleCloudService();
   final LocationService _locationService = LocationService();
@@ -46,36 +53,157 @@ class PeopleMapDiscoveryService {
   final ValueNotifier<bool> isLoading = ValueNotifier<bool>(false);
   final ValueNotifier<Object?> lastError = ValueNotifier<Object?>(null);
 
-  /// TTL do cache por quadkey + filtros. 30s balanceia freshness vs economia de reads.
-  static const Duration cacheTTL = Duration(seconds: 30);
+  /// TTL do cache por tile. 3min reduz refetch em pan/zoom.
+  static const Duration cacheTTL = Duration(seconds: 180);
+  /// TTL do cache persistente (Hive) por tile.
+  static const Duration persistentCacheTTL = Duration(hours: 6);
+  /// Refresh em background quando o cache persistente estiver "velho".
+  static const Duration persistentSoftRefreshAge = Duration(minutes: 15);
   static const Duration debounceTime = Duration(milliseconds: 300);
+
+  /// Número máximo de tiles em memória (LRU)
+  static const int maxCachedTiles = 12;
 
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
 
-  List<app_user.User> _cachedPeople = [];
-  int _cachedCount = 0;
-  DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
-  String? _lastQuadkey;
-  String? _lastFiltersSignature;
+  final LinkedHashMap<String, _PeopleCacheEntry> _cache = LinkedHashMap();
+  double? _currentZoom;
+
+  // Cache persistente (Hive)
+  final HiveCacheService<Map<String, dynamic>> _persistentCache =
+      HiveCacheService<Map<String, dynamic>>('people_map_tiles');
+  bool _persistentCacheReady = false;
 
   String _buildFiltersSignature(UserFilterOptions filters) {
     final interests = (filters.interests ?? const <String>[]).toList()..sort();
     return '${filters.gender ?? ''}|${filters.minAge ?? ''}|${filters.maxAge ?? ''}|${filters.isVerified ?? ''}|${filters.sexualOrientation ?? ''}|${filters.radiusKm ?? ''}|${interests.join(',')}';
   }
 
+  /// Atualiza o valor de um ValueNotifier de forma segura, evitando
+  /// "setState() called during build" ao adiar a notificação para
+  /// o próximo frame caso esteja durante build.
   void _setNotifierValue<T>(ValueNotifier<T> notifier, T value) {
     if (notifier.value == value) {
       return;
     }
-    notifier.value = value;
+    
+    // Verifica se estamos durante a fase de build do frame
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final isBuildPhase = phase == SchedulerPhase.persistentCallbacks;
+    
+    if (isBuildPhase) {
+      // Adia a atualização para depois do frame atual
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (notifier.value != value) {
+          notifier.value = value;
+        }
+      });
+    } else {
+      notifier.value = value;
+    }
   }
 
-  bool _shouldUseCache(String quadkey, String filtersSignature) {
-    if (_lastQuadkey != quadkey) return false;
-    if (_lastFiltersSignature != filtersSignature) return false;
-    final elapsed = DateTime.now().difference(_lastFetchTime);
-    return elapsed < cacheTTL;
+  String _zoomBucket(double? zoom) {
+    if (zoom == null || !zoom.isFinite) return 'unknown';
+    if (zoom <= 11.0) return 'z0';
+    if (zoom <= 13.0) return 'z1';
+    if (zoom <= 15.0) return 'z2';
+    return 'z3';
+  }
+
+  String _buildCacheKey(MapBounds bounds, String filtersSignature, double? zoom) {
+    final quadkey = bounds.toQuadkey();
+    return '$quadkey|$filtersSignature|${_zoomBucket(zoom)}';
+  }
+
+  _PeopleCacheEntry? _getCacheEntry(String cacheKey) {
+    final entry = _cache[cacheKey];
+    if (entry == null) return null;
+
+    final elapsed = DateTime.now().difference(entry.fetchedAt);
+    if (elapsed >= cacheTTL) {
+      _cache.remove(cacheKey);
+      return null;
+    }
+
+    // Touch LRU
+    _cache.remove(cacheKey);
+    _cache[cacheKey] = entry;
+    return entry;
+  }
+
+  void _putCacheEntry(String cacheKey, _PeopleCacheEntry entry) {
+    if (_cache.containsKey(cacheKey)) {
+      _cache.remove(cacheKey);
+    }
+    _cache[cacheKey] = entry;
+
+    while (_cache.length > maxCachedTiles) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  Future<void> _initializePersistentCache() async {
+    try {
+      await HiveInitializer.initialize();
+      await _persistentCache.initialize();
+      _persistentCacheReady = true;
+    } catch (e) {
+      debugPrint('📦 [PeopleMapDiscovery] Hive init error: $e');
+      _persistentCacheReady = false;
+    }
+  }
+
+  ({List<app_user.User> people, int count, DateTime fetchedAt})?
+      _getPersistentCacheEntry(String cacheKey) {
+    if (!_persistentCacheReady) return null;
+    final payload = _persistentCache.get(cacheKey);
+    if (payload == null) return null;
+
+    final rawList = payload['people'];
+    final count = payload['count'];
+    final fetchedAtMs = payload['fetchedAtMs'];
+
+    if (rawList is! List || count is! int || fetchedAtMs is! int) {
+      return null;
+    }
+
+    final people = <app_user.User>[];
+    for (final item in rawList) {
+      if (item is Map) {
+        try {
+          final data = Map<String, dynamic>.from(item);
+          people.add(app_user.User.fromDocument(data));
+        } catch (_) {
+          // Ignora entrada inválida
+        }
+      }
+    }
+
+    return (
+      people: people,
+      count: count,
+      fetchedAt: DateTime.fromMillisecondsSinceEpoch(fetchedAtMs),
+    );
+  }
+
+  Future<void> _putPersistentCacheEntry({
+    required String cacheKey,
+    required List<Map<String, dynamic>> people,
+    required int count,
+    required DateTime fetchedAt,
+  }) async {
+    if (!_persistentCacheReady) return;
+    await _persistentCache.put(
+      cacheKey,
+      {
+        'people': people,
+        'count': count,
+        'fetchedAtMs': fetchedAt.millisecondsSinceEpoch,
+      },
+      ttl: persistentCacheTTL,
+    );
   }
 
   void setViewportActive(bool active) {
@@ -94,11 +222,12 @@ class PeopleMapDiscoveryService {
     }
   }
 
-  Future<void> loadPeopleCountInBounds(MapBounds bounds) async {
+  Future<void> loadPeopleCountInBounds(MapBounds bounds, {double? zoom}) async {
     debugPrint('📍 [PeopleMapDiscovery] loadPeopleCountInBounds chamado');
     debugPrint('   📐 Bounds: minLat=${bounds.minLat.toStringAsFixed(4)}, maxLat=${bounds.maxLat.toStringAsFixed(4)}');
     
     currentBounds.value = bounds;
+    _currentZoom = zoom;
     _pendingBounds = bounds;
 
     _debounceTimer?.cancel();
@@ -111,11 +240,15 @@ class PeopleMapDiscoveryService {
     });
   }
 
-  Future<void> forceRefresh(MapBounds bounds) async {
+  Future<void> forceRefresh(MapBounds bounds, {double? zoom}) async {
     debugPrint('🔄 [PeopleMapDiscovery] forceRefresh chamado');
     currentBounds.value = bounds;
+    _currentZoom = zoom;
     _debounceTimer?.cancel();
-    _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
+    if (zoom != null && bounds != null) {
+      final key = _buildCacheKey(bounds, _buildFiltersSignature(_locationQueryService.currentFilters), zoom);
+      _cache.remove(key);
+    }
     await _executeQuery(bounds);
   }
 
@@ -140,34 +273,91 @@ class PeopleMapDiscoveryService {
       return;
     }
     debugPrint('   📐 Bounds atual: minLat=${bounds.minLat.toStringAsFixed(4)}, maxLat=${bounds.maxLat.toStringAsFixed(4)}');
-    await forceRefresh(bounds);
+    await forceRefresh(bounds, zoom: _currentZoom);
+  }
+
+  /// Refresh apenas se o último fetch estiver stale.
+  /// Útil para evitar refetch ao voltar na tela.
+  Future<void> refreshCurrentBoundsIfStale({Duration ttl = const Duration(minutes: 10)}) async {
+    final bounds = currentBounds.value;
+    if (bounds == null) {
+      return;
+    }
+    final zoom = _currentZoom;
+    final cacheKey = _buildCacheKey(bounds, _buildFiltersSignature(_locationQueryService.currentFilters), zoom);
+    final entry = _getCacheEntry(cacheKey);
+    if (entry != null) {
+      final elapsed = DateTime.now().difference(entry.fetchedAt);
+      if (elapsed < ttl) {
+        debugPrint('🧊 [PeopleMapDiscovery] Refresh ignorado (TTL não expirou: ${elapsed.inSeconds}s)');
+        return;
+      }
+    }
+
+    debugPrint('🔄 [PeopleMapDiscovery] TTL expirou — refetch bounds atual');
+    await forceRefresh(bounds, zoom: zoom);
   }
 
   Future<void> _executeQuery(
     MapBounds bounds, {
     bool publishToNotifiers = true,
     bool reportLoading = true,
+    bool bypassCache = false,
   }) async {
     debugPrint('🔍 [PeopleMapDiscovery] _executeQuery iniciado...');
     if (reportLoading) {
       _setNotifierValue(isLoading, true);
       _setNotifierValue(lastError, null);
     }
-    final quadkey = bounds.toQuadkey();
-
     final activeFilters = _locationQueryService.currentFilters;
     final filtersSignature = _buildFiltersSignature(activeFilters);
 
-    if (_shouldUseCache(quadkey, filtersSignature)) {
-      debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${_cachedPeople.length} pessoas');
-      if (publishToNotifiers) {
-        _setNotifierValue(nearbyPeople, _cachedPeople);
-        _setNotifierValue(nearbyPeopleCount, _cachedCount);
+    final cacheKey = _buildCacheKey(bounds, filtersSignature, _currentZoom);
+    if (!bypassCache) {
+      final cached = _getCacheEntry(cacheKey);
+      if (cached != null) {
+        debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${cached.people.length} pessoas');
+        if (publishToNotifiers) {
+          _setNotifierValue(nearbyPeople, cached.people);
+          _setNotifierValue(nearbyPeopleCount, cached.count);
+        }
+        if (reportLoading) {
+          _setNotifierValue(isLoading, false);
+        }
+        return;
       }
-      if (reportLoading) {
-        _setNotifierValue(isLoading, false);
+
+      final persistentEntry = _getPersistentCacheEntry(cacheKey);
+      if (persistentEntry != null) {
+        debugPrint('📦 [PeopleMapDiscovery] Hive cache HIT: ${persistentEntry.people.length} pessoas');
+        if (publishToNotifiers) {
+          _setNotifierValue(nearbyPeople, persistentEntry.people);
+          _setNotifierValue(nearbyPeopleCount, persistentEntry.count);
+        }
+        if (reportLoading) {
+          _setNotifierValue(isLoading, false);
+        }
+
+        _putCacheEntry(
+          cacheKey,
+          _PeopleCacheEntry(
+            people: persistentEntry.people,
+            count: persistentEntry.count,
+            fetchedAt: persistentEntry.fetchedAt,
+          ),
+        );
+
+        final age = DateTime.now().difference(persistentEntry.fetchedAt);
+        if (age >= persistentSoftRefreshAge) {
+          unawaited(_executeQuery(
+            bounds,
+            publishToNotifiers: true,
+            reportLoading: false,
+            bypassCache: true,
+          ));
+        }
+        return;
       }
-      return;
     }
 
     try {
@@ -255,6 +445,7 @@ class PeopleMapDiscoveryService {
 
       // Converter UserWithDistance para User
       final people = <app_user.User>[];
+      final serializedPeople = <Map<String, dynamic>>[];
       for (final uwd in result.users) {
         try {
           final userData = Map<String, dynamic>.from(uwd.userData);
@@ -284,6 +475,7 @@ class PeopleMapDiscoveryService {
 
           final user = app_user.User.fromDocument(userData);
           people.add(user);
+          serializedPeople.add(Map<String, dynamic>.from(userData));
         } catch (e) {
           debugPrint('   ❌ Erro ao converter usuário: $e');
         }
@@ -293,11 +485,21 @@ class PeopleMapDiscoveryService {
           ? (result.totalCandidates - 1).clamp(0, 1 << 30)
           : result.totalCandidates;
 
-      _cachedPeople = people;
-      _cachedCount = adjustedTotalCandidates;
-      _lastFetchTime = DateTime.now();
-      _lastQuadkey = quadkey;
-      _lastFiltersSignature = filtersSignature;
+      _putCacheEntry(
+        cacheKey,
+        _PeopleCacheEntry(
+          people: people,
+          count: adjustedTotalCandidates,
+          fetchedAt: DateTime.now(),
+        ),
+      );
+
+      await _putPersistentCacheEntry(
+        cacheKey: cacheKey,
+        people: serializedPeople,
+        count: adjustedTotalCandidates,
+        fetchedAt: DateTime.now(),
+      );
 
       debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
 
@@ -311,6 +513,11 @@ class PeopleMapDiscoveryService {
       if (reportLoading) {
         _setNotifierValue(isLoading, false);
       }
+
+      AnalyticsService.instance.logEvent('find_people_query', parameters: {
+        'users_returned': people.length,
+        'total_candidates': adjustedTotalCandidates,
+      });
       
       // ✅ Tarefas de background (Preload de avatares)
       // Executa APÓS liberar a UI para não travar a exibição da contagem
@@ -400,14 +607,25 @@ class PeopleMapDiscoveryService {
   double _degToRad(double deg) => deg * (math.pi / 180.0);
 
   void clearCache() {
-    _cachedPeople = [];
-    _cachedCount = 0;
-    _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
-    _lastQuadkey = null;
-    _lastFiltersSignature = null;
+    _cache.clear();
+    if (_persistentCacheReady) {
+      unawaited(_persistentCache.clear());
+    }
   }
 
   void dispose() {
     _debounceTimer?.cancel();
   }
+}
+
+class _PeopleCacheEntry {
+  final List<app_user.User> people;
+  final int count;
+  final DateTime fetchedAt;
+
+  const _PeopleCacheEntry({
+    required this.people,
+    required this.count,
+    required this.fetchedAt,
+  });
 }

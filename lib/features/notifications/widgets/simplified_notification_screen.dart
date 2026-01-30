@@ -4,6 +4,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/controllers/simplified_notification_controller.dart';
 import 'package:partiu/features/notifications/widgets/notification_item_widget.dart';
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
+import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/infinite_list_view.dart';
@@ -106,25 +107,12 @@ class _SimplifiedNotificationScreenState extends State<SimplifiedNotificationScr
   }
 
   Future<void> _showDeleteConfirmation(BuildContext context, AppLocalizations i18n) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await GlimpseCupertinoDialog.showDestructive(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(i18n.translate('delete_notifications')),
-        content: Text(i18n.translate('all_notifications_will_be_deleted')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(i18n.translate('CANCEL')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              i18n.translate('DELETE'),
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      title: i18n.translate('delete_notifications'),
+      message: i18n.translate('all_notifications_will_be_deleted'),
+      destructiveText: i18n.translate('DELETE'),
+      cancelText: i18n.translate('CANCEL'),
     );
 
     if (confirmed == true && context.mounted) {

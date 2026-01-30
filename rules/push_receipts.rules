@@ -1,0 +1,29 @@
+/// 📬 Coleção de receipts de push notifications (idempotência)
+/// Path usado nas Cloud Functions:
+/// - push_receipts/{idempotencyKey}
+///   - status: string ('pending' | 'sent' | 'failed')
+///   - createdAt: timestamp
+///   - updatedAt: timestamp
+///   - traceId: string
+///   - origin: string (origem do push)
+///   - recipientUserId: string
+///   - nType: string (tipo da notificação)
+///   - relatedId: string
+///   - event: string
+///   - payloadHash: string
+///   - sentAt: timestamp (nullable)
+///   - fcmMessageId: string (nullable)
+///   - error: string (nullable)
+///
+/// Esta coleção é usada para garantir idempotência no envio de push notifications.
+/// Gerenciada exclusivamente pelo pushDispatcher nas Cloud Functions.
+
+match /push_receipts/{receiptId} {
+  /// 📖 LEITURA:
+  /// - Bloqueada para o client (dados internos do sistema)
+  allow read: if false;
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  allow write: if false;
+}

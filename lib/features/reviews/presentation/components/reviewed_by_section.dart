@@ -4,7 +4,6 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/reviews/data/models/review_model.dart';
-import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 
 /// Modelo para representar um reviewer único
@@ -48,8 +47,6 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
     super.initState();
     // Extrai reviewers únicos uma vez
     _reviewers = _extractUniqueReviewers();
-    // Preload em batch dos avatares
-    _preloadAvatars();
   }
 
   /// Extrai lista de reviewers únicos a partir das reviews
@@ -70,17 +67,6 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
     return uniqueReviewers.values.toList();
   }
 
-  /// Pré-carrega avatares em batch para evitar shimmer/delay
-  void _preloadAvatars() {
-    final userStore = UserStore.instance;
-    for (final reviewer in _reviewers) {
-      final photoUrl = reviewer.photoUrl;
-      if (photoUrl != null && photoUrl.isNotEmpty) {
-        // Aquece cache em memória + agenda download se necessário
-        userStore.preloadAvatar(reviewer.userId, photoUrl);
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +144,7 @@ class _ReviewerCard extends StatelessWidget {
           enableNavigation: true,
         ),
         const SizedBox(height: 2),
-        // Nome do reviewer - busca do UserStore se não disponível
+        // Nome do reviewer - usa somente dados denormalizados
         _buildNameWidget(),
       ],
     );
@@ -172,14 +158,8 @@ class _ReviewerCard extends StatelessWidget {
       return _buildNameText(nameFromReview);
     }
     
-    // Se não tem nome, busca do UserStore (cache reativo)
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getNameNotifier(reviewer.userId),
-      builder: (context, cachedName, _) {
-        final firstName = _getFirstName(cachedName);
-        return _buildNameText(firstName);
-      },
-    );
+    // Sem fallback para userDoc do autor
+    return const SizedBox.shrink();
   }
 
   Widget _buildNameText(String name) {

@@ -195,6 +195,21 @@ match /users/{userId} {
   }
 }
 
+/// 👥 Coleção otimizada para ranking
+/// Path usado no app:
+/// - users_preview/{userId}
+///   - fullName, photoUrl, locality, state, overallRating, jobTitle, updatedAt
+
+match /users_preview/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler previews
+  allow read: if isSignedIn();
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  allow write: if false;
+}
+
     // ======================================
     // ⚙️ Configurações da Aplicação
     // ======================================
@@ -474,6 +489,54 @@ match /events/{eventId} {
     allow delete: if isSignedIn() && 
       request.auth.uid == getEvent().createdBy;
   }
+}
+
+    // ======================================
+    // 🎴 Previews de Eventos
+    // ======================================
+/// 🎴 Coleção de previews de eventos para listagem rápida
+/// Path usado no app:
+/// - events_card_preview/{eventId}
+///   - createdBy: string (userId do criador)
+///   - title: string
+///   - emoji: string
+///   - startDate: timestamp
+///   - locationName: string
+///   - thumbnailUrl: string (nullable)
+///   - participantsCount: number
+///   - maxParticipants: number
+///   - cityId: string
+///   - geoPoint: geopoint
+///   - updatedAt: timestamp
+///
+/// Esta coleção é sincronizada automaticamente pela Cloud Function
+/// eventCardPreviewSync a partir da coleção events principal.
+
+match /events_card_preview/{eventId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler previews de eventos
+  allow read: if isSignedIn();
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  /// - A sincronização é feita automaticamente pelo trigger eventCardPreviewSync
+  allow write: if false;
+}
+
+    // ======================================
+    // 🗺️ Eventos no Mapa
+    // ======================================
+/// 🗺️ Coleção de preview de eventos para o mapa (Lightweight)
+/// Path usado no app:
+/// - events_map/{eventId}
+
+match /events_map/{eventId} {
+  // Qualquer um autenticado pode ler eventos no mapa
+  allow read: if isSignedIn();
+  
+  // Escrita SOMENTE via Cloud Function (syncEventToMap)
+  // O app nunca escreve diretamente aqui
+  allow write: if false;
 }
 
     // ======================================
@@ -921,6 +984,22 @@ match /locationRanking/{placeId} {
   allow write: if false;
 }
 
+/// 🧹 Filtros agregados do ranking
+/// Path usado no app:
+/// - ranking_filters/current
+///   - states: array<string>
+///   - cities: array<string>
+///   - citiesByState: map<string, array<string>>
+///   - updatedAt: timestamp
+
+match /ranking_filters/{docId} {
+  // Qualquer usuário autenticado pode ler filtros
+  allow read: if isSignedIn();
+
+  // Apenas Cloud Functions podem escrever
+  allow write: if false;
+}
+
     // ======================================
     // 🚩 Reports/Denúncias
     // ======================================
@@ -1088,10 +1167,6 @@ function _isActivePhoto() {
   return resource.data.status == 'active';
 }
 
-function _isOwnPhoto() {
-  return isSignedIn() && resource.data.userId == request.auth.uid;
-}
-
 function _isOwnPendingReviewPhoto() {
   return isSignedIn() &&
     resource.data.status == 'under_review' &&
@@ -1099,10 +1174,7 @@ function _isOwnPendingReviewPhoto() {
 }
 
 function _isFeedReadable() {
-  // Autenticado pode ler:
-  // - fotos ativas
-  // - suas próprias fotos (qualquer status - para poder deletar/editar)
-  return isSignedIn() && (_isActivePhoto() || _isOwnPhoto());
+  return isSignedIn() && (_isActivePhoto() || _isOwnPendingReviewPhoto());
 }
 
 match /EventPhotos/{photoId} {
@@ -1138,8 +1210,7 @@ match /EventPhotos/{photoId} {
   );
 
   // 🗑️ DELETE:
-  // - só autor (qualquer status - inclusive hidden_by_reports, hidden_by_moderation)
-  // FIX: Force deploy 2026-01-28
+  // - só autor
   allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 
   // 💬 Comentários
@@ -1286,6 +1357,115 @@ match /ActivityFeed/{feedItemId} {
   /// - Apenas via Cloud Function (deleteEvent)
   /// - Client não pode hard delete
   allow delete: if false;
+}
+
+    // ======================================
+    // 📰 Feeds (Fanout)
+    // ======================================
+/// 📰 Coleção de feeds de usuários (fanout pattern)
+/// Path usado no app:
+/// - feeds/{userId}/items/{itemId}
+///   - sourceType: string ('event_photo' | 'activity_feed')
+///   - sourceId: string (ID do documento original)
+///   - authorId: string (quem criou o conteúdo)
+///   - createdAt: timestamp
+///   - eventId: string
+///   - preview: map (dados mínimos para exibição)
+///
+/// Esta coleção é gerenciada pela Cloud Function feedFanout.
+/// Quando um usuário cria um EventPhoto ou ActivityFeed item,
+/// o item é distribuído (fanout) para os feeds de todos os seguidores.
+
+match /feeds/{userId} {
+  /// 📖 LEITURA do documento raiz:
+  /// - Apenas o próprio usuário pode ler seu feed
+  allow read: if isOwner(userId);
+
+  /// ✍️ ESCRITA do documento raiz:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  allow write: if false;
+
+  /// 📰 Subcoleção de items do feed
+  match /items/{itemId} {
+    /// 📖 LEITURA:
+    /// - Apenas o próprio usuário pode ler seus items de feed
+    allow read: if isOwner(userId);
+
+    /// ✍️ ESCRITA:
+    /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+    /// - Items são criados/deletados pelo feedFanout trigger
+    allow write: if false;
+  }
+}
+
+    // ======================================
+    // 💳 Status de Assinatura
+    // ======================================
+/// 💳 Coleção de status de assinatura (RevenueCat)
+/// Path usado no app:
+/// - SubscriptionStatus/{userId}
+///   - userId: string
+///   - status: string ('active' | 'inactive')
+///   - isActive: bool
+///   - entitlement_id: string
+///   - product_id: string (nullable)
+///   - period_type: string
+///   - store: string ('app_store' | 'play_store')
+///   - platform: string ('ios' | 'android')
+///   - expiration_at: timestamp (nullable)
+///   - purchased_at: timestamp (nullable)
+///   - grace_period_expires_at: timestamp (nullable)
+///   - last_event_type: string
+///   - last_updated: timestamp
+///   - transaction_id: string
+///   - will_renew: bool
+///   - cancel_reason: string (nullable)
+///   - source: string ('webhook')
+///
+/// Esta coleção é gerenciada exclusivamente pelo webhook do RevenueCat.
+/// O client apenas lê os dados para verificar status VIP.
+
+match /SubscriptionStatus/{userId} {
+  /// 📖 LEITURA:
+  /// - Apenas o próprio usuário pode ler seu status de assinatura
+  allow read: if isOwner(userId);
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions via webhook)
+  allow write: if false;
+}
+
+    // ======================================
+    // 📬 Push Receipts (Idempotência)
+    // ======================================
+/// 📬 Coleção de receipts de push notifications (idempotência)
+/// Path usado nas Cloud Functions:
+/// - push_receipts/{idempotencyKey}
+///   - status: string ('pending' | 'sent' | 'failed')
+///   - createdAt: timestamp
+///   - updatedAt: timestamp
+///   - traceId: string
+///   - origin: string (origem do push)
+///   - recipientUserId: string
+///   - nType: string (tipo da notificação)
+///   - relatedId: string
+///   - event: string
+///   - payloadHash: string
+///   - sentAt: timestamp (nullable)
+///   - fcmMessageId: string (nullable)
+///   - error: string (nullable)
+///
+/// Esta coleção é usada para garantir idempotência no envio de push notifications.
+/// Gerenciada exclusivamente pelo pushDispatcher nas Cloud Functions.
+
+match /push_receipts/{receiptId} {
+  /// 📖 LEITURA:
+  /// - Bloqueada para o client (dados internos do sistema)
+  allow read: if false;
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  allow write: if false;
 }
 
     // ======================================

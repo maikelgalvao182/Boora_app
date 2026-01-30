@@ -89,6 +89,7 @@ class PeopleRankingState extends ChangeNotifier {
     
     // Resetar paginação apenas se não estiver em refresh
     if (!isRefreshing) {
+      _normalizeFilters();
       _resetPagination();
     }
     
@@ -97,6 +98,18 @@ class PeopleRankingState extends ChangeNotifier {
     // Limpar flag de refresh após notificar
     if (isRefreshing) {
       _isRefreshing = false;
+    }
+  }
+
+  void _normalizeFilters() {
+    // Limpar filtros inválidos para evitar colapso de lista
+    if (filter.state != null && !availableStates.contains(filter.state)) {
+      filter = const PeopleFilter();
+      return;
+    }
+
+    if (filter.city != null && !availableCities.contains(filter.city)) {
+      filter = filter.copyWith(city: null);
     }
   }
 

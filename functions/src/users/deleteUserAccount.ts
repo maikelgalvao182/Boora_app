@@ -8,18 +8,25 @@
  *
  * Coleções afetadas:
  * - Users (documento principal)
+ * - users_preview (documento de preview/cache do usuário)
  * - applications (sub-coleção e documentos onde userId aparece)
  * - reviews (documentos onde userId é reviewer ou reviewed)
  * - Connections (conversas onde userId é membro)
  * - Chats (mensagens enviadas pelo usuário)
  * - Notifications (notificações do usuário)
- * - profile_visits (visitas feitas ou recebidas)
+ * - ProfileVisits (visitas feitas ou recebidas)
+ * - ProfileViews (visualizações para notificações)
  * - ranking (documentos de ranking do usuário)
+ * - userRanking (ranking de usuário)
+ * - locationRanking (ranking por localização)
  * - UserLocations (localização do usuário)
  * - blocked_users (bloqueios feitos ou recebidos)
  * - events (eventos criados pelo usuário)
+ * - events_card_preview (previews de eventos criados)
  * - EventChats (+ subcoleção Messages) (chats dos eventos)
  * - EventApplications (aplicações/participações)
+ * - EventPhotos (+ subcoleções comments e likes) (fotos de evento)
+ * - feeds (items de feed recebidos por fanout + items criados pelo usuário)
  *
  * - Firebase Auth (deve ser deletado manualmente pelo usuário ou admin)
  */
@@ -715,6 +722,7 @@ export const deleteUserAccount = functions.https.onCall(
 
     const deletionStats = {
       users: 0,
+      usersPreview: 0,
       applications: 0,
       reviews: 0,
       connections: 0,
@@ -722,32 +730,37 @@ export const deleteUserAccount = functions.https.onCall(
       notifications: 0,
       profileVisits: 0,
       ranking: 0,
+      userRanking: 0,
+      locationRanking: 0,
       userLocations: 0,
       blockedUsers: 0,
       events: 0,
+      eventsCardPreview: 0,
       eventChats: 0,
       eventChatMessages: 0,
       eventApplications: 0,
       eventConversations: 0,
       eventNotifications: 0,
+      eventPhotos: 0,
+      feedItems: 0,
     };
 
     try {
       // 0. Deletar eventos criados pelo usuário + dados relacionados
-      console.log("🗑️ [0/14] Deletando eventos criados pelo usuário...");
+      console.log("🗑️ [0/20] Deletando eventos criados pelo usuário...");
       const ownedEventsSnapshot = await db
         .collection("events")
         .where("createdBy", "==", userId)
         .get();
 
       console.log(
-        `🗑️ [0/14] ${ownedEventsSnapshot.size} ` +
+        `🗑️ [0/20] ${ownedEventsSnapshot.size} ` +
           "evento(s) encontrados para deletar"
       );
 
       for (const event of ownedEventsSnapshot.docs) {
         const eventId = event.id;
-        console.log(`🗑️ [0/14] Deletando evento ${eventId}...`);
+        console.log(`🗑️ [0/20] Deletando evento ${eventId}...`);
         const stats = await deleteOwnedEventAndRelatedData(eventId, userId);
         deletionStats.events += stats.events;
         deletionStats.eventChats += stats.eventChats;
@@ -759,14 +772,14 @@ export const deleteUserAccount = functions.https.onCall(
 
       // 0.5 Remover participações do usuário em eventos de terceiros
       console.log(
-        "🗑️ [0.5/14] Removendo participações em eventos de terceiros..."
+        "🗑️ [0.5/20] Removendo participações em eventos de terceiros..."
       );
       await removeUserFromOtherEvents(userId);
 
       // 0.6 Deletar chats 1x1 e mensagens de grupo do usuário
       // (arquitetura atual)
       console.log(
-        "🗑️ [0.6/14] Deletando conversas e mensagens (1x1 + grupo)..."
+        "🗑️ [0.6/20] Deletando conversas e mensagens (1x1 + grupo)..."
       );
       const userConversationsSnap = await db
         .collection("Connections")
@@ -888,7 +901,7 @@ export const deleteUserAccount = functions.https.onCall(
       }
 
       // 1. Deletar sub-coleções do documento Users
-      console.log("🗑️ [1/14] Deletando sub-coleções de Users...");
+      console.log("🗑️ [1/20] Deletando sub-coleções de Users...");
       const userRef = db.collection("Users").doc(userId);
 
       // Deletar applications sub-coleção
@@ -900,13 +913,13 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${applicationsDeleted} applications`);
 
       // 2. Deletar documento principal do usuário
-      console.log("🗑️ [2/14] Deletando documento Users...");
+      console.log("🗑️ [2/20] Deletando documento Users...");
       await userRef.delete();
       deletionStats.users = 1;
       console.log("✅ Documento Users deletado");
 
       // 3. Deletar reviews (como reviewer)
-      console.log("🗑️ [3/14] Deletando reviews como reviewer...");
+      console.log("🗑️ [3/20] Deletando reviews como reviewer...");
       const reviewsAsReviewer = await batchDelete(
         "Reviews",
         db.collection("Reviews").where("reviewer_id", "==", userId)
@@ -915,7 +928,7 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${reviewsAsReviewer} reviews como reviewer`);
 
       // 4. Deletar reviews (como reviewed)
-      console.log("🗑️ [4/14] Deletando reviews como reviewed...");
+      console.log("🗑️ [4/20] Deletando reviews como reviewed...");
       const reviewsAsReviewed = await batchDelete(
         "Reviews",
         db.collection("Reviews").where("reviewee_id", "==", userId)
@@ -927,7 +940,7 @@ export const deleteUserAccount = functions.https.onCall(
       // A limpeza na arquitetura atual é feita no passo 0.6.
 
       // 7. Deletar notificações
-      console.log("🗑️ [7/14] Deletando Notifications...");
+      console.log("🗑️ [7/20] Deletando Notifications...");
       const notificationsDeleted = await batchDelete(
         "Notifications",
         db.collection("Notifications").where("userId", "==", userId)
@@ -936,7 +949,7 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${notificationsDeleted} notificações`);
 
       // 8. Deletar visitas ao perfil (feitas) - ProfileVisits
-      console.log("🗑️ [8/14] Deletando ProfileVisits (feitas)...");
+      console.log("🗑️ [8/20] Deletando ProfileVisits (feitas)...");
       const visitsAsVisitor = await batchDelete(
         "ProfileVisits",
         db.collection("ProfileVisits").where("visitorId", "==", userId)
@@ -945,7 +958,7 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${visitsAsVisitor} visitas feitas`);
 
       // 9. Deletar visitas ao perfil (recebidas) - ProfileVisits
-      console.log("🗑️ [9/14] Deletando ProfileVisits (recebidas)...");
+      console.log("🗑️ [9/20] Deletando ProfileVisits (recebidas)...");
       const visitsAsVisited = await batchDelete(
         "ProfileVisits",
         db.collection("ProfileVisits").where("visitedUserId", "==", userId)
@@ -954,14 +967,14 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${visitsAsVisited} visitas recebidas`);
 
       // 9.5. Deletar visualizações para notificações - ProfileViews
-      console.log("🗑️ [9.5/14] Deletando ProfileViews (como viewer)...");
+      console.log("🗑️ [9.5/20] Deletando ProfileViews (como viewer)...");
       const viewsAsViewer = await batchDelete(
         "ProfileViews",
         db.collection("ProfileViews").where("viewerId", "==", userId)
       );
       console.log(`✅ Deletadas ${viewsAsViewer} views como viewer`);
 
-      console.log("🗑️ [9.6/14] Deletando ProfileViews (recebidas)...");
+      console.log("🗑️ [9.6/20] Deletando ProfileViews (recebidas)...");
       const viewsReceived = await batchDelete(
         "ProfileViews",
         db.collection("ProfileViews").where("viewedUserId", "==", userId)
@@ -969,7 +982,7 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletadas ${viewsReceived} views recebidas`);
 
       // 10. Deletar ranking
-      console.log("🗑️ [10/14] Deletando ranking...");
+      console.log("🗑️ [10/20] Deletando ranking...");
       const rankingDeleted = await batchDelete(
         "ranking",
         db.collection("ranking").where("userId", "==", userId)
@@ -978,14 +991,14 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletados ${rankingDeleted} registros de ranking`);
 
       // 11. Deletar localização do usuário
-      console.log("🗑️ [11/14] Deletando UserLocations...");
+      console.log("🗑️ [11/20] Deletando UserLocations...");
       const locationRef = db.collection("UserLocations").doc(userId);
       await locationRef.delete();
       deletionStats.userLocations = 1;
       console.log("✅ UserLocation deletada");
 
       // 12. Deletar bloqueios (como bloqueador)
-      console.log("🗑️ [12/12] Deletando blocked_users (como bloqueador)...");
+      console.log("🗑️ [12/20] Deletando blocked_users (como bloqueador)...");
       const blocksAsBlocker = await batchDelete(
         "blocked_users",
         db.collection("blocked_users").where("blockerId", "==", userId)
@@ -994,13 +1007,144 @@ export const deleteUserAccount = functions.https.onCall(
       console.log(`✅ Deletados ${blocksAsBlocker} bloqueios feitos`);
 
       // 13. Deletar bloqueios (como bloqueado)
-      console.log("🗑️ [13/13] Deletando blocked_users (como bloqueado)...");
+      console.log("🗑️ [13/20] Deletando blocked_users (como bloqueado)...");
       const blocksAsBlocked = await batchDelete(
         "blocked_users",
         db.collection("blocked_users").where("blockedUserId", "==", userId)
       );
       deletionStats.blockedUsers += blocksAsBlocked;
       console.log(`✅ Deletados ${blocksAsBlocked} bloqueios recebidos`);
+
+      // 14. Deletar users_preview (documento de preview do usuário)
+      console.log("🗑️ [14/20] Deletando users_preview...");
+      try {
+        await db.collection("users_preview").doc(userId).delete();
+        deletionStats.usersPreview = 1;
+        console.log("✅ users_preview deletado");
+      } catch (error) {
+        console.warn(
+          "🗑️ [DELETE_ACCOUNT] ⚠️ Falha ao deletar users_preview:",
+          error
+        );
+      }
+
+      // 15. Deletar userRanking (ranking de usuário)
+      console.log("🗑️ [15/20] Deletando userRanking...");
+      const userRankingDeleted = await batchDelete(
+        "userRanking",
+        db.collection("userRanking").where("userId", "==", userId)
+      );
+      deletionStats.userRanking = userRankingDeleted;
+      console.log(`✅ Deletados ${userRankingDeleted} registros de userRanking`);
+
+      // 16. Deletar locationRanking (ranking por localização)
+      console.log("🗑️ [16/20] Deletando locationRanking...");
+      const locationRankingDeleted = await batchDelete(
+        "locationRanking",
+        db.collection("locationRanking").where("userId", "==", userId)
+      );
+      deletionStats.locationRanking = locationRankingDeleted;
+      console.log(
+        `✅ Deletados ${locationRankingDeleted} registros de locationRanking`
+      );
+
+      // 17. Deletar events_card_preview (previews de eventos criados)
+      console.log("🗑️ [17/20] Deletando events_card_preview...");
+      const eventsCardPreviewDeleted = await batchDelete(
+        "events_card_preview",
+        db.collection("events_card_preview").where("createdBy", "==", userId)
+      );
+      deletionStats.eventsCardPreview = eventsCardPreviewDeleted;
+      console.log(
+        `✅ Deletados ${eventsCardPreviewDeleted} eventos em events_card_preview`
+      );
+
+      // 18. Deletar EventPhotos (fotos de evento postadas pelo usuário)
+      console.log("🗑️ [18/20] Deletando EventPhotos...");
+      const eventPhotosSnapshot = await db
+        .collection("EventPhotos")
+        .where("userId", "==", userId)
+        .get();
+
+      for (let i = 0; i < eventPhotosSnapshot.docs.length; i += BATCH_SIZE) {
+        const batch = db.batch();
+        const chunk = eventPhotosSnapshot.docs.slice(i, i + BATCH_SIZE);
+        for (const doc of chunk) {
+          // Deletar subcoleções (comments e likes)
+          await deleteSubcollection(doc.ref, "comments");
+          await deleteSubcollection(doc.ref, "likes");
+          batch.delete(doc.ref);
+        }
+        await batch.commit();
+        deletionStats.eventPhotos += chunk.length;
+      }
+      console.log(`✅ Deletadas ${deletionStats.eventPhotos} EventPhotos`);
+
+      // 19. Deletar feeds do usuário (items recebidos por fanout)
+      console.log("🗑️ [19/20] Deletando feeds (items recebidos)...");
+      const feedItemsDeleted = await deleteSubcollection(
+        db.collection("feeds").doc(userId),
+        "items"
+      );
+      deletionStats.feedItems = feedItemsDeleted;
+      console.log(`✅ Deletados ${feedItemsDeleted} feed items`);
+
+      // Deletar documento raiz de feeds
+      try {
+        await db.collection("feeds").doc(userId).delete();
+        console.log("✅ Documento feeds/{userId} deletado");
+      } catch (error) {
+        console.warn(
+          "🗑️ [DELETE_ACCOUNT] ⚠️ Falha ao deletar feeds/{userId}:",
+          error
+        );
+      }
+
+      // 20. Limpar fanout de itens do usuário nos feeds de seguidores
+      // (removendo EventPhotos e ActivityFeed items criados por este usuário)
+      console.log("🗑️ [20/20] Limpando fanout items em feeds de seguidores...");
+      try {
+        // Buscar todos os seguidores para limpar seus feeds
+        const followersSnapshot = await db
+          .collection("Users")
+          .doc(userId)
+          .collection("followers")
+          .get();
+
+        let fanoutItemsRemoved = 0;
+        for (const followerDoc of followersSnapshot.docs) {
+          const followerId = followerDoc.id;
+          // Buscar items do feed do seguidor criados por este usuário
+          const followerFeedItems = await db
+            .collection("feeds")
+            .doc(followerId)
+            .collection("items")
+            .where("authorId", "==", userId)
+            .get();
+
+          if (!followerFeedItems.empty) {
+            for (
+              let i = 0;
+              i < followerFeedItems.docs.length;
+              i += BATCH_SIZE
+            ) {
+              const batch = db.batch();
+              const chunk = followerFeedItems.docs.slice(i, i + BATCH_SIZE);
+              chunk.forEach((doc) => batch.delete(doc.ref));
+              await batch.commit();
+              fanoutItemsRemoved += chunk.length;
+            }
+          }
+        }
+        console.log(
+          `✅ Removidos ${fanoutItemsRemoved} fanout items dos feeds de seguidores`
+        );
+      } catch (error) {
+        console.warn(
+          "🗑️ [DELETE_ACCOUNT] ⚠️ Falha ao limpar fanout items:",
+          error
+        );
+      }
 
       console.log("🗑️ [DELETE_ACCOUNT] ✅ Todos os dados deletados");
       console.log("📊 Estatísticas:", deletionStats);

@@ -80,6 +80,18 @@ cat "$RULES_DIR/events.rules" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 🎴 Previews de Eventos" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/events_card_preview.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 🗺️ Eventos no Mapa" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/events_map.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
 echo "    // 🎫 Aplicações para Eventos" >> "$OUTPUT_FILE"
 echo "    // ======================================" >> "$OUTPUT_FILE"
 cat "$RULES_DIR/applications.rules" >> "$OUTPUT_FILE"
@@ -143,6 +155,24 @@ echo "    // ======================================" >> "$OUTPUT_FILE"
 echo "    // 📰 Feed de Atividades" >> "$OUTPUT_FILE"
 echo "    // ======================================" >> "$OUTPUT_FILE"
 cat "$RULES_DIR/activity_feed.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 📰 Feeds (Fanout)" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/feeds.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 💳 Status de Assinatura" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/subscription_status.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 📬 Push Receipts (Idempotência)" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/push_receipts.rules" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 # Fechar o arquivo

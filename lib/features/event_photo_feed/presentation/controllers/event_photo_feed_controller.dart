@@ -8,6 +8,8 @@ import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.d
 import 'package:partiu/features/event_photo_feed/data/models/unified_feed_item.dart';
 import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_repository.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_cache_service.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/event_photo_likes_cache_service.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/feed_metrics_service.dart';
 import 'package:partiu/features/event_photo_feed/domain/services/feed_preloader.dart';
 import 'package:partiu/features/feed/data/models/activity_feed_item_model.dart';
 import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
@@ -97,17 +99,31 @@ final eventPhotoFeedControllerProvider =
 
 class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, EventPhotoFeedScope> {
   static const int _pageSize = 20;
-  static const Duration _ttl = Duration(seconds: 45);
+  
+  // Removido TTL fixo - agora usa FeedTtlConfig.getMemoryTtl(scope)
+  
+  /// Timestamp do último refresh silencioso por scope (debounce)
+  static final Map<String, DateTime> _lastSilentRefresh = {};
 
   EventPhotoRepository get _repo => ref.read(eventPhotoRepositoryProvider);
   EventPhotoCacheService get _cache => ref.read(eventPhotoCacheServiceProvider);
   ActivityFeedRepository get _activityRepo => ref.read(activityFeedRepositoryProvider);
+  EventPhotoLikesCacheService get _likesCache => ref.read(eventPhotoLikesCacheServiceProvider);
+  FeedMetricsService get _metrics => ref.read(feedMetricsServiceProvider);
 
   @override
   Future<EventPhotoFeedState> build(EventPhotoFeedScope scope) async {
     debugPrint('🎯 [EventPhotoFeedController.build] Iniciando build - scope: $scope');
+    
+    // Inicia tracking de métricas
+    final tracker = _metrics.startFeedLoad(scope);
 
     await _cache.initialize();
+    
+    // Inicializa e hidrata cache de likes (uma vez por sessão/dia)
+    await _likesCache.initialize();
+    // Dispara hidratação em background (não bloqueia o build)
+    Future.microtask(() => _likesCache.hydrateIfNeeded());
     
     // CACHE-FIRST: Verifica se o FeedPreloader tem cache fresco para este scope
     final preloader = FeedPreloader.instance;
@@ -117,8 +133,11 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     if (preloadedPhotos != null && preloadedPhotos.isNotEmpty) {
       debugPrint('📦 [EventPhotoFeedController.build] Usando cache do FeedPreloader para $scope: ${preloadedPhotos.length} photos, ${preloadedActivities?.length ?? 0} activities');
       
-      // Dispara refresh silencioso em background
-      Future.microtask(_refreshSilently);
+      // Registra cache hit
+      await tracker.finish(docsRead: 0, cacheHit: true);
+      
+      // Dispara refresh silencioso em background (com debounce)
+      Future.microtask(_refreshSilentlyWithDebounce);
       
       return EventPhotoFeedState.initial().copyWith(
         items: preloadedPhotos,
@@ -131,7 +150,10 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     // Fallback para cache do EventPhotoCacheService
     final cachedItems = _cache.getCachedFeed(scope);
     if (cachedItems != null && cachedItems.isNotEmpty) {
-      Future.microtask(_refreshSilently);
+      // Registra cache hit
+      await tracker.finish(docsRead: 0, cacheHit: true);
+      
+      Future.microtask(_refreshSilentlyWithDebounce);
       return EventPhotoFeedState.initial().copyWith(
         items: cachedItems,
         hasMore: true,
@@ -140,11 +162,14 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     }
     
     // TTL in-memory: se já carregou recentemente e ainda é válido, mantém.
+    // Usa TTL específico por scope
+    final ttl = FeedTtlConfig.getMemoryTtl(scope);
     final existing = state.valueOrNull;
     if (existing != null && existing.lastUpdatedAt != null) {
       final age = DateTime.now().difference(existing.lastUpdatedAt!);
-      if (age < _ttl && existing.items.isNotEmpty) {
-        debugPrint('✅ [EventPhotoFeedController.build] Cache válido (age: ${age.inSeconds}s)');
+      if (age < ttl && existing.items.isNotEmpty) {
+        debugPrint('✅ [EventPhotoFeedController.build] Cache válido (age: ${age.inSeconds}s, ttl: ${ttl.inSeconds}s)');
+        await tracker.finish(docsRead: 0, cacheHit: true);
         return existing;
       }
     }
@@ -166,6 +191,10 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       // Busca ActivityFeed items (global por enquanto)
       final activityItems = await _fetchActivityFeed(scope);
       
+      // Registra métricas de load
+      final docsRead = page.items.length + activityItems.length;
+      await tracker.finish(docsRead: docsRead, cacheHit: false);
+      
       debugPrint('✅ [EventPhotoFeedController.build] Dados carregados: ${page.items.length} photos, ${activityItems.length} activities');
 
       final nextState = EventPhotoFeedState.initial().copyWith(
@@ -186,6 +215,26 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       print('📚 Stack trace: $stack');
       rethrow;
     }
+  }
+
+  /// Verifica debounce antes de disparar refresh silencioso
+  Future<void> _refreshSilentlyWithDebounce() async {
+    final scope = arg;
+    final scopeKey = _cache.scopeKey(scope);
+    final debounce = FeedTtlConfig.getRefreshDebounce(scope);
+    
+    final lastRefresh = _lastSilentRefresh[scopeKey];
+    if (lastRefresh != null) {
+      final elapsed = DateTime.now().difference(lastRefresh);
+      if (elapsed < debounce) {
+        debugPrint('⏳ [_refreshSilentlyWithDebounce] Debounce ativo para $scopeKey '
+            '(${elapsed.inSeconds}s < ${debounce.inSeconds}s)');
+        return;
+      }
+    }
+    
+    _lastSilentRefresh[scopeKey] = DateTime.now();
+    await _refreshSilently();
   }
 
   Future<void> _refreshSilently() async {

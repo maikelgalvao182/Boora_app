@@ -8,12 +8,15 @@ import 'package:partiu/features/event_photo_feed/data/models/event_photo_comment
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_feed_scope.dart';
 import 'package:partiu/features/event_photo_feed/data/models/event_photo_model.dart';
 import 'package:partiu/features/event_photo_feed/data/models/tagged_participant_model.dart';
+import 'package:partiu/features/event_photo_feed/domain/services/feed_metrics_service.dart';
 
 final eventPhotoCacheServiceProvider = Provider<EventPhotoCacheService>((ref) {
   return EventPhotoCacheService();
 });
 
 class EventPhotoCacheService {
+  // TTLs padrão (usados quando scope não é especificado)
+  // Para TTL por scope, usar FeedTtlConfig
   static const Duration feedIndexTtl = Duration(minutes: 5);
   static const Duration postTtl = Duration(minutes: 10);
   static const Duration commentsTtl = Duration(minutes: 2);
@@ -79,10 +82,14 @@ class EventPhotoCacheService {
     final key = scopeKey(scope);
     final indexList = items.map(_eventPhotoToIndexCache).toList(growable: false);
 
-    await _feedIndexCache.put(key, indexList, ttl: feedIndexTtl);
+    // Usa TTL específico por scope
+    final ttl = FeedTtlConfig.getHiveFeedTtl(scope);
+    final postTtlForScope = FeedTtlConfig.getHivePostTtl(scope);
+
+    await _feedIndexCache.put(key, indexList, ttl: ttl);
 
     for (final item in items) {
-      await _postCache.put(item.id, _eventPhotoToPostCache(item), ttl: postTtl);
+      await _postCache.put(item.id, _eventPhotoToPostCache(item), ttl: postTtlForScope);
     }
   }
 

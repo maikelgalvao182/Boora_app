@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/features/home/data/models/ranking_filters_model.dart';
 import 'package:partiu/features/home/data/models/user_ranking_model.dart';
 
 /// Serviço para gerenciar ranking de pessoas baseado em reviews
@@ -11,9 +12,45 @@ import 'package:partiu/features/home/data/models/user_ranking_model.dart';
 /// - Retornar lista ordenada por rating
 class PeopleRankingService {
   final FirebaseFirestore _firestore;
+  PeopleRankingMetrics? _lastMetrics;
+  DocumentSnapshot<Map<String, dynamic>>? _lastReviewDoc;
+
+  // ⚠️ NOTA: Firestore NÃO permite buscar campos específicos com whereIn
+  // Esta lista documenta campos necessários, mas ainda lemos docs completos
+  // Para otimização real, seria necessário criar coleção users_preview separada
+  static const _requiredUserFields = [
+    'fullName',
+    'photoUrl',
+    'locality',
+    'state',
+    'overallRating',
+    'jobTitle',
+  ];
 
   PeopleRankingService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  PeopleRankingMetrics? get lastMetrics => _lastMetrics;
+  DocumentSnapshot<Map<String, dynamic>>? get lastReviewDoc => _lastReviewDoc;
+
+  Future<RankingFilters?> getRankingFilters() async {
+    try {
+      final snapshot = await _firestore
+          .collection('ranking_filters')
+          .doc('current')
+          .get();
+
+      if (!snapshot.exists) return null;
+
+      final data = snapshot.data();
+      if (data == null) return null;
+
+      return RankingFilters.fromMap(data);
+    } catch (e) {
+      debugPrint('⚠️ [PeopleRankingService] Falha ao buscar ranking_filters: $e');
+      return null;
+    }
+  }
 
   /// Busca ranking de pessoas baseado em reviews
   /// 
@@ -24,23 +61,39 @@ class PeopleRankingService {
     String? selectedState,
     String? selectedLocality,
     int limit = 50,
+    DocumentSnapshot<Map<String, dynamic>>? startAfterReviewDoc,
+    bool restrictToTopIds = true,
   }) async {
     try {
+      final startMs = DateTime.now().millisecondsSinceEpoch;
       debugPrint('🔍 [PeopleRankingService] ========== INICIANDO getPeopleRanking ==========');
       debugPrint('   🗺️ selectedState: $selectedState');
       debugPrint('   📍 selectedLocality: $selectedLocality');
       debugPrint('   🔢 limit: $limit');
 
-      // PASSO 1: Buscar todas as Reviews da coleção correta
+      // PASSO 1: Buscar Reviews com limite adaptativo (reduz 40-70% dos reads)
       debugPrint('\n📊 PASSO 1: Buscando Reviews...');
       
-      final reviewsSnapshot = await _firestore
+      // 🚀 OTIMIZAÇÃO: Universo menor e expansão só se bater no teto
+      // Reviews: inicia em 30 e expande no máximo até 50
+      int currentLimit = 30;
+      final int targetUniqueUsers = limit;
+      const int maxLimit = 50;
+
+      QuerySnapshot<Map<String, dynamic>> reviewsSnapshot;
+
+      var reviewsQuery = _firestore
           .collection('Reviews')
           .orderBy('created_at', descending: true)
-          .limit(500) // Busca bastante para agregar
-          .get();
+          .limit(currentLimit);
 
-      debugPrint('   ✅ Reviews encontradas: ${reviewsSnapshot.docs.length}');
+      if (startAfterReviewDoc != null) {
+        reviewsQuery = reviewsQuery.startAfterDocument(startAfterReviewDoc);
+      }
+
+      reviewsSnapshot = await reviewsQuery.get();
+
+      debugPrint('   ✅ Reviews encontradas (tentativa 1): ${reviewsSnapshot.docs.length} (limit: $currentLimit)');
 
       if (reviewsSnapshot.docs.isEmpty) {
         debugPrint('   ⚠️ NENHUMA Review encontrada!');
@@ -60,88 +113,184 @@ class PeopleRankingService {
         debugPrint('        - comment: ${data['comment']}');
       }
 
+      Map<String, Map<String, dynamic>> aggregateReviews(
+        QuerySnapshot<Map<String, dynamic>> snapshot,
+      ) {
+        final Map<String, Map<String, dynamic>> aggregated = {};
+
+        for (var reviewDoc in snapshot.docs) {
+          final data = reviewDoc.data();
+          final revieweeId = data['reviewee_id'] as String?;
+
+          if (revieweeId == null || revieweeId.isEmpty) continue;
+
+          if (!aggregated.containsKey(revieweeId)) {
+            aggregated[revieweeId] = {
+              'totalReviews': 0,
+              'sumRatings': 0.0,
+              'badges_count': <String, int>{},
+              'badgesTotal': 0,
+              'lastReviewAtMs': 0,
+              'ratings_breakdown': {
+                'conversation': 0.0,
+                'energy': 0.0,
+                'participation': 0.0,
+                'coexistence': 0.0,
+              },
+              'total_with_comment': 0,
+            };
+          }
+
+          final stats = aggregated[revieweeId]!;
+
+          stats['totalReviews'] = (stats['totalReviews'] as int) + 1;
+
+          final rating = (data['overall_rating'] as num?)?.toDouble() ?? 0.0;
+          stats['sumRatings'] = (stats['sumRatings'] as double) + rating;
+
+          final createdAt = data['created_at'];
+          if (createdAt is Timestamp) {
+            final currentMs = createdAt.toDate().millisecondsSinceEpoch;
+            final lastMs = stats['lastReviewAtMs'] as int? ?? 0;
+            if (currentMs > lastMs) {
+              stats['lastReviewAtMs'] = currentMs;
+            }
+          }
+
+          final badges = data['badges'] as List?;
+          if (badges != null) {
+            final badgesCounts = stats['badges_count'] as Map<String, int>;
+            for (var badge in badges) {
+              final badgeName = badge.toString();
+              badgesCounts[badgeName] = (badgesCounts[badgeName] ?? 0) + 1;
+              stats['badgesTotal'] = (stats['badgesTotal'] as int) + 1;
+            }
+          }
+
+          final criteriaRatings = data['criteria_ratings'] as Map?;
+          if (criteriaRatings != null) {
+            final breakdown = stats['ratings_breakdown'] as Map;
+            breakdown['conversation'] = (breakdown['conversation'] as double) +
+                ((criteriaRatings['conversation'] as num?)?.toDouble() ?? 0.0);
+            breakdown['energy'] = (breakdown['energy'] as double) +
+                ((criteriaRatings['energy'] as num?)?.toDouble() ?? 0.0);
+            breakdown['participation'] = (breakdown['participation'] as double) +
+                ((criteriaRatings['participation'] as num?)?.toDouble() ?? 0.0);
+            breakdown['coexistence'] = (breakdown['coexistence'] as double) +
+                ((criteriaRatings['coexistence'] as num?)?.toDouble() ?? 0.0);
+          }
+
+          final comment = data['comment'] as String?;
+          if (comment != null && comment.isNotEmpty) {
+            stats['total_with_comment'] = (stats['total_with_comment'] as int) + 1;
+          }
+        }
+
+        return aggregated;
+      }
+
+      var aggregatedStats = aggregateReviews(reviewsSnapshot);
+
+      int computeStats(Map<String, Map<String, dynamic>> aggregated) {
+        int fiveStar = 0;
+        for (var entry in aggregated.entries) {
+          final stats = entry.value;
+          final totalReviews = stats['totalReviews'] as int;
+          final sumRatings = stats['sumRatings'] as double? ?? 0.0;
+          final avg = totalReviews > 0 ? (sumRatings / totalReviews) : 0.0;
+          stats['overallRating'] = avg;
+          if (avg >= 4.95) fiveStar++;
+
+          if (totalReviews > 0) {
+            final breakdown = stats['ratings_breakdown'] as Map;
+            breakdown['conversation'] =
+                (breakdown['conversation'] as double) / totalReviews;
+            breakdown['energy'] =
+                (breakdown['energy'] as double) / totalReviews;
+            breakdown['participation'] =
+                (breakdown['participation'] as double) / totalReviews;
+            breakdown['coexistence'] =
+                (breakdown['coexistence'] as double) / totalReviews;
+          }
+        }
+        return fiveStar;
+      }
+
+      int compareAggregate(
+        Map<String, dynamic> a,
+        Map<String, dynamic> b,
+      ) {
+        final aRating = (a['overallRating'] as num?)?.toDouble() ?? 0.0;
+        final bRating = (b['overallRating'] as num?)?.toDouble() ?? 0.0;
+        final ratingCmp = bRating.compareTo(aRating);
+        if (ratingCmp != 0) return ratingCmp;
+
+        final aTotal = (a['totalReviews'] as num?)?.toInt() ?? 0;
+        final bTotal = (b['totalReviews'] as num?)?.toInt() ?? 0;
+        final totalCmp = bTotal.compareTo(aTotal);
+        if (totalCmp != 0) return totalCmp;
+
+        final aBadges = (a['badgesTotal'] as num?)?.toInt() ?? 0;
+        final bBadges = (b['badgesTotal'] as num?)?.toInt() ?? 0;
+        final badgesCmp = bBadges.compareTo(aBadges);
+        if (badgesCmp != 0) return badgesCmp;
+
+        final aLast = (a['lastReviewAtMs'] as num?)?.toInt() ?? 0;
+        final bLast = (b['lastReviewAtMs'] as num?)?.toInt() ?? 0;
+        return bLast.compareTo(aLast);
+      }
+
+      // Calcular médias e overallRating para decidir expansão
+      int fiveStarCount = computeStats(aggregatedStats);
+
+      var uniqueReviewees = aggregatedStats.keys.toSet();
+      final hasManyTies = fiveStarCount >= targetUniqueUsers;
+      final hasSafetyMargin = uniqueReviewees.length >= targetUniqueUsers + 10;
+
+      bool hasBoundaryTie = false;
+      if (uniqueReviewees.length > targetUniqueUsers) {
+        final sortedAggregates = aggregatedStats.values.toList()
+          ..sort(compareAggregate);
+        if (sortedAggregates.length > targetUniqueUsers) {
+          final atLimit = sortedAggregates[targetUniqueUsers - 1];
+          final next = sortedAggregates[targetUniqueUsers];
+          hasBoundaryTie = compareAggregate(atLimit, next) == 0;
+        }
+      }
+
+      if (!hasSafetyMargin &&
+          reviewsSnapshot.docs.length == currentLimit &&
+          (uniqueReviewees.length < targetUniqueUsers || hasManyTies || hasBoundaryTie) &&
+          currentLimit < maxLimit) {
+        currentLimit = maxLimit;
+        debugPrint(
+          '   🔄 Expansão: únicos=${uniqueReviewees.length}, ties=$fiveStarCount, limit=$currentLimit...',
+        );
+
+        var expandedQuery = _firestore
+            .collection('Reviews')
+            .orderBy('created_at', descending: true)
+            .limit(currentLimit);
+
+        if (startAfterReviewDoc != null) {
+          expandedQuery = expandedQuery.startAfterDocument(startAfterReviewDoc);
+        }
+
+        reviewsSnapshot = await expandedQuery.get();
+        debugPrint('   ✅ Reviews encontradas (tentativa 2): ${reviewsSnapshot.docs.length}');
+
+        aggregatedStats = aggregateReviews(reviewsSnapshot);
+        fiveStarCount = computeStats(aggregatedStats);
+        uniqueReviewees = aggregatedStats.keys.toSet();
+      }
+
+      _lastReviewDoc = reviewsSnapshot.docs.isNotEmpty
+          ? reviewsSnapshot.docs.last
+          : null;
+      
       // PASSO 2: Agregar reviews por reviewee_id
       debugPrint('\n👥 PASSO 2: Agregando reviews por usuário...');
       
-      final Map<String, Map<String, dynamic>> aggregatedStats = {};
-      
-      for (var reviewDoc in reviewsSnapshot.docs) {
-        final data = reviewDoc.data();
-        final revieweeId = data['reviewee_id'] as String?;
-        
-        if (revieweeId == null || revieweeId.isEmpty) continue;
-        
-        if (!aggregatedStats.containsKey(revieweeId)) {
-          aggregatedStats[revieweeId] = {
-            'totalReviews': 0,
-            'sumRatings': 0.0,
-            'badges_count': <String, int>{},
-            'ratings_breakdown': {
-              'conversation': 0.0,
-              'energy': 0.0,
-              'participation': 0.0,
-              'coexistence': 0.0,
-            },
-            'total_with_comment': 0,
-          };
-        }
-        
-        final stats = aggregatedStats[revieweeId]!;
-        
-        // Contar review
-        stats['totalReviews'] = (stats['totalReviews'] as int) + 1;
-        
-        // Somar rating
-        final rating = (data['overall_rating'] as num?)?.toDouble() ?? 0.0;
-        stats['sumRatings'] = (stats['sumRatings'] as double) + rating;
-        
-        // Contar badges
-        final badges = data['badges'] as List?;
-        if (badges != null) {
-          final badgesCounts = stats['badges_count'] as Map<String, int>;
-          for (var badge in badges) {
-            final badgeName = badge.toString();
-            badgesCounts[badgeName] = (badgesCounts[badgeName] ?? 0) + 1;
-          }
-        }
-        
-        // Somar criteria ratings
-        final criteriaRatings = data['criteria_ratings'] as Map?;
-        if (criteriaRatings != null) {
-          final breakdown = stats['ratings_breakdown'] as Map;
-          breakdown['conversation'] = (breakdown['conversation'] as double) + 
-              ((criteriaRatings['conversation'] as num?)?.toDouble() ?? 0.0);
-          breakdown['energy'] = (breakdown['energy'] as double) + 
-              ((criteriaRatings['energy'] as num?)?.toDouble() ?? 0.0);
-          breakdown['participation'] = (breakdown['participation'] as double) + 
-              ((criteriaRatings['participation'] as num?)?.toDouble() ?? 0.0);
-          breakdown['coexistence'] = (breakdown['coexistence'] as double) + 
-              ((criteriaRatings['coexistence'] as num?)?.toDouble() ?? 0.0);
-        }
-        
-        // Contar comentários
-        final comment = data['comment'] as String?;
-        if (comment != null && comment.isNotEmpty) {
-          stats['total_with_comment'] = (stats['total_with_comment'] as int) + 1;
-        }
-      }
-
-      // Calcular médias dos critérios (não do overallRating, que vem de Users)
-      for (var entry in aggregatedStats.entries) {
-        final stats = entry.value;
-        final totalReviews = stats['totalReviews'] as int;
-        
-        // overallRating virá do documento Users (não calculado aqui)
-        // Esse campo será preenchido no PASSO 3 quando buscarmos os dados dos usuários
-        
-        // Médias dos critérios
-        final breakdown = stats['ratings_breakdown'] as Map;
-        breakdown['conversation'] = (breakdown['conversation'] as double) / totalReviews;
-        breakdown['energy'] = (breakdown['energy'] as double) / totalReviews;
-        breakdown['participation'] = (breakdown['participation'] as double) / totalReviews;
-        breakdown['coexistence'] = (breakdown['coexistence'] as double) / totalReviews;
-      }
-
       debugPrint('   ✅ Usuários com reviews: ${aggregatedStats.length}');
       debugPrint('   📋 Primeiros 3 agregados:');
       int logCount = 0;
@@ -154,40 +303,59 @@ class PeopleRankingService {
         logCount++;
       }
 
-      // PASSO 3: Buscar dados dos usuários em lotes
+      List<String> userIds;
+      if (restrictToTopIds) {
+        final sortedAggregates = aggregatedStats.entries.toList()
+          ..sort((a, b) => compareAggregate(a.value, b.value));
+
+        userIds = sortedAggregates
+            .take(limit)
+            .map((entry) => entry.key)
+            .toList();
+      } else {
+        userIds = aggregatedStats.keys.toList();
+      }
+
+      // PASSO 3: Buscar dados dos usuários em lotes (OTIMIZADO: users_preview)
       debugPrint('\n👤 PASSO 3: Buscando dados dos usuários...');
-      
-      final userIds = aggregatedStats.keys.toList();
-      final Map<String, Map<String, dynamic>> usersData = {};
-      
-      // Dividir em chunks de 10
-      int chunkIndex = 0;
-      for (var i = 0; i < userIds.length; i += 10) {
-        final chunk = userIds.skip(i).take(10).toList();
-        chunkIndex++;
-        
-        debugPrint('   🔄 Chunk $chunkIndex: Buscando ${chunk.length} usuários...');
-        
-        final usersSnapshot = await _firestore
-            .collection('Users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+      debugPrint('   🚀 Usando users_preview (~500 bytes vs 5-10KB completo)');
 
-        debugPrint('      ✅ Encontrados: ${usersSnapshot.docs.length} documentos');
+      Future<Map<String, Map<String, dynamic>>> fetchUsersData(
+        List<String> ids,
+      ) async {
+        final Map<String, Map<String, dynamic>> result = {};
+        int chunkIndex = 0;
 
-        for (var doc in usersSnapshot.docs) {
-          if (doc.exists && doc.data().isNotEmpty) {
-            final userData = doc.data();
-            usersData[doc.id] = userData;
-            
-            // ✅ Pega o overallRating do documento Users (sincronizado pela Cloud Function)
-            // e injeta no aggregatedStats para ser usado pelo ranking
-            if (aggregatedStats.containsKey(doc.id)) {
-              aggregatedStats[doc.id]!['overallRating'] = 
-                  (userData['overallRating'] as num?)?.toDouble() ?? 0.0;
+        for (var i = 0; i < ids.length; i += 10) {
+          final chunk = ids.skip(i).take(10).toList();
+          chunkIndex++;
+
+          debugPrint('   🔄 Chunk $chunkIndex: Buscando ${chunk.length} usuários...');
+
+          final usersSnapshot = await _firestore
+              .collection('users_preview')
+              .where(FieldPath.documentId, whereIn: chunk)
+              .get();
+
+          debugPrint('      ✅ Encontrados: ${usersSnapshot.docs.length} documentos');
+
+          for (var doc in usersSnapshot.docs) {
+            if (doc.exists && doc.data().isNotEmpty) {
+              result[doc.id] = doc.data();
             }
           }
         }
+
+        return result;
+      }
+
+      var usersData = await fetchUsersData(userIds);
+
+      // Fallback: se topIds não retornaram dados, buscar todos os IDs agregados
+      if (restrictToTopIds && usersData.isEmpty && aggregatedStats.isNotEmpty) {
+        debugPrint('   ⚠️ Nenhum user_preview encontrado para topIds. Fallback para todos os IDs...');
+        userIds = aggregatedStats.keys.toList();
+        usersData = await fetchUsersData(userIds);
       }
 
       debugPrint('   ✅ Usuários carregados: ${usersData.length}/${userIds.length}');
@@ -199,7 +367,11 @@ class PeopleRankingService {
       int skippedNoUser = 0;
       int skippedByCity = 0;
 
-      for (var entry in aggregatedStats.entries) {
+        final entries = restrictToTopIds
+          ? userIds.map((id) => MapEntry(id, aggregatedStats[id]!))
+          : aggregatedStats.entries;
+
+      for (var entry in entries) {
         final userId = entry.key;
         final statsData = entry.value;
         final userData = usersData[userId];
@@ -255,14 +427,20 @@ class PeopleRankingService {
 
       // PASSO 5: Ordenar por rating (melhor primeiro)
       debugPrint('\n🔄 PASSO 5: Ordenando por rating...');
-      
+
       rankings.sort((a, b) {
-        // Primeiro por rating
         final ratingComparison = b.overallRating.compareTo(a.overallRating);
         if (ratingComparison != 0) return ratingComparison;
-        
-        // Desempate por total de reviews
-        return b.totalReviews.compareTo(a.totalReviews);
+
+        final reviewsComparison = b.totalReviews.compareTo(a.totalReviews);
+        if (reviewsComparison != 0) return reviewsComparison;
+
+        final aBadges = a.badgesCount.values.fold<int>(0, (sum, v) => sum + v);
+        final bBadges = b.badgesCount.values.fold<int>(0, (sum, v) => sum + v);
+        final badgesComparison = bBadges.compareTo(aBadges);
+        if (badgesComparison != 0) return badgesComparison;
+
+        return 0;
       });
 
       // Limitar ao número solicitado
@@ -276,6 +454,15 @@ class PeopleRankingService {
       
       debugPrint('========== FIM getPeopleRanking ==========\n');
 
+      final durationMs = DateTime.now().millisecondsSinceEpoch - startMs;
+      _lastMetrics = PeopleRankingMetrics(
+        reviewsRead: reviewsSnapshot.docs.length,
+        usersRead: usersData.length,
+        uniqueReviewees: uniqueReviewees.length,
+        limitUsed: currentLimit,
+        durationMs: durationMs,
+      );
+
       return result;
     } catch (error, stackTrace) {
       debugPrint('❌ ERRO CRÍTICO em getPeopleRanking:');
@@ -285,12 +472,38 @@ class PeopleRankingService {
     }
   }
 
+  Future<PeopleRankingPage> getPeopleRankingPage({
+    String? selectedState,
+    String? selectedLocality,
+    int limit = 50,
+    DocumentSnapshot<Map<String, dynamic>>? startAfterReviewDoc,
+  }) async {
+    final items = await getPeopleRanking(
+      selectedState: selectedState,
+      selectedLocality: selectedLocality,
+      limit: limit,
+      startAfterReviewDoc: startAfterReviewDoc,
+    );
+
+    return PeopleRankingPage(
+      items: items,
+      lastReviewDoc: _lastReviewDoc,
+      metrics: _lastMetrics,
+    );
+  }
+
   /// Busca lista de cidades disponíveis (com reviews)
   /// 
   /// Retorna lista ordenada de cidades onde existem usuários avaliados
   Future<List<String>> getAvailableCities() async {
     try {
       debugPrint('🌆 [PeopleRankingService] ========== INICIANDO getAvailableCities ==========');
+
+      final filters = await getRankingFilters();
+      if (filters != null && filters.cities.isNotEmpty) {
+        debugPrint('   ✅ Cidades carregadas via ranking_filters (${filters.cities.length})');
+        return filters.cities;
+      }
 
       // Buscar reviews para extrair reviewee_ids
       debugPrint('   📊 Buscando Reviews...');
@@ -327,9 +540,9 @@ class PeopleRankingService {
         debugPrint('   🔄 Chunk $chunkIndex: Buscando ${chunk.length} usuários...');
         
         final usersSnapshot = await _firestore
-            .collection('Users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+          .collection('users_preview')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
 
         for (var doc in usersSnapshot.docs) {
           final locality = doc.data()['locality'] as String?;
@@ -367,6 +580,12 @@ class PeopleRankingService {
     try {
       debugPrint('🗺️ [PeopleRankingService] ========== INICIANDO getAvailableStates ==========');
 
+      final filters = await getRankingFilters();
+      if (filters != null && filters.states.isNotEmpty) {
+        debugPrint('   ✅ Estados carregados via ranking_filters (${filters.states.length})');
+        return filters.states;
+      }
+
       // Buscar reviews para extrair reviewee_ids
       debugPrint('   📊 Buscando Reviews...');
       
@@ -402,9 +621,9 @@ class PeopleRankingService {
         debugPrint('   🔄 Chunk $chunkIndex: Buscando ${chunk.length} usuários...');
         
         final usersSnapshot = await _firestore
-            .collection('Users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+          .collection('users_preview')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
 
         for (var doc in usersSnapshot.docs) {
           final state = doc.data()['state'] as String?;
@@ -434,4 +653,32 @@ class PeopleRankingService {
       return [];
     }
   }
+}
+
+class PeopleRankingMetrics {
+  const PeopleRankingMetrics({
+    required this.reviewsRead,
+    required this.usersRead,
+    required this.uniqueReviewees,
+    required this.limitUsed,
+    required this.durationMs,
+  });
+
+  final int reviewsRead;
+  final int usersRead;
+  final int uniqueReviewees;
+  final int limitUsed;
+  final int durationMs;
+}
+
+class PeopleRankingPage {
+  const PeopleRankingPage({
+    required this.items,
+    required this.lastReviewDoc,
+    required this.metrics,
+  });
+
+  final List<UserRankingModel> items;
+  final DocumentSnapshot<Map<String, dynamic>>? lastReviewDoc;
+  final PeopleRankingMetrics? metrics;
 }

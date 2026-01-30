@@ -13,6 +13,7 @@ class LocationPickerMap extends StatefulWidget {
     this.onCameraIdle,
     this.onCameraMoveStarted,
     this.markers = const {},
+    this.circles = const {},
   });
 
   final LatLng initialLocation;
@@ -22,6 +23,7 @@ class LocationPickerMap extends StatefulWidget {
   final VoidCallback? onCameraIdle;
   final VoidCallback? onCameraMoveStarted;
   final Set<Marker> markers;
+  final Set<Circle> circles;
 
   @override
   State<LocationPickerMap> createState() => LocationPickerMapState();
@@ -56,6 +58,7 @@ class LocationPickerMapState extends State<LocationPickerMap> {
       onCameraIdle: widget.onCameraIdle,
       onCameraMoveStarted: widget.onCameraMoveStarted,
       markers: widget.markers,
+      circles: widget.circles,
     );
   }
 

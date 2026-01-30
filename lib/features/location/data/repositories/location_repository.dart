@@ -5,6 +5,7 @@ import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/features/location/domain/repositories/location_repository_interface.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:partiu/core/services/smart_geocoding_service.dart';
 
 class LocationRepository implements LocationRepositoryInterface {
   
@@ -73,15 +74,17 @@ class LocationRepository implements LocationRepositoryInterface {
   @override
   Future<Placemark> getUserAddress(double latitude, double longitude) async {
     try {
-      final placemarks = await placemarkFromCoordinates(
-        latitude,
-        longitude,
+      final placemark = await SmartGeocodingService.instance.getAddressSmart(
+        latitude: latitude,
+        longitude: longitude,
       );
       
-      if (placemarks.isNotEmpty) {
-        return placemarks.first;
+      if (placemark != null) {
+        return placemark;
       } else {
-        throw Exception('No address found for the given coordinates');
+        // Se retornou null, ou falhou API ou não tem dados anteriores.
+        // Tenta um fallback force refresh ou lança
+        throw Exception('No address found for the given coordinates (SmartGeo)');
       }
     } catch (e) {
       throw Exception('Failed to get address: $e');
@@ -95,6 +98,7 @@ class LocationRepository implements LocationRepositoryInterface {
     required double longitude,
     required double displayLatitude,
     required double displayLongitude,
+    required String geohash,
     required String country,
     required String locality,
     required String state,
@@ -104,6 +108,7 @@ class LocationRepository implements LocationRepositoryInterface {
       AppLogger.info('📤 SENDING TO API:', tag: 'LocationRepository');
       AppLogger.info('userId: $userId', tag: 'LocationRepository');
       AppLogger.info('lat: $latitude, lng: $longitude', tag: 'LocationRepository');
+      AppLogger.info('geohash: $geohash', tag: 'LocationRepository');
       AppLogger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', tag: 'LocationRepository');
       AppLogger.info('🌍 LOCATION FIELDS:', tag: 'LocationRepository');
       AppLogger.info('   country: "$country" (type: ${country.runtimeType}, isEmpty: ${country.isEmpty})', tag: 'LocationRepository');
@@ -117,6 +122,7 @@ class LocationRepository implements LocationRepositoryInterface {
         'longitude': longitude,
         'displayLatitude': displayLatitude,
         'displayLongitude': displayLongitude,
+        'geohash': geohash,
         'country': country,
         'locality': locality,
         'state': state,

@@ -23,9 +23,10 @@ import 'package:partiu/features/event_photo_feed/presentation/widgets/event_phot
 import 'package:partiu/features/event_photo_feed/presentation/services/feed_onboarding_service.dart';
 import 'package:partiu/features/feed/presentation/widgets/activity_feed_item.dart';
 import 'package:partiu/features/home/presentation/coordinators/home_navigation_coordinator.dart';
+import 'package:partiu/features/home/presentation/widgets/create_button.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
-import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
+import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
 
 /// Garante tempo mínimo de exibição do spinner (estilo Instagram)
 Future<void> _delayedRefresh(Future<void> Function() refresh) async {
@@ -139,34 +140,17 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: GlimpseAppBar(
-        title: i18n.translate('event_photo_feed_title'),
-        isBackEnabled: !widget.isMainTab,
-        actionWidget: Container(
-          padding: EdgeInsets.zero,
-          child: IconButton(
-            onPressed: () {
-              _handleCreateTap(context);
-            },
-            style: IconButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ).copyWith(
-              overlayColor: WidgetStateProperty.all(Colors.transparent),
-              splashFactory: NoSplash.splashFactory,
-            ),
-            icon: const Icon(
-              Icons.add,
-              color: GlimpseColors.primary,
-              size: 28,
-            ),
-          ),
-        ),
+      floatingActionButton: CreateButton(
+        onPressed: () => _handleCreateTap(context),
       ),
-      body: Column(
-        children: [
-          EventPhotoFeedTabs(
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GlimpseTabAppBar(
+              title: i18n.translate('event_photo_feed_title'),
+            ),
+            EventPhotoFeedTabs(
             currentIndex: _tabIndex,
             onChanged: (index) {
               if (_tabIndex == index) return;
@@ -433,9 +417,9 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
-      floatingActionButton: null,
     );
   }
 

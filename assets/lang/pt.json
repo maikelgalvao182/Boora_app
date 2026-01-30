@@ -88,6 +88,9 @@
   "search": "Buscar",
   "notifications": "Notificações",
   "no_notifications_yet": "Nenhuma notificação ainda",
+  "clear": "Limpar",
+  "delete_notifications": "Limpar notificações",
+  "all_notifications_will_be_deleted": "Todas as suas notificações serão removidas. Esta ação não pode ser desfeita.",
   "messages": "Mensagens",
   "conversations": "Conversas",
   "no_conversations_yet": "Nenhuma conversa ainda",
@@ -523,6 +526,9 @@
   "retry": "Tentar novamente",
   "profile_id_not_found": "ID do perfil não encontrado",
   "profile_data_not_found": "Dados do perfil não encontrados",
+  "profile_not_available": "Perfil não disponível",
+  "profile_not_available_description": "Este perfil não existe ou foi removido.",
+  "go_back": "Voltar",
   "rating_label": "Avaliação",
   "review_singular": "avaliação",
   "reviews_plural": "avaliações",
@@ -603,7 +609,7 @@
   "activity_suggestion_run_in_park": "Correr no parque",
   "activity_suggestion_workout_gym": "Treinar na academia",
   "activity_suggestion_take_a_walk": "Fazer uma caminhada",
-  "activity_suggestion_do_yoga": "Fazer yoga",
+  "activity_suggestion_do_yoga": "Praticar yoga",
   "activity_suggestion_bike_in_city": "Pedalar pela cidade",
   "activity_suggestion_walk_the_dog": "Passear com o cachorro",
   "activity_suggestion_have_coffee": "Tomar um café",
@@ -681,6 +687,8 @@
   "category_networking_subtitle": "Trabalho, talks, meetups",
   "category_games": "Jogos",
   "category_games_subtitle": "Sinuca, tabuleiros",
+  "category_romance": "Romance",
+  "category_romance_subtitle": "Encontros, dates, paquera",
   "category_other": "Outros",
   "category_other_subtitle": "Qualquer outra coisa",
   "select_date": "Selecione a data",
@@ -1259,7 +1267,10 @@
   "distance_unit": "Unidade de Distância",
   "actions": "Ações",
   "share_app_message": "Boora - Crie coisas pra fazer no mapa da sua cidade e veja quem topa ir junto.",
-  "followers": "seguidores"
-
+  "followers": "Seguidores",
+  "location_picker_tab_map": "Localizar",
+  "location_picker_tab_search": "Buscar",
+  "location_picker_map_hint": "Marque uma área para o encontro",
+  "tap_map_to_confirm": "Clique ou arraste para marcar uma área aproximada"
 }
 

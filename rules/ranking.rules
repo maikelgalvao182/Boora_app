@@ -37,3 +37,19 @@ match /locationRanking/{placeId} {
   // Apenas Cloud Functions podem criar/atualizar rankings
   allow write: if false;
 }
+
+/// 🧹 Filtros agregados do ranking
+/// Path usado no app:
+/// - ranking_filters/current
+///   - states: array<string>
+///   - cities: array<string>
+///   - citiesByState: map<string, array<string>>
+///   - updatedAt: timestamp
+
+match /ranking_filters/{docId} {
+  // Qualquer usuário autenticado pode ler filtros
+  allow read: if isSignedIn();
+
+  // Apenas Cloud Functions podem escrever
+  allow write: if false;
+}

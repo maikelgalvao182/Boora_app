@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:partiu/features/home/data/models/user_ranking_model.dart';
+import 'package:partiu/features/home/data/models/ranking_filters_model.dart';
+import 'package:partiu/features/home/data/services/people_ranking_cache_service.dart';
 import 'package:partiu/features/home/data/services/people_ranking_service.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
+import 'package:partiu/core/services/analytics_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 
 /// Estados de carregamento
@@ -21,8 +24,12 @@ enum LoadState {
 /// - Filtrar por cidade
 /// - Fornecer dados limpos para a UI
 class PeopleRankingViewModel extends ChangeNotifier {
+  static const int _rankingLimit = 50;
+  static const int _stateCitiesLimit = 1000;
+
   final PeopleRankingService _peopleRankingService;
   final GlobalCacheService _cache = GlobalCacheService.instance;
+  final PeopleRankingCacheService _persistentCache = PeopleRankingCacheService();
   
   // Instância compartilhada (opcional - para acesso global)
   static PeopleRankingViewModel? _instance;
@@ -40,6 +47,7 @@ class PeopleRankingViewModel extends ChangeNotifier {
   List<UserRankingModel> _peopleRankings = [];
   List<String> _availableStates = [];
   List<String> _availableCities = [];
+  RankingFilters? _rankingFilters;
   
   // Cache de cidades por estado para não reprocessar
   Map<String, List<String>> _citiesByState = {};
@@ -71,9 +79,26 @@ class PeopleRankingViewModel extends ChangeNotifier {
   String? get selectedCity => _selectedCity;
 
   /// Inicializa o ViewModel carregando rankings e filtros disponíveis
-  Future<void> initialize() async {
+  ///
+  /// [loadFilters] controla se estados/cidades devem ser carregados.
+  /// Use false quando a UI deriva filtros da lista master local.
+  Future<void> initialize({bool loadFilters = true}) async {
     // 🔒 REGRA 1: initialize() só pode rodar UMA VEZ
     if (_initialized) {
+      if (_peopleRankings.isEmpty && _loadState == LoadState.idle && !_isRefreshing) {
+        debugPrint('♻️ [PeopleRankingViewModel] initialize() reexecução segura (estado vazio)');
+        if (loadFilters) {
+          await Future.wait([
+            loadPeopleRanking(),
+            _loadAvailableStates(),
+            _loadAvailableCities(),
+          ]);
+        } else {
+          await loadPeopleRanking();
+        }
+        return;
+      }
+
       debugPrint('🚫 [PeopleRankingViewModel] initialize() já executado - ignorando');
       return;
     }
@@ -90,11 +115,15 @@ class PeopleRankingViewModel extends ChangeNotifier {
     // ⬅️ ESCUTA BlockService via ChangeNotifier (REATIVO INSTANTÂNEO)
     BlockService.instance.addListener(_onBlockedUsersChanged);
     
-    await Future.wait([
-      loadPeopleRanking(),
-      _loadAvailableStates(),
-      _loadAvailableCities(),
-    ]);
+    if (loadFilters) {
+      await Future.wait([
+        loadPeopleRanking(),
+        _loadAvailableStates(),
+        _loadAvailableCities(),
+      ]);
+    } else {
+      await loadPeopleRanking();
+    }
     debugPrint('✅ [PeopleRankingViewModel] Inicialização completa');
   }
   
@@ -154,9 +183,40 @@ class PeopleRankingViewModel extends ChangeNotifier {
         notifyListeners();
       }
       
-      // Atualização silenciosa em background
-      _silentRefreshPeopleRanking();
+      // 🚫 OTIMIZAÇÃO: Silent refresh removido - TTL de 10 min é suficiente
+      // Isso economiza ~30-60% dos requests por sessão
+      _logRankingTelemetry(
+        reason: 'cache_hit',
+        cacheHit: true,
+      );
       return;
+    }
+
+    await _persistentCache.initialize();
+    if (!_isRefreshing) {
+      final persistent = _persistentCache.getCachedRanking(cacheKey);
+      if (persistent != null && persistent.isNotEmpty) {
+        debugPrint('📦 [PeopleRanking] Hive cache HIT - ${persistent.length} pessoas');
+        _peopleRankings = persistent;
+
+        _cache.set(
+          cacheKey,
+          persistent,
+          ttl: const Duration(minutes: 10),
+        );
+
+        if (_loadState == LoadState.idle) {
+          debugPrint('🟢 [LoadState] idle → loaded (hive cache hit)');
+          _loadState = LoadState.loaded;
+        }
+
+        notifyListeners();
+        _logRankingTelemetry(
+          reason: 'hive_cache',
+          cacheHit: true,
+        );
+        return;
+      }
     }
     
     if (_isRefreshing && cached != null) {
@@ -183,7 +243,7 @@ class PeopleRankingViewModel extends ChangeNotifier {
       final result = await _peopleRankingService.getPeopleRanking(
         selectedState: _selectedState,
         selectedLocality: _selectedCity,
-        limit: 50,
+        limit: _rankingLimit,
       );
       
       // 🔒 Verificar se este request ainda é válido
@@ -223,7 +283,14 @@ class PeopleRankingViewModel extends ChangeNotifier {
           ttl: const Duration(minutes: 10),
         );
         debugPrint('🗂️ [PeopleRanking] Cache SAVED - ${_peopleRankings.length} pessoas');
+
+        await _persistentCache.setCachedRanking(cacheKey, _peopleRankings);
       }
+
+      _logRankingTelemetry(
+        reason: _isRefreshing ? 'refresh' : 'network',
+        cacheHit: false,
+      );
     } catch (error, stackTrace) {
       _error = 'Erro ao carregar ranking de pessoas';
       debugPrint('🔴 [LoadState] loading → error');
@@ -250,6 +317,27 @@ class PeopleRankingViewModel extends ChangeNotifier {
     }
   }
 
+  void _logRankingTelemetry({
+    required String reason,
+    required bool cacheHit,
+  }) {
+    final metrics = _peopleRankingService.lastMetrics;
+    AnalyticsService.instance.logEvent(
+      'people_ranking_load',
+      parameters: {
+        'reason': reason,
+        'cache_hit': cacheHit ? 1 : 0,
+        'state': _selectedState ?? 'all',
+        'city': _selectedCity ?? 'all',
+        'reviews_read': metrics?.reviewsRead ?? 0,
+        'users_read': metrics?.usersRead ?? 0,
+        'unique_reviewees': metrics?.uniqueReviewees ?? 0,
+        'limit_used': metrics?.limitUsed ?? 0,
+        'duration_ms': metrics?.durationMs ?? 0,
+      },
+    );
+  }
+
   /// Constrói chave de cache baseada nos filtros atuais
   String _buildCacheKey() {
     final state = _selectedState ?? 'all';
@@ -265,7 +353,7 @@ class PeopleRankingViewModel extends ChangeNotifier {
       final fresh = await _peopleRankingService.getPeopleRanking(
         selectedState: _selectedState,
         selectedLocality: _selectedCity,
-        limit: 50,
+        limit: _rankingLimit,
       );
 
       // Filtrar bloqueados
@@ -318,7 +406,14 @@ class PeopleRankingViewModel extends ChangeNotifier {
     }
     
     try {
-      _availableStates = await _peopleRankingService.getAvailableStates();
+      final filters = await _getRankingFilters();
+      if (filters != null && filters.states.isNotEmpty) {
+        _availableStates = filters.states;
+        _rankingFilters = filters;
+        _citiesByState = filters.citiesByState;
+      } else {
+        _availableStates = await _peopleRankingService.getAvailableStates();
+      }
       debugPrint('✅ Estados disponíveis: ${_availableStates.length}');
       if (_availableStates.isNotEmpty) {
         debugPrint('   - Estados: ${_availableStates.join(", ")}');
@@ -349,11 +444,16 @@ class PeopleRankingViewModel extends ChangeNotifier {
     }
     
     try {
-      final allCities = await _peopleRankingService.getAvailableCities();
-      debugPrint('✅ Cidades totais disponíveis: ${allCities.length}');
-      
-      // Inicialmente, carregar todas as cidades
-      _availableCities = allCities;
+      final filters = await _getRankingFilters();
+      if (filters != null && filters.cities.isNotEmpty) {
+        _availableCities = filters.cities;
+        _rankingFilters = filters;
+        _citiesByState = filters.citiesByState;
+      } else {
+        final allCities = await _peopleRankingService.getAvailableCities();
+        _availableCities = allCities;
+      }
+      debugPrint('✅ Cidades totais disponíveis: ${_availableCities.length}');
       
       if (_availableCities.isNotEmpty) {
         debugPrint('   - Primeiras 5: ${_availableCities.take(5).join(", ")}');
@@ -397,6 +497,13 @@ class PeopleRankingViewModel extends ChangeNotifier {
       _availableCities = await _peopleRankingService.getAvailableCities();
       return;
     }
+
+    final cachedFilters = _rankingFilters?.citiesByState[_selectedState!];
+    if (cachedFilters != null && cachedFilters.isNotEmpty) {
+      _availableCities = cachedFilters;
+      debugPrint('   📦 Usando ranking_filters: ${_availableCities.length} cidades');
+      return;
+    }
     
     // Verificar cache
     if (_citiesByState.containsKey(_selectedState)) {
@@ -411,7 +518,8 @@ class PeopleRankingViewModel extends ChangeNotifier {
       // Buscar rankings do estado para extrair cidades
       final stateRankings = await _peopleRankingService.getPeopleRanking(
         selectedState: _selectedState,
-        limit: 1000, // Buscar bastante para pegar todas as cidades
+        limit: _stateCitiesLimit, // Buscar bastante para pegar todas as cidades
+        restrictToTopIds: false,
       );
       
       final cities = stateRankings
@@ -429,6 +537,25 @@ class PeopleRankingViewModel extends ChangeNotifier {
       debugPrint('   ⚠️ Erro ao filtrar cidades: $error');
       _availableCities = [];
     }
+  }
+
+  Future<RankingFilters?> _getRankingFilters() async {
+    if (_rankingFilters != null) return _rankingFilters;
+
+    await _persistentCache.initialize();
+    final cached = _persistentCache.getCachedFilters();
+    if (cached != null) {
+      _rankingFilters = cached;
+      return cached;
+    }
+
+    final fetched = await _peopleRankingService.getRankingFilters();
+    if (fetched != null) {
+      _rankingFilters = fetched;
+      await _persistentCache.setCachedFilters(fetched);
+    }
+
+    return fetched;
   }
 
   /// Atualiza filtro de cidade
@@ -457,7 +584,9 @@ class PeopleRankingViewModel extends ChangeNotifier {
 
   /// Recarrega ranking forçando busca na network (nunca usa cache)
   /// 🔒 REGRA 2: refresh() = forçar network, sempre
-  Future<void> refresh() async {
+  ///
+  /// [loadFilters] controla se estados/cidades devem ser recarregados.
+  Future<void> refresh({bool loadFilters = true}) async {
     debugPrint('🔄 [PeopleRankingViewModel] refresh() chamado');
     debugPrint('   - ANTES: loadState = $_loadState');
     debugPrint('   - ANTES: _peopleRankings.length = ${_peopleRankings.length}');
@@ -468,11 +597,15 @@ class PeopleRankingViewModel extends ChangeNotifier {
     
     try {
       // 🚀 REFRESH = apenas recarregar dados, nunca initialize()
-      await Future.wait([
-        loadPeopleRanking(), // Força network devido ao _isRefreshing = true
-        _loadAvailableStates(),
-        _loadAvailableCities(),
-      ]);
+      if (loadFilters) {
+        await Future.wait([
+          loadPeopleRanking(), // Força network devido ao _isRefreshing = true
+          _loadAvailableStates(),
+          _loadAvailableCities(),
+        ]);
+      } else {
+        await loadPeopleRanking();
+      }
       
       debugPrint('✅ [PeopleRankingViewModel] refresh() dados atualizados');
     } catch (error) {

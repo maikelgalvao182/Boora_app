@@ -39,6 +39,10 @@ class ChatService {
   /// Stream do resumo da conversa pelo ID do documento
   /// Para chat 1-1: usar otherUserId
   /// Para chat de evento: usar "event_${eventId}"
+  /// 
+  /// ⚠️ DEPRECATED: Usar getConversationOnce() para reduzir custos
+  /// Stream mantido apenas para casos que realmente precisam de realtime
+  @Deprecated('Use getConversationOnce() instead to reduce Firestore reads')
   Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationSummaryById(String conversationId) {
     final currentUserId = AppState.currentUserId;
     if (currentUserId == null || currentUserId.isEmpty || conversationId.isEmpty) {
@@ -52,13 +56,35 @@ class ChatService {
       .snapshots();
   }
 
+  /// ✅ OTIMIZADO: Busca metadata da conversa com get() único
+  /// Usar em vez de stream quando não precisa de realtime
+  Future<Map<String, dynamic>?> getConversationOnce(String conversationId) async {
+    final currentUserId = AppState.currentUserId;
+    if (currentUserId == null || currentUserId.isEmpty || conversationId.isEmpty) {
+      return null;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance
+        .collection(C_CONNECTIONS)
+        .doc(currentUserId)
+        .collection(C_CONVERSATIONS)
+        .doc(conversationId)
+        .get();
+      return doc.data();
+    } catch (e) {
+      debugPrint('❌ [ChatService] getConversationOnce error: $e');
+      return null;
+    }
+  }
+
   /// Stream do resumo da conversa (LEGACY - usar getConversationSummaryById)
   /// Mantido para compatibilidade com código existente
   Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationSummary(String otherUserId) {
     return getConversationSummaryById(otherUserId);
   }
 
-  /// Get cached user updates stream with A2 optimizations  
+  /// ⚠️ DEPRECATED: Stream de presença é caro - usar getUserOnce() com polling
+  @Deprecated('Use getUserOnce() instead to reduce Firestore reads')
   Stream<chat_user_model.UserModel> getUserUpdates(String userId) {
     if (userId.isEmpty) return const Stream.empty();
     // LEGACY REMOVED: Using direct Firestore instead of StreamCacheService
@@ -72,7 +98,50 @@ class ChatService {
         .map((doc) => chat_user_model.UserModel.fromMap(doc.data() ?? {}, doc.id));
   }
 
-  /// Get conversation updates stream
+  // ✅ Cache em memória para presença (evita reads repetidos)
+  static final Map<String, _CachedPresence> _presenceCache = {};
+  static const Duration _presenceTtl = Duration(seconds: 60); // TTL de 60s
+
+  /// ✅ OTIMIZADO: Busca presença do usuário com cache em memória
+  /// TTL de 60 segundos - ideal para tela de chat aberta
+  Future<chat_user_model.UserModel?> getUserOnce(String userId, {bool forceRefresh = false}) async {
+    if (userId.isEmpty) return null;
+    
+    // Verifica cache
+    final cached = _presenceCache[userId];
+    if (!forceRefresh && cached != null && !cached.isExpired) {
+      debugPrint('✅ [ChatService] getUserOnce: cache hit for $userId');
+      return cached.user;
+    }
+    
+    try {
+      debugPrint('🔄 [ChatService] getUserOnce: fetching $userId from Firestore');
+      final doc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .get();
+      
+      if (!doc.exists) return null;
+      
+      final user = chat_user_model.UserModel.fromMap(doc.data() ?? {}, doc.id);
+      
+      // Atualiza cache
+      _presenceCache[userId] = _CachedPresence(user: user, fetchedAt: DateTime.now());
+      
+      return user;
+    } catch (e) {
+      debugPrint('❌ [ChatService] getUserOnce error: $e');
+      return cached?.user; // Retorna cache stale se disponível
+    }
+  }
+  
+  /// Limpa cache de presença (chamar no dispose se necessário)
+  void clearPresenceCache() {
+    _presenceCache.clear();
+  }
+
+  /// ⚠️ DEPRECATED: Usar getConversationOnce() para reduzir custos
+  @Deprecated('Use getConversationOnce() instead to reduce Firestore reads')
   Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationUpdates(String userId) {
     final currentUserId = AppState.currentUserId;
     if (currentUserId == null || currentUserId.isEmpty || userId.isEmpty) {
@@ -87,9 +156,10 @@ class ChatService {
       .snapshots();
   }
 
-  /// Alias for getConversationUpdates (compatibility)
+  /// ⚠️ DEPRECATED: Usar getConversationOnce() para reduzir custos
+  @Deprecated('Use getConversationOnce() instead to reduce Firestore reads')
   Stream<DocumentSnapshot<Map<String, dynamic>>> getConversationStream(String userId) {
-  return getConversationUpdates(userId);
+    return getConversationUpdates(userId);
   }  /// Block a remote user profile
   Future<void> blockProfile({
     required BuildContext context,
@@ -311,4 +381,14 @@ class ChatService {
 
   /// Check if remote user is blocked
   bool get isRemoteUserBlocked => _viewModel.isRemoteUserBlocked;
+}
+
+/// ✅ Classe auxiliar para cache de presença com TTL
+class _CachedPresence {
+  _CachedPresence({required this.user, required this.fetchedAt});
+  
+  final chat_user_model.UserModel user;
+  final DateTime fetchedAt;
+  
+  bool get isExpired => DateTime.now().difference(fetchedAt) > ChatService._presenceTtl;
 }

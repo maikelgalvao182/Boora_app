@@ -4,7 +4,6 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
-import 'package:partiu/shared/stores/user_store.dart';
 
 /// About Me section widget com espaçamento interno
 /// 
@@ -14,7 +13,7 @@ import 'package:partiu/shared/stores/user_store.dart';
 class AboutMeSection extends StatelessWidget {
 
   const AboutMeSection({
-    required this.userId, 
+    required this.bio,
     super.key,
     this.title,
     this.titleColor,
@@ -22,7 +21,7 @@ class AboutMeSection extends StatelessWidget {
     this.hasActionsBelow = false,
   });
   
-  final String userId;
+  final String? bio;
   final String? title;
   final Color? titleColor;
   final Color? textColor;
@@ -34,48 +33,41 @@ class AboutMeSection extends StatelessWidget {
     final effectiveTitleColor = titleColor ?? GlimpseColors.primaryColorLight;
     final effectiveTextColor = textColor ?? GlimpseColors.primaryColorLight;
     
-    final bioNotifier = UserStore.instance.getBioNotifier(userId);
+    final trimmed = bio?.trim() ?? '';
     
-    return ValueListenableBuilder<String?>(
-      valueListenable: bioNotifier,
-      builder: (context, bio, _) {
-        final trimmed = bio?.trim() ?? '';
-        
-        // ✅ AUTO-OCULTA: não renderiza seção vazia
-        if (trimmed.isEmpty) return const SizedBox.shrink();
-        
-        return Container(
-          padding: hasActionsBelow
-            ? const EdgeInsets.only(left: 20, right: 20, bottom: 16)
-            : GlimpseStyles.profileSectionPadding,
-          width: double.infinity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title
-              Text(
-                title ?? i18n.translate('about_me_title'),
-                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: GlimpseColors.primaryColorLight,
-                ),
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: 8),
-
-              Text(
-                trimmed,
-                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontSize: 14,
-                  color: effectiveTextColor,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ],
+    // ✅ AUTO-OCULTA: não renderiza seção vazia
+    if (trimmed.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      padding: hasActionsBelow
+        ? const EdgeInsets.only(left: 20, right: 20, bottom: 16)
+        : GlimpseStyles.profileSectionPadding,
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Text(
+            title ?? i18n.translate('about_me_title'),
+            style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: GlimpseColors.primaryColorLight,
+            ),
+            textAlign: TextAlign.left,
           ),
-        );
-      },
+          const SizedBox(height: 8),
+
+          Text(
+            trimmed,
+            style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
+              fontSize: 14,
+              color: effectiveTextColor,
+            ),
+            textAlign: TextAlign.left,
+          ),
+        ],
+      ),
     );
   }
 }

@@ -6,10 +6,16 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 class CreateButton extends StatelessWidget {
   const CreateButton({
     required this.onPressed,
+    this.heroTag,
     super.key,
   });
 
   final VoidCallback onPressed;
+  
+  /// Hero tag customizável para evitar conflitos quando múltiplos CreateButtons
+  /// existem em diferentes telas na mesma árvore de navegação.
+  /// Se não fornecido, usa um UniqueKey para garantir unicidade.
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +31,7 @@ class CreateButton extends StatelessWidget {
         ],
       ),
       child: FloatingActionButton(
-        heroTag: 'create_activity_button',
+        heroTag: heroTag ?? UniqueKey(),
         onPressed: () {
           HapticFeedback.lightImpact();
           onPressed();

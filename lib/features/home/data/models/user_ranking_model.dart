@@ -91,4 +91,46 @@ class UserRankingModel {
       totalComments: totalComments ?? this.totalComments,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'fullName': fullName,
+      'photoUrl': photoUrl,
+      'locality': locality,
+      'state': state,
+      'jobTitle': jobTitle,
+      'overallRating': overallRating,
+      'totalReviews': totalReviews,
+      'badgesCount': badgesCount,
+      'criteriaRatings': criteriaRatings,
+      'totalComments': totalComments,
+    };
+  }
+
+  factory UserRankingModel.fromMap(Map<String, dynamic> data) {
+    final badgesRaw = data['badgesCount'] as Map<String, dynamic>? ?? {};
+    final badges = badgesRaw.map(
+      (key, value) => MapEntry(key, (value as num).toInt()),
+    );
+
+    final criteriaRaw = data['criteriaRatings'] as Map<String, dynamic>? ?? {};
+    final criteria = criteriaRaw.map(
+      (key, value) => MapEntry(key, (value as num).toDouble()),
+    );
+
+    return UserRankingModel(
+      userId: data['userId'] as String? ?? '',
+      fullName: data['fullName'] as String? ?? 'Usuário',
+      photoUrl: data['photoUrl'] as String? ?? '',
+      locality: data['locality'] as String? ?? '',
+      state: data['state'] as String?,
+      jobTitle: data['jobTitle'] as String?,
+      overallRating: (data['overallRating'] as num?)?.toDouble() ?? 0.0,
+      totalReviews: (data['totalReviews'] as num?)?.toInt() ?? 0,
+      badgesCount: badges,
+      criteriaRatings: criteria,
+      totalComments: (data['totalComments'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

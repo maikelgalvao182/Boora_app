@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/plugins/locationpicker/entities/localization_item.dart';
 import 'package:partiu/plugins/locationpicker/place_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:partiu/core/services/smart_geocoding_service.dart';
 
 /// Service para comunicação com Google Places API
 class PlaceService {
@@ -15,6 +17,9 @@ class PlaceService {
 
   final String apiKey;
   final http.Client _httpClient;
+  
+  // Cache curto para autocomplete (60s)
+  final Map<String, _CachedPlaceResults> _autocompleteCache = {};
 
   /// Autocomplete de lugares
   Future<List<RichSuggestion>> autocomplete({
@@ -24,6 +29,20 @@ class PlaceService {
     LatLng? bias,
     String? countryCode,
   }) async {
+    // 1) Mínimo de 3 caracteres (Regra de Ouro)
+    if (query.trim().length < 3) {
+      return [];
+    }
+
+    // 2) Verificar Cache (ROI alto para backspace/redo)
+    if (_autocompleteCache.containsKey(query)) {
+      final cached = _autocompleteCache[query]!;
+      // Cache válido por 60 segundos
+      if (DateTime.now().difference(cached.timestamp).inSeconds < 60) {
+        return cached.suggestions;
+      }
+    }
+
     try {
       final normalizedCountryCode = (countryCode ?? '').trim().toLowerCase();
 
@@ -89,7 +108,7 @@ class PlaceService {
         return [];
       }
 
-      return predictions.map((t) {
+      final suggestions = predictions.map((t) {
         final matchedSubstrings = (t['matched_substrings'] as List<dynamic>?) ?? const [];
         final firstMatch = matchedSubstrings.isNotEmpty ? matchedSubstrings.first as Map<String, dynamic>? : null;
 
@@ -100,6 +119,14 @@ class PlaceService {
           ..length = (firstMatch?['length'] as num?)?.toInt() ?? 0;
         return RichSuggestion(aci, () {});
       }).toList();
+
+      // 3) Cachear resultado
+      _autocompleteCache[query] = _CachedPlaceResults(
+        suggestions: suggestions,
+        timestamp: DateTime.now(),
+      );
+
+      return suggestions;
     } catch (e) {
       if (kDebugMode) {
         AppLogger.warning(
@@ -119,12 +146,12 @@ class PlaceService {
   }) async {
     try {
       // ✅ SOLUÇÃO: Buscar campos essenciais (name, formatted_address, geometry)
-      // Nunca usar plus_code, vicinity ou secondary_text
+      // Otimização: address_components removido para reduzir carga (Basic SKU)
       final url = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/details/json?'
         'key=$apiKey&'
         'language=$languageCode&'
-        'fields=name,formatted_address,geometry,address_components,place_id&'
+        'fields=name,formatted_address,geometry,place_id&'
         'placeid=$placeId',
       );
 
@@ -150,73 +177,17 @@ class PlaceService {
         (location['lng'] as num).toDouble(),
       );
 
-      // ✅ Extrair name e formatted_address (NUNCA plus_code)
+      // ✅ Extrair name e formatted_address
       final name = result['name'] as String?;
       final formattedAddress = result['formatted_address'] as String?;
-
-      // Extrair componentes do endereço
-      String? locality;
-      String? country;
-      String? administrativeAreaLevel1;
-      String? administrativeAreaLevel2;
-      String? subLocalityLevel1;
-      String? subLocalityLevel2;
-      String? postalCode;
-
-      final components = result['address_components'] as List<dynamic>?;
-      if (components != null) {
-        for (final component in components) {
-          final types = component['types'] as List<dynamic>;
-          final shortName = component['short_name'] as String?;
-
-          if (types.contains('sublocality_level_1')) {
-            subLocalityLevel1 = shortName;
-          } else if (types.contains('sublocality_level_2')) {
-            subLocalityLevel2 = shortName;
-          } else if (types.contains('locality')) {
-            locality = shortName;
-          } else if (types.contains('administrative_area_level_2')) {
-            administrativeAreaLevel2 = shortName;
-          } else if (types.contains('administrative_area_level_1')) {
-            administrativeAreaLevel1 = shortName;
-          } else if (types.contains('country')) {
-            country = shortName;
-          } else if (types.contains('postal_code')) {
-            postalCode = shortName;
-          }
-        }
-      }
-
-      // locality (cidade) com fallback para administrative_area_level_2
-      // administrativeAreaLevel1 (estado) mantido separado
-      final cityName = locality ?? administrativeAreaLevel2;
-      final stateName = administrativeAreaLevel1;
 
       return LocationResult()
         ..name = name
         ..formattedAddress = formattedAddress
         ..latLng = latLng
-        ..placeId = placeId
-        ..locality = cityName
-        ..postalCode = postalCode
-        ..country = AddressComponent(name: country, shortName: country)
-        ..administrativeAreaLevel1 = AddressComponent(
-          name: stateName,
-          shortName: stateName,
-        )
-        ..administrativeAreaLevel2 = AddressComponent(
-          name: administrativeAreaLevel2,
-          shortName: administrativeAreaLevel2,
-        )
-        ..city = AddressComponent(name: cityName, shortName: cityName)
-        ..subLocalityLevel1 = AddressComponent(
-          name: subLocalityLevel1,
-          shortName: subLocalityLevel1,
-        )
-        ..subLocalityLevel2 = AddressComponent(
-          name: subLocalityLevel2,
-          shortName: subLocalityLevel2,
-        );
+        ..placeId = placeId;
+        // Campos estruturados (city, state, etc) removidos para otimização
+         
     } catch (e) {
       return null;
     }
@@ -290,112 +261,62 @@ class PlaceService {
     required String languageCode,
   }) async {
     try {
-      final url = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json?'
-        'latlng=${location.latitude},${location.longitude}&'
-        'language=$languageCode&'
-        'key=$apiKey',
+      // Usar SmartGeocodingService para cache e economia (Native Geocoder)
+      final placemark = await SmartGeocodingService.instance.getAddressSmart(
+        latitude: location.latitude,
+        longitude: location.longitude,
       );
 
-      final response = await _httpClient.get(url).timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException('Reverse geocode timeout');
-            },
-          );
-
-      if (response.statusCode != 200) {
-        throw Exception('Reverse geocode failed: ${response.statusCode}');
-      }
-
-      final responseJson = json.decode(response.body) as Map<String, dynamic>;
-
-      if (responseJson['status'] != 'OK') {
-        throw Exception('API error: ${responseJson['status']}');
-      }
-
-      final result = responseJson['results'][0] as Map<String, dynamic>;
-
-      // Extrair componentes do endereço
-      var name = '';
-      String? streetNumber;
-      String? route;
-      String? locality;
-      String? postalCode;
-      String? country;
-      String? administrativeAreaLevel1;
-      String? administrativeAreaLevel2;
-      String? subLocalityLevel1;
-      String? subLocalityLevel2;
-
-      final components = result['address_components'] as List<dynamic>?;
-      if (components != null && components.isNotEmpty) {
-        for (final component in components) {
-          final types = component['types'] as List<dynamic>;
-          final shortName = component['short_name'] as String?;
-
-          if (types.contains('street_number')) {
-            streetNumber = shortName;
-          } else if (types.contains('route')) {
-            route = shortName;
-          } else if (types.contains('sublocality_level_1')) {
-            subLocalityLevel1 = shortName;
-          } else if (types.contains('sublocality_level_2')) {
-            subLocalityLevel2 = shortName;
-          } else if (types.contains('locality')) {
-            locality = shortName;
-          } else if (types.contains('administrative_area_level_2')) {
-            administrativeAreaLevel2 = shortName;
-          } else if (types.contains('administrative_area_level_1')) {
-            administrativeAreaLevel1 = shortName;
-          } else if (types.contains('country')) {
-            country = shortName;
-          } else if (types.contains('postal_code')) {
-            postalCode = shortName;
-          }
-        }
-      }
+      if (placemark == null) return null;
 
       // Construir nome do local
-      if (route != null && streetNumber != null) {
-        name = route.trim().endsWith(streetNumber) ? route : '$route, $streetNumber';
-      } else if (route != null) {
-        name = route;
-      } else if (streetNumber != null) {
-        name = streetNumber;
-      } else if (components != null && components.isNotEmpty) {
-        name = components[0]['short_name'] as String? ?? '';
+      String name = placemark.name ?? '';
+      if (placemark.thoroughfare != null && placemark.thoroughfare!.isNotEmpty) {
+        if (placemark.subThoroughfare != null && placemark.subThoroughfare!.isNotEmpty) {
+           name = '${placemark.thoroughfare}, ${placemark.subThoroughfare}';
+        } else {
+           name = placemark.thoroughfare!;
+        }
+      } else if (name.isEmpty) {
+        // Fallback names
+        name = placemark.subLocality ?? placemark.locality ?? placemark.administrativeArea ?? '';
       }
 
-      locality = locality ?? administrativeAreaLevel1;
+      // Construct formatted address like "Rua X, Bairro, Cidade, Estado, Pais"
+      final parts = [
+        name,
+        placemark.subLocality,
+        placemark.locality,
+        placemark.administrativeArea,
+        placemark.country
+      ].where((e) => e != null && e.isNotEmpty).toSet().join(', '); // toSet clean duplicates
+
+      final locality = placemark.locality ?? placemark.administrativeArea;
       final city = locality;
 
       return LocationResult()
         ..name = name
         ..locality = locality
         ..latLng = location
-        ..formattedAddress = result['formatted_address'] as String?
-        ..placeId = result['place_id'] as String?
-        ..postalCode = postalCode
-        ..country = AddressComponent(name: country, shortName: country)
+        ..formattedAddress = parts
+        ..placeId = null // Nativo não retorna place_id do Google
+        ..postalCode = placemark.postalCode
+        ..country = AddressComponent(name: placemark.country, shortName: placemark.isoCountryCode)
         ..administrativeAreaLevel1 = AddressComponent(
-          name: administrativeAreaLevel1,
-          shortName: administrativeAreaLevel1,
+          name: placemark.administrativeArea,
+          shortName: placemark.administrativeArea,
         )
         ..administrativeAreaLevel2 = AddressComponent(
-          name: administrativeAreaLevel2,
-          shortName: administrativeAreaLevel2,
+          name: placemark.subAdministrativeArea,
+          shortName: placemark.subAdministrativeArea,
         )
         ..city = AddressComponent(name: city, shortName: city)
         ..subLocalityLevel1 = AddressComponent(
-          name: subLocalityLevel1,
-          shortName: subLocalityLevel1,
-        )
-        ..subLocalityLevel2 = AddressComponent(
-          name: subLocalityLevel2,
-          shortName: subLocalityLevel2,
+          name: placemark.subLocality,
+          shortName: placemark.subLocality,
         );
     } catch (e) {
+      AppLogger.error('Reverse geocode error: $e', tag: 'PlaceService');
       return null;
     }
   }
@@ -403,4 +324,14 @@ class PlaceService {
   void dispose() {
     _httpClient.close();
   }
+}
+
+class _CachedPlaceResults {
+  final List<RichSuggestion> suggestions;
+  final DateTime timestamp;
+
+  _CachedPlaceResults({
+    required this.suggestions,
+    required this.timestamp,
+  });
 }

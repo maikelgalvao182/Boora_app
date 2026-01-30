@@ -20,6 +20,7 @@ module.exports = {
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
+    "migrate_users_preview.js", // Legacy script not in TS config.
   ],
   plugins: [
     "@typescript-eslint",
@@ -29,5 +30,10 @@ module.exports = {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+    "require-jsdoc": 0,
+    "max-len": 0,
+    "no-constant-condition": 0,
+    "no-inner-declarations": 0,
+    "operator-linebreak": 0,
   },
 };

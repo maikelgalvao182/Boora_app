@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/features/home/create_flow/activity_draft.dart';
 import 'package:partiu/features/home/presentation/widgets/schedule/time_type_selector.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
@@ -49,16 +50,23 @@ class ActivityRepository {
       'createdBy': userId,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      
+      // ✅ N+1 Optimization: Denormalizar dados do criador
+      // Evita 1 read extra na Cloud Function syncEventToMap
+      'organizerAvatarThumbUrl': AppState.currentUser.value?.photoUrl ?? '',
+      'creatorFullName': AppState.currentUser.value?.fullName ?? '',
 
       // Localização
+      // Se isApproximateLocation = true (selecionado via mapa), não salvar endereço exato
       'location': {
         'latitude': draft.location!.latLng!.latitude,
         'longitude': draft.location!.latLng!.longitude,
-        'formattedAddress': draft.location!.formattedAddress ?? '',
-        'locationName': draft.location!.name ?? '',
+        'formattedAddress': draft.location!.isApproximateLocation ? '' : (draft.location!.formattedAddress ?? ''),
+        'locationName': draft.location!.isApproximateLocation ? '' : (draft.location!.name ?? ''),
         'locality': draft.location!.locality ?? '',
         'state': draft.location!.administrativeAreaLevel1?.shortName ?? '',
-        'placeId': draft.location!.placeId,
+        'placeId': draft.location!.isApproximateLocation ? null : draft.location!.placeId,
+        'isApproximateLocation': draft.location!.isApproximateLocation,
         // 🗺️ Geohash para queries geográficas mais eficientes (precision 7 = ~150m)
         'geohash': GeohashHelper.encode(
           draft.location!.latLng!.latitude,

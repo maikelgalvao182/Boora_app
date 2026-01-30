@@ -116,6 +116,13 @@ class ProfileVisitsService {
   /// Stream público de visitas (broadcast)
   Stream<List<User>> get visitsStream => _visitsStreamController.stream;
 
+  /// Verifica se o usuário atual é VIP (necessário para ver visitas)
+  bool _isCurrentUserVip() {
+    final user = AppState.currentUser.value;
+    if (user == null) return false;
+    return user.hasActiveVip;
+  }
+
   /// Inicializa auto-reload via Firestore snapshots
   void _initializeAutoReload() {
     debugPrint('🔄 [ProfileVisitsService] Auto-reload inicializado');
@@ -129,6 +136,7 @@ class ProfileVisitsService {
   }
 
   /// Monitora visitas de um userId específico
+  /// ⚠️ NOTA: Apenas VIPs podem ver quem visitou seu perfil (regra Firestore)
   void watchUser(String userId) {
     if (_currentUserId == userId) {
       debugPrint('👀 [ProfileVisitsService] Já monitorando usuário $userId');
@@ -142,6 +150,14 @@ class ProfileVisitsService {
     _currentUserId = userId;
 
     if (userId.isEmpty) {
+      _visitsStreamController.add([]);
+      return;
+    }
+
+    // 🔒 Verificar se o usuário é VIP antes de iniciar o stream
+    // Apenas VIPs podem ver quem visitou seu perfil (regra Firestore)
+    if (!_isCurrentUserVip()) {
+      debugPrint('🔒 [ProfileVisitsService] Usuário não é VIP, emitindo lista vazia');
       _visitsStreamController.add([]);
       return;
     }
@@ -195,8 +211,16 @@ class ProfileVisitsService {
   /// 
   /// Uso: Carregamento inicial ou refresh manual
   /// Cache: 5 minutos por userId
+  /// ⚠️ NOTA: Apenas VIPs podem ver quem visitou seu perfil (regra Firestore)
   Future<List<User>> getVisitsOnce(String userId) async {
     if (userId.isEmpty) return [];
+
+    // 🔒 Verificar se o usuário é VIP antes de fazer a query
+    // Apenas VIPs podem ver quem visitou seu perfil (regra Firestore)
+    if (!_isCurrentUserVip()) {
+      debugPrint('🔒 [ProfileVisitsService] Usuário não é VIP, retornando lista vazia');
+      return [];
+    }
 
     // Verificar cache
     final cached = _visitsCache[userId];

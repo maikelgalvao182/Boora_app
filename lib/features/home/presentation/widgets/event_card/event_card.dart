@@ -31,11 +31,18 @@ class EventCard extends StatefulWidget {
   final VoidCallback onActionPressed;
 
   /// Exibe o EventCard como um bottom sheet
+  /// Aguarda os participantes carregarem para evitar "pop" na UI
   static Future<void> show({
     required BuildContext context,
     required EventCardController controller,
     required VoidCallback onActionPressed,
-  }) {
+  }) async {
+    // 🎯 Aguardar participantes carregarem ANTES de abrir o modal
+    // Isso evita o "pop" onde avatares aparecem depois do card abrir
+    await controller.ensureParticipantsLoaded();
+    
+    if (!context.mounted) return;
+    
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -130,8 +137,8 @@ class _EventCardState extends State<EventCard> {
                       children: [
                         // Stack de Emoji + Avatar
                         SizedBox(
-                          height: 80, // Aumentado de 64 para 80
-                          width: 130, // Largura suficiente para o overlap (aumentado)
+                          height: 64, // Reduzido de 80 para 64
+                          width: 105, // Largura ajustada para o overlap
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -139,22 +146,22 @@ class _EventCardState extends State<EventCard> {
                               Positioned(
                                 left: 0,
                                 child: Container(
-                                  width: 80,
-                                  height: 80,
+                                  width: 64,
+                                  height: 64,
                                   decoration: BoxDecoration(
                                     color: CardColorHelper.getColor(_controller.eventId.hashCode),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white,
-                                      width: 4,
+                                      width: 3,
                                     ),
                                   ),
                                   child: ClipOval(
                                     child: ListEmojiAvatar(
                                       emoji: _controller.emoji ?? ListEmojiAvatar.defaultEmoji,
                                       eventId: _controller.eventId,
-                                      size: 80,
-                                      emojiSize: 40,
+                                      size: 64,
+                                      emojiSize: 32,
                                     ),
                                   ),
                                 ),
@@ -165,18 +172,18 @@ class _EventCardState extends State<EventCard> {
                                 Positioned(
                                   right: 0,
                                   child: Container(
-                                    width: 80,
-                                    height: 80,
+                                    width: 64,
+                                    height: 64,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: Colors.white,
-                                        width: 4,
+                                        width: 3,
                                       ),
                                     ),
                                     child: StableAvatar(
                                       userId: _controller.creatorId!,
-                                      size: 80,
+                                      size: 64,
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                   ),
@@ -186,16 +193,16 @@ class _EventCardState extends State<EventCard> {
                         ),
 
                         // Nome centralizado (usando ReactiveUserNameWithBadge como no UserCard)
-                        if (_controller.creatorId != null)
+                        if (_controller.creatorId != null && _controller.enableReactiveCreatorName)
                           ReactiveUserNameWithBadge(
                             userId: _controller.creatorId!,
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 20,
+                              fontSize: 15,
                               fontWeight: FontWeight.w800,
                               color: GlimpseColors.primaryColorLight,
                             ),
-                            iconSize: 16, // Badge maior para o header do EventCard
+                            iconSize: 14, // Badge ajustado proporcionalmente
                             textAlign: TextAlign.center,
                           )
                         else

@@ -60,7 +60,14 @@ class MapMarkerAssets {
     if (cached != null) return cached;
 
     try {
-      final avatarUrl = await _avatarService.getAvatarUrl(userId);
+      // 🚀 N+1 Optimization: Use denormalized URL from event doc if available
+      String avatarUrl = event.creatorAvatarUrl ?? '';
+      
+      // Fallback: fetch from User collection (legacy / missing data)
+      if (avatarUrl.isEmpty) {
+         avatarUrl = await _avatarService.getAvatarUrl(userId);
+      }
+
       final pin = await MarkerBitmapGenerator.generateAvatarPinForGoogleMaps(
         avatarUrl,
         size: _avatarPinSizePx,

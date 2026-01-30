@@ -4,8 +4,84 @@ import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:intl/intl.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
-class EventsTableScreen extends StatelessWidget {
+class EventsTableScreen extends StatefulWidget {
   const EventsTableScreen({super.key});
+
+  @override
+  State<EventsTableScreen> createState() => _EventsTableScreenState();
+}
+
+class _EventsTableScreenState extends State<EventsTableScreen> {
+  List<EventModel> _events = [];
+  bool _loading = true;
+  String? _error;
+  DocumentSnapshot? _lastDoc;
+  static const int _pageSize = 50;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+  }
+
+  /// ✅ Carrega eventos uma vez com paginação
+  Future<void> _loadEvents() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('events')
+          .orderBy('createdAt', descending: true)
+          .limit(_pageSize)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        _events = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return EventModel.fromMap(data, doc.id);
+        }).toList();
+        _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  /// ✅ Carrega mais eventos (paginação)
+  Future<void> _loadMore() async {
+    if (_lastDoc == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('events')
+          .orderBy('createdAt', descending: true)
+          .startAfterDocument(_lastDoc!)
+          .limit(_pageSize)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        _events.addAll(snapshot.docs.map((doc) {
+          final data = doc.data();
+          return EventModel.fromMap(data, doc.id);
+        }));
+        _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+      });
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar mais eventos: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,33 +92,64 @@ class EventsTableScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {},
+            onPressed: _loadEvents,
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('events').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('${i18n.translate('error')}: ${snapshot.error}'));
-          }
+      body: _buildBody(i18n),
+    );
+  }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+  Widget _buildBody(AppLocalizations i18n) {
+    if (_loading && _events.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          final docs = snapshot.data!.docs;
-          
-          final events = docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return EventModel.fromMap(data, doc.id);
-          }).toList();
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('${i18n.translate('error')}: $_error'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadEvents,
+              child: Text(i18n.translate('try_again')),
+            ),
+          ],
+        ),
+      );
+    }
 
-          return SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
+    final events = _events;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Text(
+                      '${i18n.translate('web_dashboard_total_events_prefix')}: ${events.length}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    if (_lastDoc != null)
+                      TextButton.icon(
+                        icon: const Icon(Icons.arrow_downward),
+                        label: Text(i18n.translate('load_more')),
+                        onPressed: _loadMore,
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
                 columns: [
                   DataColumn(label: Text(i18n.translate('web_dashboard_column_id'))),
                   DataColumn(label: Text(i18n.translate('web_dashboard_column_title'))),
@@ -65,9 +172,9 @@ class EventsTableScreen extends StatelessWidget {
                 }).toList(),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

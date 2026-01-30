@@ -7,6 +7,7 @@ import 'package:partiu/core/models/user_session_cache.dart';
 import 'package:partiu/features/conversations/models/conversation_item.dart';
 import 'package:partiu/features/notifications/models/notification_cache_item.dart';
 import 'package:partiu/screens/chat/models/message_cache_item.dart';
+import 'package:partiu/core/models/user_preview_model.dart';
 
 /// Inicializador do Hive para cache persistente
 /// 
@@ -74,6 +75,13 @@ class HiveInitializer {
     }
     if (!Hive.isAdapterRegistered(22)) {
       Hive.registerAdapter(UserSessionCacheAdapter());
+    }
+    // 23-24: User Preview (SWR Strategy)
+    if (!Hive.isAdapterRegistered(23)) {
+      Hive.registerAdapter(UserPreviewModelAdapter());
+    }
+    if (!Hive.isAdapterRegistered(24)) {
+      Hive.registerAdapter(CachedUserPreviewAdapter());
     }
 
     // 30-39: Conversations/Chat data

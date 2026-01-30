@@ -50,6 +50,7 @@ class _ActionsTabState extends State<ActionsTab> {
           children: [
             GlimpseTabAppBar(
               title: tr('actions', 'Ações'),
+              centerTitle: true,
               leading: ModalRoute.of(context)?.canPop == true 
                   ? GlimpseBackButton(onTap: () => Navigator.of(context).pop())
                   : null,

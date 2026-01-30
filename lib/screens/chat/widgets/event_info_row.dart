@@ -33,6 +33,8 @@ class EventInfoRow extends StatelessWidget {
         }
         
         return Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Avatares empilhados com contador
             StackedAvatars(

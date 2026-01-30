@@ -10,6 +10,7 @@ import 'package:partiu/core/services/location_analytics_service.dart';
 import 'package:partiu/core/services/state_abbreviation_service.dart';
 import 'package:partiu/core/utils/location_offset_helper.dart';
 import 'package:partiu/shared/stores/user_store.dart';
+import 'package:partiu/core/services/smart_geocoding_service.dart';
 
 /// Configuração para o LocationSyncScheduler
 /// 
@@ -235,11 +236,12 @@ class LocationSyncScheduler {
       String? state;
       
       try {
-        final placemarks = await placemarkFromCoordinates(latitude, longitude);
+        final place = await SmartGeocodingService.instance.getAddressSmart(
+          latitude: latitude,
+          longitude: longitude,
+        );
         
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-          
+        if (place != null) {
           // Locality: preferir locality, senão usar administrativeArea
           locality = (place.locality?.isNotEmpty == true)
               ? place.locality

@@ -521,6 +521,84 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "users_preview",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "interestBuckets",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "latitude",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users_preview",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latitude",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users_preview",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gridId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latitude",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sourceType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "authorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

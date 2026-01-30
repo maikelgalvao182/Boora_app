@@ -24,6 +24,8 @@ class UserRepository {
 
   /// Referência à coleção Users
   CollectionReference get _usersCollection => _firestore.collection('Users');
+  CollectionReference get _usersPreviewCollection =>
+      _firestore.collection('users_preview');
 
   /// Busca um usuário por ID
   /// 
@@ -61,9 +63,34 @@ class UserRepository {
       // Dividir em chunks de 10 (limite do whereIn)
       for (var i = 0; i < userIds.length; i += 10) {
         final chunk = userIds.skip(i).take(10).toList();
-        
-        final snapshot = await _usersCollection
+
+        final previewSnapshot = await _usersPreviewCollection
             .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (final doc in previewSnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final photoUrl = data['avatarThumbUrl'] as String? ??
+              data['photoUrl'] as String? ??
+              '';
+          final fullName = data['fullName'] as String? ??
+              data['displayName'] as String? ??
+              'Usuário';
+
+          results[doc.id] = {
+            'id': doc.id,
+            'userId': doc.id,
+            'photoUrl': photoUrl,
+            'fullName': fullName,
+            ...data,
+          };
+        }
+
+        final missingIds = chunk.where((id) => !results.containsKey(id)).toList();
+        if (missingIds.isEmpty) continue;
+
+        final snapshot = await _usersCollection
+            .where(FieldPath.documentId, whereIn: missingIds)
             .get();
 
         for (final doc in snapshot.docs) {
@@ -102,6 +129,23 @@ class UserRepository {
   /// Usado para exibir avatar + nome em listas
   Future<Map<String, dynamic>?> getUserBasicInfo(String userId) async {
     try {
+      final previewDoc = await _usersPreviewCollection.doc(userId).get();
+      if (previewDoc.exists) {
+        final data = previewDoc.data() as Map<String, dynamic>;
+        final photoUrl = data['avatarThumbUrl'] as String? ??
+            data['photoUrl'] as String? ??
+            '';
+        final fullName = data['fullName'] as String? ??
+            data['displayName'] as String? ??
+            'Usuário';
+
+        return {
+          'userId': userId,
+          'photoUrl': photoUrl,
+          'fullName': fullName,
+        };
+      }
+
       final doc = await _usersCollection.doc(userId).get();
       
       if (!doc.exists) {
@@ -120,11 +164,6 @@ class UserRepository {
       final photoUrl = rawPhotoUrl;
       
       final fullName = data['fullName'] as String? ?? 'Usuário';
-      
-      debugPrint('🔍 UserRepository.getUserBasicInfo($userId):');
-      debugPrint('   - fullName: ${data['fullName']}');
-      debugPrint('   - photoUrl: ${data['photoUrl']}');
-      debugPrint('   - Resultado (filtrado): fullName=$fullName, photoUrl=$photoUrl');
       
       return {
         'userId': userId,

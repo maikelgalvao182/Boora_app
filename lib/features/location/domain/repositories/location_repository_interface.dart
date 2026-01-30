@@ -18,6 +18,7 @@ abstract class LocationRepositoryInterface {
     required double longitude,
     required double displayLatitude,
     required double displayLongitude,
+    required String geohash,
     required String country,
     required String locality,
     required String state,

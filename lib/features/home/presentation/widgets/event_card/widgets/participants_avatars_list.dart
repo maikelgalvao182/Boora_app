@@ -29,11 +29,11 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
   /// Cache local para exibir imediatamente (sem stream/firestore aqui)
   List<Map<String, dynamic>> _cachedParticipants = const [];
 
-  /// 🎯 IDs dos participantes que acabaram de entrar (para animar apenas eles)
-  final Set<String> _newlyAddedIds = <String>{};
+  /// 🎯 IDs dos participantes que devem ser animados
+  final Set<String> _animateIds = <String>{};
 
-  /// Flag para saber se é o primeiro build (nunca anima no primeiro build)
-  bool _isFirstBuild = true;
+  /// Flag para saber se é o primeiro build com dados (anima na primeira carga!)
+  bool _isFirstLoadWithData = true;
   
   @override
   void initState() {
@@ -62,15 +62,20 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
 
     final addedIds = newIds.difference(oldIds);
 
-    // ✅ Se está carregando a primeira lista NÃO vazia, não animar (evita pop)
-    final isFirstNonEmptyLoad = _isFirstBuild || wasEmpty;
-    if (isFirstNonEmptyLoad) {
-      _newlyAddedIds.clear();
-      _isFirstBuild = false;
-    } else if (addedIds.isNotEmpty) {
-      _newlyAddedIds
+    // ✅ PRIMEIRA CARGA COM DADOS: Animar TODOS (slide-in suave)
+    if (_isFirstLoadWithData && wasEmpty && next.isNotEmpty) {
+      _animateIds
+        ..clear()
+        ..addAll(newIds);
+      _isFirstLoadWithData = false;
+    } 
+    // ✅ Novos participantes entrando depois: animar apenas eles
+    else if (!_isFirstLoadWithData && addedIds.isNotEmpty) {
+      _animateIds
         ..clear()
         ..addAll(addedIds);
+    } else {
+      _animateIds.clear();
     }
 
     // ✅ ORDEM ESTÁVEL: Manter o primeiro participante (criador) fixo,
@@ -137,10 +142,10 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
     );
   }
   
-  /// 🎯 Constrói widget do participante: anima APENAS se acabou de entrar
+  /// 🎯 Constrói widget do participante: anima se estiver na lista de animação
   Widget _buildParticipantWidget(Map<String, dynamic> participant, int index) {
     final userId = participant['userId'] as String;
-    final isNewlyAdded = _newlyAddedIds.contains(userId);
+    final shouldAnimate = _animateIds.contains(userId);
     
     final child = Padding(
       padding: EdgeInsets.only(left: index == 0 ? 0 : 8),
@@ -151,12 +156,13 @@ class _ParticipantsAvatarsListState extends State<ParticipantsAvatarsList> {
       ),
     );
     
-    // ✅ Animar APENAS quem acabou de entrar
-    if (isNewlyAdded) {
+    // ✅ Animar com slide-in suave (primeira carga ou novos participantes)
+    if (shouldAnimate) {
       return AnimatedSlideIn(
         key: ValueKey('anim_$userId'),
-        delay: Duration(milliseconds: index * 100),
-        offsetX: 60.0,
+        delay: Duration(milliseconds: index * 80), // 80ms entre cada avatar
+        duration: const Duration(milliseconds: 400),
+        offsetX: 40.0,
         child: child,
       );
     }

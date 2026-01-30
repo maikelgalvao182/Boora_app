@@ -3,6 +3,8 @@ import 'dart:collection';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:partiu/core/models/user_preview_model.dart';
+import 'package:partiu/core/services/cache/user_preview_cache_service.dart';
 import 'package:partiu/core/services/cache/cache_key_utils.dart';
 import 'package:partiu/core/services/cache/image_cache_stats.dart';
 import 'package:partiu/core/services/cache/image_caches.dart';
@@ -91,6 +93,14 @@ class AvatarEntry {
   final ImageProvider provider;
 }
 
+/// Modo de carregamento do usuário
+enum UserLoadMode { 
+  /// Mantém listener aberto (Chat 1x1, Perfil, Header)
+  stream, 
+  /// Busca única (Listas, Notificações, Comments)
+  once 
+}
+
 /// 🏆 Store global de usuários com reatividade granular
 /// 
 /// Arquitetura CORRETA (estilo Instagram/TikTok/WhatsApp):
@@ -139,13 +149,21 @@ class UserStore {
   // Podem ser adicionados de volta quando necessário
   
   // Subscriptions do Firestore
-  final Map<String, StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>> _subscriptions = {};
+  final Map<String, StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>> _previewSubscriptions = {};
+  final Map<String, StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>> _fullSubscriptions = {};
   
   // ✅ Notifier para broadcast de invalidação de avatar (usado por markers do mapa)
   final ValueNotifier<String?> _avatarInvalidationNotifier = ValueNotifier<String?>(null);
   
   /// Getter para escutar invalidações de avatar
   ValueNotifier<String?> get avatarInvalidationNotifier => _avatarInvalidationNotifier;
+
+  // 🛡️ Concurrency Control para Fetches
+  final Set<String> _pendingFetches = {};
+  int _activeFetches = 0;
+  final List<Function> _fetchQueue = [];
+  static const int _maxConcurrentFetches = 6;
+
 
   // Placeholder (empty real) e placeholder de loading (transparente)
   static const _emptyAvatar = AssetImage('assets/images/empty_avatar.jpg');
@@ -163,12 +181,186 @@ class UserStore {
   static final ImageProvider _loadingPlaceholder =
   MemoryImage(Uint8List.fromList(_kTransparentImage));
 
+  // ========== APIs REATIVAS (Otimizadas com SWR) ==========
+
+  /// ✅ Resolve usuário otimizando reads (SWR)
+  /// 
+  /// Define se usa memória, cache local ou se busca no servidor.
+  void resolveUser(String userId, {UserLoadMode mode = UserLoadMode.once}) {
+    if (userId.isEmpty) return;
+
+    // 1. Memória é soberana
+    if (_users.containsKey(userId)) {
+      // Se já temos em memória e o modo é stream, garantimos que o listener está ativo
+      if (mode == UserLoadMode.stream) {
+        _ensurePreviewListening(userId);
+      }
+      return;
+    }
+
+    // 2. Tenta recuperar do Hive (disco)
+    final envelope = UserPreviewCacheService.instance.getEnvelope(userId);
+    
+    if (envelope != null) {
+      // ✅ CACHE HIT: Populate memória imediatamente (UX Instantânea)
+      _upsertUserFromModel(userId, envelope.data);
+      
+      // Verificação SWR (Stale-While-Revalidate)
+      final age = DateTime.now().difference(envelope.cachedAt);
+      
+      // Fresh Window (0-15 min): Usa cache sem revalidar
+      if (age.inMinutes < 15) {
+         return; 
+      }
+      // Se chegou aqui, está Stale ou Expired -> Revalidar
+    }
+
+    // 3. Revalidação (Cache Stale, Expired ou Miss)
+    if (mode == UserLoadMode.stream) {
+      _ensurePreviewListening(userId); // Legado/Realtime
+    } else {
+      _scheduleOneTimeFetch(userId); // Otimizado
+    }
+  }
+
+  /// Bulk warmup para listas (Notificações, Comentários, etc)
+  void warmingUpUsers(List<String> uids) {
+    for (final uid in uids) {
+      resolveUser(uid, mode: UserLoadMode.once);
+    }
+  }
+  
+  Future<void> _scheduleOneTimeFetch(String uid) async {
+    if (_pendingFetches.contains(uid)) return;
+    _pendingFetches.add(uid);
+    
+    _fetchQueue.add(() => _performFetch(uid));
+    _processQueue();
+  }
+
+  void _processQueue() {
+    if (_activeFetches >= _maxConcurrentFetches) return;
+    if (_fetchQueue.isEmpty) return;
+
+    _activeFetches++;
+    final task = _fetchQueue.removeAt(0);
+    
+    // Executa e processa o próximo
+    task().then((_) {
+      _activeFetches--;
+      _processQueue();
+    });
+  }
+
+  Future<void> _performFetch(String uid) async {
+    try {
+      if (DebugFlags.logUserStore) {
+        // AppLogger.debug('[UserStore] Fetching (ONCE): $uid');
+      }
+      
+      final doc = await FirebaseFirestore.instance
+          .collection('users_preview')
+          .doc(uid)
+          .get();
+          
+      if (doc.exists) {
+         final newData = UserPreviewModel.fromFirestore(doc);
+         // Atualiza cache Hive
+         final currentEnvelope = UserPreviewCacheService.instance.getEnvelope(uid);
+         
+         // Só salva se mudou (ou se não tinha)
+         if (currentEnvelope == null || newData.differsFrom(currentEnvelope.data)) {
+             await UserPreviewCacheService.instance.put(uid, newData);
+         }
+         
+         // Atualiza memória e UI
+         _upsertUserFromModel(uid, newData);
+      } else {
+         _handleUserNotFound(uid);
+      }
+    } catch (e) {
+      // Silently ignore
+    } finally {
+      _pendingFetches.remove(uid);
+    }
+  }
+
+  void _upsertUserFromModel(String userId, UserPreviewModel model) {
+    final avatarUrl = model.avatarUrl ?? '';
+    ImageProvider provider;
+    
+    if (avatarUrl.isNotEmpty) {
+       // Reutiliza provider se URL for a mesma para evitar flash
+       final existing = _users[userId];
+       if (existing != null && existing.avatarUrl == avatarUrl) {
+         provider = existing.avatarProvider;
+       } else {
+         final cacheKey = stableImageCacheKey(avatarUrl);
+         provider = CachedNetworkImageProvider(
+            avatarUrl,
+            cacheManager: AvatarImageCache.instance,
+            cacheKey: cacheKey,
+         );
+       }
+    } else {
+       provider = _users[userId]?.avatarProvider ?? _loadingPlaceholder;
+    }
+
+    final entry = _users[userId] ?? UserEntry(
+      avatarUrl: '',
+      avatarProvider: _loadingPlaceholder,
+      lastUpdated: DateTime.now(),
+    );
+    
+    // Update fields
+    entry.avatarUrl = avatarUrl;
+    entry.avatarProvider = provider;
+    entry.name = model.fullName;
+    entry.isVerified = model.isVerified;
+    entry.isVip = model.isVip;
+    entry.isOnline = model.isOnline;
+    entry.bio = model.bio;
+    entry.city = model.city;
+    entry.state = model.state;
+    entry.country = model.country;
+    
+    if (!_users.containsKey(userId)) {
+      _users[userId] = entry;
+    }
+    
+    _updateNotifiers(userId, entry);
+  }
+  
+  void _updateNotifiers(String userId, UserEntry entry) {
+    if (entry.avatarUrl.isNotEmpty) {
+      final avatarEntry = AvatarEntry(AvatarState.loaded, entry.avatarProvider);
+      _avatarEntryNotifiers[userId]?.value = avatarEntry;
+      _avatarNotifiers[userId]?.value = entry.avatarProvider;
+    } else {
+       // Se não tem avatar, verifica se loaded (já tratado no construtor de UserEntry default)
+    }
+    
+    _nameNotifiers[userId]?.value = entry.name;
+    _verifiedNotifiers[userId]?.value = entry.isVerified;
+    _vipNotifiers[userId]?.value = entry.isVip;
+    _onlineNotifiers[userId]?.value = entry.isOnline;
+    _bioNotifiers[userId]?.value = entry.bio;
+    _cityNotifiers[userId]?.value = entry.city;
+    _stateNotifiers[userId]?.value = entry.state;
+    _countryNotifiers[userId]?.value = entry.country;
+  }
+  
+  void _handleUserNotFound(String userId) {
+      _avatarEntryNotifiers[userId]?.value = const AvatarEntry(AvatarState.empty, _emptyAvatar);
+  }
+
   // ========== APIs REATIVAS (ValueNotifiers) ==========
 
   /// ✅ Avatar (ImageProvider estável)
+
   ValueNotifier<ImageProvider> getAvatarNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<ImageProvider>(_emptyAvatar);
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     return _avatarNotifiers.putIfAbsent(userId, () {
       final entry = _users[userId];
       // Estado inicial: loading (não mostra empty)
@@ -183,14 +375,15 @@ class UserStore {
       return ValueNotifier<AvatarEntry>(const AvatarEntry(AvatarState.empty, _emptyAvatar));
     }
     
+    // ✅ OTIMIZAÇÃO SWR: Tenta resolver via Cache/Memória/One-time Fetch
+    // Evita abrir listeners de Stream desnecessários em listas
+    resolveUser(userId, mode: UserLoadMode.once);
+    
     // ✅ Se já existe notifier, retorna ele (NUNCA recria)
     final existing = _avatarEntryNotifiers[userId];
     if (existing != null) {
-      _ensureListening(userId);
       return existing;
     }
-    
-    _ensureListening(userId);
     
     // Cria novo notifier apenas se não existia
     final existingUser = _users[userId];
@@ -201,9 +394,10 @@ class UserStore {
       );
       _avatarEntryNotifiers[userId] = notifier;
       return notifier;
-    } else if (existingUser != null) {
-      // User existe mas sem avatar = empty
-      final notifier = ValueNotifier<AvatarEntry>(
+    } else if (existingUser != null && existingUser.avatarUrl.isEmpty) {
+       // User existe na memória mas sem avatar (pode ser empty explícito)
+       // Se o fetch retornou e não tinha avatar, é empty.
+       final notifier = ValueNotifier<AvatarEntry>(
         AvatarEntry(AvatarState.empty, _emptyAvatar),
       );
       _avatarEntryNotifiers[userId] = notifier;
@@ -211,6 +405,7 @@ class UserStore {
     }
     
     // Primeiro acesso = loading (só na primeira vez)
+    // O fetch/cache vai atualizar este notifier quando resolver
     final notifier = ValueNotifier<AvatarEntry>(
       AvatarEntry(AvatarState.loading, _loadingPlaceholder),
     );
@@ -262,7 +457,7 @@ class UserStore {
       return ValueNotifier<String?>(null);
     }
     
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     
     return _nameNotifiers.putIfAbsent(userId, () {
       final currentName = _users[userId]?.name;
@@ -273,7 +468,7 @@ class UserStore {
   /// ✅ Idade
   ValueNotifier<int?> getAgeNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<int?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _ageNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<int?>(_users[userId]?.age);
     });
@@ -282,7 +477,7 @@ class UserStore {
   /// ✅ Verificado (badge azul)
   ValueNotifier<bool> getVerifiedNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<bool>(false);
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     return _verifiedNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(_users[userId]?.isVerified ?? false);
     });
@@ -291,7 +486,7 @@ class UserStore {
   /// ✅ VIP (assinante)
   ValueNotifier<bool> getVipNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<bool>(false);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _vipNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(_users[userId]?.isVip ?? false);
     });
@@ -300,7 +495,7 @@ class UserStore {
   /// ✅ Online status
   ValueNotifier<bool> getOnlineNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<bool>(false);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _onlineNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(_users[userId]?.isOnline ?? false);
     });
@@ -309,7 +504,7 @@ class UserStore {
   /// ✅ Bio
   ValueNotifier<String?> getBioNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _bioNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.bio);
     });
@@ -321,7 +516,7 @@ class UserStore {
   /// Default: true (usuários legados sem o campo)
   ValueNotifier<bool> getMessageButtonNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<bool>(true);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _messageButtonNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(true);
     });
@@ -330,7 +525,7 @@ class UserStore {
   /// ✅ City
   ValueNotifier<String?> getCityNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     return _cityNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.city);
     });
@@ -339,7 +534,7 @@ class UserStore {
   /// ✅ Estado
   ValueNotifier<String?> getStateNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     return _stateNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.state);
     });
@@ -348,7 +543,7 @@ class UserStore {
   /// ✅ País
   ValueNotifier<String?> getCountryNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     return _countryNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.country);
     });
@@ -357,7 +552,7 @@ class UserStore {
   /// ✅ Origem/Nacionalidade (from)
   ValueNotifier<String?> getFromNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _fromNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.from);
     });
@@ -366,7 +561,7 @@ class UserStore {
   /// ✅ Interesses
   ValueNotifier<List<String>?> getInterestsNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<List<String>?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _interestsNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<List<String>?>(_users[userId]?.interests);
     });
@@ -375,7 +570,7 @@ class UserStore {
   /// ✅ Idiomas
   ValueNotifier<String?> getLanguagesNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _languagesNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.languages);
     });
@@ -384,7 +579,7 @@ class UserStore {
   /// ✅ Instagram
   ValueNotifier<String?> getInstagramNotifier(String userId) {
     if (userId.isEmpty) return ValueNotifier<String?>(null);
-    _ensureListening(userId);
+    _ensureFullListening(userId);
     return _instagramNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<String?>(_users[userId]?.instagram);
     });
@@ -437,7 +632,7 @@ class UserStore {
   /// Acesso síncrono ao avatar provider
   ImageProvider getAvatarProvider(String userId) {
     if (userId.isEmpty) return _emptyAvatar;
-    _ensureListening(userId);
+    _ensurePreviewListening(userId);
     // Durante loading, retorna placeholder transparente
     return _users[userId]?.avatarProvider ?? _loadingPlaceholder;
   }
@@ -445,6 +640,7 @@ class UserStore {
   /// Acesso síncrono à URL do avatar (para CustomMarkerGenerator)
   String? getAvatarUrl(String userId) {
     if (userId.isEmpty) return null;
+    _ensurePreviewListening(userId);
     final url = _users[userId]?.avatarUrl;
     return (url != null && url.isNotEmpty) ? url : null;
   }
@@ -674,9 +870,9 @@ class UserStore {
 
   // ========== FIRESTORE LISTENER ==========
 
-  /// Garante que o listener do Firestore está ativo
-  void _ensureListening(String userId) {
-    if (_subscriptions.containsKey(userId)) {
+  /// Garante que o listener do Firestore (users_preview) está ativo
+  void _ensurePreviewListening(String userId) {
+    if (_previewSubscriptions.containsKey(userId)) {
       // Evita spam de logs quando já ativo
       return;
     }
@@ -713,19 +909,27 @@ class UserStore {
       }
     }
 
-    _startFirestoreListener(userId);
+    _startPreviewListener(userId);
   }
 
-  /// Inicia listener do Firestore (Users)
-  void _startFirestoreListener(String userId) {
-    if (_subscriptions.containsKey(userId)) return;
+  /// Garante que o listener do Firestore (Users) está ativo para campos completos
+  void _ensureFullListening(String userId) {
+    _ensurePreviewListening(userId);
+    if (_fullSubscriptions.containsKey(userId)) return;
+
+    _startFullListener(userId);
+  }
+
+  /// Inicia listener do Firestore (users_preview)
+  void _startPreviewListener(String userId) {
+    if (_previewSubscriptions.containsKey(userId)) return;
 
     if (DebugFlags.logUserStore) {
       // AppLogger.debug('[UserStore] Starting Firestore listener for: $userId');
     }
     
-    _subscriptions[userId] = FirebaseFirestore.instance
-        .collection('Users')
+    _previewSubscriptions[userId] = FirebaseFirestore.instance
+        .collection('users_preview')
         .doc(userId)
         .snapshots()
         .listen(
@@ -745,7 +949,7 @@ class UserStore {
               return;
             }
 
-            _updateUser(userId, userData);
+            _updatePreviewUser(userId, userData);
           },
           onError: (_) {
             // Silently ignore errors (user might be offline)
@@ -754,6 +958,186 @@ class UserStore {
             }
           },
         );
+  }
+
+  /// Inicia listener do Firestore (Users)
+  void _startFullListener(String userId) {
+    if (_fullSubscriptions.containsKey(userId)) return;
+
+    if (DebugFlags.logUserStore) {
+      // AppLogger.debug('[UserStore] Starting Firestore listener for full user: $userId');
+    }
+
+    _fullSubscriptions[userId] = FirebaseFirestore.instance
+        .collection('Users')
+        .doc(userId)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            if (DebugFlags.logUserStore) {
+              // AppLogger.debug('[UserStore] Received full snapshot for: $userId, exists: ${snapshot.exists}');
+            }
+
+            if (!snapshot.exists) {
+              return;
+            }
+
+            final userData = snapshot.data();
+            if (userData == null) {
+              return;
+            }
+
+            _updateUser(userId, userData);
+          },
+          onError: (_) {
+            if (DebugFlags.logUserStore) {
+              // AppLogger.debug('[UserStore] Error listening to full user: $userId');
+            }
+          },
+        );
+  }
+
+  /// Atualiza entry do usuário quando dados mudam no Firestore
+  void _updatePreviewUser(String userId, Map<String, dynamic> userData) {
+    final oldEntry = _users[userId];
+
+    final currentNotifier = _avatarEntryNotifiers[userId];
+    final currentState = currentNotifier?.value.state;
+    final hadValidAvatar = currentState == AvatarState.loaded;
+
+    var rawAvatarUrl = userData['avatarThumbUrl'] ?? userData['photoUrl'];
+    if (rawAvatarUrl is String &&
+        (rawAvatarUrl.contains('googleusercontent.com') ||
+            rawAvatarUrl.contains('lh3.google'))) {
+      rawAvatarUrl = null;
+    }
+
+    final newAvatarUrl = rawAvatarUrl is String ? rawAvatarUrl : null;
+
+    final name = userData['fullName'] as String? ??
+        userData['displayName'] as String? ??
+        userData['name'] as String?;
+
+    dynamic rawVerified =
+        userData['isVerified'] ?? userData['user_is_verified'] ?? userData['verified'];
+    bool isVerified = false;
+    if (rawVerified is bool) {
+      isVerified = rawVerified;
+    } else if (rawVerified is String) {
+      isVerified = rawVerified.toLowerCase() == 'true';
+    }
+    final resolvedVerified =
+        rawVerified == null ? (oldEntry?.isVerified ?? false) : isVerified;
+
+    dynamic rawVip =
+        userData['isVip'] ?? userData['user_is_vip'] ?? userData['vip'];
+    bool isVip = false;
+    if (rawVip is bool) {
+      isVip = rawVip;
+    } else if (rawVip is String) {
+      isVip = rawVip.toLowerCase() == 'true';
+    }
+    final resolvedVip = rawVip == null ? (oldEntry?.isVip ?? false) : isVip;
+
+    final city = userData['locality'] as String? ?? userData['city'] as String?;
+    final state = userData['state'] as String?;
+    final country = userData['country'] as String?;
+
+    final ImageProvider newAvatarProvider;
+    final String effectiveAvatarUrl;
+
+    if (newAvatarUrl == null || newAvatarUrl.isEmpty) {
+      if (hadValidAvatar && oldEntry != null && oldEntry.avatarUrl.isNotEmpty) {
+        newAvatarProvider = oldEntry.avatarProvider;
+        effectiveAvatarUrl = oldEntry.avatarUrl;
+      } else {
+        newAvatarProvider = _emptyAvatar;
+        effectiveAvatarUrl = '';
+      }
+    } else {
+      if (oldEntry != null && oldEntry.avatarUrl == newAvatarUrl) {
+        newAvatarProvider = oldEntry.avatarProvider;
+        effectiveAvatarUrl = newAvatarUrl;
+      } else {
+        newAvatarProvider = CachedNetworkImageProvider(newAvatarUrl);
+        effectiveAvatarUrl = newAvatarUrl;
+      }
+    }
+
+    final newEntry = UserEntry(
+      name: name ?? oldEntry?.name,
+      age: oldEntry?.age,
+      gender: oldEntry?.gender,
+      sexualOrientation: oldEntry?.sexualOrientation,
+      lookingFor: oldEntry?.lookingFor,
+      maritalStatus: oldEntry?.maritalStatus,
+      bio: oldEntry?.bio,
+      jobTitle: oldEntry?.jobTitle,
+      avatarUrl: effectiveAvatarUrl,
+      avatarProvider: newAvatarProvider,
+      isVerified: resolvedVerified,
+      isVip: resolvedVip,
+      isOnline: oldEntry?.isOnline ?? false,
+      city: city ?? oldEntry?.city,
+      state: state ?? oldEntry?.state,
+      country: country ?? oldEntry?.country,
+      from: oldEntry?.from,
+      instagram: oldEntry?.instagram,
+      interests: oldEntry?.interests,
+      languages: oldEntry?.languages,
+      lastUpdated: DateTime.now(),
+    );
+
+    _users[userId] = newEntry;
+
+    void notifyChanges() {
+      if (oldEntry == null || oldEntry.avatarUrl != newEntry.avatarUrl) {
+        final currentEntryNotifier = _avatarEntryNotifiers[userId];
+        final wasLoaded = currentEntryNotifier?.value.state == AvatarState.loaded;
+        final newState = (newEntry.avatarUrl.isEmpty)
+            ? AvatarState.empty
+            : AvatarState.loaded;
+
+        if (!(wasLoaded && newState == AvatarState.empty)) {
+          _avatarNotifiers[userId]?.value = newAvatarProvider;
+          _avatarEntryNotifiers[userId]?.value =
+              AvatarEntry(newState, newAvatarProvider);
+        }
+      }
+
+      if (oldEntry == null || oldEntry.name != newEntry.name) {
+        _nameNotifiers[userId]?.value = newEntry.name;
+      }
+
+      if (oldEntry == null || oldEntry.isVerified != newEntry.isVerified) {
+        _verifiedNotifiers[userId]?.value = newEntry.isVerified;
+      }
+
+      if (oldEntry == null || oldEntry.isVip != newEntry.isVip) {
+        _vipNotifiers[userId]?.value = newEntry.isVip;
+      }
+
+      if (oldEntry == null || oldEntry.city != newEntry.city) {
+        _cityNotifiers[userId]?.value = newEntry.city;
+      }
+
+      if (oldEntry == null || oldEntry.state != newEntry.state) {
+        _stateNotifiers[userId]?.value = newEntry.state;
+      }
+
+      if (oldEntry == null || oldEntry.country != newEntry.country) {
+        _countryNotifiers[userId]?.value = newEntry.country;
+      }
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        notifyChanges();
+      });
+    } else {
+      notifyChanges();
+    }
   }
 
   /// Atualiza entry do usuário quando dados mudam no Firestore
@@ -1060,8 +1444,10 @@ class UserStore {
 
   /// Cleanup de recursos para um userId específico
   void disposeUser(String userId) {
-    _subscriptions[userId]?.cancel();
-    _subscriptions.remove(userId);
+    _previewSubscriptions[userId]?.cancel();
+    _previewSubscriptions.remove(userId);
+    _fullSubscriptions[userId]?.cancel();
+    _fullSubscriptions.remove(userId);
     
     final entry = _users[userId];
     if (entry != null && entry.avatarUrl.isNotEmpty) {
@@ -1111,10 +1497,15 @@ class UserStore {
 
   /// Cleanup global (para hot restart)
   void disposeAll() {
-    for (final subscription in _subscriptions.values) {
+    for (final subscription in _previewSubscriptions.values) {
       subscription.cancel();
     }
-    _subscriptions.clear();
+    _previewSubscriptions.clear();
+
+    for (final subscription in _fullSubscriptions.values) {
+      subscription.cancel();
+    }
+    _fullSubscriptions.clear();
 
     for (final entry in _users.values) {
       if (entry.avatarUrl.isNotEmpty) {

@@ -1,3 +1,4 @@
+import 'package:partiu/core/services/smart_geocoding_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -206,9 +207,25 @@ class PlacePickerState extends State<PlacePicker> {
                         horizontal: 24,
                         vertical: 8,
                       ),
-                      child: Text(
-                        widget.localizationItem!.nearBy,
-                        style: const TextStyle(fontSize: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            widget.localizationItem!.nearBy,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              if (locationResult != null && locationResult!.latLng != null) {
+                                getNearbyPlaces(locationResult!.latLng!);
+                              } else if (_currentLocation != null) {
+                                getNearbyPlaces(_currentLocation!);
+                              }
+                            },
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: const Text('Buscar aqui'),
+                          ),
+                        ],
                       ),
                     ),
                     Expanded(
@@ -400,7 +417,7 @@ class PlacePickerState extends State<PlacePicker> {
 
     try {
       final url = Uri.parse(
-        'https://maps.googleapis.com/maps/api/place/details/json?key=${widget.apiKey}&language=${widget.localizationItem!.languageCode}&placeid=$placeId',
+        'https://maps.googleapis.com/maps/api/place/details/json?key=${widget.apiKey}&language=${widget.localizationItem!.languageCode}&placeid=$placeId&fields=geometry,name',
       );
 
       final response = await _httpClient.get(url).timeout(
@@ -542,129 +559,58 @@ class PlacePickerState extends State<PlacePicker> {
     }
   }
 
-  /// This method gets the human readable name of the location. Mostly appears
-  /// to be the road name and the locality.
+  /// This method gets the human readable name of the location.
   Future<void> reverseGeocodeLatLng(LatLng latLng) async {
     try {
-      final url = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json?'
-        'latlng=${latLng.latitude},${latLng.longitude}&'
-        'language=${widget.localizationItem!.languageCode}&'
-        'key=${widget.apiKey}',
+      final placemark = await SmartGeocodingService.instance.getAddressSmart(
+        latitude: latLng.latitude,
+        longitude: latLng.longitude,
       );
 
-      final response = await _httpClient.get(url).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Reverse geocode request timeout');
-        },
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to reverse geocode: ${response.statusCode}');
-      }
-
-      final responseJson = json.decode(response.body) as Map<String, dynamic>;
-
-      if (responseJson['status'] != null && responseJson['status'] != 'OK') {
-        throw Exception('Geocoding API error: ${responseJson['status']}');
-      }
-
-      if (responseJson['results'] == null) {
-        throw Error();
-      }
-
-      final result = responseJson['results'][0];
+      if (placemark == null) return;
 
       setState(() {
-        var name = '';
-        String? streetNumber;
-        String? route;
-        String? locality;
-        String? postalCode;
-        String? country;
-        String? administrativeAreaLevel1;
-        String? administrativeAreaLevel2;
-        String? city;
-        String? subLocalityLevel1;
-        String? subLocalityLevel2;
-
-        if (result['address_components'] is List<dynamic> &&
-            result['address_components'].length != null &&
-            result['address_components'].length > 0) {
-          for (var i = 0; i < result['address_components'].length; i++) {
-            final tmp = result['address_components'][i];
-            final types = tmp['types'] as List<dynamic>;
-            final shortName = tmp['short_name'];
-
-            if (types.contains('street_number')) {
-              streetNumber = shortName;
-            } else if (types.contains('route')) {
-              route = shortName;
-            } else if (types.contains('sublocality_level_1')) {
-              subLocalityLevel1 = shortName;
-            } else if (types.contains('sublocality_level_2')) {
-              subLocalityLevel2 = shortName;
-            } else if (types.contains('locality')) {
-              locality = shortName;
-            } else if (types.contains('administrative_area_level_2')) {
-              administrativeAreaLevel2 = shortName;
-            } else if (types.contains('administrative_area_level_1')) {
-              administrativeAreaLevel1 = shortName;
-            } else if (types.contains('country')) {
-              country = shortName;
-            } else if (types.contains('postal_code')) {
-              postalCode = shortName;
-            }
-          }
-        }
-
-        if (route != null && streetNumber != null) {
-          // Check if route already ends with the street number to avoid duplication
-          if (route.trim().endsWith(streetNumber)) {
-            name = route;
+        String name = placemark.name ?? '';
+        if (placemark.thoroughfare != null && placemark.thoroughfare!.isNotEmpty) {
+          if (placemark.subThoroughfare != null && placemark.subThoroughfare!.isNotEmpty) {
+            name = '${placemark.thoroughfare}, ${placemark.subThoroughfare}';
           } else {
-            name = '$route, $streetNumber';
+            name = placemark.thoroughfare!;
           }
-        } else if (route != null) {
-          name = route;
-        } else if (streetNumber != null) {
-          name = streetNumber;
-        } else if (result['address_components'] != null && 
-                   result['address_components'].length > 0) {
-           name = result['address_components'][0]['short_name'];
         }
-        locality = locality ?? administrativeAreaLevel1;
-        city = locality;
-        locationResult =
-            LocationResult()
-              ..name = name
-              ..locality = locality
-              ..latLng = latLng
-              ..formattedAddress = result['formatted_address']
-              ..placeId = result['place_id']
-              ..postalCode = postalCode
-              ..country = AddressComponent(name: country, shortName: country)
-              ..administrativeAreaLevel1 = AddressComponent(
-                name: administrativeAreaLevel1,
-                shortName: administrativeAreaLevel1,
-              )
-              ..administrativeAreaLevel2 = AddressComponent(
-                name: administrativeAreaLevel2,
-                shortName: administrativeAreaLevel2,
-              )
-              ..city = AddressComponent(name: city, shortName: city)
-              ..subLocalityLevel1 = AddressComponent(
-                name: subLocalityLevel1,
-                shortName: subLocalityLevel1,
-              )
-              ..subLocalityLevel2 = AddressComponent(
-                name: subLocalityLevel2,
-                shortName: subLocalityLevel2,
-              );
+
+        final parts = [
+          name,
+          placemark.subLocality,
+          placemark.locality,
+          placemark.administrativeArea,
+          placemark.country
+        ].where((e) => e != null && e.isNotEmpty).join(', ');
+
+        locationResult = LocationResult()
+          ..name = name
+          ..locality = placemark.locality
+          ..latLng = latLng
+          ..formattedAddress = parts
+          ..placeId = null
+          ..postalCode = placemark.postalCode
+          ..country = AddressComponent(name: placemark.country, shortName: placemark.isoCountryCode)
+          ..administrativeAreaLevel1 = AddressComponent(
+            name: placemark.administrativeArea,
+            shortName: placemark.administrativeArea,
+          )
+          ..administrativeAreaLevel2 = AddressComponent(
+            name: placemark.subAdministrativeArea,
+            shortName: placemark.subAdministrativeArea,
+          )
+          ..city = AddressComponent(name: placemark.locality, shortName: placemark.locality)
+          ..subLocalityLevel1 = AddressComponent(
+            name: placemark.subLocality,
+            shortName: placemark.subLocality,
+          );
       });
     } catch (e) {
-      // Ignore address parsing errors; partial address data is acceptable.
+      // Ignore errors
     }
   }
 
@@ -682,8 +628,6 @@ class PlacePickerState extends State<PlacePicker> {
     setMarker(latLng);
 
     reverseGeocodeLatLng(latLng);
-
-    getNearbyPlaces(latLng);
   }
 
   Future<void> moveToCurrentUserLocation() async {

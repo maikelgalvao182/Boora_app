@@ -126,9 +126,10 @@ class _LocationSearchCardState extends State<LocationSearchCard> {
                 onChanged: widget.onChanged,
                 textAlignVertical: TextAlignVertical.center,
                 maxLines: 1,
+                scrollPadding: EdgeInsets.zero, // Otimização de scroll
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
+                  fontSize: 14, // Fonte reduzida para 14px 
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.primaryColorLight,
                 ),
@@ -136,7 +137,7 @@ class _LocationSearchCardState extends State<LocationSearchCard> {
                   hintText: i18n.translate('search_location'),
                   hintStyle: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 16,
+                    fontSize: 14, // Fonte reduzida para 14px
                     fontWeight: FontWeight.w500,
                     color: GlimpseColors.textHint,
                   ),

@@ -17,15 +17,13 @@ import 'package:partiu/core/services/cache/image_cache_stats.dart';
 import 'package:partiu/core/constants/glimpse_variables.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
-import 'package:partiu/shared/stores/user_store.dart';
-import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 
 /// Header principal do perfil com foto, nome, idade e informações básicas
 /// 
 /// Inclui:
 /// - Foto de perfil com overlay de gradiente
 /// - Nome, idade, profissão e localização
-/// - Sistema reativo via UserStore
+/// - Renderiza dados estáticos do perfil
 class ProfileHeader extends StatefulWidget {
 
   const ProfileHeader({
@@ -60,10 +58,6 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     _imageUrlNotifier = ValueNotifier<String>(_getFirstValidImage());
     _pageController = PageController();
     _galleryImageUrls = _extractGalleryImageUrls(widget.user.userGallery);
-    
-    // Observa mudanças na foto via UserStore
-    final avatarNotifier = UserStore.instance.getAvatarNotifier(widget.user.userId);
-    avatarNotifier.addListener(_updateAvatar);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -74,6 +68,19 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   @override
   void didUpdateWidget(covariant ProfileHeader oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (widget.user.photoUrl != oldWidget.user.photoUrl) {
+      final newUrl = _getFirstValidImage();
+      if (newUrl != _imageUrlNotifier.value) {
+        _imageUrlNotifier.value = newUrl;
+        final newTotal = _pageCountFor(newUrl);
+        if (_currentPage >= newTotal) {
+          _currentPage = 0;
+          _pageController.jumpToPage(0);
+        }
+        _configureAutoSwipe();
+      }
+    }
 
     if (widget.user.userGallery != oldWidget.user.userGallery) {
       _galleryImageUrls = _extractGalleryImageUrls(widget.user.userGallery);
@@ -86,34 +93,8 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     }
   }
 
-  void _updateAvatar() {
-    final avatarNotifier = UserStore.instance.getAvatarNotifier(widget.user.userId);
-    final provider = avatarNotifier.value;
-
-    String? url;
-    if (provider is NetworkImage) {
-      url = provider.url;
-    } else if (provider is CachedNetworkImageProvider) {
-      url = provider.url;
-    }
-
-    if (url != null && url.isNotEmpty && url != _imageUrlNotifier.value) {
-      _imageUrlNotifier.value = url;
-
-      final newTotal = _pageCountFor(url);
-      if (_currentPage >= newTotal) {
-        setState(() => _currentPage = 0);
-        _pageController.jumpToPage(0);
-      }
-
-      _configureAutoSwipe();
-    }
-  }
-
   @override
   void dispose() {
-    final avatarNotifier = UserStore.instance.getAvatarNotifier(widget.user.userId);
-    avatarNotifier.removeListener(_updateAvatar);
     _imageUrlNotifier.dispose();
     _pageController.dispose();
     _stopAutoSwipeTimers();
@@ -286,43 +267,64 @@ class _ProfileHeaderState extends State<ProfileHeader> {
 
   Widget _buildGradientOverlay() {
     return Positioned.fill(
-      // IgnorePointer: garante que o swipe do PageView funcione (overlay não captura gestos)
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.black.withValues(alpha: 0.7),
-              ],
-              stops: const [0.5, 1.0],
-            ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black54,
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _configureAutoSwipe() {
-    if (!mounted) return;
+  Widget _buildUserInfo() {
+    final hasLocation = widget.user.userLocality.trim().isNotEmpty ||
+        (widget.user.userState?.trim().isNotEmpty ?? false);
+    // 🔒 DESATIVADO: Campo country/origin removido da UI
+    // final hasOrigin = widget.user.from?.trim().isNotEmpty ?? false;
+    final hasInstagram = widget.user.userInstagram?.trim().isNotEmpty ?? false;
 
-    final total = _pageCountFor(_imageUrlNotifier.value);
-    if (total <= 1) {
-      _stopAutoSwipeTimers();
-      return;
-    }
-
-    if (_autoSwipeTimer != null) {
-      // já rodando
-      return;
-    }
-
-    _autoSwipeTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _autoAdvanceIfPossible(),
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildNameWithAgeAndFlag(),
+          if (hasLocation) const SizedBox(height: 8),
+          if (hasLocation) _buildLocationWithState(),
+          // 🔒 DESATIVADO: Campo country/origin removido da UI
+          // if (hasOrigin) const SizedBox(height: 8),
+          // if (hasOrigin) _buildOriginFrom(),
+          if (hasInstagram) const SizedBox(height: 8),
+          if (hasInstagram) _buildInstagram(),
+        ],
+      ),
     );
+  }
+
+  void _configureAutoSwipe() {
+    _stopAutoSwipeTimers();
+    final total = _pageCountFor(_imageUrlNotifier.value);
+    if (total <= 1) return;
+
+    _autoSwipeTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || _isUserInteracting) return;
+      final nextPage = (_currentPage + 1) % total;
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+      if (mounted) setState(() => _currentPage = nextPage);
+      _precacheAdjacent(_buildPages(_imageUrlNotifier.value), nextPage);
+    });
   }
 
   void _stopAutoSwipeTimers() {
@@ -332,100 +334,55 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     _autoSwipeResumeTimer = null;
   }
 
-  void _pauseAutoSwipe() {
-    _autoSwipeTimer?.cancel();
-    _autoSwipeTimer = null;
-  }
-
-  void _scheduleAutoSwipeResume() {
-    _autoSwipeResumeTimer?.cancel();
-    _autoSwipeResumeTimer = Timer(
-      const Duration(seconds: 5),
-      () {
-        if (!mounted) return;
-        if (_isUserInteracting) return;
-        _configureAutoSwipe();
-      },
-    );
-  }
-
   void _onUserInteractionStart() {
     _isUserInteracting = true;
-    _pauseAutoSwipe();
-    _autoSwipeResumeTimer?.cancel();
-    _autoSwipeResumeTimer = null;
+    _stopAutoSwipeTimers();
   }
 
   void _onUserInteractionEnd() {
+    if (!_isUserInteracting) return;
     _isUserInteracting = false;
-    _scheduleAutoSwipeResume();
-  }
-
-  void _autoAdvanceIfPossible() {
-    if (!mounted) return;
-    if (_isUserInteracting) return;
-    if (!_pageController.hasClients) return;
-
-    final pages = _buildPages(_imageUrlNotifier.value);
-    if (pages.length <= 1) return;
-
-    final nextIndex = (_currentPage + 1) % pages.length;
-    if (nextIndex == _currentPage) return;
-
-    setState(() => _currentPage = nextIndex);
-    _pageController.animateToPage(
-      nextIndex,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOut,
-    );
-    _precacheAdjacent(pages, nextIndex);
-  }
-
-  Widget _buildUserInfo() {
-    return Positioned(
-      left: 20,
-      right: 20,
-      bottom: 20,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Nome, Idade com Bandeira
-          _buildNameWithAgeAndFlag(),
-          
-          const SizedBox(height: 8),
-
-          // Origem (from)
-          _buildOriginFrom(),
-          
-          const SizedBox(height: 8),
-          
-          // Localização (Cidade, Estado)
-          _buildLocationWithState(),
-          
-          const SizedBox(height: 8),
-          
-          // Instagram
-          _buildInstagram(),
-        ],
-      ),
-    );
+    _autoSwipeResumeTimer?.cancel();
+    _autoSwipeResumeTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _configureAutoSwipe();
+    });
   }
 
   Widget _buildNameWithAgeAndFlag() {
+    final displayName = _buildDisplayName(widget.user.userFullname);
     return Row(
       children: [
         // Nome com badge
         Flexible(
-          child: ReactiveUserNameWithBadge(
-            userId: widget.user.userId,
-            style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-            iconSize: 18,
-            spacing: 8,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  displayName,
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (widget.user.userIsVerified) ...[
+                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(top: 4, bottom: 3),
+                  child: Icon(
+                    Icons.verified,
+                    size: 18,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         
@@ -434,44 +391,54 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     );
   }
 
-  Widget _buildLocationWithState() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getCityNotifier(widget.user.userId),
-      builder: (context, city, _) {
-        return ValueListenableBuilder<String?>(
-          valueListenable: UserStore.instance.getStateNotifier(widget.user.userId),
-          builder: (context, state, _) {
-            final parts = <String>[];
-            if (city != null && city.isNotEmpty) parts.add(city);
-            if (state != null && state.isNotEmpty) parts.add(state);
-            
-            if (parts.isEmpty) return const SizedBox.shrink();
-            
-            return Row(
-              children: [
-                Icon(
-                  Iconsax.location,
-                  size: 18,
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    parts.join(', '),
-                    style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ),
-                // Distância do usuário atual
-                if (!widget.isMyProfile) _buildDistanceText(),
-              ],
-            );
-          },
-        );
-      },
+  String _buildDisplayName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) return 'Usuário';
+
+    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'Usuário';
+
+    final first = parts.first;
+    if (parts.length == 1) {
+      return first.length > 15 ? first.substring(0, 15) : first;
+    }
+
+    final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final safeFirst = first.length > 15 ? first.substring(0, 15) : first;
+    return lastInitial.isEmpty ? safeFirst : '$safeFirst $lastInitial.';
+  }
+
+  Widget _buildLocationWithState() { // static
+    final city = widget.user.userLocality;
+    final state = widget.user.userState;
+    final parts = <String>[];
+    if (city.trim().isNotEmpty) parts.add(city);
+    if (state?.trim().isNotEmpty == true) parts.add(state!.trim());
+
+    if (parts.isEmpty) return const SizedBox.shrink();
+
+    return Row(
+      children: [
+        Icon(
+          Iconsax.location,
+          size: 18,
+          color: Colors.white.withValues(alpha: 0.8),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            parts.join(', '),
+            style: GoogleFonts.getFont(
+              FONT_PLUS_JAKARTA_SANS,
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
+        // Distância do usuário atual
+        if (!widget.isMyProfile) _buildDistanceText(),
+      ],
     );
   }
 
@@ -507,7 +474,8 @@ class _ProfileHeaderState extends State<ProfileHeader> {
         
         return Text(
           '${distanceKm.toStringAsFixed(1)} km',
-          style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+          style: GoogleFonts.getFont(
+            FONT_PLUS_JAKARTA_SANS,
             fontSize: 16,
             fontWeight: FontWeight.w400,
             color: Colors.white.withValues(alpha: 0.8),
@@ -518,36 +486,31 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   Widget _buildOriginFrom() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getFromNotifier(widget.user.userId),
-      builder: (context, from, _) {
-        final origin = from?.trim() ?? '';
-        if (origin.isEmpty) return const SizedBox.shrink();
+    final origin = widget.user.from?.trim() ?? '';
+    if (origin.isEmpty) return const SizedBox.shrink();
 
-        final flagCode = _resolveIsoCode(context, origin);
+    final flagCode = _resolveIsoCode(context, origin);
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (flagCode != null && flagCode.isNotEmpty) ...[
-              CircleFlag(
-                flagCode,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              origin,
-              style: GoogleFonts.getFont(
-                FONT_PLUS_JAKARTA_SANS,
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ],
-        );
-      },
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (flagCode != null && flagCode.isNotEmpty) ...[
+          CircleFlag(
+            flagCode,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          origin,
+          style: GoogleFonts.getFont(
+            FONT_PLUS_JAKARTA_SANS,
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.8),
+          ),
+        ),
+      ],
     );
   }
 
@@ -586,52 +549,48 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   Widget _buildInstagram() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: UserStore.instance.getInstagramNotifier(widget.user.userId),
-      builder: (context, instagram, _) {
-        if (instagram == null || instagram.isEmpty) return const SizedBox.shrink();
-        
-        return Row(
-          children: [
-            GestureDetector(
-              onTap: () => _openInstagram(instagram),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Iconsax.instagram,
-                    size: 18,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    instagram,
-                    style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ],
+    final instagram = widget.user.userInstagram?.trim() ?? '';
+    if (instagram.isEmpty) return const SizedBox.shrink();
+    
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => _openInstagram(instagram),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Iconsax.instagram,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.8),
               ),
-            ),
-            const Spacer(),
-            // Followers count reativo
-            _buildFollowersCount(),
-          ],
-        );
-      },
+              const SizedBox(width: 8),
+              Text(
+                instagram,
+                style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withValues(alpha: 0.8),
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        // Followers count (volátil)
+        _buildFollowersCount(),
+      ],
     );
   }
 
-  /// Exibe o número de seguidores de forma reativa usando StreamBuilder
+  /// Exibe o número de seguidores de forma estática (carrega uma vez)
   Widget _buildFollowersCount() {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('Users')
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('users_status')
           .doc(widget.user.userId)
-          .snapshots(),
+          .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const SizedBox.shrink();

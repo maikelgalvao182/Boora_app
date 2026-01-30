@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
+import 'package:partiu/shared/widgets/typing_indicator.dart';
 
 /// Widget que exibe contador de participantes em formato chip.
 ///
@@ -34,7 +35,14 @@ class ParticipantsCounter extends StatelessWidget {
     // Caminho otimizado (default)
     if (!useRealtimeStream) {
       final count = controller.participantsCount;
-      return _Chip(
+      final isReady = controller.participantsReady;
+      
+      // 🎯 Mostrar TypingIndicator enquanto carrega (evita "pop")
+      if (count == 0 && !isReady) {
+        return _LoadingChip();
+      }
+      
+      return _AnimatedChip(
         count: count,
         singularLabel: singularLabel,
         pluralLabel: pluralLabel,
@@ -46,7 +54,13 @@ class ParticipantsCounter extends StatelessWidget {
       stream: controller.participantsCountStream,
       builder: (context, snapshot) {
         final count = snapshot.data ?? controller.participantsCount;
-        return _Chip(
+        
+        // 🎯 Mostrar loading se ainda não tem dados
+        if (!snapshot.hasData && count == 0 && !controller.participantsReady) {
+          return _LoadingChip();
+        }
+        
+        return _AnimatedChip(
           count: count,
           singularLabel: singularLabel,
           pluralLabel: pluralLabel,
@@ -56,8 +70,27 @@ class ParticipantsCounter extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({
+/// 🎯 Chip com loading indicator (três pontos animados)
+class _LoadingChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: GlimpseColors.primaryLight,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: TypingIndicator(
+        color: GlimpseColors.primaryColorLight,
+        dotSize: 6,
+      ),
+    );
+  }
+}
+
+/// 🎯 Chip com animação de fade/scale na transição
+class _AnimatedChip extends StatelessWidget {
+  const _AnimatedChip({
     required this.count,
     required this.singularLabel,
     required this.pluralLabel,
@@ -69,19 +102,33 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: GlimpseColors.primaryLight,
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Text(
-        '$count ${count == 1 ? singularLabel : pluralLabel}',
-        style: GoogleFonts.getFont(
-          FONT_PLUS_JAKARTA_SANS,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: GlimpseColors.primaryColorLight,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.scale(
+            scale: 0.8 + (0.2 * value),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: GlimpseColors.primaryLight,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          '$count ${count == 1 ? singularLabel : pluralLabel}',
+          style: GoogleFonts.getFont(
+            FONT_PLUS_JAKARTA_SANS,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: GlimpseColors.primaryColorLight,
+          ),
         ),
       ),
     );

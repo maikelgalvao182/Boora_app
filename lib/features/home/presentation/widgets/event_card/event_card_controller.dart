@@ -24,6 +24,9 @@ class EventCardController extends ChangeNotifier {
   final MapViewModel? _mapViewModel; // Injected dependency
   final String eventId;
   final EventModel? _preloadedEvent;
+  final bool _enableRealtime;
+  final bool _enableOpenFetches;
+  final bool _enableReactiveCreatorName;
 
   // STREAMS realtime
   StreamSubscription<QuerySnapshot>? _applicationSub;
@@ -60,6 +63,10 @@ class EventCardController extends ChangeNotifier {
   // Participants
   List<Map<String, dynamic>> _approvedParticipants = [];
   
+  // 🎯 Controle de inicialização dos participantes (evita "pop" ao abrir card)
+  bool _participantsInitialized = false;
+  Future<void>? _participantsHydrationFuture;
+  
   // Age restriction
   int? _minAge;
   int? _maxAge;
@@ -79,17 +86,25 @@ class EventCardController extends ChangeNotifier {
     EventRepository? eventRepo,
     UserRepository? userRepo,
     MapViewModel? mapViewModel,
+    bool enableRealtime = true,
+    bool enableOpenFetches = true,
+    bool enableReactiveCreatorName = true,
   })  : _preloadedEvent = preloadedEvent,
         _auth = auth ?? FirebaseAuth.instance,
         _applicationRepo = applicationRepo ?? EventApplicationRepository(),
         _eventRepo = eventRepo ?? EventRepository(),
         _userRepo = userRepo ?? UserRepository(),
-        _mapViewModel = mapViewModel {
+        _mapViewModel = mapViewModel,
+        _enableRealtime = enableRealtime,
+        _enableOpenFetches = enableOpenFetches,
+        _enableReactiveCreatorName = enableReactiveCreatorName {
     debugPrint('🎫 [EventCardController] injected mapVM hash=${_mapViewModel != null ? identityHashCode(_mapViewModel) : 'NULL'}');
     debugPrint('🎫 [EventCardController] singleton mapVM hash=${identityHashCode(MapViewModel.instance)}');
     _initializeFromPreload();
     // ✅ Iniciar listeners imediatamente para garantir reatividade dos botões
-    _setupRealtimeListeners();
+    if (_enableRealtime) {
+      _setupRealtimeListeners();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -119,7 +134,7 @@ class EventCardController extends ChangeNotifier {
       // ✅ INICIALIZAR restrição de gênero
       _requiredGender = _preloadedEvent!.gender;
       // Se tiver restrição, validar o usuário
-      if (_requiredGender != null && _requiredGender != GENDER_ALL) {
+      if (_enableOpenFetches && _requiredGender != null && _requiredGender != GENDER_ALL) {
         _validateUserGender(_auth.currentUser?.uid ?? '');
       }
 
@@ -127,9 +142,11 @@ class EventCardController extends ChangeNotifier {
         _approvedParticipants = _preloadedEvent!.participants!;
         // Preload avatares para evitar "popping" na UI
         _preloadParticipantAvatars();
+        _participantsInitialized = true;
       } else {
         // ✅ Se não há participantes no preload, tentar cache (memória + Hive)
-        _hydrateParticipantsFromCache();
+        // Iniciamos a hidratação mas guardamos o Future para poder awaitar depois
+        _participantsHydrationFuture = _hydrateParticipantsFromCache();
       }
 
       debugPrint('🎫 [EventCard] Dados carregados:');
@@ -145,7 +162,7 @@ class EventCardController extends ChangeNotifier {
         debugPrint('🎫 [EventCard] ✅ _loaded = true');
         
         // ✅ Se creatorFullName está faltando, buscar em background
-        if (_creatorFullName == null && _creatorId != null) {
+        if (_enableOpenFetches && _creatorFullName == null && _creatorId != null) {
           _fetchCreatorNameInBackground();
         }
       } else {
@@ -157,6 +174,7 @@ class EventCardController extends ChangeNotifier {
   }
 
   /// Busca participantes do cache (memória + Hive) sem bloquear a UI
+  /// Se cache vazio e realtime desabilitado, faz fetch direto do Firestore
   Future<void> _hydrateParticipantsFromCache() async {
     if (_disposed) return;
 
@@ -164,15 +182,168 @@ class EventCardController extends ChangeNotifier {
       final cached = await _applicationRepo.getCachedApprovedParticipants(eventId);
       if (_disposed) return;
 
-      if (cached == null || cached.isEmpty) return;
-      if (_approvedParticipants.isNotEmpty) return;
-
-      _approvedParticipants = cached;
-      _preloadParticipantAvatars();
-      debugPrint('✅ [EventCard] Participantes carregados do cache (${cached.length})');
-      notifyListeners();
+      bool participantsLoaded = false;
+      
+      if (cached != null && cached.isNotEmpty) {
+        if (_approvedParticipants.isEmpty) {
+          _approvedParticipants = cached;
+          _preloadParticipantAvatars();
+          debugPrint('✅ [EventCard] Participantes carregados do cache (${cached.length})');
+          participantsLoaded = true;
+        }
+      }
+      
+      // ✅ Se realtime desabilitado, buscar dados que faltam
+      if (!_enableRealtime) {
+        // Buscar participantes do Firestore se não veio do cache
+        if (!participantsLoaded && _approvedParticipants.isEmpty) {
+          await _fetchParticipantsOnce();
+        }
+        // ✅ SEMPRE buscar userApplication se não vier no preload
+        await _fetchUserApplicationOnce();
+      }
+      
+      _participantsInitialized = true;
+      
+      if (participantsLoaded) {
+        notifyListeners();
+      }
     } catch (e) {
       debugPrint('⚠️ [EventCard] Erro ao hidratar participantes do cache: $e');
+      _participantsInitialized = true; // Marcar como inicializado mesmo com erro
+    }
+  }
+  
+  /// Busca a aplicação do usuário atual uma única vez (sem stream)
+  /// Usado quando enableRealtime = false e userApplication não veio no preload
+  Future<void> _fetchUserApplicationOnce() async {
+    if (_disposed) return;
+    if (_userApplication != null) return; // Já tem
+    
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    
+    // Criador do evento não precisa de application
+    if (uid == _creatorId) return;
+    
+    try {
+      debugPrint('🔄 [EventCard] Buscando userApplication (one-shot fetch)...');
+      final application = await _applicationRepo.getUserApplication(
+        eventId: eventId,
+        userId: uid,
+      );
+      
+      if (_disposed) return;
+      
+      _userApplication = application;
+      
+      if (application != null) {
+        debugPrint('✅ [EventCard] userApplication carregado: status=${application.status}');
+      } else {
+        debugPrint('📭 [EventCard] Usuário não tem application para este evento');
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('⚠️ [EventCard] Erro ao buscar userApplication: $e');
+    }
+  }
+  
+  /// Busca participantes uma única vez do Firestore (sem stream)
+  /// Usado quando enableRealtime = false e não há cache
+  Future<void> _fetchParticipantsOnce() async {
+    if (_disposed || _approvedParticipants.isNotEmpty) return;
+    
+    try {
+      debugPrint('🔄 [EventCard] Buscando participantes (one-shot fetch)...');
+      final participants = await _applicationRepo.getApprovedApplicationsWithUserData(eventId);
+      
+      if (_disposed) return;
+      if (participants.isEmpty) {
+        debugPrint('📭 [EventCard] Nenhum participante encontrado');
+        return;
+      }
+      
+      _approvedParticipants = participants.map((p) => {
+        'userId': p['userId'],
+        'photoUrl': p['photoUrl'],
+        'fullName': p['fullName'],
+        'isCreator': p['userId'] == _creatorId,
+      }).toList();
+      
+      _preloadParticipantAvatars();
+      debugPrint('✅ [EventCard] Participantes carregados via fetch (${_approvedParticipants.length})');
+      
+      // Cachear para próximas aberturas
+      unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('⚠️ [EventCard] Erro ao buscar participantes: $e');
+    }
+  }
+  
+  /// Adiciona o usuário atual à lista de participantes localmente
+  /// Usado após join bem-sucedido para atualizar UI sem depender de streams
+  Future<void> _addCurrentUserToParticipants(String uid) async {
+    if (_disposed) return;
+    
+    // Verificar se já está na lista
+    final alreadyExists = _approvedParticipants.any((p) => p['userId'] == uid);
+    if (alreadyExists) {
+      debugPrint('⚠️ [EventCard] Usuário já está na lista de participantes');
+      return;
+    }
+    
+    try {
+      // Buscar dados do usuário para adicionar à lista
+      final userData = await _userRepo.getUserBasicInfo(uid);
+      if (_disposed) return;
+      
+      final newParticipant = {
+        'userId': uid,
+        'photoUrl': userData?['photoUrl'] as String?,
+        'fullName': userData?['fullName'] as String?,
+        'isCreator': false,
+      };
+      
+      _approvedParticipants = [..._approvedParticipants, newParticipant];
+      
+      // Preload do avatar do novo participante
+      final photoUrl = newParticipant['photoUrl'] as String?;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        UserStore.instance.preloadAvatar(uid, photoUrl);
+      }
+      
+      // Atualizar cache para manter consistência
+      unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+      
+      debugPrint('✅ [EventCard] Usuário adicionado à lista de participantes (total: ${_approvedParticipants.length})');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('⚠️ [EventCard] Erro ao adicionar usuário à lista: $e');
+      // Não falha silenciosamente - streams/realtime eventualmente sincronizarão
+    }
+  }
+  
+  /// Remove o usuário atual da lista de participantes localmente
+  /// Usado após leave bem-sucedido para atualizar UI sem depender de streams
+  void _removeCurrentUserFromParticipants(String uid) {
+    if (_disposed) return;
+    
+    final previousCount = _approvedParticipants.length;
+    _approvedParticipants = _approvedParticipants
+        .where((p) => p['userId'] != uid)
+        .toList();
+    
+    if (_approvedParticipants.length < previousCount) {
+      debugPrint('✅ [EventCard] Usuário removido da lista de participantes (total: ${_approvedParticipants.length})');
+      
+      // Atualizar cache para manter consistência
+      unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
+      
+      notifyListeners();
+    } else {
+      debugPrint('⚠️ [EventCard] Usuário não estava na lista de participantes');
     }
   }
   
@@ -207,6 +378,7 @@ class EventCardController extends ChangeNotifier {
   DateTime? get scheduleDate => _scheduleDate;
   String? get privacyType => _privacyType;
   String? get creatorId => _creatorId;
+  bool get enableReactiveCreatorName => _enableReactiveCreatorName;
 
   bool get isLoading => !_loaded && _error == null;
   String? get error => _error;
@@ -234,6 +406,17 @@ class EventCardController extends ChangeNotifier {
 
   List<Map<String, dynamic>> get approvedParticipants => _approvedParticipants;
   int get participantsCount => _approvedParticipants.length;
+  bool get participantsReady => _participantsInitialized;
+  
+  /// 🎯 Aguarda até que os participantes estejam carregados
+  /// Chamar ANTES de abrir o EventCard para evitar "pop" dos avatares
+  Future<void> ensureParticipantsLoaded() async {
+    if (_participantsInitialized) return;
+    if (_participantsHydrationFuture != null) {
+      await _participantsHydrationFuture;
+    }
+  }
+  
   Stream<int> get participantsCountStream => (_participantsSnapshotStream ??
     FirebaseFirestore.instance
         .collection('EventApplications')
@@ -616,7 +799,9 @@ class EventCardController extends ChangeNotifier {
 
       _loaded = true;
 
-      _setupRealtimeListeners();
+      if (_enableRealtime) {
+        _setupRealtimeListeners();
+      }
 
       notifyListeners();
     } catch (e) {
@@ -761,7 +946,29 @@ class EventCardController extends ChangeNotifier {
         eventPrivacyType: _privacyType!,
       );
       
-      // Stream do ParticipantsAvatarsList vai atualizar automaticamente
+      // ✅ Atualizar userApplication localmente para refletir o novo estado
+      // Isso garante que a UI mostre corretamente "Pendente" ou "Sair"
+      final now = DateTime.now();
+      final isAutoApproved = _privacyType == 'open';
+      _userApplication = EventApplicationModel(
+        id: '', // ID será preenchido pelo stream/fetch posterior
+        eventId: eventId,
+        userId: uid,
+        status: isAutoApproved 
+            ? ApplicationStatus.autoApproved 
+            : ApplicationStatus.pending,
+        appliedAt: now,
+        decisionAt: isAutoApproved ? now : null,
+        presence: PresenceStatus.going,
+      );
+      
+      // ✅ Se evento é open (autoApproved), adicionar usuário à lista local imediatamente
+      // Isso garante que a UI reflita a mudança sem depender de streams/realtime
+      if (isAutoApproved) {
+        await _addCurrentUserToParticipants(uid);
+      }
+      
+      // Stream do ParticipantsAvatarsList vai atualizar automaticamente (se enableRealtime)
     } catch (e) {
       rethrow;
     } finally {
@@ -919,9 +1126,29 @@ class EventCardController extends ChangeNotifier {
         userId: uid,
       );
       debugPrint('✅ Aplicação removida com sucesso');
+
+      // ✅ Remover referência da conversa em Connections para parar pushs e limpar lista de chats
+      // Connections/{uid}/Conversations/event_{eventId}
+      try {
+        await FirebaseFirestore.instance
+            .collection('Connections')
+            .doc(uid)
+            .collection('Conversations')
+            .doc('event_$eventId')
+            .delete();
+        debugPrint('✅ Referência da conversa removida (Connections/Conversations)');
+      } catch (e) {
+        debugPrint('⚠️ Erro ao remover referência da conversa (não bloqueante): $e');
+      }
+      
+      // ✅ Remover usuário da lista de participantes local imediatamente
+      // Isso garante que a UI reflita a mudança sem depender de streams/realtime
+      _removeCurrentUserFromParticipants(uid);
     } catch (e, stackTrace) {
       debugPrint('❌ Erro ao remover aplicação: $e');
       debugPrint('📚 StackTrace: $stackTrace');
+      // ⚠️ Reverter estado local se falhar
+      _forceLeft = false;
       rethrow;
     } finally {
       if (!_disposed) {

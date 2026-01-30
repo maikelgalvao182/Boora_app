@@ -270,6 +270,10 @@ extension MapViewModelSync on MapViewModel {
           
           // ✅ Extrair creatorFullName do eventData se disponível (desnormalizado)
           final creatorFullName = data['creatorFullName'] as String?;
+          // ✅ Extrair avatar desnormalizado (N+1 killer)
+          final creatorAvatarUrl = data['organizerAvatarThumbUrl'] as String? ?? 
+                                   data['creatorPhotoUrl'] as String? ??
+                                   data['authorPhotoUrl'] as String?;
           
           return EventModel(
             id: e.eventId,
@@ -292,6 +296,7 @@ extension MapViewModelSync on MapViewModel {
             distanceKm: distanceKm,
             isAvailable: isAvailable,
             creatorFullName: creatorFullName,
+            creatorAvatarUrl: creatorAvatarUrl,
           );
         })
         .toList(); // ✅ Lista MUTÁVEL para permitir enriquecimento

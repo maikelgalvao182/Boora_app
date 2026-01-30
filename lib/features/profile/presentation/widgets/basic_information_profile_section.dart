@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
-import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/widgets/basic_information_section.dart';
+import 'package:partiu/core/models/user.dart';
 
 /// Seção de informações básicas independente
 /// 
@@ -16,19 +16,15 @@ import 'package:partiu/shared/widgets/basic_information_section.dart';
 class BasicInformationProfileSection extends StatelessWidget {
 
   const BasicInformationProfileSection({
-    required this.userId, 
+    required this.user,
     super.key,
   });
   
-  final String userId;
+  final User user;
 
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-
-    // Precisa acessar entry completa para gender e jobTitle
-    final user = UserStore.instance.getUser(userId);
-    if (user == null) return const SizedBox.shrink();
 
     final entries = _buildBasicInfoEntries(i18n, user: user);
 
@@ -46,31 +42,32 @@ class BasicInformationProfileSection extends StatelessWidget {
 
   List<BasicInfoEntry> _buildBasicInfoEntries(
     AppLocalizations i18n, {
-    required UserEntry user,
+    required User user,
   }) {
     final entries = <BasicInfoEntry>[];
 
     // Idade
-    if (user.age != null) {
+    final age = _calculateAge(user);
+    if (age != null) {
       entries.add(BasicInfoEntry(
         label: i18n.translate('age_label'),
-        value: _formatYearsOld(i18n, user.age!),
+        value: _formatYearsOld(i18n, age),
       ));
     }
 
     // Gênero
-    if (user.gender != null && user.gender!.trim().isNotEmpty) {
+    if (_isNotEmpty(user.userGender)) {
       entries.add(BasicInfoEntry(
         label: i18n.translate('gender_label'),
-        value: _translateGender(i18n, user.gender!),
+        value: _translateGender(i18n, user.userGender),
       ));
     }
 
     // Orientação Sexual
-    if (user.sexualOrientation != null && user.sexualOrientation!.trim().isNotEmpty) {
+    if (_isNotEmpty(user.userSexualOrientation)) {
       entries.add(BasicInfoEntry(
         label: i18n.translate('sexual_orientation_label'),
-        value: _translateSexualOrientation(i18n, user.sexualOrientation!),
+        value: _translateSexualOrientation(i18n, user.userSexualOrientation),
       ));
     }
 
@@ -93,10 +90,10 @@ class BasicInformationProfileSection extends StatelessWidget {
     }
 
     // Profissão/Job Title
-    if (user.jobTitle != null && user.jobTitle!.trim().isNotEmpty) {
+    if (_isNotEmpty(user.userJobTitle)) {
       entries.add(BasicInfoEntry(
         label: i18n.translate('job_title_label'),
-        value: user.jobTitle!,
+        value: user.userJobTitle,
       ));
     }
 
@@ -179,4 +176,30 @@ class BasicInformationProfileSection extends StatelessWidget {
         return orientation; // Retorna o valor original se não encontrar tradução
     }
   }
+
+  int? _calculateAge(User user) {
+    if (user.userBirthDay <= 0 || user.userBirthMonth <= 0 || user.userBirthYear <= 0) {
+      return null;
+    }
+
+    try {
+      final now = DateTime.now();
+      final birthDate = DateTime(
+        user.userBirthYear,
+        user.userBirthMonth,
+        user.userBirthDay,
+      );
+      var age = now.year - birthDate.year;
+      if (now.month < birthDate.month ||
+          (now.month == birthDate.month && now.day < birthDate.day)) {
+        age--;
+      }
+      if (age < 0) return null;
+      return age;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isNotEmpty(String? value) => value != null && value.trim().isNotEmpty;
 }

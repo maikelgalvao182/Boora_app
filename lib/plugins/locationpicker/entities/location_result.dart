@@ -33,4 +33,8 @@ class LocationResult {
   String? postalCode;
 
   String? placeId;
+
+  /// Indica se a localização foi selecionada via mapa (arrastar/clicar)
+  /// ao invés de busca. Quando true, não devemos mostrar endereço exato.
+  bool isApproximateLocation = false;
 }

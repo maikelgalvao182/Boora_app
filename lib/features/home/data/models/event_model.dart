@@ -18,6 +18,7 @@ class EventModel {
   final double? distanceKm;
   final bool isAvailable;
   final String? creatorFullName;
+  final String? creatorAvatarUrl;
   final String? gender;
   final DateTime? scheduleDate;
   final String? privacyType;
@@ -42,6 +43,7 @@ class EventModel {
     this.distanceKm,
     this.isAvailable = true,
     this.creatorFullName,
+    this.creatorAvatarUrl,
     this.gender,
     this.scheduleDate,
     this.privacyType,
@@ -134,6 +136,10 @@ class EventModel {
       isAvailable: map['isAvailable'] as bool? ?? isActive ?? true,
       gender: map['gender'] as String? ?? participantsMap?['gender'] as String?,
       creatorFullName: map['creatorFullName'] as String?,
+      // N+1 Optimization: Read denormalized avatar URL
+      creatorAvatarUrl: map['organizerAvatarThumbUrl'] as String? ?? 
+                         map['creatorPhotoUrl'] as String? ??
+                         map['authorPhotoUrl'] as String?,
       scheduleDate: scheduleDate,
       // Se privacyType não existe, usar "open" como padrão (todos eventos são abertos por padrão)
       privacyType: map['privacyType'] as String? ?? participantsMap?['privacyType'] as String? ?? 'open',
@@ -170,6 +176,7 @@ class EventModel {
     String? gender,
     bool? isAvailable,
     String? creatorFullName,
+    String? creatorAvatarUrl,
     DateTime? scheduleDate,
     String? privacyType,
     List<Map<String, dynamic>>? participants,
@@ -194,6 +201,7 @@ class EventModel {
       distanceKm: distanceKm ?? this.distanceKm,
       isAvailable: isAvailable ?? this.isAvailable,
       creatorFullName: creatorFullName ?? this.creatorFullName,
+      creatorAvatarUrl: creatorAvatarUrl ?? this.creatorAvatarUrl,
       scheduleDate: scheduleDate ?? this.scheduleDate,
       privacyType: privacyType ?? this.privacyType,
       participants: participants ?? this.participants,

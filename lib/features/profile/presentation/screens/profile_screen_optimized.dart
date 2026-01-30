@@ -78,7 +78,11 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         AppLogger.info('Carregando dados do perfil', tag: 'ProfileScreen');
-        _controller.load(widget.user.userId);
+        _controller.load(
+          widget.user.userId,
+          useStream: false,
+          includeReviews: false,
+        );
       } else {
         AppLogger.warning(
           'Widget não mais montado, cancelando carregamento',
@@ -115,7 +119,11 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   }
 
   Future<void> _handleRefresh() async {
-    await _controller.refresh(widget.user.userId);
+    await _controller.refresh(
+      widget.user.userId,
+      useStream: false,
+      includeReviews: false,
+    );
   }
 
   @override
@@ -227,7 +235,11 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => _controller.refresh(widget.user.userId),
+            onPressed: () => _controller.refresh(
+              widget.user.userId,
+              useStream: false,
+              includeReviews: false,
+            ),
             icon: const Icon(Icons.refresh),
             label: Text(_i18n.translate('retry')),
           ),

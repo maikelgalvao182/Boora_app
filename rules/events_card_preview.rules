@@ -1,0 +1,28 @@
+/// 🎴 Coleção de previews de eventos para listagem rápida
+/// Path usado no app:
+/// - events_card_preview/{eventId}
+///   - createdBy: string (userId do criador)
+///   - title: string
+///   - emoji: string
+///   - startDate: timestamp
+///   - locationName: string
+///   - thumbnailUrl: string (nullable)
+///   - participantsCount: number
+///   - maxParticipants: number
+///   - cityId: string
+///   - geoPoint: geopoint
+///   - updatedAt: timestamp
+///
+/// Esta coleção é sincronizada automaticamente pela Cloud Function
+/// eventCardPreviewSync a partir da coleção events principal.
+
+match /events_card_preview/{eventId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler previews de eventos
+  allow read: if isSignedIn();
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  /// - A sincronização é feita automaticamente pelo trigger eventCardPreviewSync
+  allow write: if false;
+}

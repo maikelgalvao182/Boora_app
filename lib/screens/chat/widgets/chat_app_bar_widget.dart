@@ -383,32 +383,21 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     ChatAppBarController controller,
   ) {
     if (controller.isEvent) {
-      // Evento: ícone direto para group info + SafetyTipsButton (à esquerda)
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SafetyTipsButton(
-            icon: IconsaxPlusLinear.danger,
-            iconColor: Colors.black,
-            iconSize: 20,
+      // Evento: ícone direto para group info
+      return SizedBox(
+        width: 28,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: const Icon(
+            IconsaxPlusLinear.arrow_right_3,
+            size: 20,
+            color: Colors.black,
           ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 28,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: const Icon(
-                IconsaxPlusLinear.arrow_right_3,
-                size: 20,
-                color: Colors.black,
-              ),
-              onPressed: () {
-                context.push('${AppRoutes.groupInfo}/${controller.eventId}');
-              },
-            ),
-          ),
-        ],
+          onPressed: () {
+            context.push('${AppRoutes.groupInfo}/${controller.eventId}');
+          },
+        ),
       );
     }
 

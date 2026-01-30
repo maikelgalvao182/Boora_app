@@ -130,6 +130,9 @@ class EventCardPresenter {
       eventId: enrichedEvent.id,
       preloadedEvent: enrichedEvent,
       mapViewModel: viewModel, // ✅ INJETANDO VIEWMODEL
+      enableRealtime: false,
+      enableOpenFetches: false,
+      enableReactiveCreatorName: false,
     );
     
     if (showConfetti) {

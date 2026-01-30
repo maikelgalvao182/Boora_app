@@ -27,10 +27,93 @@ class _UserImagesGridState extends State<UserImagesGrid> {
   List<MediaViewerItem> _viewerItemsCache = <MediaViewerItem>[];
   Map<String, dynamic> _rawGalleryCache = <String, dynamic>{};
   
+  /// ✅ State local da galeria (substitui StreamBuilder)
+  Map<String, dynamic> _gallery = {};
+  bool _loading = true;
+  
   @override
   void initState() {
     super.initState();
     debugPrint('=== [UserImagesGrid] 🚀 INIT STATE ===');
+    _loadGalleryOnce();
+  }
+
+  /// ✅ Carrega galeria uma vez do Firestore
+  Future<void> _loadGalleryOnce() async {
+    final uid = AppState.currentUserId;
+    if (uid == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(uid)
+          .get();
+
+      if (!mounted) return;
+
+      final data = doc.data();
+      var imgs = <String, dynamic>{};
+
+      if (data != null && data.containsKey('user_gallery')) {
+        final gallery = data['user_gallery'];
+
+        if (gallery is Map) {
+          imgs = Map<String, dynamic>.from(gallery);
+        } else if (gallery is List) {
+          for (var i = 0; i < gallery.length; i++) {
+            final v = gallery[i];
+            if (v != null) imgs['image_$i'] = v;
+          }
+        }
+      }
+
+      setState(() {
+        _gallery = imgs;
+        _rawGalleryCache = imgs;
+        _viewerItemsCache = _buildViewerItems(imgs);
+        _loading = false;
+      });
+
+      debugPrint('[UserImagesGrid] ✅ Galeria carregada: ${imgs.length} imagens');
+    } catch (e) {
+      debugPrint('[UserImagesGrid] ❌ Erro ao carregar galeria: $e');
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  /// ✅ Atualiza galeria localmente após upload bem-sucedido (optimistic update)
+  void _updateGalleryLocally(int index, String url) {
+    final key = 'image_$index';
+    final updated = Map<String, dynamic>.from(_gallery);
+    updated[key] = {'url': url};
+    
+    setState(() {
+      _gallery = updated;
+      _rawGalleryCache = updated;
+      _viewerItemsCache = _buildViewerItems(updated);
+    });
+    
+    debugPrint('[UserImagesGrid] ✅ Galeria atualizada localmente: index=$index');
+  }
+
+  /// ✅ Remove imagem localmente após delete bem-sucedido (optimistic update)
+  void _removeImageLocally(int index) {
+    final key = 'image_$index';
+    final updated = Map<String, dynamic>.from(_gallery);
+    updated.remove(key);
+    
+    setState(() {
+      _gallery = updated;
+      _rawGalleryCache = updated;
+      _viewerItemsCache = _buildViewerItems(updated);
+    });
+    
+    debugPrint('[UserImagesGrid] ✅ Imagem removida localmente: index=$index');
   }
 
   Future<void> _handleDeleteImage(BuildContext context, int index) async {
@@ -55,6 +138,8 @@ class _UserImagesGridState extends State<UserImagesGrid> {
     
     if (result.success) {
       debugPrint('[UserImagesGrid] ✅ Delete SUCCESS for index: $index');
+      // ✅ Atualizar UI localmente (optimistic update)
+      _removeImageLocally(index);
       if (!context.mounted) return;
       ToastService.showSuccess(
         message: imageDeletedMsg.isNotEmpty ? imageDeletedMsg : imageRemovedMsg,
@@ -131,6 +216,8 @@ class _UserImagesGridState extends State<UserImagesGrid> {
       
       if (result.success) {
         debugPrint('[UserImagesGrid] ✅ Upload SUCCESS for index: $index');
+        // ✅ Recarregar galeria para obter nova URL
+        await _loadGalleryOnce();
         if (!context.mounted) return;
         ToastService.showSuccess(
           message: i18n.translate('image_uploaded'),
@@ -177,84 +264,51 @@ class _UserImagesGridState extends State<UserImagesGrid> {
       return Center(child: Text(i18n.translate('user_not_authenticated')));
     }
 
-    // ✅ REATIVO: Usa StreamBuilder para atualizações em tempo real
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _getUserStream(uid),
-      builder: (context, snap) {
-        debugPrint('[UserImagesGrid] 📡 StreamBuilder rebuild - hasData: ${snap.hasData}');
-        
-        if (!snap.hasData) {
-          debugPrint('[UserImagesGrid] ⏳ Waiting for Firestore data...');
-          return const GallerySkeleton();
-        }
-        
-        final data = snap.data?.data();
-        var imgs = <String, dynamic>{};
-        
-        if (data != null && data.containsKey('user_gallery')) {
-          final gallery = data['user_gallery'];
-          debugPrint('[UserImagesGrid] 🖼️ Processing user gallery - type: ${gallery.runtimeType}');
-          
-          if (gallery is Map) {
-            imgs = Map<String, dynamic>.from(gallery);
-            debugPrint('[UserImagesGrid] 📝 Gallery is Map with ${imgs.length} items');
-          } else if (gallery is List) {
-            debugPrint('[UserImagesGrid] 📝 Gallery is List with ${gallery.length} items');
-            for (var i = 0; i < gallery.length; i++) {
-              final v = gallery[i];
-              if (v != null) imgs['image_$i'] = v;
-            }
-          }
-        } else {
-          debugPrint('[UserImagesGrid] ❌ Gallery is null or missing');
-        }
+    // ✅ Carregando pela primeira vez
+    if (_loading) {
+      debugPrint('[UserImagesGrid] ⏳ Loading gallery...');
+      return const GallerySkeleton();
+    }
 
-        // Atualiza caches somente se mapa mudou
-        if (imgs.length != _rawGalleryCache.length || 
-            !_rawGalleryCache.keys.toSet().containsAll(imgs.keys)) {
-          _rawGalleryCache = imgs;
-          _viewerItemsCache = _buildViewerItems(imgs);
-        }
+    final imgs = _gallery;
 
-        return GridView.builder(
-          physics: const ScrollPhysics(),
-          itemCount: 9,
-          shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 4 / 5,
-          ),
-          itemBuilder: (context, index) {
-            final key = 'image_$index';
-            final item = imgs[key];
-            final url = item is Map<String, dynamic> ? (item['url'] as String?) : null;
-            return _UserImageCell(
-              key: ValueKey(key),
-              url: url,
-              index: index,
-              isUploading: _isUploading[index],
-              onAdd: () => _handleAddImage(context, index),
-              onDelete: () => _handleDeleteImage(context, index),
-              onOpenViewer: url == null
-                  ? null
-                  : () {
-                      final startIndex = _viewerItemsCache.indexWhere((it) => it.url == url);
-                      if (startIndex < 0) return;
-                      Navigator.of(context).push(
-                        PageRouteBuilder<void>(
-                          pageBuilder: (context, animation, secondaryAnimation) => MediaViewerScreen(
-                            items: _viewerItemsCache,
-                            initialIndex: startIndex,
-                            disableHero: true,
-                          ),
-                          transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(opacity: animation, child: child),
-                        ),
-                      );
-                    },
-            );
-          },
+    return GridView.builder(
+      physics: const ScrollPhysics(),
+      itemCount: 9,
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 4 / 5,
+      ),
+      itemBuilder: (context, index) {
+        final key = 'image_$index';
+        final item = imgs[key];
+        final url = item is Map<String, dynamic> ? (item['url'] as String?) : null;
+        return _UserImageCell(
+          key: ValueKey(key),
+          url: url,
+          index: index,
+          isUploading: _isUploading[index],
+          onAdd: () => _handleAddImage(context, index),
+          onDelete: () => _handleDeleteImage(context, index),
+          onOpenViewer: url == null
+              ? null
+              : () {
+                  final startIndex = _viewerItemsCache.indexWhere((it) => it.url == url);
+                  if (startIndex < 0) return;
+                  Navigator.of(context).push(
+                    PageRouteBuilder<void>(
+                      pageBuilder: (context, animation, secondaryAnimation) => MediaViewerScreen(
+                        items: _viewerItemsCache,
+                        initialIndex: startIndex,
+                        disableHero: true,
+                      ),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(opacity: animation, child: child),
+                    ),
+                  );
+                },
         );
       },
     );
@@ -273,15 +327,6 @@ class _UserImagesGridState extends State<UserImagesGrid> {
               heroTag: 'media_${e.value['url']}',
             ))
         .toList(growable: false);
-  }
-  
-  /// Stream do documento do usuário no Firestore para atualizações em tempo real
-  Stream<DocumentSnapshot<Map<String, dynamic>>> _getUserStream(String userId) {
-    debugPrint('[UserImagesGrid] 📡 Creating Firestore stream for user: $userId');
-    return FirebaseFirestore.instance
-        .collection('Users')
-        .doc(userId)
-        .snapshots();
   }
 }
 

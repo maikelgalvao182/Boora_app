@@ -536,6 +536,8 @@ class _ProfileFallbackLoaderState extends State<_ProfileFallbackLoader> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppLocalizations.of(context);
+    
     if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -544,23 +546,79 @@ class _ProfileFallbackLoaderState extends State<_ProfileFallbackLoader> {
 
     if (_error != null) {
       return Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () => context.pop(),
+          ),
+          title: Text(
+            i18n.translate('profile'),
+            style: const TextStyle(color: Colors.black87),
           ),
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(AppLocalizations.of(context).translate(_error!)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => context.pop(),
-                child: Text(AppLocalizations.of(context).translate('back')),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Ícone
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person_off_outlined,
+                    size: 40,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Título
+                Text(
+                  i18n.translate('profile_not_available'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                // Descrição
+                Text(
+                  i18n.translate('profile_not_available_description'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                // Botão
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(i18n.translate('go_back')),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

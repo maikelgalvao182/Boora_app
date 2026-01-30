@@ -1,0 +1,33 @@
+/// 💳 Coleção de status de assinatura (RevenueCat)
+/// Path usado no app:
+/// - SubscriptionStatus/{userId}
+///   - userId: string
+///   - status: string ('active' | 'inactive')
+///   - isActive: bool
+///   - entitlement_id: string
+///   - product_id: string (nullable)
+///   - period_type: string
+///   - store: string ('app_store' | 'play_store')
+///   - platform: string ('ios' | 'android')
+///   - expiration_at: timestamp (nullable)
+///   - purchased_at: timestamp (nullable)
+///   - grace_period_expires_at: timestamp (nullable)
+///   - last_event_type: string
+///   - last_updated: timestamp
+///   - transaction_id: string
+///   - will_renew: bool
+///   - cancel_reason: string (nullable)
+///   - source: string ('webhook')
+///
+/// Esta coleção é gerenciada exclusivamente pelo webhook do RevenueCat.
+/// O client apenas lê os dados para verificar status VIP.
+
+match /SubscriptionStatus/{userId} {
+  /// 📖 LEITURA:
+  /// - Apenas o próprio usuário pode ler seu status de assinatura
+  allow read: if isOwner(userId);
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions via webhook)
+  allow write: if false;
+}

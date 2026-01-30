@@ -19,11 +19,13 @@ class EventPhotoLikeButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLikedAsync = ref.watch(eventPhotoIsLikedProvider(photoId));
+    // Usa provider síncrono (cache-only) - sem overhead de Stream/Future
+    final isLikedFromCache = ref.watch(eventPhotoIsLikedSyncProvider(photoId));
     final countAsync = ref.watch(eventPhotoLikesCountProvider(photoId));
     final uiState = ref.watch(eventPhotoLikeUiProvider(photoId));
 
-    final isLiked = uiState.isLiked ?? (isLikedAsync.value ?? false);
+    // Prioridade: UI state > cache > initial value
+    final isLiked = uiState.isLiked ?? isLikedFromCache;
     final likeCount = uiState.likesCount ?? (countAsync.value ?? initialCount);
 
     return LikeButton(

@@ -56,7 +56,8 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
 
   // Debounces
   Timer? _cameraIdleDebounce;
-  static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 200);
+  // Aumentado de 200ms para 600ms para evitar queries durante micro-movimentações
+  static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 600);
   
   // Streams
   StreamSubscription<String>? _removalSub;

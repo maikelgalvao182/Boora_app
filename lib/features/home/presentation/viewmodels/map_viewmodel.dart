@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/geo_distance_helper.dart';
+import 'package:partiu/core/utils/geohash_helper.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/features/home/data/services/map_discovery_service.dart';

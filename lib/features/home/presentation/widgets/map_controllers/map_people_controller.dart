@@ -9,12 +9,12 @@ class MapPeopleController {
     _service.setViewportActive(active);
   }
 
-  Future<void> loadPeopleCountInBounds(MapBounds bounds) async {
-    await _service.loadPeopleCountInBounds(bounds);
+  Future<void> loadPeopleCountInBounds(MapBounds bounds, {double? zoom}) async {
+    await _service.loadPeopleCountInBounds(bounds, zoom: zoom);
   }
 
-  Future<void> forceRefresh(MapBounds bounds) async {
-    await _service.forceRefresh(bounds);
+  Future<void> forceRefresh(MapBounds bounds, {double? zoom}) async {
+    await _service.forceRefresh(bounds, zoom: zoom);
   }
 
   Future<void> onCameraIdle(LatLngBounds visibleRegion, double zoom, double clusterZoomThreshold) async {
@@ -22,7 +22,7 @@ class MapPeopleController {
     _service.setViewportActive(viewportActive);
     if (viewportActive) {
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
-      await _service.loadPeopleCountInBounds(bounds);
+      await _service.loadPeopleCountInBounds(bounds, zoom: zoom);
     }
   }
 }

@@ -132,3 +132,18 @@ match /users/{userId} {
     allow delete: if isOwner(userId);
   }
 }
+
+/// 👥 Coleção otimizada para ranking
+/// Path usado no app:
+/// - users_preview/{userId}
+///   - fullName, photoUrl, locality, state, overallRating, jobTitle, updatedAt
+
+match /users_preview/{userId} {
+  /// 📖 LEITURA:
+  /// - Qualquer usuário autenticado pode ler previews
+  allow read: if isSignedIn();
+
+  /// ✍️ ESCRITA:
+  /// - Bloqueada para o client (somente Admin SDK/Cloud Functions)
+  allow write: if false;
+}

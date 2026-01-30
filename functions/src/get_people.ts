@@ -1,5 +1,22 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import {buildInterestBuckets} from "./utils/interestBuckets";
+
+type PeopleCacheEntry = {
+  value: {
+    users: unknown[];
+    isVip: boolean;
+    limitApplied: number;
+    fetchedCount: number;
+    totalCandidates: number;
+    returnedCount: number;
+  };
+  expiresAt: number;
+};
+
+const PEOPLE_CACHE_TTL_MS = 90 * 1000; // 90s
+const PEOPLE_CACHE_MAX_ENTRIES = 120;
+const peopleCache = new Map<string, PeopleCacheEntry>();
 
 // Inicializa o admin SDK se ainda não foi inicializado
 if (!admin.apps.length) {
@@ -64,6 +81,101 @@ function quantize(value: number, stepDeg: number): number {
   return Number((Math.round(value / stepDeg) * stepDeg).toFixed(5));
 }
 
+const GRID_BUCKET_SIZE_DEG = 0.05;
+const CACHE_KEY_BUCKET_DEG = 0.01;
+
+function gridBucket(value: number, bucketSize: number): number {
+  return Math.floor(value / bucketSize);
+}
+
+function buildGridIdsForBounds(
+  boundingBox: {minLat: number; maxLat: number; minLng: number; maxLng: number},
+  bucketSize: number
+): string[] {
+  const minLatBucket = gridBucket(boundingBox.minLat, bucketSize);
+  const maxLatBucket = gridBucket(boundingBox.maxLat, bucketSize);
+  const minLngBucket = gridBucket(boundingBox.minLng, bucketSize);
+  const maxLngBucket = gridBucket(boundingBox.maxLng, bucketSize);
+
+  const gridIds: string[] = [];
+  for (let latBucket = minLatBucket; latBucket <= maxLatBucket; latBucket++) {
+    for (let lngBucket = minLngBucket; lngBucket <= maxLngBucket; lngBucket++) {
+      gridIds.push(`${latBucket}_${lngBucket}`);
+    }
+  }
+  return gridIds;
+}
+
+function normalizeFilters(filters: Record<string, unknown> | undefined) {
+  if (!filters) return {};
+  const normalized = {...filters};
+  const interests = normalized.interests as unknown;
+  if (Array.isArray(interests)) {
+    normalized.interests = interests
+      .map((i) => String(i).trim().toLowerCase())
+      .filter((i) => i.length > 0)
+      .sort();
+  }
+  return normalized;
+}
+
+function computeZoomBucket(deltaLat: number, deltaLng: number): string {
+  const maxDelta = Math.max(deltaLat, deltaLng);
+  if (maxDelta > 0.3) return "z0";
+  if (maxDelta > 0.15) return "z1";
+  if (maxDelta > 0.07) return "z2";
+  return "z3";
+}
+
+function buildCacheKey(params: {
+  boundingBox: {minLat: number; maxLat: number; minLng: number; maxLng: number};
+  filters: Record<string, unknown> | undefined;
+  plan: string;
+}): string {
+  const {boundingBox, filters, plan} = params;
+  const deltaLat = Math.abs(boundingBox.maxLat - boundingBox.minLat);
+  const deltaLng = Math.abs(boundingBox.maxLng - boundingBox.minLng);
+  const centerLat = (boundingBox.minLat + boundingBox.maxLat) / 2;
+  const centerLng = (boundingBox.minLng + boundingBox.maxLng) / 2;
+  const centerLatBucket = gridBucket(centerLat, CACHE_KEY_BUCKET_DEG);
+  const centerLngBucket = gridBucket(centerLng, CACHE_KEY_BUCKET_DEG);
+  const bucketCenterLat = centerLatBucket * CACHE_KEY_BUCKET_DEG;
+  const bucketCenterLng = centerLngBucket * CACHE_KEY_BUCKET_DEG;
+  const bucket = computeZoomBucket(deltaLat, deltaLng);
+  const filtersHash = JSON.stringify(normalizeFilters(filters));
+  const tileKey = `${bucketCenterLat.toFixed(3)}:${bucketCenterLng.toFixed(3)}`;
+  return `${plan}|${bucket}|${tileKey}|${filtersHash}`;
+}
+
+function getCachedResponse(key: string) {
+  const entry = peopleCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    peopleCache.delete(key);
+    return null;
+  }
+  peopleCache.delete(key);
+  peopleCache.set(key, entry);
+  return entry.value;
+}
+
+function setCachedResponse(key: string, value: PeopleCacheEntry["value"]) {
+  if (peopleCache.has(key)) {
+    peopleCache.delete(key);
+  }
+  peopleCache.set(key, {
+    value,
+    expiresAt: Date.now() + PEOPLE_CACHE_TTL_MS,
+  });
+
+  if (peopleCache.size > PEOPLE_CACHE_MAX_ENTRIES) {
+    const firstKey = peopleCache.keys().next().value;
+    if (firstKey) {
+      peopleCache.delete(firstKey);
+    }
+  }
+}
+
 /**
  * Cloud Function para buscar pessoas próximas com limite baseado em VIP.
  *
@@ -93,6 +205,8 @@ export const getPeople = functions.https.onCall(async (data, context) => {
   //     'A função deve ser chamada de um app verificado.'
   //   );
   // }
+
+  const startTime = Date.now();
 
   try {
     // 2. Parâmetros recebidos do client
@@ -129,17 +243,20 @@ export const getPeople = functions.https.onCall(async (data, context) => {
     }
 
     // Centro da busca: Usa o enviado pelo client ou calcula do box
-    // Validação robusta de center para evitar NaN/Infinite
-    const isLatValid = typeof center?.latitude === "number" &&
-      Number.isFinite(center.latitude);
+    // Aceita {lat,lng} ou {latitude,longitude}
+    const rawLat = center?.lat ?? center?.latitude;
+    const rawLng = center?.lng ?? center?.longitude;
+
+    const isLatValid = typeof rawLat === "number" &&
+      Number.isFinite(rawLat);
     const centerLat = isLatValid ?
-      center.latitude :
+      rawLat :
       (boundingBox.minLat + boundingBox.maxLat) / 2;
 
-    const isLngValid = typeof center?.longitude === "number" &&
-      Number.isFinite(center.longitude);
+    const isLngValid = typeof rawLng === "number" &&
+      Number.isFinite(rawLng);
     const centerLng = isLngValid ?
-      center.longitude :
+      rawLng :
       (boundingBox.minLng + boundingBox.maxLng) / 2;
 
     // 3. Verificar Status VIP (Fonte da Verdade: Firestore)
@@ -176,95 +293,189 @@ export const getPeople = functions.https.onCall(async (data, context) => {
       Math.min(radiusKm, planCap) :
       defaultRadius;
 
-    // Firestore Limit: Tenta buscar um pouco mais para VIPs em áreas densas
-    const fetchLimit = isVip ? 800 : 400;
+    // Firestore Limit: dinâmico (sobe se não atingir resultados mínimos)
+    const baseFetchLimit = isVip ? 400 : 200;
+    const maxFetchLimit = isVip ? 800 : 400;
+    const minResults = isVip ? 120 : 17;
 
     console.log(
       `🔍 [getPeople] User ${userId} - VIP:${isVip}, ` +
-      `FetchLimit:${fetchLimit}, Radius:${validRadiusKm.toFixed(1)}km`
+      `FetchLimit:${baseFetchLimit}, Radius:${validRadiusKm.toFixed(1)}km`
     );
 
-    // 5. Query Firestore com bounding box (primeira filtragem)
-    // Band-aid: .limit(fetchLimit) evita estouro de reads.
-    const query = admin.firestore()
-      .collection("Users")
-      .where("latitude", ">=", boundingBox.minLat)
-      .where("latitude", "<=", boundingBox.maxLat)
-      .limit(fetchLimit);
+    const cacheKey = buildCacheKey({
+      boundingBox,
+      filters,
+      plan: isVip ? "vip" : "free",
+    });
 
-    const usersSnap = await query.get();
+    const interestBuckets = buildInterestBuckets(filters?.interests);
+    const gridIds = buildGridIdsForBounds(
+      boundingBox,
+      GRID_BUCKET_SIZE_DEG
+    );
+    const canUseGridQueryBase = gridIds.length > 0 && gridIds.length <= 10;
 
-    console.log(`📦 [getPeople] Firestore: ${usersSnap.docs.length} users`);
+    const cachedResponse = getCachedResponse(cacheKey);
+    if (cachedResponse) {
+      const durationMs = Date.now() - startTime;
+      console.log("📊 [getPeople] Cache HIT", {
+        cacheKey,
+        cacheSize: peopleCache.size,
+        cacheKeyBucket: CACHE_KEY_BUCKET_DEG,
+        durationMs,
+        returnedCount: cachedResponse.returnedCount,
+        totalCandidates: cachedResponse.totalCandidates,
+      });
+      return cachedResponse;
+    }
 
-    // 6. Filtrar em memória e Mapear DTO
-    const candidates = usersSnap.docs
-      // Passo 1: Pré-cálculo e Filtros
-      .map((doc) => {
+    async function fetchCandidates(
+      fetchLimit: number,
+      options: {disableInterestBuckets?: boolean} = {}
+    ) {
+      const canUseGridQuery = canUseGridQueryBase;
+      const canUseInterestBuckets = !canUseGridQuery &&
+        !options.disableInterestBuckets &&
+        interestBuckets.length > 0 &&
+        interestBuckets.length <= 10;
+
+      let queryPath: "interestBuckets" | "grid" | "latRange" | "usersFallback" =
+        "latRange";
+
+      let previewQuery = admin.firestore()
+        .collection("users_preview")
+        .where("status", "==", "active")
+        .limit(fetchLimit);
+
+      if (canUseInterestBuckets) {
+        queryPath = "interestBuckets";
+        previewQuery = previewQuery
+          .where("interestBuckets", "array-contains-any", interestBuckets)
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat);
+      } else if (canUseGridQuery) {
+        queryPath = "grid";
+        previewQuery = previewQuery
+          .where("gridId", "in", gridIds)
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat);
+      } else {
+        queryPath = "latRange";
+        previewQuery = previewQuery
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat);
+      }
+
+      let usersSnap = await previewQuery.get();
+
+      let interestBucketsFallbackUsed = false;
+      if (usersSnap.empty && canUseInterestBuckets) {
+        interestBucketsFallbackUsed = true;
+        queryPath = "latRange";
+        const fallbackPreviewQuery = admin.firestore()
+          .collection("users_preview")
+          .where("status", "==", "active")
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat)
+          .limit(fetchLimit);
+        usersSnap = await fallbackPreviewQuery.get();
+      }
+
+      if (usersSnap.empty && canUseGridQuery) {
+        queryPath = "latRange";
+        const fallbackPreviewQuery = admin.firestore()
+          .collection("users_preview")
+          .where("status", "==", "active")
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat)
+          .limit(fetchLimit);
+        usersSnap = await fallbackPreviewQuery.get();
+      }
+
+      if (usersSnap.empty) {
+        queryPath = "usersFallback";
+        const fallbackQuery = admin.firestore()
+          .collection("Users")
+          .where("status", "==", "active")
+          .where("latitude", ">=", boundingBox.minLat)
+          .where("latitude", "<=", boundingBox.maxLat)
+          .limit(fetchLimit);
+        usersSnap = await fallbackQuery.get();
+      }
+
+      console.log(`📦 [getPeople] Firestore: ${usersSnap.docs.length} users`);
+
+      let discardedByLongitude = 0;
+      let discardedByRadius = 0;
+      let discardedByTags = 0;
+      let discardedByAgeGender = 0;
+      let discardedByVerified = 0;
+      let discardedByStatus = 0;
+
+      const candidates: any[] = [];
+
+      for (const doc of usersSnap.docs) {
         const d = doc.data();
-        // Calcula distância para uso em filtro e sort
-        // Se lat/lng inválidos, joga distância para infinito.
-        const lat = d.latitude;
-        const lng = d.longitude;
+        if (doc.id === userId) continue;
 
-        const hasCoord = typeof lat === "number" && typeof lng === "number";
-
-        const dist = hasCoord ?
-          calculateDistance(centerLat, centerLng, lat, lng) :
-          999999;
-
-        return {doc, d, dist, lat, lng};
-      })
-      .filter(({doc, d, dist, lng}) => {
-        if (doc.id === userId) return false; // Excluir próprio usuário
-
-        // Status do usuário: por segurança, não retornar perfis inativos.
         const status = d.status;
         if (status != null && status !== "active") {
-          return false;
+          discardedByStatus++;
+          continue;
         }
 
-        // Filtro de longitude (Firestore só permite 1 range query)
-        // Correção bug lng=0: checagem explicita de tipo
+        const lat = d.latitude;
+        const lng = d.longitude;
+        const hasCoord = typeof lat === "number" && typeof lng === "number";
+
         if (
-          typeof lng !== "number" ||
+          !hasCoord ||
           lng < boundingBox.minLng ||
           lng > boundingBox.maxLng
         ) {
-          return false;
+          discardedByLongitude++;
+          continue;
         }
 
-        // Filtro de Raio Real (Circular)
-        // Agora sempre existe um limite de raio (Client ou Default)
+        const dist = calculateDistance(centerLat, centerLng, lat, lng);
+
         if (dist > validRadiusKm) {
-          return false;
+          discardedByRadius++;
+          continue;
         }
 
-        // Aplicar filtros avançados se fornecidos
         if (filters) {
-          // Gender (Case-insensitive)
           if (filters.gender && filters.gender !== "all") {
             const userGender = d.gender ?
               String(d.gender).trim().toLowerCase() :
               "";
             const filterGender = String(filters.gender).trim().toLowerCase();
-            if (userGender !== filterGender) return false;
-          }
-
-          // Age
-          if (filters.minAge || filters.maxAge) {
-            const age = d.age;
-            if (typeof age === "number") {
-              if (filters.minAge && age < filters.minAge) return false;
-              if (filters.maxAge && age > filters.maxAge) return false;
+            if (userGender !== filterGender) {
+              discardedByAgeGender++;
+              continue;
             }
           }
 
-          // Verified
-          if (filters.isVerified === true && !d.user_is_verified) {
-            return false;
+          if (filters.minAge || filters.maxAge) {
+            const age = d.age;
+            if (typeof age === "number") {
+              if (filters.minAge && age < filters.minAge) {
+                discardedByAgeGender++;
+                continue;
+              }
+              if (filters.maxAge && age > filters.maxAge) {
+                discardedByAgeGender++;
+                continue;
+              }
+            }
           }
 
-          // Sexual Orientation (Case-insensitive)
+          if (filters.isVerified === true && !d.user_is_verified) {
+            discardedByVerified++;
+            continue;
+          }
+
           if (filters.sexualOrientation &&
               filters.sexualOrientation !== "all") {
             const userOrientation = d.sexualOrientation ?
@@ -273,11 +484,11 @@ export const getPeople = functions.https.onCall(async (data, context) => {
               .trim().toLowerCase();
 
             if (userOrientation !== filterOrientation) {
-              return false;
+              discardedByAgeGender++;
+              continue;
             }
           }
 
-          // Interests (Pelo menos UM interesse em comum)
           if (filters.interests &&
             Array.isArray(filters.interests) &&
             filters.interests.length > 0) {
@@ -290,21 +501,18 @@ export const getPeople = functions.https.onCall(async (data, context) => {
             const filterInterests = filters.interests.map((i: string) =>
               String(i).trim().toLowerCase());
 
-            // Verifica se há intersecção entre users e filter interests
             const hasCommonInterest = filterInterests.some((interest: string) =>
               userInterests.includes(interest)
             );
 
-            if (!hasCommonInterest) return false;
+            if (!hasCommonInterest) {
+              discardedByTags++;
+              continue;
+            }
           }
         }
 
-        return true;
-      })
-      .map(({doc, d, dist, lat, lng}) => {
-        // DTO (Data Transfer Object) - Whitelist Estrita
         const PRIVACY_KM = 2.5;
-
         let quantizedLat: number | null = null;
         let quantizedLng: number | null = null;
 
@@ -316,34 +524,134 @@ export const getPeople = functions.https.onCall(async (data, context) => {
           quantizedLng = quantize(lng, lngDeg);
         }
 
-        return {
+        candidates.push({
           userId: doc.id,
           fullName: d.fullName,
           photoUrl: d.photoUrl,
-          // 🔒 Privacidade: Quantização (~2.5km)
-          // Retorna apenas o centro do tile, impedindo triangulação exata.
           latitude: quantizedLat,
           longitude: quantizedLng,
-          // Tile ID para Clusterização no Client
-          // (evita empilhamento visual de markers/dízimas)
           tileId:
             (quantizedLat !== null && quantizedLng !== null) ?
               `${quantizedLat.toFixed(5)}:${quantizedLng.toFixed(5)}` :
               null,
-          distanceInKm: Math.round(dist),
-          // Distância arredondada (privacy-friendly: 5km, 6km...)
+          distanceInKm: Math.round(dist / 2) * 2,
           age: d.age,
-          gender: d.gender,
-          user_is_verified: d.user_is_verified,
+          isVerified: d.isVerified ?? d.user_is_verified,
           overallRating: d.overallRating,
           vip_priority: d.vip_priority,
-          sexualOrientation: d.sexualOrientation,
-          interests: d.interests,
-          _distance: dist, // Mantido para ordenação server-side
-        };
-      });
+          locality: d.locality,
+          state: d.state,
+          lastActiveAt: d.lastActiveAt,
+          _distance: dist,
+        });
+      }
 
-    console.log(`🔍 [getPeople] Após filtros: ${candidates.length} candidatos`);
+      console.log(`🔍 [getPeople] Após filtros: ${candidates.length} candidatos`);
+      return {
+        usersSnap,
+        candidates,
+        discardedByLongitude,
+        discardedByRadius,
+        discardedByTags,
+        discardedByAgeGender,
+        discardedByVerified,
+        discardedByStatus,
+        gridQueryUsed: canUseGridQuery,
+        gridIdsCount: gridIds.length,
+        interestBucketsUsed: canUseInterestBuckets,
+        interestBucketsCount: interestBuckets.length,
+        interestBucketsFallbackUsed,
+        queryPath,
+      };
+    }
+
+    let {
+      usersSnap,
+      candidates,
+      discardedByLongitude,
+      discardedByRadius,
+      discardedByTags,
+      discardedByAgeGender,
+      discardedByVerified,
+      discardedByStatus,
+      gridQueryUsed,
+      gridIdsCount,
+      interestBucketsUsed,
+      interestBucketsCount,
+      interestBucketsFallbackUsed,
+      queryPath,
+    } = await fetchCandidates(baseFetchLimit);
+
+    if (interestBucketsUsed && candidates.length < minResults) {
+      console.log(
+        `🔁 [getPeople] Fallback sem interestBuckets (candidatos ${candidates.length}/${minResults})`
+      );
+      ({
+        usersSnap,
+        candidates,
+        discardedByLongitude,
+        discardedByRadius,
+        discardedByTags,
+        discardedByAgeGender,
+        discardedByVerified,
+        discardedByStatus,
+        gridQueryUsed,
+        gridIdsCount,
+        interestBucketsUsed,
+        interestBucketsCount,
+        interestBucketsFallbackUsed,
+        queryPath,
+      } = await fetchCandidates(baseFetchLimit, {
+        disableInterestBuckets: true,
+      }));
+    }
+    let fetchLimitUsed = baseFetchLimit;
+    if (candidates.length < minResults && baseFetchLimit < maxFetchLimit) {
+      console.log(
+        `🔁 [getPeople] Subindo fetchLimit para ${maxFetchLimit} (candidatos ${candidates.length}/${minResults})`
+      );
+      ({
+        usersSnap,
+        candidates,
+        discardedByLongitude,
+        discardedByRadius,
+        discardedByTags,
+        discardedByAgeGender,
+        discardedByVerified,
+        discardedByStatus,
+        gridQueryUsed,
+        gridIdsCount,
+        interestBucketsUsed,
+        interestBucketsCount,
+        interestBucketsFallbackUsed,
+        queryPath,
+      } = await fetchCandidates(maxFetchLimit));
+      fetchLimitUsed = maxFetchLimit;
+
+      if (interestBucketsUsed && candidates.length < minResults) {
+        console.log(
+          `🔁 [getPeople] Fallback sem interestBuckets (candidatos ${candidates.length}/${minResults})`
+        );
+        ({
+          usersSnap,
+          candidates,
+          discardedByLongitude,
+          discardedByRadius,
+          discardedByTags,
+          discardedByAgeGender,
+          discardedByVerified,
+          discardedByStatus,
+          gridQueryUsed,
+          gridIdsCount,
+          interestBucketsUsed,
+          interestBucketsCount,
+          interestBucketsFallbackUsed,
+          queryPath,
+        } = await fetchCandidates(maxFetchLimit, {
+          disableInterestBuckets: true,
+        }));
+      }
+    }
 
     // 7. Ordenar por VIP Priority → Rating → Distância (Server-side sort)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -376,7 +684,7 @@ export const getPeople = functions.https.onCall(async (data, context) => {
     console.log(`🏆 [getPeople] Top 3 metadados: ${top3}`);
 
     // 9. Retornar dados completos (client precisa para UI e Analytics)
-    return {
+    const response = {
       users: limitedUsers,
       isVip: isVip,
       limitApplied: limit,
@@ -384,6 +692,44 @@ export const getPeople = functions.https.onCall(async (data, context) => {
       totalCandidates: candidates.length,
       returnedCount: limitedUsers.length,
     };
+
+    const durationMs = Date.now() - startTime;
+    const wasteRatioByReturned = limitedUsers.length > 0
+      ? Number((usersSnap.size / limitedUsers.length).toFixed(3))
+      : null;
+    const wasteRatioByCandidates = candidates.length > 0
+      ? Number((usersSnap.size / candidates.length).toFixed(3))
+      : null;
+
+    console.log("📊 [getPeople] Metrics", {
+      cacheKey,
+      cacheSize: peopleCache.size,
+      cacheKeyBucket: CACHE_KEY_BUCKET_DEG,
+      cacheHit: false,
+      durationMs,
+      scanLimitUsed: fetchLimitUsed,
+      scannedDocs: usersSnap.size,
+      queryPath,
+      gridQueryUsed,
+      gridIdsCount,
+      interestBucketsUsed,
+      interestBucketsCount,
+      interestBucketsFallbackUsed,
+      discardedByLongitude,
+      discardedByRadius,
+      discardedByTags,
+      discardedByAgeGender,
+      discardedByVerified,
+      discardedByStatus,
+      totalCandidates: candidates.length,
+      returnedCount: limitedUsers.length,
+      wasteRatioByReturned,
+      wasteRatioByCandidates,
+    });
+
+    setCachedResponse(cacheKey, response);
+
+    return response;
   } catch (error) {
     console.error("❌ Erro em getPeople:", error);
     throw new functions.https.HttpsError(

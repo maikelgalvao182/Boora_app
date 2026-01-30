@@ -117,6 +117,7 @@ class _StackedAvatarsState extends State<StackedAvatars> {
     
     return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         _buildStackedAvatars(visibleParticipants),
         if (widget.showMemberCount) ...[
@@ -175,6 +176,7 @@ class _StackedAvatarsState extends State<StackedAvatars> {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         SizedBox(
           width: stackWidth,

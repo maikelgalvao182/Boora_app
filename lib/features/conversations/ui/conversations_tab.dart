@@ -1,10 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:iconsax_plus/iconsax_plus.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/features/conversations/widgets/conversation_stream_widget.dart';
 import 'package:partiu/core/services/auth_state_service.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
+import 'package:partiu/shared/widgets/safety_tips_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -31,6 +34,13 @@ class ConversationsTab extends StatelessWidget {
               children: [
                 GlimpseTabAppBar(
                   title: i18n.translate('conversations'),
+                  actions: const [
+                    SafetyTipsButton(
+                      icon: IconsaxPlusLinear.danger,
+                      iconColor: GlimpseColors.primaryColorLight,
+                      iconSize: 24,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Expanded(

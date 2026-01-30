@@ -14,6 +14,8 @@ class EventRepository {
 
   /// Referência à coleção events
   CollectionReference get _eventsCollection => _firestore.collection('events');
+  CollectionReference get _eventsCardPreviewCollection =>
+      _firestore.collection('events_card_preview');
 
   /// Busca um evento por ID
   /// 
@@ -25,6 +27,37 @@ class EventRepository {
   /// - Evento inativo
   Future<Map<String, dynamic>?> getEventById(String eventId) async {
     try {
+      final previewDoc = await _eventsCardPreviewCollection.doc(eventId).get();
+      if (previewDoc.exists) {
+        final data = previewDoc.data() as Map<String, dynamic>;
+
+        final isCanceled = data['isCanceled'] as bool? ?? false;
+        final status = data['status'] as String?;
+        final isActive = data['isActive'] as bool? ?? (status == null || status == 'active');
+
+        if (isCanceled || !isActive) {
+          return null;
+        }
+
+        final dateTimestamp = data['scheduleDate'] as Timestamp?;
+        final result = {
+          'id': eventId,
+          'emoji': data['emoji'] as String?,
+          'activityText': data['activityText'] as String?,
+          'locationName': data['locationName'] as String?,
+          'locality': data['locality'] as String?,
+          'state': data['state'] as String?,
+          'scheduleDate': dateTimestamp?.toDate(),
+          'privacyType': data['privacyType'] as String?,
+          'createdBy': data['createdBy'] as String?,
+          'minAge': data['minAge'] as int?,
+          'maxAge': data['maxAge'] as int?,
+          'gender': data['gender'] as String?,
+        };
+
+        return result;
+      }
+
       final doc = await _eventsCollection.doc(eventId).get();
       
       if (!doc.exists) {
@@ -133,6 +166,9 @@ class EventRepository {
         'scheduleDate': dateTimestamp?.toDate(),
         'privacyType': participantsData?['privacyType'] as String?,
         'createdBy': data['createdBy'] as String?,
+        'minAge': participantsData?['minAge'] as int?,
+        'maxAge': participantsData?['maxAge'] as int?,
+        'gender': participantsData?['gender'] as String?,
       };
       
       // Cache por 60s

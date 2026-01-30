@@ -14,13 +14,21 @@ rules/
 ├── device_tokens.rules       → Coleção DeviceTokens/{tokenId}
 ├── reviews.rules             → Coleções Reviews + PendingReviews
 ├── events.rules              → Coleção events/{eventId}
+├── events_card_preview.rules → Coleção events_card_preview/{eventId}
+├── events_map.rules          → Coleção events_map/{eventId}
 ├── applications.rules        → Coleção EventApplications/{applicationId}
 ├── event_chats.rules         → Coleção EventChats/{eventId} + subcoleções
+├── event_photos.rules        → Coleção EventPhotos/{photoId} + subcoleções
 ├── connections.rules         → Coleção Connections/{userId}/Conversations/{withUserId}
 ├── messages.rules            → Coleção Messages/{userId}/{partnerId}/{messageId}
+├── feeds.rules               → Coleção feeds/{userId}/items/{itemId}
 ├── profile_visits.rules      → Coleções ProfileVisits + ProfileViews
 ├── ranking.rules             → Coleções userRanking + locationRanking
 ├── reports.rules             → Coleção reports/{reportId}
+├── blocked_users.rules       → Coleção blockedUsers/{blockId}
+├── activity_feed.rules       → Coleção ActivityFeed/{feedItemId}
+├── subscription_status.rules → Coleção SubscriptionStatus/{userId}
+├── push_receipts.rules       → Coleção push_receipts/{receiptId}
 └── didit.rules               → Coleções FaceVerifications + DiditSessions + DiditWebhooks
 ```
 

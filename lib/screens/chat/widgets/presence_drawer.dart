@@ -25,11 +25,15 @@ class PresenceDrawer extends StatefulWidget {
 
 class _PresenceDrawerState extends State<PresenceDrawer> {
   List<String> _myInterests = [];
+  List<Map<String, dynamic>> _participants = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadMyInterests();
+    _loadParticipants();
   }
 
   /// Carrega interesses do usuário atual via Repository
@@ -44,6 +48,44 @@ class _PresenceDrawerState extends State<PresenceDrawer> {
     if (mounted) {
       setState(() {});
       debugPrint('👤 Meus interesses carregados: ${_myInterests.length}');
+    }
+  }
+
+  /// ✅ Carrega participantes uma vez (sem stream)
+  Future<void> _loadParticipants() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('EventApplications')
+          .where('eventId', isEqualTo: widget.eventId)
+          .where('status', whereIn: ['approved', 'autoApproved'])
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        _participants = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'userId': data['userId'] as String,
+            'presence': data['presence'] as String? ?? 'Talvez',
+          };
+        }).toList();
+        _loading = false;
+      });
+
+      debugPrint('✅ ${_participants.length} participantes carregados');
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar participantes: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -105,90 +147,72 @@ class _PresenceDrawerState extends State<PresenceDrawer> {
 
           // Lista de presenças
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('EventApplications')
-                  .where('eventId', isEqualTo: widget.eventId)
-                  .where('status', whereIn: ['approved', 'autoApproved'])
-                  .snapshots(),
-              builder: (context, snapshot) {
-                debugPrint('📡 PresenceDrawer StreamBuilder:');
-                debugPrint('   - connectionState: ${snapshot.connectionState}');
-                debugPrint('   - hasData: ${snapshot.hasData}');
-                debugPrint('   - hasError: ${snapshot.hasError}');
-                debugPrint('   - error: ${snapshot.error}');
-                debugPrint('   - data length: ${snapshot.data?.docs.length ?? 0}');
-
-                // Loading
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                // Error
-                if (snapshot.hasError) {
-                  debugPrint('❌ Erro no StreamBuilder: ${snapshot.error}');
-                  return Center(
-                    child: GlimpseEmptyState.standard(
-                      text: i18n.translate('presence_load_error'),
-                    ),
-                  );
-                }
-
-                // No data
-                if (!snapshot.hasData) {
-                  debugPrint('⚠️ StreamBuilder sem dados');
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                final applications = snapshot.data!.docs;
-                debugPrint('✅ ${applications.length} aplicações encontradas');
-
-                // Empty
-                if (applications.isEmpty) {
-                  return Center(
-                    child: GlimpseEmptyState.standard(
-                      text: i18n.translate('presence_none_confirmed'),
-                    ),
-                  );
-                }
-
-                // List
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: applications.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    try {
-                      final data = applications[index].data() as Map<String, dynamic>;
-                      final userId = data['userId'] as String;
-                      final presence = data['presence'] as String? ?? 'Talvez';
-                      
-                      debugPrint('📋 Item $index: userId=$userId, presence=$presence');
-
-                      return _PresenceUserCard(
-                        userId: userId,
-                        presence: presence,
-                        myInterests: _myInterests,
-                        index: index,
-                      );
-                    } catch (e, stack) {
-                      debugPrint('❌ Erro ao renderizar item $index: $e');
-                      debugPrint('Stack: $stack');
-                      return const SizedBox.shrink();
-                    }
-                  },
-                );
-              },
-            ),
+            child: _buildParticipantsList(i18n),
           ),
 
           SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
         ],
       ),
+    );
+  }
+
+  Widget _buildParticipantsList(AppLocalizations i18n) {
+    // Loading
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Error
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GlimpseEmptyState.standard(
+              text: i18n.translate('presence_load_error'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadParticipants,
+              child: Text(i18n.translate('try_again')),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Empty
+    if (_participants.isEmpty) {
+      return Center(
+        child: GlimpseEmptyState.standard(
+          text: i18n.translate('presence_none_confirmed'),
+        ),
+      );
+    }
+
+    // List
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _participants.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        try {
+          final participant = _participants[index];
+          final userId = participant['userId'] as String;
+          final presence = participant['presence'] as String;
+          
+          return _PresenceUserCard(
+            userId: userId,
+            presence: presence,
+            myInterests: _myInterests,
+            index: index,
+          );
+        } catch (e, stack) {
+          debugPrint('❌ Erro ao renderizar item $index: $e');
+          debugPrint('Stack: $stack');
+          return const SizedBox.shrink();
+        }
+      },
     );
   }
 }

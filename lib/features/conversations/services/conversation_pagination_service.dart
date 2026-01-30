@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:partiu/screens/chat/services/chat_analytics_service.dart';
 
 /// Service responsável por gerenciar paginação de conversas
 /// Controla docs, filtragem, estado de loading e paginação
@@ -12,6 +13,9 @@ class ConversationPaginationService extends ChangeNotifier {
   bool _hasMore = true;
   int _pageSize = 20;
   DocumentSnapshot<Map<String, dynamic>>? _lastVisible;
+  
+  // ✅ INSTRUMENTAÇÃO: Analytics service
+  final ChatAnalyticsService _analytics = ChatAnalyticsService.instance;
 
   // Doc cache from last update
   List<QueryDocumentSnapshot<Map<String, dynamic>>>? _lastDocs;
@@ -157,11 +161,27 @@ class ConversationPaginationService extends ChangeNotifier {
 
     _isLoadingMore = true;
     notifyListeners();
+    
+    // ✅ INSTRUMENTAÇÃO: Medir tempo de paginação
+    final stopwatch = Stopwatch()..start();
+    
     try {
       final snapshot =
           await fetchPage(startAfter: _lastVisible!, limit: _pageSize);
+      
+      stopwatch.stop();
+      
+      // 📊 Log de paginação
+      _analytics.logPaginationLoad(
+        chatId: 'conversations_list',
+        pageSize: _pageSize,
+        docsLoaded: snapshot.docs.length,
+        durationMs: stopwatch.elapsedMilliseconds,
+      );
+      
       appendPage(snapshot);
     } catch (e) {
+      stopwatch.stop();
       // Ignore load more errors
     } finally {
       _isLoadingMore = false;

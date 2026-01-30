@@ -8,6 +8,8 @@ import 'package:partiu/core/models/review_stats_model.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/features/profile/data/services/profile_visits_service.dart';
+import 'package:partiu/features/profile/data/services/profile_static_cache_service.dart';
+import 'package:partiu/features/profile/data/services/profile_gallery_cache_service.dart';
 
 /// Controller MVVM para tela de perfil
 /// 
@@ -38,6 +40,8 @@ class ProfileController {
   bool _isReleased = false;
 
   final _firestore = FirebaseFirestore.instance;
+  final ProfileStaticCacheService _profileCache = ProfileStaticCacheService.instance;
+  final ProfileGalleryCacheService _galleryCache = ProfileGalleryCacheService.instance;
 
   /// Avatar URL reativo (via UserStore)
   ValueNotifier<String> get avatarUrl {
@@ -53,48 +57,92 @@ class ProfileController {
   }
 
   /// Carrega dados do perfil
-  Future<void> load(String targetUserId) async {
+  ///
+  /// [useStream]: quando true, mantém listener realtime no Users/{uid}.
+  /// [includeReviews]: quando true, abre stream de reviews.
+  Future<void> load(
+    String targetUserId, {
+    bool useStream = true,
+    bool includeReviews = true,
+  }) async {
     if (_isReleased) return;
     isLoading.value = true;
     error.value = null;
 
     try {
-      // Inicia listener do perfil
-      _profileSubscription = _firestore
-          .collection('Users')
-          .doc(targetUserId)
-          .snapshots()
-          .listen(
-            (snapshot) {
-              if (_isReleased) return;
-              debugPrint('📊 [ProfileController] Stream emitiu snapshot para userId: $targetUserId');
-              if (snapshot.exists && snapshot.data() != null) {
-                final data = snapshot.data()!;
-                debugPrint('📊 [ProfileController] Dados mudaram - followersCount: ${data['followersCount']}, followingCount: ${data['followingCount']}');
-                profile.value = User.fromDocument(data);
-                error.value = null;
-              } else {
-                error.value = 'Usuário não encontrado';
-              }
-              isLoading.value = false;
-            },
-            onError: (e, stack) {
-              if (_isReleased) return;
-              // Em logout, o Firestore pode disparar permission-denied em streams ativos.
-              // Guardamos para não tentar atualizar notifiers já descartados.
-              error.value = 'Erro ao carregar perfil: $e';
-              isLoading.value = false;
-              AppLogger.error(
-                'Erro no stream do perfil',
-                tag: 'ProfileController',
-                error: e,
-                stackTrace: stack,
-              );
-            },
-          );
+      // Cancela listeners antigos para evitar duplicação
+      _profileSubscription?.cancel();
+      _profileSubscription = null;
 
-      // Carrega reviews
-      await _loadReviews(targetUserId);
+      if (useStream) {
+        // Inicia listener do perfil
+        _profileSubscription = _firestore
+            .collection('Users')
+            .doc(targetUserId)
+            .snapshots()
+            .listen(
+              (snapshot) {
+                if (_isReleased) return;
+                debugPrint('📊 [ProfileController] Stream emitiu snapshot para userId: $targetUserId');
+                if (snapshot.exists && snapshot.data() != null) {
+                  final data = snapshot.data()!;
+                  debugPrint('📊 [ProfileController] Dados mudaram - followersCount: ${data['followersCount']}, followingCount: ${data['followingCount']}');
+                  profile.value = User.fromDocument(data);
+                  error.value = null;
+                } else {
+                  error.value = 'Usuário não encontrado';
+                }
+                isLoading.value = false;
+              },
+              onError: (e, stack) {
+                if (_isReleased) return;
+                // Em logout, o Firestore pode disparar permission-denied em streams ativos.
+                // Guardamos para não tentar atualizar notifiers já descartados.
+                error.value = 'Erro ao carregar perfil: $e';
+                isLoading.value = false;
+                AppLogger.error(
+                  'Erro no stream do perfil',
+                  tag: 'ProfileController',
+                  error: e,
+                  stackTrace: stack,
+                );
+              },
+            );
+      } else {
+        await _profileCache.ensureInitialized();
+        await _galleryCache.ensureInitialized();
+        final cached = _profileCache.get(targetUserId);
+        if (cached != null && profile.value == null) {
+          final cachedUser = User.fromDocument(cached);
+          profile.value = _hydrateGalleryFromCache(cachedUser);
+          isLoading.value = false;
+        }
+
+        final snapshot = await _firestore
+            .collection('Users')
+            .doc(targetUserId)
+            .get();
+
+        if (_isReleased) return;
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          final freshUser = User.fromDocument(data);
+          profile.value = freshUser;
+          error.value = null;
+          await _profileCache.put(targetUserId, data);
+          await _cacheGalleryFromUser(freshUser);
+        } else {
+          error.value = 'Usuário não encontrado';
+        }
+        isLoading.value = false;
+      }
+
+      if (includeReviews) {
+        await _loadReviews(targetUserId);
+      } else {
+        _reviewsSubscription?.cancel();
+        _reviewsSubscription = null;
+      }
     } catch (e, stack) {
       if (_isReleased) return;
       error.value = 'Erro ao carregar perfil: $e';
@@ -186,8 +234,16 @@ class ProfileController {
   }
 
   /// Refresh manual
-  Future<void> refresh(String targetUserId) async {
-    await load(targetUserId);
+  Future<void> refresh(
+    String targetUserId, {
+    bool useStream = true,
+    bool includeReviews = true,
+  }) async {
+    await load(
+      targetUserId,
+      useStream: useStream,
+      includeReviews: includeReviews,
+    );
   }
 
   /// Registra visita ao perfil usando ProfileVisitsService
@@ -232,6 +288,59 @@ class ProfileController {
   /// Verifica se é o próprio perfil
   bool isMyProfile(String currentUserId) {
     return userId == currentUserId;
+  }
+
+  Future<void> _cacheGalleryFromUser(User user) async {
+    if (user.userId.isEmpty) return;
+    final urls = _extractGalleryUrls(user.userGallery);
+    if (urls.isEmpty) return;
+    await _galleryCache.putPage(user.userId, 0, urls);
+  }
+
+  User _hydrateGalleryFromCache(User user) {
+    final gallery = user.userGallery;
+    final hasGallery = gallery != null && gallery.isNotEmpty;
+    if (hasGallery) return user;
+
+    final cachedUrls = _galleryCache.getPage(user.userId, 0);
+    if (cachedUrls == null || cachedUrls.isEmpty) return user;
+
+    final hydratedGallery = <String, dynamic>{};
+    for (var i = 0; i < cachedUrls.length; i++) {
+      hydratedGallery['${i + 1}'] = cachedUrls[i];
+    }
+
+    return user.copyWith(userGallery: hydratedGallery);
+  }
+
+  List<String> _extractGalleryUrls(Map<String, dynamic>? gallery) {
+    if (gallery == null || gallery.isEmpty) return const <String>[];
+
+    final entries = gallery.entries.where((e) => e.value != null).toList();
+    entries.sort((a, b) {
+      int parseKey(String k) {
+        final numPart = RegExp(r'(\d+)').firstMatch(k)?.group(1);
+        return int.tryParse(numPart ?? k) ?? 0;
+      }
+      return parseKey(a.key).compareTo(parseKey(b.key));
+    });
+
+    final urls = <String>[];
+    for (final entry in entries) {
+      final value = entry.value;
+      final url = value is Map ? (value['url'] ?? '').toString() : value.toString();
+      if (url.trim().isNotEmpty) {
+        urls.add(url.trim());
+      }
+    }
+
+    if (urls.isEmpty) return urls;
+    final seen = <String>{};
+    final unique = <String>[];
+    for (final url in urls) {
+      if (seen.add(url)) unique.add(url);
+    }
+    return unique;
   }
 
   /// Libera recursos

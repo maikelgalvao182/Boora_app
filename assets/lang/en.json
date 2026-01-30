@@ -88,6 +88,9 @@
   "search": "Search",
   "notifications": "Notifications",
   "no_notifications_yet": "No notifications yet",
+  "clear": "Clear",
+  "delete_notifications": "Clear notifications",
+  "all_notifications_will_be_deleted": "All your notifications will be removed. This action cannot be undone.",
   "messages": "Messages",
   "conversations": "Conversations",
   "no_conversations_yet": "No conversations yet",
@@ -518,6 +521,9 @@
   "retry": "Retry",
   "profile_id_not_found": "Profile ID not found",
   "profile_data_not_found": "Profile data not found",
+  "profile_not_available": "Profile not available",
+  "profile_not_available_description": "This profile doesn't exist or has been removed.",
+  "go_back": "Go back",
   "rating_label": "Rating",
   "review_singular": "review",
   "reviews_plural": "reviews",
@@ -674,6 +680,8 @@
   "category_networking_subtitle": "Work, talks, meetups",
   "category_games": "Games",
   "category_games_subtitle": "Board games, pool, gaming",
+  "category_romance": "Romance",
+  "category_romance_subtitle": "Dates, meetups, flirting",
   "category_other": "Other",
   "category_other_subtitle": "Any other kind of plan",
   "category_carnaval": "Carnival 2026",
@@ -1253,6 +1261,9 @@
   "distance_unit": "Distance Unit",
   "actions": "Actions",
   "share_app_message": "Create things to do on your city's map and see who wants to join you.",
-  "followers": "followers"
-  
+  "followers": "Followers",
+  "location_picker_tab_map": "Locate",
+  "location_picker_tab_search": "Search",
+  "location_picker_map_hint": "Click on the map to mark the meeting point",
+  "tap_map_to_confirm": "Drag the map or tap to confirm"
 }

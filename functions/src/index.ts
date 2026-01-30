@@ -18,6 +18,21 @@ export {onReportCreated} from "./reportModeration";
 export {onUserCreatedReferral} from "./referrals";
 export {followUser, unfollowUser} from "./users/followSystem";
 export {cleanupOldProfileVisits} from "./profileVisitsCleanup";
+export {
+  onUserAvatarUpdated,
+  backfillMissingCreatorAvatarUrl,
+} from "./events/creatorAvatarSync";
+export {onUserLocationUpdated} from "./events/usersGridSync";
+export {onEventWriteUpdateCardPreview} from "./events/eventCardPreviewSync";
+export {onUserWriteUpdatePreview} from "./users/usersPreviewSync";
+export {syncRankingFilters} from "./ranking/rankingFiltersSync";
+// Feed Fanout System - distribui posts para feeds dos seguidores
+export {
+  onEventPhotoWriteFanout,
+  onActivityFeedWriteFanout,
+  onNewFollowerBackfillFeed,
+  onUnfollowCleanupFeed,
+} from "./feed/feedFanout";
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -450,6 +465,10 @@ export * from "./chatPushNotifications";
 // Monitora coleção Notifications e dispara push para 8 tipos de atividades
 export * from "./activityPushNotifications";
 
+// ===== MAP SYNC =====
+// Sincroniza eventos para coleção lightweight events_map
+export * from "./events/mapSync";
+
 // ===== ACTIVITY IN-APP NOTIFICATIONS =====
 // Cria notificações in-app na coleção Notifications
 // (triggers de eventos que geram notificações)
@@ -464,6 +483,9 @@ export * from "./updateUserRating";
 
 // ===== DEBUG FUNCTIONS =====
 export * from "./debug";
+
+// ===== MIGRATIONS =====
+export * from "./migrations/backfillUserGeohash";
 
 // ===== USER MANAGEMENT =====
 // Importa e exporta as Cloud Functions de gerenciamento de usuários
