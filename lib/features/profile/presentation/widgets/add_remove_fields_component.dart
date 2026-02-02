@@ -196,7 +196,7 @@ class _FieldItem extends StatelessWidget {
                 hintText: hintText,
                 hintStyle: const TextStyle(
                   color: GlimpseColors.textSubTitle,
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w400,
                   fontSize: 16,
                 ),
                 border: InputBorder.none,

@@ -65,6 +65,8 @@ class ProfileController {
     bool useStream = true,
     bool includeReviews = true,
   }) async {
+    // 🔒 Stream hard-disabled para reduzir custo (galeria está no doc Users)
+    useStream = false;
     if (_isReleased) return;
     isLoading.value = true;
     error.value = null;

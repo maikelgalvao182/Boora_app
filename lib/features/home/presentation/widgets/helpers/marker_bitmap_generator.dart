@@ -10,10 +10,30 @@ import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_h
 /// Helper para gerar BitmapDescriptors para markers do Google Maps
 class MarkerBitmapGenerator {
   /// Cache de bitmaps de clusters
+  /// Chave: "cluster:v10:{emoji}:{countBucket}:{sizePx}"
   static final Map<String, google.BitmapDescriptor> _clusterCache = {};
 
   /// Cache de bitmaps de emoji pins
+  /// Chave: "emojiPin:v10:{emoji}:{colorBucket}:{sizePx}"
   static final Map<String, google.BitmapDescriptor> _emojiPinCache = {};
+
+  /// Converte count para bucket para reduzir cardinalidade do cache.
+  /// Para counts pequenos (2-9), mostra exato. Para maiores, mostra bucket.
+  /// Retorna tanto a chave de cache quanto o texto a exibir.
+  /// Cardinalidade: 8 (2-9) + 9 (10-99 por dezena) + 1 (99+) = 18 valores
+  static String _countToDisplayText(int count) {
+    if (count <= 9) return '$count'; // 2-9 exato
+    if (count > 99) return '99+';
+    // 10-99: mostra exato (cardinalidade aceitável: 90 valores)
+    return '$count';
+  }
+
+  /// Converte ID para bucket de cor (0-7) para reduzir cardinalidade.
+  /// MarkerColorHelper usa hashCode % 8, então temos 8 cores possíveis.
+  static int _colorBucket(String? id) {
+    if (id == null) return 0;
+    return id.hashCode.abs() % 8;
+  }
 
   /// ✅ FIX ANDROID: Tamanho FINAL em pixels do marker no mapa.
   /// Ao usar imagePixelRatio alto (ex: 3.0), o Google Maps divide o tamanho
@@ -43,6 +63,9 @@ class MarkerBitmapGenerator {
   /// - Círculo colorido (via MarkerColorHelper) com emoji central
   /// - Borda branca
   /// - Badge branco no canto superior direito com número preto
+  /// 
+  /// ✅ Cache otimizado: usa countBucket ao invés de count exato para
+  /// reduzir cardinalidade (máximo ~40 entradas por emoji ao invés de infinito)
   static Future<google.BitmapDescriptor> generateClusterPinForGoogleMaps(
     String emoji,
     int count, {
@@ -52,10 +75,14 @@ class MarkerBitmapGenerator {
     // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
     // O marker terá ~93dp em qualquer device (280px / 3.0 ratio)
     const int markerSize = 220; // tamanho do círculo principal em px
-    const int canvasSize = 280; // com padding para sombra/badge
+    const int canvasSize = 320; // com padding extra para sombra/badge (aumentado de 280)
     const double center = canvasSize / 2;
     
-    final cacheKey = 'cluster_v8_${emoji}_$count${clusterId ?? ""}';
+    // ✅ Chave determinística: emoji + countText + colorBucket + size
+    // colorBucket (0-7) + countText (2-99, 99+) = cardinalidade controlada
+    final countText = _countToDisplayText(count);
+    final colorBucket = _colorBucket(clusterId ?? emoji);
+    final cacheKey = 'cluster:v10:$emoji:$countText:c$colorBucket:$markerSize';
     if (_clusterCache.containsKey(cacheKey)) {
       return _clusterCache[cacheKey]!;
     }
@@ -118,15 +145,15 @@ class MarkerBitmapGenerator {
       const double badgeCenterX = center + (markerSize / 2) * 0.55;
       const double badgeCenterY = center - (markerSize / 2) * 0.55;
       
-      // Sombra do badge
-      final badgeShadow = Paint()
-        ..color = Colors.black.withAlpha(60)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-      canvas.drawCircle(
-        const Offset(badgeCenterX, badgeCenterY + 3),
-        badgeRadius,
-        badgeShadow,
-      );
+      // Sombra do badge removida conforme solicitado
+      // final badgeShadow = Paint()
+      //   ..color = Colors.black.withAlpha(60)
+      //   ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      // canvas.drawCircle(
+      //   const Offset(badgeCenterX, badgeCenterY + 3),
+      //   badgeRadius,
+      //   badgeShadow,
+      // );
       
       // Círculo branco do badge
       final badgePaint = Paint()..color = Colors.white;
@@ -136,8 +163,7 @@ class MarkerBitmapGenerator {
         badgePaint,
       );
       
-      // Texto da contagem (preto)
-      final countText = count > 99 ? '99+' : count.toString();
+      // Texto da contagem (preto) - usa countText já calculado
       final countPainter = TextPainter(
         text: TextSpan(
           text: countText,
@@ -201,6 +227,9 @@ class MarkerBitmapGenerator {
   /// - [emoji]: Emoji a ser renderizado
   /// - [eventId]: ID do evento (usado para gerar cor consistente)
   /// - [size]: IGNORADO - usa tamanho fixo interno para consistência
+  /// 
+  /// ✅ Cache otimizado: usa colorBucket (0-7) ao invés de eventId para
+  /// reduzir cardinalidade (máximo 8 cores × emojis ao invés de infinito)
   static Future<google.BitmapDescriptor> generateEmojiPinForGoogleMaps(
     String emoji, {
     String? eventId,
@@ -209,10 +238,13 @@ class MarkerBitmapGenerator {
     // ✅ FIX ANDROID: Usar tamanho FIXO em pixels para consistência
     // O marker terá ~90dp em qualquer device (270px / 3.0 ratio)
     const int markerSize = 220; // tamanho do círculo principal em px
-    const int canvasSize = 270; // com padding para sombra
+    const int canvasSize = 300; // com padding extra para sombra (aumentado de 270)
     const double center = canvasSize / 2;
     
-    final cacheKey = 'emoji_v8_${emoji}_${eventId ?? "default"}';
+    // ✅ Chave determinística: emoji + colorBucket + size
+    // colorBucket (0-7) reduz cardinalidade de infinito → 8 por emoji
+    final colorBucket = _colorBucket(eventId);
+    final cacheKey = 'emojiPin:v10:$emoji:c$colorBucket:$markerSize';
     if (_emojiPinCache.containsKey(cacheKey)) {
       return _emojiPinCache[cacheKey]!;
     }
@@ -291,10 +323,24 @@ class MarkerBitmapGenerator {
     int size = 100, // ignorado
     fcm.BaseCacheManager? cacheManager,
     String? cacheKey,
+    fcm.BaseCacheManager? markerCacheManager,
+    String? markerCacheKey,
   }) async {
     try {
       if (url.contains('placeholder.com') || url.isEmpty) {
         return _generateDefaultAvatarPinForGoogleMaps(size);
+      }
+
+      if (markerCacheManager != null && markerCacheKey != null) {
+        final cached = await markerCacheManager.getFileFromCache(
+          markerCacheKey,
+        );
+        if (cached != null && await cached.file.exists()) {
+          final bytes = await cached.file.readAsBytes();
+          if (bytes.isNotEmpty) {
+            return _descriptorFromPngBytes(bytes);
+          }
+        }
       }
 
       final fcm.BaseCacheManager manager = cacheManager ?? fcm.DefaultCacheManager();
@@ -373,6 +419,14 @@ class MarkerBitmapGenerator {
       final img = await picture.toImage(avatarSize, avatarSize);
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final uint8list = byteData!.buffer.asUint8List();
+
+      if (markerCacheManager != null && markerCacheKey != null) {
+        await markerCacheManager.putFile(
+          markerCacheKey,
+          uint8list,
+          fileExtension: 'png',
+        );
+      }
 
       return _descriptorFromPngBytes(uint8list);
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/services/geo_index_service.dart';
 import 'package:partiu/features/home/domain/models/activity_model.dart';
 import 'package:partiu/features/notifications/services/user_affinity_service.dart';
@@ -44,7 +45,7 @@ class NotificationTargetingService {
       final nearby = await _geo.findUsersInRadius(
         latitude: activity.latitude,
         longitude: activity.longitude,
-        radiusKm: 30.0,
+        radiusKm: EVENT_NOTIFICATION_RADIUS_KM,
         excludeUserIds: [activity.createdBy],
         limit: 500,
       );
@@ -204,7 +205,7 @@ class NotificationTargetingService {
     final radiusUsers = await _geo.findUsersInRadius(
       latitude: a.latitude,
       longitude: a.longitude,
-      radiusKm: 30.0,
+      radiusKm: EVENT_NOTIFICATION_RADIUS_KM,
       excludeUserIds: [a.createdBy],
       limit: 500,
     );

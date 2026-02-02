@@ -145,6 +145,21 @@ match /Users/{userId} {
     // Escrita apenas via Cloud Functions
     allow write: if false;
   }
+  
+  /// 🔒 Subcoleção privada para dados sensíveis
+  /// Path: Users/{userId}/private/{docId}
+  /// 
+  /// Contém:
+  /// - location: { latitude, longitude } (localização real do usuário)
+  /// 
+  /// 🛡️ SEGURANÇA: 
+  /// - Leitura: APENAS o próprio usuário pode ler
+  /// - Escrita: APENAS o próprio usuário pode escrever
+  /// - Cloud Functions (Admin SDK) podem acessar para cálculos de distância
+  match /private/{docId} {
+    allow read: if isOwner(userId);
+    allow write: if isOwner(userId);
+  }
 }
 
 
@@ -1066,11 +1081,9 @@ match /FaceVerifications/{userId} {
   // Usuário pode ler apenas sua própria verificação
   allow read: if isOwner(userId);
   
-  // Usuário pode criar/atualizar apenas sua própria verificação
-  allow create, update: if isOwner(userId);
-  
-  // Cloud Functions podem criar verificações (webhook do Didit)
-  allow create: if true;
+  // ❌ BLOQUEADO: Apenas Cloud Functions (Admin SDK) podem criar/atualizar
+  // Isso impede que usuários se "auto-verifiquem"
+  allow create, update: if false;
   
   // Não permite deletar verificações (auditoria)
   allow delete: if false;

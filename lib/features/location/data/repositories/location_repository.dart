@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/utils/app_logger.dart';
+import 'package:partiu/core/services/location_permission_flow.dart';
 import 'package:partiu/features/location/domain/repositories/location_repository_interface.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -32,7 +33,7 @@ class LocationRepository implements LocationRepositoryInterface {
       var permission = await Geolocator.checkPermission();
       
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        permission = await LocationPermissionFlow().request();
         if (permission == LocationPermission.denied) {
           onDenied();
           return false;
@@ -116,10 +117,18 @@ class LocationRepository implements LocationRepositoryInterface {
       AppLogger.info('   state: "$state" (type: ${state.runtimeType}, isEmpty: ${state.isEmpty})', tag: 'LocationRepository');
       AppLogger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', tag: 'LocationRepository');
       
-      // Update location directly in Firestore
-      await _firestore.collection('Users').doc(userId).update({
+      final userRef = _firestore.collection('Users').doc(userId);
+      
+      // 🔒 SEGURANÇA: Localização real vai para subcoleção privada
+      // Apenas o próprio usuário e Cloud Functions podem acessar
+      await userRef.collection('private').doc('location').set({
         'latitude': latitude,
         'longitude': longitude,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      // Dados públicos (displayLatitude tem offset de ~1-3km para privacidade)
+      await userRef.update({
         'displayLatitude': displayLatitude,
         'displayLongitude': displayLongitude,
         'geohash': geohash,
@@ -129,7 +138,7 @@ class LocationRepository implements LocationRepositoryInterface {
         'locationUpdatedAt': FieldValue.serverTimestamp(),
       });
       
-      AppLogger.success('✅ Location updated in Firestore', tag: 'LocationRepository');
+      AppLogger.success('✅ Location updated (real → private, display → public)', tag: 'LocationRepository');
       AppLogger.success('updateUserLocation() SUCCESS', tag: 'LocationRepository');
       
     } catch (e) {

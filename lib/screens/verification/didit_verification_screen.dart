@@ -54,6 +54,7 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
 
       if (Platform.isAndroid) {
         final granted = await _ensureAndroidMediaPermissions();
+        if (!mounted) return;
         if (!granted) {
           AppLogger.warning(
             'Permissões de câmera/microfone negadas; abortando verificação',
@@ -74,6 +75,8 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
       final session = await DiditVerificationService.instance
           .createVerificationSession();
 
+        if (!mounted) return;
+
       if (session == null) {
         setState(() {
           _isLoading = false;
@@ -84,12 +87,15 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
 
       AppLogger.info('Sessão criada: ${session.sessionId}', tag: _tag);
 
-      setState(() {
-        _session = session;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _session = session;
+          _isLoading = false;
+        });
+      }
 
       // Configura o WebView com a URL da sessão
+      if (!mounted) return;
       _setupWebView(session.url);
 
       // Inicia observação de mudanças na sessão
@@ -101,11 +107,13 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
         error: error,
         stackTrace: stackTrace,
       );
-      
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'verification_start_error';
-      });
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'verification_start_error';
+        });
+      }
     }
   }
 
@@ -295,9 +303,11 @@ class _DiditVerificationScreenState extends State<DiditVerificationScreen> {
       platformController.setMediaPlaybackRequiresUserGesture(false);
     }
 
-    setState(() {
-      _controller = controller;
-    });
+    if (mounted) {
+      setState(() {
+        _controller = controller;
+      });
+    }
   }
 
   Future<void> _suppressAndroidPlayOverlay(WebViewController controller) async {

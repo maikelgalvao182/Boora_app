@@ -347,55 +347,63 @@ class _UserCardState extends State<UserCard> {
                       return ValueListenableBuilder<String?>(
                         valueListenable: UserStore.instance.getStateNotifier(widget.userId),
                         builder: (context, uf, __) {
-                          final resolvedLocationText = _formatLocationText(
-                            locality: city ?? locality,
-                            state: uf ?? state,
-                            fallback: initialLocationText,
-                          );
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: UserStore.instance.getShowDistanceNotifier(widget.userId),
+                            builder: (context, showDistance, ___) {
+                              final resolvedLocationText = _formatLocationText(
+                                locality: city ?? locality,
+                                state: uf ?? state,
+                                fallback: initialLocationText,
+                              );
 
-                            final hasRow = (resolvedLocationText != null && resolvedLocationText.isNotEmpty) ||
-                              distanceText != null;
+                              // Só mostra distância se o usuário permitiu
+                              final effectiveDistanceText = showDistance ? distanceText : null;
 
-                          if (!hasRow) {
-                            return const SizedBox.shrink();
-                          }
+                              final hasRow = (resolvedLocationText != null && resolvedLocationText.isNotEmpty) ||
+                                  effectiveDistanceText != null;
 
-                          return Column(
-                            children: [
-                              const SizedBox(height: 2),
-                              Row(
+                              if (!hasRow) {
+                                return const SizedBox.shrink();
+                              }
+
+                              return Column(
                                 children: [
-                                  if (resolvedLocationText != null && resolvedLocationText.isNotEmpty)
-                                    Expanded(
-                                      child: Text(
-                                        resolvedLocationText,
-                                        style: GoogleFonts.getFont(
-                                          FONT_PLUS_JAKARTA_SANS,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: GlimpseColors.textSubTitle,
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      if (resolvedLocationText != null && resolvedLocationText.isNotEmpty)
+                                        Expanded(
+                                          child: Text(
+                                            resolvedLocationText,
+                                            style: GoogleFonts.getFont(
+                                              FONT_PLUS_JAKARTA_SANS,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: GlimpseColors.textSubTitle,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      else
+                                        const Spacer(),
+
+                                      if (effectiveDistanceText != null)
+                                        Text(
+                                          effectiveDistanceText,
+                                          style: GoogleFonts.getFont(
+                                            FONT_PLUS_JAKARTA_SANS,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            color: GlimpseColors.textSubTitle,
+                                          ),
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    )
-                                  else
-                                    const Spacer(),
 
-                                  if (distanceText != null)
-                                    Text(
-                                      distanceText,
-                                      style: GoogleFonts.getFont(
-                                        FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: GlimpseColors.textSubTitle,
-                                      ),
-                                    ),
-
+                                    ],
+                                  ),
                                 ],
-                              ),
-                            ],
+                              );
+                            },
                           );
                         },
                       );

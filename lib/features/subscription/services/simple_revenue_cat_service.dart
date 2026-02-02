@@ -23,6 +23,7 @@
 
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:partiu/common/utils/app_logger.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -33,6 +34,7 @@ class SimpleRevenueCatService {
   // ESTADO INTERNO
   // --------------------------------------------------------------------------
   static bool _initialized = false;
+  static bool _disabledForRelease = false;
   static CustomerInfo? _lastInfo;
   static String? _currentRcUserId;
 
@@ -62,6 +64,13 @@ class SimpleRevenueCatService {
       AppLogger.error('   Verifique se o documento AppInfo/revenue_cat existe');
       AppLogger.error('   e possui o campo ios_public_api_key ou android_public_api_key');
       throw Exception('RevenueCat API key não encontrada no Firestore');
+    }
+
+    if (kReleaseMode && _isTestApiKey(apiKey)) {
+      _disabledForRelease = true;
+      _initialized = true;
+      AppLogger.error('❌ RevenueCat: API key de TESTE em build RELEASE. Desativando compras.');
+      return;
     }
 
     // 3. Configura o SDK
@@ -322,6 +331,9 @@ class SimpleRevenueCatService {
   // --------------------------------------------------------------------------
   static Future<CustomerInfo> purchasePackage(Package package) async {
     if (!_initialized) await initialize();
+    if (_disabledForRelease) {
+      throw Exception('RevenueCat desativado: API key de teste em release');
+    }
 
     print('💳 [RevenueCat] Iniciando compra');
     print('   Package identifier: ${package.identifier}');
@@ -335,8 +347,18 @@ class SimpleRevenueCatService {
     AppLogger.info('Iniciando compra: ${package.storeProduct.identifier}');
     
     try {
-      // ignore: deprecated_member_use
-      final result = await Purchases.purchaseStoreProduct(package.storeProduct);
+      if (Platform.isAndroid) {
+        final canPay = await Purchases.canMakePayments();
+        if (!canPay) {
+          throw Exception('Billing indisponível neste dispositivo');
+        }
+      }
+
+      if (package.storeProduct.identifier.trim().isEmpty) {
+        throw Exception('Produto inválido para compra (identifier vazio)');
+      }
+
+      final result = await Purchases.purchasePackage(package);
 
       print('✅ [RevenueCat] Compra concluída com sucesso!');
       print('   Entitlements ativos após compra: ${result.customerInfo.entitlements.active.keys.toList()}');
@@ -369,6 +391,9 @@ class SimpleRevenueCatService {
   // --------------------------------------------------------------------------
   static Future<CustomerInfo> restorePurchases() async {
     if (!_initialized) await initialize();
+    if (_disabledForRelease) {
+      throw Exception('RevenueCat desativado: API key de teste em release');
+    }
 
     print('🔄 [RevenueCat] Restaurando compras...');
     final info = await Purchases.restorePurchases();
@@ -391,6 +416,10 @@ class SimpleRevenueCatService {
   // --------------------------------------------------------------------------
   static Future<void> login(String userId) async {
     if (!_initialized) await initialize();
+    if (_disabledForRelease) {
+      AppLogger.warning('RevenueCat desativado: login ignorado (API key de teste em release).');
+      return;
+    }
     
     // Idempotency check: se já estamos logados com este ID, não faz nada
     if (_currentRcUserId == userId) {
@@ -404,7 +433,7 @@ class SimpleRevenueCatService {
   }
 
   static Future<void> logout() async {
-    if (!_initialized) return;
+    if (!_initialized || _disabledForRelease) return;
     await Purchases.logOut();
     _currentRcUserId = null;
     _lastInfo = null;
@@ -465,6 +494,13 @@ class SimpleRevenueCatService {
       AppLogger.error('Erro ao buscar API key: $e');
       return null;
     }
+  }
+
+  static bool _isTestApiKey(String key) {
+    final normalized = key.trim().toLowerCase();
+    return normalized.contains('test') ||
+        normalized.contains('sandbox') ||
+        normalized.contains('dev');
   }
 
   static Future<void> _loadConfiguration() async {

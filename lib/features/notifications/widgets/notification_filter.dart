@@ -30,7 +30,7 @@ class NotificationFilter extends StatelessWidget {
     final effectiveSelectedIndex = selectedIndex < 0 ? 0 : selectedIndex;
 
     return SizedBox(
-      height: 48,
+      height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: padding,
@@ -79,14 +79,14 @@ class _NotificationChipButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(50),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 title,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: fg,
                 ),

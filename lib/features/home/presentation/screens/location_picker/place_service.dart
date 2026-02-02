@@ -138,20 +138,19 @@ class PlaceService {
     }
   }
 
-  /// Busca detalhes completos de um lugar por ID
-  /// Retorna name, formatted_address e coordenadas
+  /// Busca detalhes essenciais de um lugar por ID
+  /// Retorna name e coordenadas
   Future<LocationResult?> getPlaceDetails({
     required String placeId,
     required String languageCode,
   }) async {
     try {
-      // ✅ SOLUÇÃO: Buscar campos essenciais (name, formatted_address, geometry)
-      // Otimização: address_components removido para reduzir carga (Basic SKU)
+      // ✅ Buscar campos essenciais (name, geometry)
       final url = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/details/json?'
         'key=$apiKey&'
         'language=$languageCode&'
-        'fields=name,formatted_address,geometry,place_id&'
+        'fields=name,geometry&'
         'placeid=$placeId',
       );
 
@@ -177,15 +176,12 @@ class PlaceService {
         (location['lng'] as num).toDouble(),
       );
 
-      // ✅ Extrair name e formatted_address
+      // ✅ Extrair name
       final name = result['name'] as String?;
-      final formattedAddress = result['formatted_address'] as String?;
 
       return LocationResult()
         ..name = name
-        ..formattedAddress = formattedAddress
-        ..latLng = latLng
-        ..placeId = placeId;
+        ..latLng = latLng;
         // Campos estruturados (city, state, etc) removidos para otimização
          
     } catch (e) {
@@ -201,58 +197,6 @@ class PlaceService {
     // Importante: fotos do Google Places (Photos API) desativadas no app.
     // Retornar sempre vazio evita chamadas extras e qualquer download indireto.
     return [];
-  }
-
-  /// Busca lugares próximos a uma localização
-  Future<List<NearbyPlace>> getNearbyPlaces({
-    required LatLng location,
-    required String languageCode,
-    int radius = 150,
-  }) async {
-    try {
-      final url = Uri.parse(
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?'
-        'key=$apiKey&'
-        'location=${location.latitude},${location.longitude}&'
-        'radius=$radius&'
-        'language=$languageCode',
-      );
-
-      final response = await _httpClient.get(url).timeout(
-            const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException('Nearby places timeout'),
-          );
-
-      if (response.statusCode != 200) {
-        throw Exception('Nearby places failed: ${response.statusCode}');
-      }
-
-      final responseJson = json.decode(response.body) as Map<String, dynamic>;
-
-      if (responseJson['status'] != 'OK') {
-        return [];
-      }
-
-      final results = responseJson['results'] as List<dynamic>?;
-      if (results == null || results.isEmpty) {
-        return [];
-      }
-
-      return results.map((item) {
-        return NearbyPlace()
-          ..name = item['name'] as String?
-          ..icon = item['icon'] as String?
-          ..photoReference = null
-          ..photoWidth = null
-          ..photoHeight = null
-          ..latLng = LatLng(
-            (item['geometry']['location']['lat'] as num).toDouble(),
-            (item['geometry']['location']['lng'] as num).toDouble(),
-          );
-      }).toList();
-    } catch (e) {
-      return [];
-    }
   }
 
   /// Reverse geocoding - converte coordenadas em endereço

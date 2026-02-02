@@ -12,6 +12,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/profile/presentation/viewmodels/image_upload_view_model.dart';
 import 'package:partiu/features/profile/presentation/widgets/media_delete_button.dart';
 import 'package:partiu/features/profile/presentation/widgets/gallery_skeleton.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 import 'package:partiu/shared/screens/media_viewer_screen.dart';
 import 'package:partiu/core/services/toast_service.dart';
 
@@ -410,6 +411,8 @@ class _UserImageCell extends StatelessWidget {
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: double.infinity,
+                            cacheManager: AppCacheService.instance.galleryCacheManager,
+                            cacheKey: AppCacheService.instance.galleryCacheKey(url!),
                             errorWidget: (context, u, error) => const Icon(
                               Icons.broken_image,
                               color: GlimpseColors.textSubTitle,

@@ -63,7 +63,10 @@ class PeopleRankingViewModel extends ChangeNotifier {
   // Getters - Estado
   LoadState get loadState => _loadState;
   bool get isLoading => _loadState == LoadState.loading;
-  bool get isInitialLoading => _loadState == LoadState.loading && _peopleRankings.isEmpty;
+  /// Retorna true se estamos no carregamento inicial (antes de ter qualquer dado)
+  /// Isso inclui estado `idle` (nunca carregou) E estado `loading` com lista vazia
+  bool get isInitialLoading => 
+      (_loadState == LoadState.idle || _loadState == LoadState.loading) && _peopleRankings.isEmpty;
   bool get hasLoadedOnce => _loadState == LoadState.loaded || _loadState == LoadState.error;
   bool get isRefreshing => _isRefreshing;
   bool get shouldShowEmptyState => _loadState == LoadState.loaded && _peopleRankings.isEmpty && !_isRefreshing;
@@ -192,30 +195,43 @@ class PeopleRankingViewModel extends ChangeNotifier {
       return;
     }
 
-    await _persistentCache.initialize();
+    debugPrint('📦 [PeopleRanking] Verificando Hive cache...');
+    try {
+      await _persistentCache.initialize().timeout(const Duration(seconds: 3));
+      debugPrint('📦 [PeopleRanking] Hive inicializado');
+    } catch (e) {
+      debugPrint('⚠️ [PeopleRanking] Hive init timeout/error: $e - continuando sem cache');
+    }
+    
+    debugPrint('📦 [PeopleRanking] Verificando cache persistente...');
     if (!_isRefreshing) {
-      final persistent = _persistentCache.getCachedRanking(cacheKey);
-      if (persistent != null && persistent.isNotEmpty) {
-        debugPrint('📦 [PeopleRanking] Hive cache HIT - ${persistent.length} pessoas');
-        _peopleRankings = persistent;
+      try {
+        final persistent = _persistentCache.getCachedRanking(cacheKey);
+        debugPrint('📦 [PeopleRanking] getCachedRanking retornou: ${persistent?.length ?? "null"}');
+        if (persistent != null && persistent.isNotEmpty) {
+          debugPrint('📦 [PeopleRanking] Hive cache HIT - ${persistent.length} pessoas');
+          _peopleRankings = persistent;
 
-        _cache.set(
-          cacheKey,
-          persistent,
-          ttl: const Duration(minutes: 10),
-        );
+          _cache.set(
+            cacheKey,
+            persistent,
+            ttl: const Duration(minutes: 10),
+          );
 
-        if (_loadState == LoadState.idle) {
-          debugPrint('🟢 [LoadState] idle → loaded (hive cache hit)');
-          _loadState = LoadState.loaded;
+          if (_loadState == LoadState.idle) {
+            debugPrint('🟢 [LoadState] idle → loaded (hive cache hit)');
+            _loadState = LoadState.loaded;
+          }
+
+          notifyListeners();
+          _logRankingTelemetry(
+            reason: 'hive_cache',
+            cacheHit: true,
+          );
+          return;
         }
-
-        notifyListeners();
-        _logRankingTelemetry(
-          reason: 'hive_cache',
-          cacheHit: true,
-        );
-        return;
+      } catch (e) {
+        debugPrint('⚠️ [PeopleRanking] Erro ao ler cache: $e');
       }
     }
     
@@ -237,6 +253,7 @@ class PeopleRankingViewModel extends ChangeNotifier {
     
     _error = null;
     notifyListeners();
+    debugPrint('📊 [PeopleRankingViewModel] UI notificada, iniciando fetch do Firestore...');
 
     try {
       debugPrint('   - Chamando service.getPeopleRanking...');
@@ -244,7 +261,10 @@ class PeopleRankingViewModel extends ChangeNotifier {
         selectedState: _selectedState,
         selectedLocality: _selectedCity,
         limit: _rankingLimit,
-      );
+      ).timeout(const Duration(seconds: 15), onTimeout: () {
+        debugPrint('⏰ [PeopleRanking] TIMEOUT após 15s');
+        return <UserRankingModel>[];
+      });
       
       // 🔒 Verificar se este request ainda é válido
       if (requestId != _requestId) {

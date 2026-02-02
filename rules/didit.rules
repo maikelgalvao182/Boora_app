@@ -10,11 +10,9 @@ match /FaceVerifications/{userId} {
   // Usuário pode ler apenas sua própria verificação
   allow read: if isOwner(userId);
   
-  // Usuário pode criar/atualizar apenas sua própria verificação
-  allow create, update: if isOwner(userId);
-  
-  // Cloud Functions podem criar verificações (webhook do Didit)
-  allow create: if true;
+  // ❌ BLOQUEADO: Apenas Cloud Functions (Admin SDK) podem criar/atualizar
+  // Isso impede que usuários se "auto-verifiquem"
+  allow create, update: if false;
   
   // Não permite deletar verificações (auditoria)
   allow delete: if false;

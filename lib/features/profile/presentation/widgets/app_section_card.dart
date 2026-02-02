@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/features/profile/presentation/viewmodels/app_section_view_model.dart';
+import 'package:partiu/features/profile/presentation/widgets/notifications_settings_drawer.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/core/helpers/app_helper.dart';
 import 'package:partiu/dialogs/progress_dialog.dart';
@@ -22,6 +23,7 @@ import 'package:partiu/core/services/push_preferences_service.dart';
 import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/foundation.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/shared/stores/user_store.dart';
@@ -68,26 +70,11 @@ class _AppSectionCardState extends State<AppSectionCard> {
           color: Colors.white,
           child: Column(
             children: [
-              _buildSwitchItem(
+              _buildListItem(
                 context,
                 icon: Iconsax.notification,
-                title: _tr(i18n, 'global_notifications', 'Notificações gerais'),
-                value: PushPreferencesService.isEnabled(
-                  PushType.global,
-                  SessionManager.instance.currentUser?.pushPreferences,
-                ),
-                onChanged: (v) => _updatePushPreference(PushType.global, v),
-              ),
-              Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
-              _buildSwitchItem(
-                context,
-                icon: Iconsax.message,
-                title: _tr(i18n, 'event_messages', 'Mensagens dos eventos'),
-                value: PushPreferencesService.isEnabled(
-                  PushType.chatEvent,
-                  SessionManager.instance.currentUser?.pushPreferences,
-                ),
-                onChanged: (v) => _updatePushPreference(PushType.chatEvent, v),
+                title: _tr(i18n, 'configure_notifications', 'Configurar notificações'),
+                onTap: () => NotificationsSettingsDrawer.show(context),
               ),
             ],
           ),
@@ -105,6 +92,10 @@ class _AppSectionCardState extends State<AppSectionCard> {
           child: Column(
             children: [
               _buildMessageButtonSwitch(context),
+              Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
+              _buildFollowButtonSwitch(context),
+              Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
+              _buildShowDistanceSwitch(context),
               Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.10)),
               _buildListItem(
                 context,
@@ -515,6 +506,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
   
   Future<void> _requestAppReview() async {
     try {
+      if (!_canRequestReview()) return;
       final inAppReview = InAppReview.instance;
 
       if (await inAppReview.isAvailable()) {
@@ -525,6 +517,15 @@ class _AppSectionCardState extends State<AppSectionCard> {
     } catch (e) {
       debugPrint('⭐️ [REVIEW] Error requesting review: $e');
     }
+  }
+
+  bool _canRequestReview() {
+    if (!mounted || kIsWeb) return false;
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) {
+      return false;
+    }
+    return true;
   }
   
   Future<void> _updatePushPreference(PushType type, bool enabled) async {
@@ -588,6 +589,124 @@ class _AppSectionCardState extends State<AppSectionCard> {
           .set({'message_button': enabled}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('❌ [MESSAGE_BUTTON] Erro ao atualizar preferência: $e');
+      // Reverte para valor anterior em caso de erro
+      notifier.value = previousValue;
+      final i18n = AppLocalizations.of(context);
+      ToastService.showError(message: _tr(i18n, 'error', 'Erro'));
+    }
+  }
+
+  Widget _buildFollowButtonSwitch(BuildContext context) {
+    final userId = AppState.currentUserId;
+    if (userId == null || userId.isEmpty) return const SizedBox.shrink();
+
+    final i18n = AppLocalizations.of(context);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: UserStore.instance.getFollowButtonNotifier(userId),
+      builder: (context, enabled, _) {
+        return _buildSwitchItem(
+          context,
+          icon: Iconsax.user_add,
+          title: _tr(i18n, 'follow_button', 'Botão de seguir no meu perfil'),
+          value: enabled,
+          onChanged: (v) => _updateFollowButtonPreference(context, userId, v),
+        );
+      },
+    );
+  }
+
+  Future<void> _updateFollowButtonPreference(
+    BuildContext context,
+    String userId,
+    bool enabled,
+  ) async {
+    // 1. Atualiza UI imediatamente (optimistic update)
+    final notifier = UserStore.instance.getFollowButtonNotifier(userId);
+    final previousValue = notifier.value;
+    notifier.value = enabled;
+    
+    try {
+      // 2. Persiste no Firestore (advancedSettings.followButton)
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .set({
+            'advancedSettings': {
+              'followButton': enabled,
+            },
+          }, SetOptions(merge: true));
+
+      // Compatibilidade: alguns pontos do app usam a coleção `users` (minúsculo)
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .set({
+            'advancedSettings': {
+              'followButton': enabled,
+            },
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('❌ [FOLLOW_BUTTON] Erro ao atualizar preferência: $e');
+      // Reverte para valor anterior em caso de erro
+      notifier.value = previousValue;
+      final i18n = AppLocalizations.of(context);
+      ToastService.showError(message: _tr(i18n, 'error', 'Erro'));
+    }
+  }
+
+  Widget _buildShowDistanceSwitch(BuildContext context) {
+    final userId = AppState.currentUserId;
+    if (userId == null || userId.isEmpty) return const SizedBox.shrink();
+
+    final i18n = AppLocalizations.of(context);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: UserStore.instance.getShowDistanceNotifier(userId),
+      builder: (context, enabled, _) {
+        return _buildSwitchItem(
+          context,
+          icon: Iconsax.location,
+          title: _tr(i18n, 'show_distance', 'Mostrar distância no meu perfil'),
+          value: enabled,
+          onChanged: (v) => _updateShowDistancePreference(context, userId, v),
+        );
+      },
+    );
+  }
+
+  Future<void> _updateShowDistancePreference(
+    BuildContext context,
+    String userId,
+    bool enabled,
+  ) async {
+    // 1. Atualiza UI imediatamente (optimistic update)
+    final notifier = UserStore.instance.getShowDistanceNotifier(userId);
+    final previousValue = notifier.value;
+    notifier.value = enabled;
+    
+    try {
+      // 2. Persiste no Firestore (advancedSettings.showDistance)
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .set({
+            'advancedSettings': {
+              'showDistance': enabled,
+            },
+          }, SetOptions(merge: true));
+
+      // Compatibilidade: alguns pontos do app usam a coleção `users` (minúsculo)
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .set({
+            'advancedSettings': {
+              'showDistance': enabled,
+            },
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('❌ [SHOW_DISTANCE] Erro ao atualizar preferência: $e');
       // Reverte para valor anterior em caso de erro
       notifier.value = previousValue;
       final i18n = AppLocalizations.of(context);

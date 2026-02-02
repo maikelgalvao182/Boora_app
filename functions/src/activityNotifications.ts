@@ -26,7 +26,7 @@
 
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import {findUsersInRadius, getEventParticipants} from "./services/geoService";
+import {findUsersForEventNotification, getEventParticipants} from "./services/geoService";
 
 // Thresholds para "heating up" - deve estar sincronizado com Flutter
 const HEATING_UP_THRESHOLDS = [3, 5, 10];
@@ -140,11 +140,10 @@ export const onActivityCreatedNotification = functions.firestore
         creatorPhoto = "";
       }
 
-      // 2. Buscar usuários no raio
-      const usersInRadius = await findUsersInRadius({
-        latitude,
-        longitude,
-        radiusKm: 30,
+      // 2. Buscar usuários elegíveis (respeitando raio personalizado de cada um)
+      const usersInRadius = await findUsersForEventNotification({
+        eventLatitude: latitude,
+        eventLongitude: longitude,
         excludeUserIds: [creatorId],
         limit: 500,
       });
@@ -315,12 +314,11 @@ export const onActivityHeatingUp = functions.firestore
         creatorPhoto = "";
       }
 
-      // 5. Buscar usuários no raio (excluindo participantes)
+      // 5. Buscar usuários elegíveis (respeitando raio personalizado de cada um)
       const excludeIds = [...participants, creatorId];
-      const usersInRadius = await findUsersInRadius({
-        latitude,
-        longitude,
-        radiusKm: 30,
+      const usersInRadius = await findUsersForEventNotification({
+        eventLatitude: latitude,
+        eventLongitude: longitude,
         excludeUserIds: excludeIds,
         limit: 500,
       });

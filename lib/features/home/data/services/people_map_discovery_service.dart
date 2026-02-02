@@ -56,19 +56,45 @@ class PeopleMapDiscoveryService {
   /// TTL do cache por tile. 3min reduz refetch em pan/zoom.
   static const Duration cacheTTL = Duration(seconds: 180);
   /// TTL do cache persistente (Hive) por tile.
-  static const Duration persistentCacheTTL = Duration(hours: 6);
+  static const Duration persistentCacheTTL = Duration(hours: 2);
   /// Refresh em background quando o cache persistente estiver "velho".
-  static const Duration persistentSoftRefreshAge = Duration(minutes: 15);
+  static const Duration persistentSoftRefreshAge = Duration(minutes: 45);
   static const Duration debounceTime = Duration(milliseconds: 300);
+  static const Duration softRefreshCooldown = Duration(minutes: 10);
+  static const Duration softRefreshMinIdle = Duration(seconds: 4);
+  static const double _expandMarginDefault = 0.30;
+  static const double _expandMarginHighZoom = 0.18;
 
   /// Número máximo de tiles em memória (LRU)
-  static const int maxCachedTiles = 12;
+  static const int maxCachedTiles = 24;
 
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
 
   final LinkedHashMap<String, _PeopleCacheEntry> _cache = LinkedHashMap();
+  final Map<String, Future<void>> _inFlightRequests = {};
+  final Map<String, DateTime> _softRefreshByKey = {};
   double? _currentZoom;
+  DateTime? _lastQueryAt;
+  DateTime? _lastCameraIdleAt;
+  MapBounds? _coverageBounds;
+  String? _coverageFiltersSignature;
+  String? _coverageZoomBucket;
+  MapBounds? _lastQueryBounds;
+  double? _lastQueryZoom;
+
+  int _callsTotal = 0;
+  int _callsIdle = 0;
+  int _callsRefresh = 0;
+  int _callsPreload = 0;
+  int _callsStale = 0;
+  int _cacheHitMemory = 0;
+  int _cacheHitHive = 0;
+  int _cacheMiss = 0;
+  int _inFlightJoined = 0;
+
+  final bool _sampleSession = math.Random().nextInt(100) == 0;
+  final List<Map<String, Object?>> _sampleKeys = <Map<String, Object?>>[];
 
   // Cache persistente (Hive)
   final HiveCacheService<Map<String, dynamic>> _persistentCache =
@@ -214,6 +240,9 @@ class PeopleMapDiscoveryService {
       // Limpa para evitar valores stale quando o usuário dá zoom out.
       _debounceTimer?.cancel();
       _pendingBounds = null;
+      _coverageBounds = null;
+      _coverageFiltersSignature = null;
+      _coverageZoomBucket = null;
       currentBounds.value = null;
       nearbyPeopleCount.value = 0;
       nearbyPeople.value = const [];
@@ -228,14 +257,16 @@ class PeopleMapDiscoveryService {
     
     currentBounds.value = bounds;
     _currentZoom = zoom;
-    _pendingBounds = bounds;
+    _lastCameraIdleAt = DateTime.now();
+
+    _pendingBounds = _expandBounds(bounds, _expandMarginForZoom(zoom));
 
     _debounceTimer?.cancel();
     _debounceTimer = Timer(debounceTime, () {
       final b = _pendingBounds;
       if (b != null) {
         _pendingBounds = null;
-        unawaited(_executeQuery(b));
+        unawaited(_executeQuery(b, throttleMs: 2000, trigger: 'idle'));
       }
     });
   }
@@ -244,12 +275,15 @@ class PeopleMapDiscoveryService {
     debugPrint('🔄 [PeopleMapDiscovery] forceRefresh chamado');
     currentBounds.value = bounds;
     _currentZoom = zoom;
+    _coverageBounds = null;
+    _coverageFiltersSignature = null;
+    _coverageZoomBucket = null;
     _debounceTimer?.cancel();
     if (zoom != null && bounds != null) {
       final key = _buildCacheKey(bounds, _buildFiltersSignature(_locationQueryService.currentFilters), zoom);
       _cache.remove(key);
     }
-    await _executeQuery(bounds);
+    await _executeQuery(bounds, throttleMs: 0, trigger: 'refresh');
   }
 
   /// Faz preload (best-effort) de pessoas/avatares para um bounds, sem
@@ -258,10 +292,27 @@ class PeopleMapDiscoveryService {
   /// Útil para warmup: aquece cache de imagens sem causar “flash” de dados
   /// de um raio aproximado antes do viewport real do mapa estar disponível.
   Future<void> preloadForBounds(MapBounds bounds) async {
+    final filtersSignature = _buildFiltersSignature(_locationQueryService.currentFilters);
+    final zoomBucket = _zoomBucket(_currentZoom);
+    final coverage = _coverageBounds;
+    if (coverage != null &&
+        _coverageFiltersSignature == filtersSignature &&
+        _coverageZoomBucket == zoomBucket &&
+        _isBoundsContained(bounds, coverage)) {
+      return;
+    }
+
+    final cacheKey = _buildCacheKey(bounds, filtersSignature, _currentZoom);
+    if (_inFlightRequests.containsKey(cacheKey)) {
+      return;
+    }
+
     await _executeQuery(
       bounds,
       publishToNotifiers: false,
       reportLoading: false,
+      throttleMs: 0,
+      trigger: 'preload',
     );
   }
 
@@ -303,6 +354,8 @@ class PeopleMapDiscoveryService {
     bool publishToNotifiers = true,
     bool reportLoading = true,
     bool bypassCache = false,
+    int throttleMs = 0,
+    String trigger = 'unknown',
   }) async {
     debugPrint('🔍 [PeopleMapDiscovery] _executeQuery iniciado...');
     if (reportLoading) {
@@ -313,240 +366,440 @@ class PeopleMapDiscoveryService {
     final filtersSignature = _buildFiltersSignature(activeFilters);
 
     final cacheKey = _buildCacheKey(bounds, filtersSignature, _currentZoom);
-    if (!bypassCache) {
-      final cached = _getCacheEntry(cacheKey);
-      if (cached != null) {
-        debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${cached.people.length} pessoas');
-        if (publishToNotifiers) {
-          _setNotifierValue(nearbyPeople, cached.people);
-          _setNotifierValue(nearbyPeopleCount, cached.count);
-        }
-        if (reportLoading) {
-          _setNotifierValue(isLoading, false);
-        }
-        return;
-      }
-
-      final persistentEntry = _getPersistentCacheEntry(cacheKey);
-      if (persistentEntry != null) {
-        debugPrint('📦 [PeopleMapDiscovery] Hive cache HIT: ${persistentEntry.people.length} pessoas');
-        if (publishToNotifiers) {
-          _setNotifierValue(nearbyPeople, persistentEntry.people);
-          _setNotifierValue(nearbyPeopleCount, persistentEntry.count);
-        }
-        if (reportLoading) {
-          _setNotifierValue(isLoading, false);
-        }
-
-        _putCacheEntry(
-          cacheKey,
-          _PeopleCacheEntry(
-            people: persistentEntry.people,
-            count: persistentEntry.count,
-            fetchedAt: persistentEntry.fetchedAt,
-          ),
-        );
-
-        final age = DateTime.now().difference(persistentEntry.fetchedAt);
-        if (age >= persistentSoftRefreshAge) {
-          unawaited(_executeQuery(
-            bounds,
-            publishToNotifiers: true,
-            reportLoading: false,
-            bypassCache: true,
-          ));
-        }
-        return;
-      }
+    final inFlight = _inFlightRequests[cacheKey];
+    if (inFlight != null) {
+      _inFlightJoined++;
+      await inFlight;
+      return;
     }
 
-    try {
-      // Obter localização atual do usuário para cálculo de distância
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) {
-        debugPrint('⚠️ [PeopleMapDiscovery] Usuário não autenticado');
-        _setNotifierValue(isLoading, false);
-        return;
+    bool shouldSoftRefresh(DateTime fetchedAt) {
+      if (!publishToNotifiers) return false;
+      if (!isViewportActive.value) return false;
+      if (_inFlightRequests.containsKey(cacheKey)) return false;
+
+      final lastIdleAt = _lastCameraIdleAt;
+      if (lastIdleAt != null) {
+        final idleFor = DateTime.now().difference(lastIdleAt);
+        if (idleFor < softRefreshMinIdle) return false;
       }
 
-      // Otimização: Tenta usar location em memória primeiro para resposta rápida
-      var userLocation = _locationService.lastKnownPosition;
-
-      if (userLocation == null) {
-        // Se não houver, busca com timeout curto (2s) para evitar "spinner infinito"
-        // se o GPS estiver demorando. O fallback do LocationService entrara em ação.
-        userLocation = await _locationService.getCurrentLocation(
-            timeout: const Duration(seconds: 2));
+      final lastRefreshAt = _softRefreshByKey[cacheKey];
+      if (lastRefreshAt != null) {
+        final sinceLast = DateTime.now().difference(lastRefreshAt);
+        if (sinceLast < softRefreshCooldown) return false;
       }
 
-      if (userLocation == null) {
-        debugPrint('⚠️ [PeopleMapDiscovery] Localização do usuário não disponível');
-        if (reportLoading) {
-          _setNotifierValue(isLoading, false);
+      final age = DateTime.now().difference(fetchedAt);
+      return age >= persistentSoftRefreshAge;
+    }
+
+    final request = () async {
+      if (!bypassCache) {
+        final cached = _getCacheEntry(cacheKey);
+        if (cached != null) {
+          _cacheHitMemory++;
+          debugPrint('📦 [PeopleMapDiscovery] Usando cache: ${cached.people.length} pessoas');
+          if (publishToNotifiers) {
+            _setNotifierValue(nearbyPeople, cached.people);
+            _setNotifierValue(nearbyPeopleCount, cached.count);
+          }
+          if (reportLoading) {
+            _setNotifierValue(isLoading, false);
+          }
+          _trackSample(cacheKey, trigger, cached.fetchedAt, bounds, _currentZoom);
+          return;
         }
-        return;
+
+        final persistentEntry = _getPersistentCacheEntry(cacheKey);
+        if (persistentEntry != null) {
+          _cacheHitHive++;
+          debugPrint('📦 [PeopleMapDiscovery] Hive cache HIT: ${persistentEntry.people.length} pessoas');
+          if (publishToNotifiers) {
+            _setNotifierValue(nearbyPeople, persistentEntry.people);
+            _setNotifierValue(nearbyPeopleCount, persistentEntry.count);
+          }
+          if (reportLoading) {
+            _setNotifierValue(isLoading, false);
+          }
+
+          _putCacheEntry(
+            cacheKey,
+            _PeopleCacheEntry(
+              people: persistentEntry.people,
+              count: persistentEntry.count,
+              fetchedAt: persistentEntry.fetchedAt,
+            ),
+          );
+
+          _trackSample(cacheKey, trigger, persistentEntry.fetchedAt, bounds, _currentZoom);
+
+          if (shouldSoftRefresh(persistentEntry.fetchedAt)) {
+            _softRefreshByKey[cacheKey] = DateTime.now();
+            unawaited(_executeQuery(
+              bounds,
+              publishToNotifiers: true,
+              reportLoading: false,
+              bypassCache: true,
+              throttleMs: 0,
+              trigger: 'stale',
+            ));
+          }
+          return;
+        }
       }
 
-      // IMPORTANTE: a lista do mapa deve ser determinada pelo BOUNDING BOX,
-      // não por um raio fixo (ex.: 30km). Como o PeopleCloudService ainda
-      // filtra por radiusKm ao calcular distâncias, aqui calculamos um raio
-      // grande o suficiente para cobrir todo o bounding box a partir do usuário.
-      final radiusKm = (activeFilters.radiusKm != null)
-          ? (activeFilters.radiusKm!).clamp(1.0, 20000.0)
-          : _radiusKmToCoverBoundsFromUser(
-              bounds: bounds,
-              userLat: userLocation.latitude,
-              userLng: userLocation.longitude,
-            );
+      _cacheMiss++;
 
-      debugPrint('🔍 [PeopleMapDiscovery] Chamando Cloud Function...');
-      debugPrint('   📍 User: (${userLocation.latitude}, ${userLocation.longitude})');
-      debugPrint('   📏 Radius: ${radiusKm.toStringAsFixed(1)}km');
-      debugPrint('   📐 Bounds: ${bounds.minLat.toStringAsFixed(4)},${bounds.maxLat.toStringAsFixed(4)},${bounds.minLng.toStringAsFixed(4)},${bounds.maxLng.toStringAsFixed(4)}');
+      final now = DateTime.now();
+      if (throttleMs > 0 && _lastQueryAt != null) {
+        final elapsed = now.difference(_lastQueryAt!);
+        if (elapsed.inMilliseconds < throttleMs) {
+          if (reportLoading) {
+            _setNotifierValue(isLoading, false);
+          }
+          return;
+        }
+      }
 
-      // Paralelismo: Busca dados da nuvem e do usuário local ao mesmo tempo
-      final results = await Future.wait([
-        _cloudService.getPeopleNearby(
-          userLatitude: userLocation.latitude,
-          userLongitude: userLocation.longitude,
-          radiusKm: radiusKm,
-          boundingBox: {
-            'minLat': bounds.minLat,
-            'maxLat': bounds.maxLat,
-            'minLng': bounds.minLng,
-            'maxLng': bounds.maxLng,
-          },
-          filters: UserCloudFilters(
-            gender: activeFilters.gender,
-            minAge: activeFilters.minAge,
-            maxAge: activeFilters.maxAge,
-            isVerified: activeFilters.isVerified,
-            interests: activeFilters.interests,
-            sexualOrientation: activeFilters.sexualOrientation,
+      _lastQueryAt = now;
+      _callsTotal++;
+      if (trigger == 'idle') _callsIdle++;
+      if (trigger == 'refresh') _callsRefresh++;
+      if (trigger == 'preload') _callsPreload++;
+      if (trigger == 'stale') _callsStale++;
+
+      try {
+        // Obter localização atual do usuário para cálculo de distância
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser == null) {
+          debugPrint('⚠️ [PeopleMapDiscovery] Usuário não autenticado');
+          _setNotifierValue(isLoading, false);
+          return;
+        }
+
+        // Otimização: Tenta usar location em memória primeiro para resposta rápida
+        var userLocation = _locationService.lastKnownPosition;
+
+        if (userLocation == null) {
+          // Se não houver, busca com timeout curto (2s) para evitar "spinner infinito"
+          // se o GPS estiver demorando. O fallback do LocationService entrara em ação.
+          userLocation = await _locationService.getCurrentLocation(
+              timeout: const Duration(seconds: 2));
+        }
+
+        if (userLocation == null) {
+          debugPrint('⚠️ [PeopleMapDiscovery] Localização do usuário não disponível');
+          if (reportLoading) {
+            _setNotifierValue(isLoading, false);
+          }
+          return;
+        }
+
+        // IMPORTANTE: a lista do mapa deve ser determinada pelo BOUNDING BOX,
+        // não por um raio fixo (ex.: 30km). Como o PeopleCloudService ainda
+        // filtra por radiusKm ao calcular distâncias, aqui calculamos um raio
+        // grande o suficiente para cobrir todo o bounding box a partir do usuário.
+        
+        // Limita o bounding box para respeitar o limite do servidor (MAX_DELTA_DEG = 0.6)
+        // que corresponde a ~66km de lado. Áreas maiores serão cortadas a partir do centro.
+        final clampedBounds = _clampBoundsForServer(bounds);
+        
+        final radiusKm = (activeFilters.radiusKm != null)
+            ? (activeFilters.radiusKm!).clamp(1.0, 20000.0)
+            : _radiusKmToCoverBoundsFromUser(
+                bounds: clampedBounds,
+                userLat: userLocation.latitude,
+                userLng: userLocation.longitude,
+              );
+
+        debugPrint('🔍 [PeopleMapDiscovery] Chamando Cloud Function...');
+        debugPrint('   📍 User: (${userLocation.latitude}, ${userLocation.longitude})');
+        debugPrint('   📏 Radius: ${radiusKm.toStringAsFixed(1)}km');
+        debugPrint('   📐 Bounds: ${clampedBounds.minLat.toStringAsFixed(4)},${clampedBounds.maxLat.toStringAsFixed(4)},${clampedBounds.minLng.toStringAsFixed(4)},${clampedBounds.maxLng.toStringAsFixed(4)}');
+
+        // Paralelismo: Busca dados da nuvem e do usuário local ao mesmo tempo
+        final results = await Future.wait([
+          _cloudService.getPeopleNearby(
+            userLatitude: userLocation.latitude,
+            userLongitude: userLocation.longitude,
+            radiusKm: radiusKm,
+            boundingBox: {
+              'minLat': clampedBounds.minLat,
+              'maxLat': clampedBounds.maxLat,
+              'minLng': clampedBounds.minLng,
+              'maxLng': clampedBounds.maxLng,
+            },
+            filters: UserCloudFilters(
+              gender: activeFilters.gender,
+              minAge: activeFilters.minAge,
+              maxAge: activeFilters.maxAge,
+              isVerified: activeFilters.isVerified,
+              interests: activeFilters.interests,
+              sexualOrientation: activeFilters.sexualOrientation,
+            ),
           ),
-        ),
-        _userRepository.getCurrentUserData(),
-      ]);
+          _userRepository.getCurrentUserData(),
+        ]);
 
-      final result = results[0] as PeopleCloudResult;
-      final myUserData = results[1] as Map<String, dynamic>?;
+        final result = results[0] as PeopleCloudResult;
+        final myUserData = results[1] as Map<String, dynamic>?;
 
-      debugPrint('☁️ [PeopleMapDiscovery] Cloud Function retornou ${result.users.length} usuários');
+        debugPrint('☁️ [PeopleMapDiscovery] Cloud Function retornou ${result.users.length} usuários');
 
         // Buscar interesses do usuário atual (cacheado no UserRepository)
         // para calcular commonInterests (matchs) nos cards.
         final myInterests = (myUserData?['interests'] as List?)
-            ?.whereType<String>()
-            .toList() ??
-          const <String>[];
+                ?.whereType<String>()
+                .toList() ??
+            const <String>[];
 
-      final currentUserId = currentUser.uid;
-      var selfIncludedInPage = false;
+        final currentUserId = currentUser.uid;
+        var selfIncludedInPage = false;
 
-      // Converter UserWithDistance para User
-      final people = <app_user.User>[];
-      final serializedPeople = <Map<String, dynamic>>[];
-      for (final uwd in result.users) {
-        try {
-          final userData = Map<String, dynamic>.from(uwd.userData);
+        // Converter UserWithDistance para User
+        final people = <app_user.User>[];
+        final serializedPeople = <Map<String, dynamic>>[];
+        for (final uwd in result.users) {
+          try {
+            final userData = Map<String, dynamic>.from(uwd.userData);
 
-          final candidateId = (userData['userId'] ?? userData['uid'] ?? userData['id'])?.toString();
-          if (candidateId != null && candidateId == currentUserId) {
-            selfIncludedInPage = true;
-            continue;
+            final candidateId = (userData['userId'] ?? userData['uid'] ?? userData['id'])?.toString();
+            if (candidateId != null && candidateId == currentUserId) {
+              selfIncludedInPage = true;
+              continue;
+            }
+
+            userData['distance'] = uwd.distanceKm;
+
+            // Enriquecer com interesses em comum (se possível)
+            // (não depende de Firestore por usuário, só usa o payload já retornado)
+            final userInterests = (userData['interests'] as List?)
+                    ?.whereType<String>()
+                    .toList() ??
+                const <String>[];
+            if (myInterests.isNotEmpty && userInterests.isNotEmpty) {
+              userData['commonInterests'] = InterestsHelper.getCommonInterestsList(
+                userInterests,
+                myInterests,
+              );
+            } else {
+              userData['commonInterests'] = const <String>[];
+            }
+
+            final user = app_user.User.fromDocument(userData);
+            people.add(user);
+            serializedPeople.add(Map<String, dynamic>.from(userData));
+          } catch (e) {
+            debugPrint('   ❌ Erro ao converter usuário: $e');
           }
-
-          userData['distance'] = uwd.distanceKm;
-
-          // Enriquecer com interesses em comum (se possível)
-          // (não depende de Firestore por usuário, só usa o payload já retornado)
-          final userInterests = (userData['interests'] as List?)
-                  ?.whereType<String>()
-                  .toList() ??
-              const <String>[];
-          if (myInterests.isNotEmpty && userInterests.isNotEmpty) {
-            userData['commonInterests'] = InterestsHelper.getCommonInterestsList(
-              userInterests,
-              myInterests,
-            );
-          } else {
-            userData['commonInterests'] = const <String>[];
-          }
-
-          final user = app_user.User.fromDocument(userData);
-          people.add(user);
-          serializedPeople.add(Map<String, dynamic>.from(userData));
-        } catch (e) {
-          debugPrint('   ❌ Erro ao converter usuário: $e');
         }
-      }
 
-      final adjustedTotalCandidates = selfIncludedInPage
-          ? (result.totalCandidates - 1).clamp(0, 1 << 30)
-          : result.totalCandidates;
+        final adjustedTotalCandidates = selfIncludedInPage
+            ? (result.totalCandidates - 1).clamp(0, 1 << 30)
+            : result.totalCandidates;
 
-      _putCacheEntry(
-        cacheKey,
-        _PeopleCacheEntry(
-          people: people,
+        _putCacheEntry(
+          cacheKey,
+          _PeopleCacheEntry(
+            people: people,
+            count: adjustedTotalCandidates,
+            fetchedAt: DateTime.now(),
+          ),
+        );
+
+        await _putPersistentCacheEntry(
+          cacheKey: cacheKey,
+          people: serializedPeople,
           count: adjustedTotalCandidates,
           fetchedAt: DateTime.now(),
-        ),
-      );
+        );
 
-      await _putPersistentCacheEntry(
-        cacheKey: cacheKey,
-        people: serializedPeople,
-        count: adjustedTotalCandidates,
-        fetchedAt: DateTime.now(),
-      );
+        debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
 
-      debugPrint('📋 [PeopleMapDiscovery] Atualizando nearbyPeople com ${people.length} pessoas');
+        // 🚀 Prioridade: Atualizar UI primeiro!
+        // Libera o indicador de "digitando..." imediatamente
+        if (publishToNotifiers) {
+          _setNotifierValue(nearbyPeople, people);
+          _setNotifierValue(nearbyPeopleCount, adjustedTotalCandidates);
+        }
 
-      // 🚀 Prioridade: Atualizar UI primeiro!
-      // Libera o indicador de "digitando..." imediatamente
-      if (publishToNotifiers) {
-        _setNotifierValue(nearbyPeople, people);
-        _setNotifierValue(nearbyPeopleCount, adjustedTotalCandidates);
-      }
+        if (reportLoading) {
+          _setNotifierValue(isLoading, false);
+        }
 
-      if (reportLoading) {
-        _setNotifierValue(isLoading, false);
-      }
-
-      AnalyticsService.instance.logEvent('find_people_query', parameters: {
-        'users_returned': people.length,
-        'total_candidates': adjustedTotalCandidates,
-      });
-      
-      // ✅ Tarefas de background (Preload de avatares)
-      // Executa APÓS liberar a UI para não travar a exibição da contagem
-      final userStore = UserStore.instance;
-      final usersWithPhoto = people.where((u) => u.photoUrl.isNotEmpty).toList()
-        ..sort((a, b) {
-          final distanceA = a.distance ?? double.infinity;
-          final distanceB = b.distance ?? double.infinity;
-          return distanceA.compareTo(distanceB);
+        AnalyticsService.instance.logEvent('find_people_query', parameters: {
+          'users_returned': people.length,
+          'total_candidates': adjustedTotalCandidates,
         });
 
-      const maxViewportPreload = 60;
-      final preloadLimit = usersWithPhoto.length > maxViewportPreload
-          ? maxViewportPreload
-          : usersWithPhoto.length;
+        // ✅ Tarefas de background (Preload de avatares)
+        // Executa APÓS liberar a UI para não travar a exibição da contagem
+        final userStore = UserStore.instance;
+        final usersWithPhoto = people.where((u) => u.photoUrl.isNotEmpty).toList()
+          ..sort((a, b) {
+            final distanceA = a.distance ?? double.infinity;
+            final distanceB = b.distance ?? double.infinity;
+            return distanceA.compareTo(distanceB);
+          });
 
-      for (final user in usersWithPhoto.take(preloadLimit)) {
-        userStore.preloadAvatar(user.userId, user.photoUrl);
+        const maxViewportPreload = 60;
+        final preloadLimit = usersWithPhoto.length > maxViewportPreload
+            ? maxViewportPreload
+            : usersWithPhoto.length;
+
+        for (final user in usersWithPhoto.take(preloadLimit)) {
+          userStore.preloadAvatar(user.userId, user.photoUrl);
+        }
+
+        debugPrint('✅ [PeopleMapDiscovery] ${people.length} pessoas encontradas (total: $adjustedTotalCandidates)');
+        _trackSample(cacheKey, trigger, DateTime.now(), bounds, _currentZoom);
+      } catch (e, stack) {
+        debugPrint('⚠️ [PeopleMapDiscovery] Falha ao buscar pessoas em bounds: $e');
+        debugPrint('   Stack: $stack');
+        // Importante: manter último count/people na UI em caso de erro de rede.
+        // Não zera a UI para evitar instabilidade visual.
+        if (reportLoading) {
+          _setNotifierValue(lastError, e);
+          _setNotifierValue(isLoading, false);
+        }
       }
+    };
 
-      debugPrint('✅ [PeopleMapDiscovery] ${people.length} pessoas encontradas (total: $adjustedTotalCandidates)');
-    } catch (e, stack) {
-      debugPrint('⚠️ [PeopleMapDiscovery] Falha ao buscar pessoas em bounds: $e');
-      debugPrint('   Stack: $stack');
-      if (reportLoading) {
-        _setNotifierValue(lastError, e);
-        _setNotifierValue(isLoading, false);
+    final requestFuture = request();
+    _inFlightRequests[cacheKey] = requestFuture;
+    try {
+      await requestFuture;
+      _coverageBounds = bounds;
+      _coverageFiltersSignature = filtersSignature;
+      _coverageZoomBucket = _zoomBucket(_currentZoom);
+    } finally {
+      if (_inFlightRequests[cacheKey] == requestFuture) {
+        _inFlightRequests.remove(cacheKey);
       }
     }
+  }
+
+  void _trackSample(
+    String cacheKey,
+    String trigger,
+    DateTime fetchedAt,
+    MapBounds bounds,
+    double? zoom,
+  ) {
+    if (!_sampleSession) return;
+
+    final lastBounds = _lastQueryBounds;
+    final lastZoom = _lastQueryZoom;
+
+    double? movementKm;
+    double? zoomDelta;
+    if (lastBounds != null) {
+      final lastCenterLat = (lastBounds.minLat + lastBounds.maxLat) / 2.0;
+      final lastCenterLng = (lastBounds.minLng + lastBounds.maxLng) / 2.0;
+      final centerLat = (bounds.minLat + bounds.maxLat) / 2.0;
+      final centerLng = (bounds.minLng + bounds.maxLng) / 2.0;
+      movementKm = _haversineKm(
+        lat1: lastCenterLat,
+        lng1: lastCenterLng,
+        lat2: centerLat,
+        lng2: centerLng,
+      );
+    }
+
+    if (lastZoom != null && zoom != null) {
+      zoomDelta = (zoom - lastZoom).abs();
+    }
+
+    final ageSeconds = DateTime.now().difference(fetchedAt).inSeconds;
+    _sampleKeys.add({
+      'key': cacheKey,
+      'trigger': trigger,
+      'age_s': ageSeconds,
+      'move_km': movementKm,
+      'zoom_d': zoomDelta,
+    });
+
+    if (_sampleKeys.length > 10) {
+      _sampleKeys.removeAt(0);
+    }
+
+    if (_sampleKeys.length == 10) {
+      debugPrint('🧪 [PeopleMapDiscovery] sample_keys=${_sampleKeys.toList()}');
+    }
+
+    _lastQueryBounds = bounds;
+    _lastQueryZoom = zoom;
+  }
+
+  bool _isBoundsContained(MapBounds inner, MapBounds outer) {
+    return inner.minLat >= outer.minLat &&
+        inner.maxLat <= outer.maxLat &&
+        inner.minLng >= outer.minLng &&
+        inner.maxLng <= outer.maxLng;
+  }
+
+  /// Limite máximo do servidor para delta de latitude/longitude (~66km).
+  /// Deve estar alinhado com MAX_DELTA_DEG em get_people.ts.
+  static const double _maxServerDeltaDeg = 0.58; // Margem de segurança (server = 0.6)
+
+  /// Limita o bounding box para respeitar o limite do servidor.
+  /// 
+  /// Se o bounds original for maior que o permitido, ele será reduzido
+  /// mantendo o centro, evitando erro "Área de busca muito grande".
+  MapBounds _clampBoundsForServer(MapBounds bounds) {
+    final deltaLat = (bounds.maxLat - bounds.minLat).abs();
+    final deltaLng = (bounds.maxLng - bounds.minLng).abs();
+
+    // Se ambos estão dentro do limite, retorna o original
+    if (deltaLat <= _maxServerDeltaDeg && deltaLng <= _maxServerDeltaDeg) {
+      return bounds;
+    }
+
+    // Calcula o centro e reduz o bounds para respeitar o limite
+    final centerLat = (bounds.minLat + bounds.maxLat) / 2.0;
+    final centerLng = (bounds.minLng + bounds.maxLng) / 2.0;
+
+    final clampedHalfLat = math.min(deltaLat / 2.0, _maxServerDeltaDeg / 2.0);
+    final clampedHalfLng = math.min(deltaLng / 2.0, _maxServerDeltaDeg / 2.0);
+
+    debugPrint('⚠️ [PeopleMapDiscovery] Bounds muito grande, limitando:');
+    debugPrint('   Original: lat=$deltaLat, lng=$deltaLng');
+    debugPrint('   Limitado: lat=${clampedHalfLat * 2}, lng=${clampedHalfLng * 2}');
+
+    return MapBounds(
+      minLat: (centerLat - clampedHalfLat).clamp(-90.0, 90.0),
+      maxLat: (centerLat + clampedHalfLat).clamp(-90.0, 90.0),
+      minLng: (centerLng - clampedHalfLng).clamp(-180.0, 180.0),
+      maxLng: (centerLng + clampedHalfLng).clamp(-180.0, 180.0),
+    );
+  }
+
+  MapBounds _expandBounds(MapBounds bounds, double marginFactor) {
+    final centerLat = (bounds.minLat + bounds.maxLat) / 2.0;
+    final centerLng = (bounds.minLng + bounds.maxLng) / 2.0;
+    final latSpan = (bounds.maxLat - bounds.minLat).abs();
+    final lngSpan = (bounds.maxLng - bounds.minLng).abs();
+
+    final scale = 1.0 + (marginFactor * 2.0);
+    final halfLat = (latSpan * scale) / 2.0;
+    final halfLng = (lngSpan * scale) / 2.0;
+
+    double clampLat(double v) => v.clamp(-90.0, 90.0);
+    double clampLng(double v) => v.clamp(-180.0, 180.0);
+
+    return MapBounds(
+      minLat: clampLat(centerLat - halfLat),
+      maxLat: clampLat(centerLat + halfLat),
+      minLng: clampLng(centerLng - halfLng),
+      maxLng: clampLng(centerLng + halfLng),
+    );
+  }
+
+  double _expandMarginForZoom(double? zoom) {
+    return _zoomBucket(zoom) == 'z3'
+        ? _expandMarginHighZoom
+        : _expandMarginDefault;
   }
 
   /// Calcula um raio (km) grande o suficiente para cobrir o bounding box

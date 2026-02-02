@@ -84,10 +84,16 @@ class ReviewPageCacheService {
   }
 
   ReviewModel _fromCache(Map<String, dynamic> data) {
-    final criteriaRaw = data['criteria_ratings'] as Map<String, dynamic>? ?? {};
-    final criteriaRatings = criteriaRaw.map(
-      (key, value) => MapEntry(key, (value as num).toInt()),
-    );
+    // Hive retorna Map<dynamic, dynamic>, precisa converter
+    final criteriaRawDynamic = data['criteria_ratings'];
+    final Map<String, int> criteriaRatings;
+    if (criteriaRawDynamic is Map) {
+      criteriaRatings = Map<String, int>.from(
+        criteriaRawDynamic.map((key, value) => MapEntry(key.toString(), (value as num).toInt())),
+      );
+    } else {
+      criteriaRatings = {};
+    }
 
     final badgesRaw = data['badges'] as List<dynamic>?;
     final badges = badgesRaw?.map((e) => e.toString()).toList() ?? [];

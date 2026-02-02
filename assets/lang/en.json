@@ -1001,6 +1001,10 @@
   "subscribe_monthly_plan": "Subscribe Monthly Plan",
   "subscribe_annual_plan": "Subscribe Annual Plan",
 
+  "weekly_plan_title": "Weekly Plan",
+  "monthly_plan_title": "Monthly Plan",
+  "annual_plan_title": "Annual Plan",
+
   "subscription_benefit_profile_visits_title": "See who's interested in you",
   "subscription_benefit_profile_visits_subtitle": "Find out who visited your profile in the last few days",
   "subscription_benefit_more_visibility_title": "Appear among the first profiles on the list",
@@ -1067,6 +1071,7 @@
   "event_messages": "Event messages",
   "section_visibility": "Visibility",
   "message_button": "Message button on profile",
+  "follow_button": "Follow button on profile",
   "section_support": "Support",
   "safety_and_etiquette": "Safety and Etiquette",
   "community_guidelines": "Community Guidelines",
@@ -1261,9 +1266,18 @@
   "distance_unit": "Distance Unit",
   "actions": "Actions",
   "share_app_message": "Create things to do on your city's map and see who wants to join you.",
+  "follower": "Follower",
   "followers": "Followers",
   "location_picker_tab_map": "Locate",
   "location_picker_tab_search": "Search",
   "location_picker_map_hint": "Click on the map to mark the meeting point",
-  "tap_map_to_confirm": "Drag the map or tap to confirm"
+  "tap_map_to_confirm": "Drag the map or tap to confirm",
+
+  "force_update_title": "Update Required",
+  "force_update_message": "A new version of Boora is available. Please update to continue using the app.",
+  "update_available_title": "Update Available",
+  "update_available_message": "A new version of Boora is available with improvements and bug fixes.",
+  "update_now": "Update Now",
+  "update_later": "Later",
+  "close_app": "Close App"
 }

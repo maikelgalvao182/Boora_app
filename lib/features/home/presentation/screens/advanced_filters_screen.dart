@@ -269,6 +269,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     await _radiusController.saveImmediately();
     
     // Resetar UI
+    if (!mounted) return;
     setState(() {
       _selectedGender = 'all';
       _selectedSexualOrientation = 'all';

@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:markers_cluster_google_maps_flutter/markers_cluster_google_maps_flutter.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
+import 'package:partiu/features/home/presentation/services/marker_cluster_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_bitmap_generator.dart';
-import 'package:partiu/features/home/presentation/widgets/map_controllers/event_card_presenter.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/map_bounds_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/marker_assets.dart';
 
@@ -20,25 +19,33 @@ class MapRenderController extends ChangeNotifier {
 
   Set<Marker> _markers = {};
   Set<Marker> _avatarOverlayMarkers = {};
-  
-  Set<Marker> get allMarkers => {..._markers, ..._avatarOverlayMarkers};
+  final Map<MarkerId, Marker> _staleMarkers = {};
+  final Map<MarkerId, DateTime> _staleMarkersExpiry = {};
+  Timer? _staleMarkersTimer;
 
-  MarkersClusterManager? _clusterManager;
-  int _lastMarkersSignature = 0;
+  static const Duration _staleMarkersTtl = Duration(seconds: 6);
   
-  // Map of events by ID for efficient lookup
-  final Map<String, EventModel> _eventById = {};
+  Set<Marker> get allMarkers {
+    final merged = <MarkerId, Marker>{};
+    for (final entry in _staleMarkers.entries) {
+      merged[entry.key] = entry.value;
+    }
+    for (final marker in _markers) {
+      merged[marker.markerId] = marker;
+    }
+    for (final marker in _avatarOverlayMarkers) {
+      merged[marker.markerId] = marker;
+    }
+    return merged.values.toSet();
+  }
+
+  final MarkerClusterService _clusterService = MarkerClusterService();
 
   // Timers
   Timer? _renderDebounce;
   // Aumentado levemente para aguardar estabilização do cluster manager
   static const Duration _renderDebounceDuration = Duration(milliseconds: 150);
 
-  Timer? _realtimeClusterDebounce;
-  static const Duration _realtimeClusterDebounceDuration = Duration(milliseconds: 70);
-
-  bool _isClusterUpdateRunning = false;
-  bool _hasPendingClusterUpdate = false;
   
   // State from view
   double _currentZoom = 12.0;
@@ -47,13 +54,15 @@ class MapRenderController extends ChangeNotifier {
   
   // Loading state for low zoom (clusters)
   static const double lowZoomThreshold = 5.0;
+  static const double _individualMarkerZoomThreshold = 12.0;
+  static const int _maxIndividualMarkers = 150;
   bool _isLoadingLowZoom = false;
   bool get isLoadingLowZoom => _isLoadingLowZoom && _currentZoom <= lowZoomThreshold;
   
   // Flags
   bool _didEmitFirstRenderApplied = false;
   bool _renderPendingAfterMove = false;
-  int _lastRenderedEventsVersion = -1;
+  bool _isDisposed = false;
 
   MapRenderController({
     required this.viewModel,
@@ -65,6 +74,7 @@ class MapRenderController extends ChangeNotifier {
   });
 
   void setZoom(double zoom) {
+    if ((_currentZoom - zoom).abs() < 0.05) return;
     final previousZoom = _currentZoom;
     _currentZoom = zoom;
     
@@ -77,9 +87,12 @@ class MapRenderController extends ChangeNotifier {
 
   void setCameraMoving(bool isMoving) {
     _isCameraMoving = isMoving;
+    // Se parou de mover e tinha render pendente, executa DEPOIS de um delay
+    // para garantir que o mapa estabilizou o viewport interno.
     if (!isMoving && _renderPendingAfterMove) {
       _renderPendingAfterMove = false;
-      scheduleRender();
+      // Damos um tempo extra pro Google Maps estabilizar bounds antes de clusterizar
+      Future.delayed(const Duration(milliseconds: 100), scheduleRender);
     }
   }
 
@@ -87,7 +100,7 @@ class MapRenderController extends ChangeNotifier {
     _isAnimating = isAnimating;
     if (!isAnimating && _renderPendingAfterMove) {
       _renderPendingAfterMove = false;
-      scheduleRender();
+      Future.delayed(const Duration(milliseconds: 100), scheduleRender);
     }
   }
 
@@ -95,11 +108,6 @@ class MapRenderController extends ChangeNotifier {
   /// Bypassa o debounce e rebuild completo do cluster manager.
   void removeEventMarker(String eventId) {
     bool removed = false;
-    
-    // Remove do mapa de ID
-    if (_eventById.containsKey(eventId)) {
-      _eventById.remove(eventId);
-    }
     
     // Remove dos markers isolados
     final initialSize = _markers.length;
@@ -126,380 +134,321 @@ class MapRenderController extends ChangeNotifier {
   }
 
   void dispose() {
+    _isDisposed = true;
     _renderDebounce?.cancel();
-    _realtimeClusterDebounce?.cancel();
+    _staleMarkersTimer?.cancel();
     super.dispose();
   }
 
   void scheduleRender() {
+    if (_isDisposed) return;
+    
+    // Durante zoom/pan, cancelamos renders ativos para evitar flicker
     if (_isAnimating || _isCameraMoving) {
+      _renderDebounce?.cancel(); // Cancela timer anterior se houver
       _renderPendingAfterMove = true;
       return;
     }
 
     _renderDebounce?.cancel();
     _renderDebounce = Timer(_renderDebounceDuration, () {
-      if (_isAnimating || _isCameraMoving) return;
-      _rebuildMarkersUsingClusterManager();
+      if (_isDisposed) return;
+      // Dupla checagem: se começou a mover nesse meio tempo, aborta
+      if (_isAnimating || _isCameraMoving) {
+          _renderPendingAfterMove = true;
+          return;
+      }
+      _rebuildMarkersUsingClusterService();
     });
   }
 
-  MarkersClusterManager _createClusterManager() {
-    return MarkersClusterManager(
-      clusterColor: Colors.black,
-      clusterBorderThickness: 6.0,
-      clusterBorderColor: Colors.white,
-      clusterOpacity: 0.92,
-      clusterTextStyle: const TextStyle(
-        fontSize: 28,
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-      ),
-      onMarkerTap: null, // Managed manually
-    );
-  }
+  Future<void> _rebuildMarkersUsingClusterService() async {
+    if (_isDisposed) return;
+    if (_isAnimating || _isCameraMoving) return;
 
-  int _extractClusterCount(Marker m) {
-    final title = m.infoWindow.title;
-    if (title == null) return 2; // Fallback
-    final match = RegExp(r'^(\d+)\s+markers?$').firstMatch(title);
-    if (match == null) return 2;
-    return int.tryParse(match.group(1) ?? '') ?? 2;
-  }
+    final renderStart = DateTime.now();
 
-  int _markerSignatureForEvents(List<EventModel> events) {
-    final ids = events.map((e) => e.id).toList()..sort();
-    return Object.hashAll(ids);
-  }
-
-  Future<void> _syncBaseMarkersIntoClusterManager(List<EventModel> events) async {
-    if (_clusterManager == null) {
-      _clusterManager = _createClusterManager();
+    final allEvents = List<EventModel>.from(viewModel.events);
+    if (allEvents.isEmpty) {
+      if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
+        debugPrint(
+          '🧭 [MapRender] clear markers (reason=dataset_empty, prev=${_markers.length + _avatarOverlayMarkers.length}, stale=${_staleMarkers.length})',
+        );
+        _addStaleMarkers(
+          previousMarkers: {..._markers, ..._avatarOverlayMarkers},
+          nextMarkers: const <Marker>{},
+        );
+        _markers = {};
+        _avatarOverlayMarkers.clear();
+        notifyListeners();
+      }
+      return;
     }
 
-    final signature = _markerSignatureForEvents(events);
-    if (signature == _lastMarkersSignature) return;
-    _lastMarkersSignature = signature;
+    final filteredEvents = _applyCategoryFilter(allEvents);
+    if (filteredEvents.isEmpty) {
+      final hasFilters = viewModel.selectedCategory != null || viewModel.selectedDate != null;
+      if (hasFilters) {
+        debugPrint(
+          '🧭 [MapRender] clear markers (reason=filters_empty, prev=${_markers.length + _avatarOverlayMarkers.length}, stale=${_staleMarkers.length})',
+        );
+        _addStaleMarkers(
+          previousMarkers: {..._markers, ..._avatarOverlayMarkers},
+          nextMarkers: const <Marker>{},
+        );
+        _markers = {};
+        _avatarOverlayMarkers.clear();
+        notifyListeners();
+      }
+      return;
+    }
 
-    final rebuilt = _createClusterManager();
+    // Warmup avatars in parallel (best-effort)
+    unawaited(assets.warmupAvatarsForEvents(filteredEvents));
 
-    // Warmup avatars in parallel
-    unawaited(assets.warmupAvatarsForEvents(events));
+    // Garantir que o Fluster está preparado com o dataset atual
+    _clusterService.buildFluster(filteredEvents);
 
-    final markerFutures = events.map((event) async {
-      try {
+    // Calcular zoomBucket para verificação de estado do cluster
+    // IMPORTANTE: usar floor() para consistência com clustersForView() que usa zoomInt
+    final zoomInt = _currentZoom.floor();
+    final zoomBucket = zoomInt <= 8 ? 0 : zoomInt <= 11 ? 1 : zoomInt <= 14 ? 2 : 3;
+
+    final bounds = boundsController.lastExpandedVisibleBounds;
+    var clusters = bounds != null
+        ? _clusterService.clustersForView(bounds: bounds, zoom: _currentZoom)
+        : _clusterService.clusterEvents(events: filteredEvents, zoom: _currentZoom);
+
+    // Verificar se cluster está sincronizado APÓS chamar clustersForView
+    // (clustersForView atualiza _lastBuiltKey internamente)
+    final eventsHash = _clusterService.eventsHash;
+    final isClusterReady = eventsHash == null || _clusterService.isReadyFor(eventsHash: eventsHash, zoomBucket: zoomBucket);
+
+    // Se o bounds atual não intersecta o dataset (ex.: corrida entre bounds e eventos),
+    // evitamos “mapa vazio” usando clusterização global como fallback.
+    if (clusters.isEmpty && filteredEvents.isNotEmpty) {
+      debugPrint(
+        '🧭 [MapRender] clusters empty (events=${filteredEvents.length}, zoom=${_currentZoom.toStringAsFixed(1)}) -> fallback global',
+      );
+      clusters = _clusterService.clusterEvents(
+        events: filteredEvents,
+        zoom: _currentZoom,
+      );
+    }
+
+    // Removido: placeholder com BitmapDescriptor.defaultMarker causava flash de markers nativos
+    // Os markers personalizados são gerados diretamente abaixo
+
+    final nextMarkers = <Marker>{};
+    final nextAvatarOverlays = <Marker>{};
+
+    int zIndexCounter = 0;
+    int individualMarkersRendered = 0;
+
+    for (final cluster in clusters) {
+      if (cluster.isSingleEvent) {
+        final allowIndividual = _currentZoom >= _individualMarkerZoomThreshold &&
+            individualMarkersRendered < _maxIndividualMarkers;
+        if (!allowIndividual) {
+          // Em zoom baixo ou com muitos markers, renderiza como cluster com emoji
+          final event = cluster.firstEvent;
+          final clusterPin = await assets.getClusterPinWithEmoji(
+            1, // count = 1 para evento único
+            event.emoji,
+          );
+          nextMarkers.add(
+            Marker(
+              markerId: MarkerId(cluster.id),
+              position: cluster.center,
+              icon: clusterPin,
+              anchor: const Offset(0.5, 1.0),
+              zIndex: 1000,
+              infoWindow: InfoWindow.noText,
+              onTap: () => onMarkerTap(event),
+            ),
+          );
+          continue;
+        }
+
+        final event = cluster.firstEvent;
+        final position = cluster.center;
+        final baseZIndex = 100 + (zIndexCounter * 2);
+        zIndexCounter++;
+        individualMarkersRendered++;
+
         final emojiPin = await MarkerBitmapGenerator.generateEmojiPinForGoogleMaps(
           event.emoji,
           eventId: event.id,
           size: 230,
         );
-        return MapEntry(event, emojiPin);
-      } catch (_) {
-        return null;
+
+        nextMarkers.add(
+          Marker(
+            markerId: MarkerId('event_${event.id}'),
+            position: position,
+            icon: emojiPin,
+            anchor: const Offset(0.5, 1.0),
+            zIndex: baseZIndex.toDouble(),
+            onTap: () => onMarkerTap(event),
+          ),
+        );
+
+        final avatarPin = await assets.getAvatarPinBestEffort(event);
+        nextAvatarOverlays.add(
+          Marker(
+            markerId: MarkerId('event_avatar_${event.id}'),
+            position: position,
+            icon: avatarPin,
+            anchor: const Offset(0.5, 0.80),
+            onTap: () => onMarkerTap(event),
+            zIndex: (baseZIndex + 1).toDouble(),
+          ),
+        );
+      } else {
+        final clusterPin = await assets.getClusterPinWithEmoji(
+          cluster.count,
+          cluster.representativeEmoji,
+        );
+
+        nextMarkers.add(
+          Marker(
+            markerId: MarkerId(cluster.id),
+            position: cluster.center,
+            icon: clusterPin,
+            anchor: const Offset(0.5, 1.0),
+            zIndex: 1000,
+            infoWindow: InfoWindow.noText,
+            onTap: () => onClusterTap(cluster.center, cluster.count),
+          ),
+        );
       }
-    }).toList();
-
-    final results = await Future.wait(markerFutures);
-    
-    for (final result in results) {
-      if (result == null) continue;
-      final event = result.key;
-      final emojiPin = result.value;
-      
-      rebuilt.addMarker(
-        Marker(
-          markerId: MarkerId('event_${event.id}'),
-          position: LatLng(event.lat, event.lng),
-          icon: emojiPin,
-          anchor: const Offset(0.5, 1.0),
-          zIndex: 1,
-          onTap: () => onMarkerTap(event),
-        ),
-      );
-    }
-    
-    _eventById
-      ..clear()
-      ..addEntries(events.map((e) => MapEntry(e.id, e)));
-
-    _clusterManager = rebuilt;
-  }
-
-  Future<void> _rebuildMarkersUsingClusterManager() async {
-    if (_isAnimating || _isCameraMoving) return;
-    // Note: We don't check mounted here (no context), rely on usage.
-
-    final allEvents = List<EventModel>.from(viewModel.events);
-    if (allEvents.isEmpty) {
-      if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
-        _markers = {};
-        _avatarOverlayMarkers.clear();
-        notifyListeners();
-      }
-      return;
     }
 
-    // Filter by category
-    final categoryFiltered = _applyCategoryFilter(allEvents);
+    _addStaleMarkers(
+      previousMarkers: {..._markers, ..._avatarOverlayMarkers},
+      nextMarkers: {...nextMarkers, ...nextAvatarOverlays},
+    );
 
-    // Filter by viewport if zoom is high
-    var bounds = boundsController.lastExpandedVisibleBounds;
-    // Requires boundsController to have updated bounds.
-    // If null, we might skip filtering or try to get it (but we don't have mapController here easily unless passed).
-    // Assuming boundsController updates it on camera move/idle.
-    
-    const double clusterZoomThreshold = 11.0;
-    final shouldFilterByViewport = _currentZoom > clusterZoomThreshold;
-    
-    List<EventModel> viewportEvents = categoryFiltered;
-    if (shouldFilterByViewport && bounds != null) {
-       viewportEvents = categoryFiltered
-        .where((event) => boundsController.boundsContains(bounds!, event.lat, event.lng))
-        .toList(growable: false);
+    _avatarOverlayMarkers = nextAvatarOverlays;
+    _markers = nextMarkers;
+
+    final markersProduced = nextMarkers.length + nextAvatarOverlays.length;
+    final renderMs = DateTime.now().difference(renderStart).inMilliseconds;
+    final boundsKey = bounds == null
+        ? 'null'
+        : '${bounds.southwest.latitude.toStringAsFixed(3)}_'
+            '${bounds.southwest.longitude.toStringAsFixed(3)}_'
+            '${bounds.northeast.latitude.toStringAsFixed(3)}_'
+            '${bounds.northeast.longitude.toStringAsFixed(3)}';
+    debugPrint(
+      '🧭 [MapRender] applyMarkers(boundsKey=$boundsKey, nextCount=$markersProduced, stale=${_staleMarkers.length})',
+    );
+    debugPrint(
+      '🧭 [MapRender] render done (boundsKey=$boundsKey, zoom=${_currentZoom.toStringAsFixed(1)}, clusters=${clusters.length}, markersProduced=$markersProduced, individualRendered=$individualMarkersRendered, stale=${_staleMarkers.length}, ms=$renderMs)',
+    );
+
+    if (_isLoadingLowZoom && _currentZoom <= lowZoomThreshold) {
+      _isLoadingLowZoom = false;
     }
 
-    if (viewportEvents.isEmpty) {
-      if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
-        _markers = {};
-        _avatarOverlayMarkers.clear();
-        notifyListeners();
-      }
-      return;
-    }
-
-    await _syncBaseMarkersIntoClusterManager(viewportEvents);
-    await _updateClustersFromManager();
+    notifyListeners();
 
     if (!_didEmitFirstRenderApplied) {
       _didEmitFirstRenderApplied = true;
       onFirstRenderApplied?.call();
     }
-  }
 
-  List<EventModel> _applyCategoryFilter(List<EventModel> events) {
-    final selected = viewModel.selectedCategory;
-    if (selected == null || selected.trim().isEmpty) return events;
-
-    final normalized = selected.trim();
-    return events.where((event) {
-      final category = event.category;
-      if (category == null) return false;
-      return category.trim() == normalized;
-    }).toList(growable: false);
-  }
-
-  Future<void> _updateClustersFromManager() async {
-    final manager = _clusterManager;
-    if (manager == null) return;
-
-    await manager.updateClusters(zoomLevel: _currentZoom);
-    final clustered = Set<Marker>.of(manager.getClusteredMarkers());
-
-    final nextClusteredStyled = <Marker>{};
-    for (final m in clustered) {
-      final rawId = m.markerId.value;
-      
-      if (rawId.startsWith('event_')) {
-        final eventId = rawId.replaceFirst('event_', '');
-        final event = _eventById[eventId];
-        if (event != null) {
-          nextClusteredStyled.add(
-            m.copyWith(
-              onTapParam: () => onMarkerTap(event),
-            ),
-          );
-        } else {
-          nextClusteredStyled.add(m);
+    // 🔄 Se o cluster não estava pronto no início do render, agenda um re-render
+    // para garantir que os markers estejam corretos após o build finalizar
+    if (!isClusterReady) {
+      debugPrint('🔄 [MapRender] Cluster não estava pronto, agendando re-render');
+      Future.microtask(() {
+        if (!_isDisposed && !_isAnimating && !_isCameraMoving) {
+          scheduleRender();
         }
-        continue;
-      }
-
-      if (!rawId.startsWith('cluster_')) {
-        nextClusteredStyled.add(m);
-        continue;
-      }
-
-      int count = _extractClusterCount(m);
-      
-      final clusterPosition = m.position;
-      final clusterEmoji = assets.pickClusterEmoji(clusterPosition, _eventById);
-      
-      final clusterPin = await assets.getClusterPinWithEmoji(count, clusterEmoji);
-      
-      nextClusteredStyled.add(
-        m.copyWith(
-          iconParam: clusterPin,
-          anchorParam: const Offset(0.5, 1.0),
-          zIndexParam: 1000,
-          infoWindowParam: InfoWindow.noText,
-          onTapParam: () => onClusterTap(clusterPosition, count),
-        ),
-      );
+      });
     }
-
-    final nextAvatarOverlays = <Marker>{};
-    int avatarZIndexCounter = 0;
-    final updatedEmojiMarkers = <Marker>{};
-    final markersToRemove = <Marker>{};
-    
-    for (final m in nextClusteredStyled) {
-      final rawId = m.markerId.value;
-      if (!rawId.startsWith('event_')) continue;
-      final eventId = rawId.replaceFirst('event_', '');
-      final event = _eventById[eventId];
-      if (event == null) continue;
-
-      final baseZIndex = 100 + (avatarZIndexCounter * 2);
-      avatarZIndexCounter++;
-
-      markersToRemove.add(m);
-      updatedEmojiMarkers.add(m.copyWith(zIndexParam: baseZIndex.toDouble()));
-      
-      final avatarPin = await assets.getAvatarPinBestEffort(event);
-      nextAvatarOverlays.add(
-        Marker(
-          markerId: MarkerId('event_avatar_$eventId'),
-          position: m.position,
-          icon: avatarPin,
-          anchor: const Offset(0.5, 0.80),
-          onTap: () => onMarkerTap(event),
-          zIndex: (baseZIndex + 1).toDouble(),
-        ),
-      );
-    }
-
-    nextClusteredStyled.removeAll(markersToRemove);
-    nextClusteredStyled.addAll(updatedEmojiMarkers);
-
-    _avatarOverlayMarkers = nextAvatarOverlays;
-    _markers = nextClusteredStyled;
-    
-    // Desativa loading de zoom baixo após markers serem renderizados
-    if (_isLoadingLowZoom) {
-      _isLoadingLowZoom = false;
-    }
-    
-    notifyListeners();
   }
 
-  // Realtime updates (same logic as used in GoogleMapView but inside this controller)
-  void updateClustersRealtime() {
-    _hasPendingClusterUpdate = true;
-    if (_isClusterUpdateRunning) return;
-    if (_realtimeClusterDebounce?.isActive ?? false) return;
-    
-    _realtimeClusterDebounce = Timer(_realtimeClusterDebounceDuration, () {
-      unawaited(_processClusterUpdateQueue());
+  void _addStaleMarkers({
+    required Set<Marker> previousMarkers,
+    required Set<Marker> nextMarkers,
+  }) {
+    final nextIds = nextMarkers.map((m) => m.markerId).toSet();
+    final now = DateTime.now();
+
+    for (final marker in previousMarkers) {
+      if (nextIds.contains(marker.markerId)) continue;
+      _staleMarkers[marker.markerId] = marker.copyWith(
+        alphaParam: 0.0,
+        onTapParam: null,
+        zIndexParam: -10000,
+        infoWindowParam: InfoWindow.noText,
+      );
+      _staleMarkersExpiry[marker.markerId] = now.add(_staleMarkersTtl);
+    }
+
+    _pruneStaleMarkers(now);
+
+    _staleMarkersTimer?.cancel();
+    _staleMarkersTimer = Timer(_staleMarkersTtl, () {
+      if (_isDisposed) return;
+      _pruneStaleMarkers(DateTime.now());
+      notifyListeners();
     });
   }
 
-  Future<void> _processClusterUpdateQueue() async {
-    if (_isClusterUpdateRunning) return;
-    _isClusterUpdateRunning = true;
-
-    try {
-      while (_hasPendingClusterUpdate) {
-        _hasPendingClusterUpdate = false;
-        await _performClusterUpdate();
+  void _pruneStaleMarkers(DateTime now) {
+    final expired = <MarkerId>[];
+    _staleMarkersExpiry.forEach((id, expiry) {
+      if (expiry.isBefore(now)) {
+        expired.add(id);
       }
-    } catch (e) {
-      debugPrint('⚠️ Erro na fila de cluster update: $e');
-    } finally {
-      _isClusterUpdateRunning = false;
+    });
+    for (final id in expired) {
+      _staleMarkersExpiry.remove(id);
+      _staleMarkers.remove(id);
     }
   }
 
-  Future<void> _performClusterUpdate() async {
-    final manager = _clusterManager;
-    if (manager == null) return;
+  List<EventModel> _applyCategoryFilter(List<EventModel> events) {
+    return _applyFilters(events);
+  }
+  
+  /// Aplica filtros de categoria E data aos eventos
+  List<EventModel> _applyFilters(List<EventModel> events) {
+    final selectedCategory = viewModel.selectedCategory;
+    final selectedDate = viewModel.selectedDate;
     
-    try {
-      await manager.updateClusters(zoomLevel: _currentZoom);
-    } catch (e) {
-      return;
+    // Se não há filtros ativos, retorna tudo
+    if ((selectedCategory == null || selectedCategory.trim().isEmpty) &&
+        selectedDate == null) {
+      return events;
     }
-    
-    if (_clusterManager != manager) return;
-    
-    final clustered = Set<Marker>.of(manager.getClusteredMarkers());
-    
-    final nextClusteredStyled = <Marker>{};
-    for (final m in clustered) {
-      final rawId = m.markerId.value;
+
+    return events.where((event) {
+      // Filtro de categoria
+      if (selectedCategory != null && selectedCategory.trim().isNotEmpty) {
+        final category = event.category;
+        if (category == null) return false;
+        if (category.trim() != selectedCategory.trim()) return false;
+      }
       
-      if (rawId.startsWith('event_')) {
-        final eventId = rawId.replaceFirst('event_', '');
-        final event = _eventById[eventId];
-        if (event != null) {
-          nextClusteredStyled.add(
-            m.copyWith(
-              onTapParam: () => onMarkerTap(event),
-            ),
-          );
-        } else {
-          nextClusteredStyled.add(m);
+      // Filtro de data
+      if (selectedDate != null) {
+        final eventDate = event.scheduleDate;
+        if (eventDate == null) return false;
+        
+        // Comparar apenas dia/mês/ano
+        if (eventDate.year != selectedDate.year ||
+            eventDate.month != selectedDate.month ||
+            eventDate.day != selectedDate.day) {
+          return false;
         }
-        continue;
       }
-
-      if (!rawId.startsWith('cluster_')) {
-        nextClusteredStyled.add(m);
-        continue;
-      }
-
-      int count = _extractClusterCount(m);
-      final clusterPosition = m.position;
-      final clusterEmoji = assets.pickClusterEmoji(clusterPosition, _eventById);
-      final clusterPin = await assets.getClusterPinWithEmoji(count, clusterEmoji);
-
-      nextClusteredStyled.add(
-        m.copyWith(
-          iconParam: clusterPin,
-          anchorParam: const Offset(0.5, 1.0),
-          zIndexParam: 1000,
-          infoWindowParam: InfoWindow.noText,
-          onTapParam: () => onClusterTap(clusterPosition, count),
-        ),
-      );
-    }
-
-    final nextAvatarOverlays = <Marker>{};
-    final updatedEmojiMarkers2 = <Marker>{};
-    final markersToRemove2 = <Marker>{};
-    int avatarZIndexCounter2 = 0;
-    
-    for (final m in nextClusteredStyled) {
-      final rawId = m.markerId.value;
-      if (!rawId.startsWith('event_')) continue;
-      final eventId = rawId.replaceFirst('event_', '');
-      final event = _eventById[eventId];
-      if (event == null) continue;
-
-      final baseZIndex = 100 + (avatarZIndexCounter2 * 2);
-      avatarZIndexCounter2++;
-
-      markersToRemove2.add(m);
-      updatedEmojiMarkers2.add(m.copyWith(zIndexParam: baseZIndex.toDouble()));
-
-      final avatarPin = await assets.getAvatarPinBestEffort(event);
-
-      nextAvatarOverlays.add(
-        Marker(
-          markerId: MarkerId('event_avatar_$eventId'),
-          position: m.position,
-          icon: avatarPin,
-          anchor: const Offset(0.5, 0.80),
-          onTap: () => onMarkerTap(event),
-          zIndex: (baseZIndex + 1).toDouble(),
-        ),
-      );
-    }
-
-    nextClusteredStyled.removeAll(markersToRemove2);
-    nextClusteredStyled.addAll(updatedEmojiMarkers2);
-
-    _avatarOverlayMarkers = nextAvatarOverlays;
-    _markers = nextClusteredStyled;
-    notifyListeners();
+      
+      return true;
+    }).toList(growable: false);
   }
+
 }

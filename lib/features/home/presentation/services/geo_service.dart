@@ -11,27 +11,48 @@ class GeoService {
   GeoService._internal();
 
   /// Obtém a localização atual do usuário logado (do Firestore)
+  /// Busca da subcoleção privada (localização real) com fallback para documento principal
   Future<({double lat, double lng})?> getCurrentUserLocation() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return null;
 
     try {
-      // Buscar da coleção Users (onde estão os dados completos)
-      var doc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+      // 🔒 Primeiro tenta buscar da subcoleção privada (localização REAL)
+      final privateDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userId)
+          .collection('private')
+          .doc('location')
+          .get();
 
+      if (privateDoc.exists) {
+        final privateData = privateDoc.data();
+        if (privateData != null) {
+          final lat = (privateData['latitude'] as num?)?.toDouble();
+          final lng = (privateData['longitude'] as num?)?.toDouble();
+          if (lat != null && lng != null) {
+            return (lat: lat, lng: lng);
+          }
+        }
+      }
+
+      // Fallback: buscar do documento principal (dados legados)
+      final doc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
       if (!doc.exists) return null;
 
       final data = doc.data();
       if (data == null) return null;
 
-      final lat = (data['latitude'] as num?)?.toDouble();
-      final lng = (data['longitude'] as num?)?.toDouble();
+      // Tenta latitude/longitude primeiro, depois displayLatitude/displayLongitude
+      final lat = (data['latitude'] as num?)?.toDouble() ?? 
+                  (data['displayLatitude'] as num?)?.toDouble();
+      final lng = (data['longitude'] as num?)?.toDouble() ?? 
+                  (data['displayLongitude'] as num?)?.toDouble();
 
       if (lat != null && lng != null) {
         return (lat: lat, lng: lng);
       }
     } catch (e) {
-      // Silently fail or log error
       print('Erro ao buscar localização do usuário: $e');
     }
     return null;
@@ -73,6 +94,7 @@ class GeoService {
   }
 
   /// Método profissional para listar até 100 perfis num raio configurável
+  /// 🔒 Usa displayLatitude/displayLongitude (com offset ~1-3km) para proteger localização real
   Future<List<Map<String, dynamic>>> getUsersWithin30Km({
     required double lat,
     required double lng,
@@ -82,14 +104,12 @@ class GeoService {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       final box = _buildBoundingBox(lat, lng, PEOPLE_SEARCH_RADIUS_KM);
 
-      // Tenta buscar na coleção 'Users' (padrão do app)
-      // Nota: O app tem inconsistências entre 'Users' e 'users'. 
-      // UserRepository usa 'Users', então priorizamos 'Users'.
-      
+      // 🔒 SEGURANÇA: Busca usando displayLatitude (localização com offset)
+      // A localização real está protegida na subcoleção private/location
       final snapshot = await FirebaseFirestore.instance
           .collection('Users')
-          .where('latitude', isGreaterThan: box.minLat)
-          .where('latitude', isLessThan: box.maxLat)
+          .where('displayLatitude', isGreaterThan: box.minLat)
+          .where('displayLatitude', isLessThan: box.maxLat)
           .limit(300) // Pega um pouco mais para filtrar longitude e distância no cliente
           .get();
 
@@ -101,8 +121,9 @@ class GeoService {
         }
         final data = doc.data();
 
-        final userLat = (data['latitude'] as num?)?.toDouble();
-        final userLng = (data['longitude'] as num?)?.toDouble();
+        // Usa displayLatitude/displayLongitude (com offset de privacidade)
+        final userLat = (data['displayLatitude'] as num?)?.toDouble();
+        final userLng = (data['displayLongitude'] as num?)?.toDouble();
 
         if (userLat == null || userLng == null) continue;
         

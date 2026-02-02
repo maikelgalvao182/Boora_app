@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/services/location/geo_utils.dart';
@@ -222,6 +223,10 @@ class LocationQueryService {
 
       return finalUsers;
     } catch (e, stackTrace) {
+      if (_isLargeAreaError(e) || _isMissingLocationError(e)) {
+        debugPrint('⚠️ LocationQueryService: Erro de localização. Retornando vazio.');
+        return [];
+      }
       debugPrint('❌ LocationQueryService: Erro ao buscar usuários: $e');
       debugPrint('❌ LocationQueryService: StackTrace: $stackTrace');
       rethrow; // Propaga o erro para o controller tratar
@@ -250,7 +255,10 @@ class LocationQueryService {
     // 1. Carregar localização do usuário (para distância no card)
     final userLocation = await _getUserLocation();
 
-    // 2. Definir raio: se o usuário selecionou um raio nos filtros, ele deve
+    // 2. Limitar bounding box para respeitar limite do servidor (MAX_DELTA_DEG = 0.6)
+    final clampedBox = _clampBoundingBoxForServer(boundingBox);
+
+    // 3. Definir raio: se o usuário selecionou um raio nos filtros, ele deve
     // realmente restringir os resultados. Caso contrário, usar um raio grande
     // o suficiente para cobrir o bounds (bounds como fonte de verdade).
     final radiusKm = (activeFilters.radiusKm != null)
@@ -258,15 +266,15 @@ class LocationQueryService {
         : _radiusKmToCoverBoundingBox(
             centerLat: userLocation.latitude,
             centerLng: userLocation.longitude,
-            boundingBox: boundingBox,
+            boundingBox: clampedBox,
           );
 
-    // 3. Chamar Cloud Function com o bounding box fornecido
+    // 4. Chamar Cloud Function com o bounding box limitado
     final result = await _cloudService.getPeopleNearby(
       userLatitude: userLocation.latitude,
       userLongitude: userLocation.longitude,
       radiusKm: radiusKm,
-      boundingBox: boundingBox,
+      boundingBox: clampedBox,
       filters: UserCloudFilters(
         gender: activeFilters.gender,
         minAge: activeFilters.minAge,
@@ -304,10 +312,36 @@ class LocationQueryService {
 
   /// Carrega usuários e emite no stream principal
   Future<void> _loadAndEmitUsers({double? radiusKm}) async {
-    final users = await getUsersWithinRadiusOnce(customRadiusKm: radiusKm);
-    if (!_usersStreamController.isClosed) {
-      _usersStreamController.add(users);
+    try {
+      final users = await getUsersWithinRadiusOnce(customRadiusKm: radiusKm);
+      if (!_usersStreamController.isClosed) {
+        _usersStreamController.add(users);
+      }
+    } catch (e, stackTrace) {
+      if (_isLargeAreaError(e) || _isMissingLocationError(e)) {
+        debugPrint('⚠️ LocationQueryService: Erro de localização no stream. Emitindo vazio.');
+        if (!_usersStreamController.isClosed) {
+          _usersStreamController.add([]);
+        }
+        return;
+      }
+      debugPrint('❌ LocationQueryService: Falha ao emitir usuários: $e');
+      debugPrint('❌ LocationQueryService: StackTrace: $stackTrace');
     }
+  }
+
+  bool _isLargeAreaError(Object error) {
+    if (error is FirebaseFunctionsException) {
+      final message = (error.message ?? '').toLowerCase();
+      return message.contains('área de busca muito grande') ||
+          message.contains('area de busca muito grande') ||
+          message.contains('search area too large');
+    }
+    return false;
+  }
+
+  bool _isMissingLocationError(Object error) {
+    return error is _MissingLocationException;
   }
 
   /// Busca localização do usuário (com cache)
@@ -326,6 +360,32 @@ class LocationQueryService {
     }
 
     debugPrint('🔍 LocationQueryService: Buscando localização do usuário em Users/$userId');
+    
+    // 🔒 Primeiro tenta buscar da subcoleção privada (localização REAL)
+    final privateDoc = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(userId)
+        .collection('private')
+        .doc('location')
+        .get();
+
+    if (privateDoc.exists && privateDoc.data() != null) {
+      final privateData = privateDoc.data()!;
+      final latitude = privateData['latitude'] as double?;
+      final longitude = privateData['longitude'] as double?;
+      
+      if (latitude != null && longitude != null) {
+        debugPrint('✅ LocationQueryService: Localização carregada da subcoleção private ($latitude, $longitude)');
+        _userLocationCache = UserLocationCache(
+          latitude: latitude,
+          longitude: longitude,
+          timestamp: DateTime.now(),
+        );
+        return _userLocationCache!;
+      }
+    }
+    
+    // Fallback: buscar do documento principal (dados legados ou displayLatitude)
     final userDoc =
         await FirebaseFirestore.instance.collection('Users').doc(userId).get();
 
@@ -338,15 +398,20 @@ class LocationQueryService {
     debugPrint('🔍 LocationQueryService: Documento encontrado, verificando campos...');
     debugPrint('🔍 LocationQueryService: Campos disponíveis: ${data.keys.toList()}');
     
-    final latitude = data['latitude'] as double?;
-    final longitude = data['longitude'] as double?;
+    // Tenta latitude/longitude primeiro (legado), depois displayLatitude/displayLongitude
+    final latitude = (data['latitude'] as double?) ?? (data['displayLatitude'] as double?);
+    final longitude = (data['longitude'] as double?) ?? (data['displayLongitude'] as double?);
     
     debugPrint('🔍 LocationQueryService: latitude = $latitude');
     debugPrint('🔍 LocationQueryService: longitude = $longitude');
 
     if (latitude == null || longitude == null) {
       debugPrint('❌ LocationQueryService: Campos latitude/longitude AUSENTES!');
-      throw Exception('Campos latitude/longitude ausentes no documento Users/$userId');
+      if (_userLocationCache != null && !_userLocationCache!.isExpired) {
+        debugPrint('⚠️ LocationQueryService: Usando cache antigo por ausência de lat/lng no Firestore');
+        return _userLocationCache!;
+      }
+      throw _MissingLocationException(userId);
     }
 
     // Atualizar cache
@@ -404,6 +469,51 @@ class LocationQueryService {
     final normalized = radiusKm > (maxAllowed * 10) ? (radiusKm / 1000.0) : radiusKm;
 
     return normalized.clamp(MIN_RADIUS_KM, maxAllowed);
+  }
+
+  /// Limite máximo do servidor para delta de latitude/longitude (~66km).
+  /// Deve estar alinhado com MAX_DELTA_DEG em get_people.ts.
+  static const double _maxServerDeltaDeg = 0.58; // Margem de segurança (server = 0.6)
+
+  /// Limita o bounding box para respeitar o limite do servidor.
+  /// 
+  /// Se o bounds original for maior que o permitido, ele será reduzido
+  /// mantendo o centro, evitando erro "Área de busca muito grande".
+  Map<String, double> _clampBoundingBoxForServer(Map<String, double> boundingBox) {
+    final minLat = boundingBox['minLat'];
+    final maxLat = boundingBox['maxLat'];
+    final minLng = boundingBox['minLng'];
+    final maxLng = boundingBox['maxLng'];
+
+    if (minLat == null || maxLat == null || minLng == null || maxLng == null) {
+      return boundingBox;
+    }
+
+    final deltaLat = (maxLat - minLat).abs();
+    final deltaLng = (maxLng - minLng).abs();
+
+    // Se ambos estão dentro do limite, retorna o original
+    if (deltaLat <= _maxServerDeltaDeg && deltaLng <= _maxServerDeltaDeg) {
+      return boundingBox;
+    }
+
+    // Calcula o centro e reduz o bounds para respeitar o limite
+    final centerLat = (minLat + maxLat) / 2.0;
+    final centerLng = (minLng + maxLng) / 2.0;
+
+    final clampedHalfLat = math.min(deltaLat / 2.0, _maxServerDeltaDeg / 2.0);
+    final clampedHalfLng = math.min(deltaLng / 2.0, _maxServerDeltaDeg / 2.0);
+
+    debugPrint('⚠️ [LocationQueryService] Bounds muito grande, limitando:');
+    debugPrint('   Original: lat=$deltaLat, lng=$deltaLng');
+    debugPrint('   Limitado: lat=${clampedHalfLat * 2}, lng=${clampedHalfLng * 2}');
+
+    return {
+      'minLat': (centerLat - clampedHalfLat).clamp(-90.0, 90.0),
+      'maxLat': (centerLat + clampedHalfLat).clamp(-90.0, 90.0),
+      'minLng': (centerLng - clampedHalfLng).clamp(-180.0, 180.0),
+      'maxLng': (centerLng + clampedHalfLng).clamp(-180.0, 180.0),
+    };
   }
 
   double _radiusKmToCoverBoundingBox({
@@ -560,4 +670,15 @@ class UserFilterOptions {
     this.interests,
     this.radiusKm,
   });
+}
+
+class _MissingLocationException implements Exception {
+  _MissingLocationException(this.userId);
+
+  final String userId;
+
+  @override
+  String toString() {
+    return 'Campos latitude/longitude ausentes no documento Users/$userId';
+  }
 }

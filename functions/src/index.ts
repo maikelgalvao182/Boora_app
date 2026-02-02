@@ -25,6 +25,10 @@ export {
 export {onUserLocationUpdated} from "./events/usersGridSync";
 export {onEventWriteUpdateCardPreview} from "./events/eventCardPreviewSync";
 export {onUserWriteUpdatePreview} from "./users/usersPreviewSync";
+export {resyncUsersPreview} from "./users/resyncUsersPreview";
+export {
+  migrateUserLocationToPrivate,
+} from "./users/migrateLocationToPrivate";
 export {syncRankingFilters} from "./ranking/rankingFiltersSync";
 // Feed Fanout System - distribui posts para feeds dos seguidores
 export {

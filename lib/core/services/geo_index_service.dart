@@ -198,12 +198,13 @@ class GeoIndexService {
     required int limit,
   }) async {
     try {
-      // NOTA: Localização é salva como latitude/longitude no nível raiz do documento
+      // 🔒 SEGURANÇA: Usa displayLatitude/displayLongitude (com offset ~1-3km)
+      // A localização real está protegida na subcoleção Users/{userId}/private/location
       Query query = _firestore
           .collection('Users')
-          .where('latitude', isGreaterThanOrEqualTo: bounds.minLat)
-          .where('latitude', isLessThanOrEqualTo: bounds.maxLat)
-          .orderBy('latitude') // 🔥 obrigatório para paginação estável
+          .where('displayLatitude', isGreaterThanOrEqualTo: bounds.minLat)
+          .where('displayLatitude', isLessThanOrEqualTo: bounds.maxLat)
+          .orderBy('displayLatitude') // 🔥 obrigatório para paginação estável
           .limit(limit);
 
       final snap = await query.get();
@@ -216,9 +217,9 @@ class GeoIndexService {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) continue;
         
-        // Localização está no nível raiz do documento (latitude/longitude)
-        final lat = (data['latitude'] as num?)?.toDouble();
-        final lng = (data['longitude'] as num?)?.toDouble();
+        // 🔒 Usa displayLatitude/displayLongitude (localização com offset de privacidade)
+        final lat = (data['displayLatitude'] as num?)?.toDouble();
+        final lng = (data['displayLongitude'] as num?)?.toDouble();
 
         if (lat == null || lng == null) continue;
 

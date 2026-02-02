@@ -211,18 +211,55 @@ export const getPeople = functions.https.onCall(async (data, context) => {
   try {
     // 2. Parâmetros recebidos do client
     const {
-      boundingBox, // { minLat, maxLat, minLng, maxLng }
+      boundingBox: rawBoundingBox, // { minLat, maxLat, minLng, maxLng }
       filters,
       center, // { lat, lng } - Opcional (melhora precisão)
       radiusKm, // Opcional (KM). Filtra fora deste raio.
     } = data;
 
-    if (!boundingBox) {
+    if (!rawBoundingBox || typeof rawBoundingBox !== "object") {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "boundingBox é obrigatório"
       );
     }
+
+    const rawMinLat = (rawBoundingBox as Record<string, unknown>).minLat;
+    const rawMaxLat = (rawBoundingBox as Record<string, unknown>).maxLat;
+    const rawMinLng = (rawBoundingBox as Record<string, unknown>).minLng;
+    const rawMaxLng = (rawBoundingBox as Record<string, unknown>).maxLng;
+
+    const isFiniteNumber = (value: unknown): value is number =>
+      typeof value === "number" && Number.isFinite(value);
+
+    if (
+      !isFiniteNumber(rawMinLat) ||
+      !isFiniteNumber(rawMaxLat) ||
+      !isFiniteNumber(rawMinLng) ||
+      !isFiniteNumber(rawMaxLng)
+    ) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "boundingBox inválido (minLat/maxLat/minLng/maxLng)"
+      );
+    }
+
+    let minLat = Math.min(rawMinLat, rawMaxLat);
+    let maxLat = Math.max(rawMinLat, rawMaxLat);
+    let minLng = Math.min(rawMinLng, rawMaxLng);
+    let maxLng = Math.max(rawMinLng, rawMaxLng);
+
+    minLat = Math.max(-90, Math.min(90, minLat));
+    maxLat = Math.max(-90, Math.min(90, maxLat));
+    minLng = Math.max(-180, Math.min(180, minLng));
+    maxLng = Math.max(-180, Math.min(180, maxLng));
+
+    const boundingBox = {
+      minLat,
+      maxLat,
+      minLng,
+      maxLng,
+    };
 
     // 2.1 Validação de Segurança do Bounding Box (Anti-Scraping / Performance)
     // Limite arbitrário de delta (aprox 111km por grau). 0.6 graus ~ 66km.
@@ -283,8 +320,8 @@ export const getPeople = functions.https.onCall(async (data, context) => {
     const limit = isVip ? 300 : 17;
 
     // Cap de Raio por Plano (Segurança e Custo)
-    // Free: max 15km | VIP: max 50km
-    const planCap = isVip ? 50 : 15;
+    // Free: max 15km | VIP: max 30km
+    const planCap = isVip ? 30 : 15;
 
     // Default Radius: Evita busca "BoxOnly" que pode ser muito ampla/custosa
     const defaultRadius = isVip ? 20 : 8;
@@ -731,10 +768,17 @@ export const getPeople = functions.https.onCall(async (data, context) => {
 
     return response;
   } catch (error) {
-    console.error("❌ Erro em getPeople:", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    const err = error as Error;
+    console.error("❌ Erro em getPeople:", {
+      message: err?.message,
+      stack: err?.stack,
+    });
     throw new functions.https.HttpsError(
       "internal",
-      "Erro ao buscar pessoas: " + (error as Error).message
+      "Erro ao buscar pessoas: " + (err?.message ?? "unknown")
     );
   }
 });

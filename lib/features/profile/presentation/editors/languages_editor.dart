@@ -87,7 +87,7 @@ class _LanguagesEditorState extends State<LanguagesEditor> {
                   style: const TextStyle(
                     color: GlimpseColors.textSubTitle,
                     fontSize: 16,
-                    fontWeight: FontWeight.w300,
+                    fontWeight: FontWeight.w400,
                   ),
                 )
               else

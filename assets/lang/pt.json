@@ -1010,6 +1010,10 @@
   "subscribe_monthly_plan": "Assinar Plano Mensal",
   "subscribe_annual_plan": "Assinar Plano Anual",
 
+  "weekly_plan_title": "Plano Semanal",
+  "monthly_plan_title": "Plano Mensal",
+  "annual_plan_title": "Plano Anual",
+
   "subscription_benefit_profile_visits_title": "Veja quem se interessou por você",
   "subscription_benefit_profile_visits_subtitle": "Descubra quem visitou seu perfil nos últimos dias",
   "subscription_benefit_more_visibility_title": "Apareça entre os primeiros perfis da lista",
@@ -1030,9 +1034,9 @@
   "unravel_the_mystery_and_find_out_who_visited_your_profile": "Desvende o mistério e descubra quem visitou seu perfil",
   "verified_account_badge": "Selo de conta verificada",
   "get_verified_and_increase_your_credibility_on_the_platform": "Seja verificado e aumente sua credibilidade na plataforma",
-  "auto_renews_annually": "50% off",
-  "auto_renews_monthly": "30% off",
-  "auto_renews_weekly": "Perfeito para viagens rápidas",
+  "auto_renews_annually": "47% OFF",
+  "auto_renews_monthly": "24% OFF",
+  "auto_renews_weekly": "Inicial",
   "subscription_renews_automatically_at_the_same": "Assinatura com renovação automática. Cancele quando quiser.",
   "terms": "Termos",
   "and_separator": " e ",
@@ -1080,6 +1084,7 @@
   "event_messages": "Mensagens dos eventos",
   "section_visibility": "Visibilidade",
   "message_button": "Botão de mensagem no perfil",
+  "follow_button": "Botão de seguir no perfil",
   "section_support": "Suporte",
   "safety_and_etiquette": "Segurança e Etiqueta",
   "community_guidelines": "Diretrizes da Comunidade",
@@ -1267,10 +1272,19 @@
   "distance_unit": "Unidade de Distância",
   "actions": "Ações",
   "share_app_message": "Boora - Crie coisas pra fazer no mapa da sua cidade e veja quem topa ir junto.",
+  "follower": "Seguidor",
   "followers": "Seguidores",
   "location_picker_tab_map": "Localizar",
   "location_picker_tab_search": "Buscar",
-  "location_picker_map_hint": "Marque uma área para o encontro",
-  "tap_map_to_confirm": "Clique ou arraste para marcar uma área aproximada"
+  "location_picker_map_hint": "Clique e marque uma área para o encontro",
+  "tap_map_to_confirm": "O local exato não será visivel, apenas área aproximada.",
+
+  "force_update_title": "Atualização Obrigatória",
+  "force_update_message": "Uma nova versão do Boora está disponível. Por favor, atualize para continuar usando o app.",
+  "update_available_title": "Atualização Disponível",
+  "update_available_message": "Uma nova versão do Boora está disponível com melhorias e correções.",
+  "update_now": "Atualizar Agora",
+  "update_later": "Depois",
+  "close_app": "Fechar App"
 }
 

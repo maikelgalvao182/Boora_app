@@ -266,8 +266,9 @@ List<UserWithDistance> filterUsersByDistance(
     }
   }
 
-  // Ordenar por distância (mais próximos primeiro)
-  results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-
+  // ⚠️ NÃO reordenar! O servidor já retorna ordenado por:
+  // vip_priority (ASC) → overallRating (DESC) → distância (ASC)
+  // Perfis VIP (vip_priority=1) devem aparecer no topo.
+  
   return results;
 }

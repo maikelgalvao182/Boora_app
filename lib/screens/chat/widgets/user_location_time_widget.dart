@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -31,7 +32,15 @@ class UserLocationTimeWidget extends StatelessWidget {
           .collection('Users')
           .where('userId', isEqualTo: user.userId)
           .limit(1)
-          .snapshots(),
+          .snapshots()
+          .handleError((error) {
+            final isPermissionDenied = error is FirebaseException && error.code == 'permission-denied';
+            final isLoggedOut = fire_auth.FirebaseAuth.instance.currentUser == null;
+            if (isPermissionDenied && isLoggedOut) {
+              return;
+            }
+            throw error;
+          }),
       builder: (context, userSnapshot) {
         debugPrint('🔍 [UserLocationTimeWidget] User Stream state: hasData=${userSnapshot.hasData}, hasError=${userSnapshot.hasError}');
         

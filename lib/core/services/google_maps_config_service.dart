@@ -1,13 +1,19 @@
 import 'dart:io' show Platform;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 
 /// Serviço para fornecer as API Keys do Google Maps/Places.
 ///
-/// Fonte de verdade: constantes locais em `constants.dart`.
-/// Não faz leitura de chaves via Firestore.
+/// Fonte de verdade: Firestore AppInfo collection.
+/// Fallback: constantes locais em `constants.dart` (para build/dev).
+/// 
+/// Estrutura no Firestore:
+/// - AppInfo/google_maps
+///   - android_api_key: string
+///   - ios_api_key: string
 class GoogleMapsConfigService {
   factory GoogleMapsConfigService() => _instance;
   GoogleMapsConfigService._internal();
@@ -19,7 +25,7 @@ class GoogleMapsConfigService {
   static const MethodChannel _iosChannel = MethodChannel('com.example.partiu/google_maps_ios');
   static const MethodChannel _androidChannel = MethodChannel('com.example.partiu/google_maps');
 
-  // Cache das chaves (carregadas de constants.dart)
+  // Cache das chaves
   String? _androidMapsKey;
   String? _iosMapsKey;
   bool _isInitialized = false;
@@ -30,19 +36,26 @@ class GoogleMapsConfigService {
     return '';
   }
 
-  /// Inicializa e carrega as chaves locais.
+  /// Inicializa e carrega as chaves do Firestore (com fallback para constants).
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      _androidMapsKey = GOOGLE_MAPS_API_KEY_ANDROID.trim();
-      _iosMapsKey = GOOGLE_MAPS_API_KEY_IOS.trim();
+      // 1. Tentar carregar do Firestore primeiro
+      final loaded = await _loadFromFirestore();
+      
+      // 2. Fallback para constantes locais se Firestore falhar
+      if (!loaded) {
+        AppLogger.warning('Usando chaves locais (fallback)', tag: _tag);
+        _androidMapsKey = GOOGLE_MAPS_API_KEY_ANDROID.trim();
+        _iosMapsKey = GOOGLE_MAPS_API_KEY_IOS.trim();
+      }
 
       if (_androidMapsKey == null || _androidMapsKey!.isEmpty) {
-        AppLogger.error('GOOGLE_MAPS_API_KEY_ANDROID não configurada em constants.dart', tag: _tag);
+        AppLogger.error('GOOGLE_MAPS_API_KEY_ANDROID não configurada', tag: _tag);
       }
       if (_iosMapsKey == null || _iosMapsKey!.isEmpty) {
-        AppLogger.error('GOOGLE_MAPS_API_KEY_IOS não configurada em constants.dart', tag: _tag);
+        AppLogger.error('GOOGLE_MAPS_API_KEY_IOS não configurada', tag: _tag);
       }
 
       _isInitialized = true;
@@ -50,10 +63,44 @@ class GoogleMapsConfigService {
       // Configurar as API keys no nativo (quando implementado)
       await _configureNativeApiKeys();
 
-      AppLogger.success('Google Maps/Places: chaves locais carregadas', tag: _tag);
+      AppLogger.success('Google Maps/Places: chaves carregadas', tag: _tag);
     } catch (e) {
       AppLogger.error('Falha ao inicializar Google Maps/Places', tag: _tag, error: e);
       rethrow;
+    }
+  }
+
+  /// Carrega as chaves do Firestore (AppInfo/google_maps)
+  Future<bool> _loadFromFirestore() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('AppInfo')
+          .doc('google_maps')
+          .get();
+
+      if (!doc.exists) {
+        AppLogger.warning('AppInfo/google_maps não existe no Firestore', tag: _tag);
+        return false;
+      }
+
+      final data = doc.data();
+      if (data == null) return false;
+
+      _androidMapsKey = (data['android_api_key'] as String?)?.trim();
+      _iosMapsKey = (data['ios_api_key'] as String?)?.trim();
+
+      final hasAndroid = _androidMapsKey != null && _androidMapsKey!.isNotEmpty;
+      final hasIos = _iosMapsKey != null && _iosMapsKey!.isNotEmpty;
+
+      if (hasAndroid || hasIos) {
+        AppLogger.info('Chaves carregadas do Firestore (android=$hasAndroid, ios=$hasIos)', tag: _tag);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      AppLogger.warning('Erro ao carregar chaves do Firestore: $e', tag: _tag);
+      return false;
     }
   }
 
@@ -79,14 +126,14 @@ class GoogleMapsConfigService {
 
     final key = _mapsKeyForPlatform().trim();
     if (key.isEmpty) {
-      throw Exception('Google Maps API Key não configurada em constants.dart para esta plataforma');
+      throw Exception('Google Maps API Key não configurada para esta plataforma');
     }
 
     return key;
   }
 
   /// Retorna a Google Places API Key.
-  /// Neste app, usamos a mesma chave do Maps por plataforma.
+  /// Usa a mesma chave do Maps por plataforma.
   Future<String> getGooglePlacesApiKey() async {
     return getGoogleMapsApiKey();
   }

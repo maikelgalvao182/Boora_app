@@ -60,6 +60,7 @@ class _ConfirmPresenceWidgetState extends State<ConfirmPresenceWidget> {
   Future<void> _updatePresence(String presenceValue) async {
     if (_isUpdating) return;
 
+    if (!mounted) return;
     setState(() => _isUpdating = true);
 
     try {
@@ -71,11 +72,13 @@ class _ConfirmPresenceWidgetState extends State<ConfirmPresenceWidget> {
       debugPrint('✅ Presença atualizada: $presenceValue');
 
       // Atualiza estado local
-      setState(() {
-        _currentPresence = presenceValue;
-        _isExpanded = false;
-        _isUpdating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _currentPresence = presenceValue;
+          _isExpanded = false;
+          _isUpdating = false;
+        });
+      }
 
       // Feedback visual
       if (mounted) {
@@ -87,7 +90,9 @@ class _ConfirmPresenceWidgetState extends State<ConfirmPresenceWidget> {
     } catch (e) {
       debugPrint('❌ Erro ao atualizar presença: $e');
       
-      setState(() => _isUpdating = false);
+      if (mounted) {
+        setState(() => _isUpdating = false);
+      }
 
       if (mounted) {
         final i18n = AppLocalizations.of(context);

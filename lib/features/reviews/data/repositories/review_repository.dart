@@ -445,12 +445,34 @@ class ReviewRepository {
     debugPrint('✅ [createReview] Processo completo!');
   }
 
-  /// Busca reviews de um usuário
+  /// Busca reviews de um usuário (com cache)
+  /// 
+  /// Cache TTL: 6 horas (via ReviewPageCacheService)
   Future<List<ReviewModel>> getUserReviews(
     String userId, {
     int limit = 10,
     DocumentSnapshot? startAfter,
+    bool useCache = true,
   }) async {
+    // Cache só funciona para primeira página (sem startAfter)
+    final isFirstPage = startAfter == null;
+    
+    // Tenta cache primeiro (com timeout para evitar travamento)
+    if (useCache && isFirstPage) {
+      try {
+        await _reviewsCache.ensureInitialized().timeout(const Duration(seconds: 3));
+        final cached = _reviewsCache.getPage(userId, 0);
+        if (cached != null && cached.isNotEmpty) {
+          debugPrint('📦 [getUserReviews] Cache hit para userId: ${userId.substring(0, 8)}... (${cached.length} reviews)');
+          return cached;
+        }
+      } catch (e) {
+        debugPrint('⚠️ [getUserReviews] Cache error/timeout: $e - continuando sem cache');
+      }
+    }
+    
+    // Busca no Firestore
+    debugPrint('🔍 [getUserReviews] Buscando no Firestore para userId: ${userId.substring(0, 8)}...');
     Query query = _firestore
         .collection('Reviews')
         .where('reviewee_id', isEqualTo: userId)
@@ -462,8 +484,17 @@ class ReviewRepository {
     }
 
     final snapshot = await query.get();
+    final reviews = snapshot.docs.map((doc) => ReviewModel.fromFirestore(doc)).toList();
+    
+    debugPrint('📊 [getUserReviews] Encontrados: ${reviews.length} reviews');
+    
+    // Salva no cache (apenas primeira página)
+    if (useCache && isFirstPage && reviews.isNotEmpty) {
+      await _reviewsCache.putPage(userId, 0, reviews);
+      debugPrint('💾 [getUserReviews] Cache salvo (TTL: 6h)');
+    }
 
-    return snapshot.docs.map((doc) => ReviewModel.fromFirestore(doc)).toList();
+    return reviews;
   }
 
   /// Busca estatísticas de reviews (calculadas dinamicamente)
@@ -563,46 +594,150 @@ class ReviewRepository {
 
   /// Stream de estatísticas de reviews de um usuário
   ///
-  /// ✅ Usa users_stats (ou Users) para evitar leitura de N reviews.
+  /// ✅ Calcula stats diretamente da coleção Reviews
+  /// ✅ Não depende de campos pré-calculados no documento Users
   Stream<ReviewStatsModel> watchUserStats(String userId) async* {
     debugPrint('🔍 [ReviewRepository] Iniciando watchUserStats para userId: ${userId.substring(0, 8)}...');
 
-    await _statsCache.ensureInitialized();
-    final cached = _statsCache.get(userId);
-    if (cached != null && cached.isNotEmpty) {
-      yield _buildStatsFromData(userId, cached);
+    // Validação de entrada
+    if (userId.trim().isEmpty) {
+      debugPrint('  ⚠️ userId vazio, emitindo stats vazios');
+      yield _emptyStats(userId);
+      return;
     }
 
-    var didFallbackUsers = false;
+    // Inicialização do cache com tratamento de erro
+    try {
+      await _statsCache.ensureInitialized();
+      final cached = _statsCache.get(userId);
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('  📦 Cache hit para stats de $userId');
+        yield _buildStatsFromData(userId, cached);
+      }
+    } catch (e) {
+      debugPrint('  ⚠️ Erro ao inicializar cache: $e');
+      // Continua sem cache
+    }
 
-    await for (final statsDoc
-        in _firestore.collection('users_stats').doc(userId).snapshots()) {
-      try {
-        final statsData = statsDoc.data();
-        if (statsData != null) {
-          await _statsCache.put(userId, statsData);
-          yield _buildStatsFromData(userId, statsData);
-          continue;
-        }
+    var didEmitFirstValue = false;
 
-        if (!didFallbackUsers) {
-          didFallbackUsers = true;
-          final userDoc = await _firestore.collection('Users').doc(userId).get();
-          final userData = userDoc.data();
-          if (userData != null) {
-            await _statsCache.put(userId, userData);
-            yield _buildStatsFromData(userId, userData);
-            continue;
+    try {
+      // ✅ Busca reviews diretamente da coleção Reviews
+      // onde reviewee_id = userId (reviews RECEBIDAS pelo usuário)
+      final query = _firestore
+          .collection('Reviews')
+          .where('reviewee_id', isEqualTo: userId)
+          .orderBy('created_at', descending: true);
+
+      await for (final snapshot in query.snapshots()) {
+        try {
+          debugPrint('  📡 Snapshot Reviews recebido: ${snapshot.docs.length} reviews');
+          
+          final stats = _calculateStatsFromReviews(userId, snapshot.docs);
+          
+          // Salva no cache
+          final cacheData = {
+            'totalReviews': stats.totalReviews,
+            'overallRating': stats.overallRating,
+            'badgesCount': stats.badgesCount,
+            'ratingsBreakdown': stats.ratingsBreakdown,
+            'lastUpdated': stats.lastUpdated.toIso8601String(),
+          };
+          await _statsCache.put(userId, cacheData);
+          
+          yield stats;
+          didEmitFirstValue = true;
+        } catch (e, stackTrace) {
+          debugPrint('  ❌ ERRO em watchUserStats (inner): $e');
+          debugPrint('  Stack: $stackTrace');
+          if (!didEmitFirstValue) {
+            yield _emptyStats(userId);
+            didEmitFirstValue = true;
           }
         }
-
-        yield _emptyStats(userId);
-      } catch (e, stackTrace) {
-        debugPrint('  ❌ ERRO em watchUserStats: $e');
-        debugPrint('  Stack: $stackTrace');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('  ❌ ERRO em watchUserStats (outer): $e');
+      debugPrint('  Stack: $stackTrace');
+      // Garante que sempre emite pelo menos um valor
+      if (!didEmitFirstValue) {
         yield _emptyStats(userId);
       }
     }
+  }
+
+  /// Calcula stats a partir dos documentos de reviews
+  ReviewStatsModel _calculateStatsFromReviews(
+    String userId,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    if (docs.isEmpty) {
+      return _emptyStats(userId);
+    }
+
+    final totalReviews = docs.length;
+    
+    // Calcula média geral
+    double sumRatings = 0;
+    final badgesCount = <String, int>{};
+    final ratingsBreakdown = <String, double>{};
+    DateTime? lastReviewAt;
+
+    for (final doc in docs) {
+      final data = doc.data();
+      
+      // Overall rating
+      final rating = (data['overall_rating'] as num?)?.toDouble() ?? 0.0;
+      sumRatings += rating;
+      
+      // Badges
+      final badges = data['badges'] as List<dynamic>? ?? [];
+      for (final badge in badges) {
+        final badgeKey = badge.toString();
+        badgesCount[badgeKey] = (badgesCount[badgeKey] ?? 0) + 1;
+      }
+      
+      // Criteria ratings breakdown
+      final criteriaRatings = data['criteria_ratings'] as Map<String, dynamic>? ?? {};
+      for (final entry in criteriaRatings.entries) {
+        final key = entry.key;
+        final value = (entry.value as num?)?.toDouble() ?? 0.0;
+        if (ratingsBreakdown.containsKey(key)) {
+          ratingsBreakdown[key] = ratingsBreakdown[key]! + value;
+        } else {
+          ratingsBreakdown[key] = value;
+        }
+      }
+      
+      // Last review date
+      final createdAt = data['created_at'];
+      if (createdAt is Timestamp) {
+        final date = createdAt.toDate();
+        if (lastReviewAt == null || date.isAfter(lastReviewAt)) {
+          lastReviewAt = date;
+        }
+      }
+    }
+
+    final overallRating = totalReviews > 0 ? sumRatings / totalReviews : 0.0;
+    
+    // Calcula média por critério
+    for (final key in ratingsBreakdown.keys) {
+      ratingsBreakdown[key] = ratingsBreakdown[key]! / totalReviews;
+    }
+
+    debugPrint('  📊 Stats calculadas: totalReviews=$totalReviews, overallRating=${overallRating.toStringAsFixed(2)}, badges=${badgesCount.length}');
+
+    return ReviewStatsModel(
+      userId: userId,
+      totalReviews: totalReviews,
+      overallRating: overallRating,
+      ratingsBreakdown: ratingsBreakdown,
+      badgesCount: badgesCount,
+      last30DaysCount: 0,
+      last90DaysCount: 0,
+      lastUpdated: lastReviewAt ?? DateTime.now(),
+    );
   }
 
   ReviewStatsModel _buildStatsFromData(String userId, Map<String, dynamic> data) {

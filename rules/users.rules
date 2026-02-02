@@ -83,6 +83,21 @@ match /Users/{userId} {
     // Escrita apenas via Cloud Functions
     allow write: if false;
   }
+  
+  /// 🔒 Subcoleção privada para dados sensíveis
+  /// Path: Users/{userId}/private/{docId}
+  /// 
+  /// Contém:
+  /// - location: { latitude, longitude } (localização real do usuário)
+  /// 
+  /// 🛡️ SEGURANÇA: 
+  /// - Leitura: APENAS o próprio usuário pode ler
+  /// - Escrita: APENAS o próprio usuário pode escrever
+  /// - Cloud Functions (Admin SDK) podem acessar para cálculos de distância
+  match /private/{docId} {
+    allow read: if isOwner(userId);
+    allow write: if isOwner(userId);
+  }
 }
 
 

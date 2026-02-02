@@ -162,6 +162,11 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
     _scrollToMessageFunc?.call(messageId);
   }
 
+  void _safeSetState(VoidCallback action) {
+    if (!mounted) return;
+    setState(action);
+  }
+
   // Send text message (uses provided text to avoid race with controller clearing)
   Future<void> _sendTextMessage(String inputText) async {
     await _chatService.sendTextMessage(
@@ -169,12 +174,15 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
       text: inputText,
       receiver: widget.user,
       i18n: _i18n,
-      setIsSending: (isSending) => setState(() {}),
+      setIsSending: (isSending) {
+        if (!mounted) return;
+        setState(() {});
+      },
       replySnapshot: _replySnapshot, // 🆕 Passar snapshot de reply
     );
     
     // 🆕 Limpar reply após enviar
-    if (_replySnapshot != null) {
+    if (_replySnapshot != null && mounted) {
       setState(() {
         _replySnapshot = null;
       });
@@ -184,19 +192,20 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
 
   // Send image message
   Future<void> _sendImageMessage(File imageFile) async {
+    if (!mounted) return;
     await _chatService.sendImageMessage(
       context: context,
       imageFile: imageFile,
       receiver: widget.user,
       i18n: _i18n,
       progressDialog: _pr,
-      setIsSending: (isSending) => setState(() {}),
+      setIsSending: (isSending) => _safeSetState(() {}),
       replySnapshot: _replySnapshot, // 🆕 Passar snapshot de reply
     );
     
     // 🆕 Limpar reply após enviar
     if (_replySnapshot != null) {
-      setState(() {
+      _safeSetState(() {
         _replySnapshot = null;
       });
     }

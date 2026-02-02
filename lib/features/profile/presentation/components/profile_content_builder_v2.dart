@@ -55,9 +55,8 @@ class ProfileContentBuilderV2 extends StatefulWidget {
 class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
   final _reviewRepository = ReviewRepository();
   
-  // Stream controllers para reviews
-  Stream<ReviewStatsModel>? _statsStream;
-  Stream<List<ReviewModel>>? _reviewsStream;
+  // Future para reviews (get único, não stream)
+  late Future<_ReviewData> _reviewDataFuture;
   
   // Widget de reviews cacheado para evitar rebuilds desnecessários
   late Widget _reviewsSectionWidget;
@@ -70,7 +69,17 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
     super.initState();
     debugPrint('📄 [ProfileContentBuilderV2] initState() - hashCode: ${widget.hashCode}, followController: ${widget.followController?.hashCode}');
     
-    _loadReviewStreams();
+    _loadReviewData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileContentBuilderV2 oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Recarrega dados se o usuário mudou
+    if (oldWidget.displayUser.userId != widget.displayUser.userId) {
+      debugPrint('📄 [ProfileContentBuilderV2] didUpdateWidget - userId mudou, recarregando dados');
+      _loadReviewData();
+    }
   }
 
   @override
@@ -79,16 +88,43 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
     super.dispose();
   }
 
-  void _loadReviewStreams() {
-    debugPrint('🔄 _loadReviewStreams iniciado para user: ${widget.displayUser.userId}');
-    _statsStream = _reviewRepository.watchUserStats(widget.displayUser.userId);
-    _reviewsStream = _reviewRepository.watchUserReviews(widget.displayUser.userId);
+  void _loadReviewData() {
+    debugPrint('🔄 _loadReviewData iniciado para user: ${widget.displayUser.userId}');
+    // Usa Future único (get) em vez de Stream - muito mais eficiente
+    _reviewDataFuture = _fetchReviewData(widget.displayUser.userId);
     
-    // Inicializa o widget de reviews uma única vez
+    // Inicializa/atualiza o widget de reviews
     _reviewsSectionWidget = _ProfileReviewsSection(
-      statsStream: _statsStream,
-      reviewsStream: _reviewsStream,
+      key: ValueKey('reviews_${widget.displayUser.userId}'),
+      reviewDataFuture: _reviewDataFuture,
     );
+  }
+
+  Future<_ReviewData> _fetchReviewData(String userId) async {
+    debugPrint('📡 [ProfileContentBuilderV2] Buscando reviews para: ${userId.substring(0, 8)}...');
+    
+    try {
+      // Busca reviews e calcula stats (uma única query) com timeout
+      final reviews = await _reviewRepository
+          .getUserReviews(userId, limit: 50)
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+            debugPrint('⏰ [ProfileContentBuilderV2] TIMEOUT ao buscar reviews');
+            return <ReviewModel>[];
+          });
+      final stats = ReviewStatsModel.calculate(userId, reviews);
+      
+      debugPrint('📊 [ProfileContentBuilderV2] Reviews carregados: ${reviews.length}, rating: ${stats.overallRating}');
+      
+      return _ReviewData(stats: stats, reviews: reviews);
+    } catch (e, stack) {
+      debugPrint('❌ [ProfileContentBuilderV2] Erro ao buscar reviews: $e');
+      debugPrint('   Stack: $stack');
+      // Retorna dados vazios em caso de erro
+      return _ReviewData(
+        stats: ReviewStatsModel.calculate(userId, const []),
+        reviews: const [],
+      );
+    }
   }
 
   @override
@@ -165,86 +201,102 @@ class _ProfileContentBuilderV2State extends State<ProfileContentBuilderV2> {
     debugPrint('📄 [ProfileContentBuilderV2] _buildActions() chamado');
     // Renderização condicional via UserStore
     // Campo Firestore: message_button (bool). Default: true.
+    // Campo Firestore: advancedSettings.followButton (bool). Default: true.
 
     return ValueListenableBuilder<bool>(
-      valueListenable: UserStore.instance.getMessageButtonNotifier(
+      valueListenable: UserStore.instance.getFollowButtonNotifier(
         widget.displayUser.userId,
       ),
-      builder: (context, showMessageButton, _) {
-        return RepaintBoundary(
-          child: ProfileActionsSection(
-            showFollowButton: widget.followController != null,
-            showMessageButton: showMessageButton,
-            followController: widget.followController,
-            onAddFriend: () {
-              debugPrint('👥 Adicionar amigo clicado');
-            },
-            onMessage: showMessageButton ? () {
-              // Verificar se usuário está bloqueado
-              if (BlockService().isBlockedCached(widget.currentUserId, widget.displayUser.userId)) {
-                ToastService.showWarning(
-                  message: widget.i18n.translate('user_blocked_cannot_message'),
-                );
-                return;
-              }
-
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatScreenRefactored(
-                    user: widget.displayUser,
-                    isEvent: false,
-                  ),
-                ),
-              );
-            } : null,
+      builder: (context, showFollowButton, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: UserStore.instance.getMessageButtonNotifier(
+            widget.displayUser.userId,
           ),
+          builder: (context, showMessageButton, _) {
+            return RepaintBoundary(
+              child: ProfileActionsSection(
+                showFollowButton: showFollowButton && widget.followController != null,
+                showMessageButton: showMessageButton,
+                followController: widget.followController,
+                onAddFriend: () {
+                  debugPrint('👥 Adicionar amigo clicado');
+                },
+                onMessage: showMessageButton ? () {
+                  // Verificar se usuário está bloqueado
+                  if (BlockService().isBlockedCached(widget.currentUserId, widget.displayUser.userId)) {
+                    ToastService.showWarning(
+                      message: widget.i18n.translate('user_blocked_cannot_message'),
+                    );
+                    return;
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreenRefactored(
+                        user: widget.displayUser,
+                        isEvent: false,
+                      ),
+                    ),
+                  );
+                } : null,
+              ),
+            );
+          },
         );
       },
     );
   }
 }
 
-/// Widget separado para gerenciar estado de expansão e evitar rebuilds do pai
-class _ProfileReviewsSection extends StatefulWidget {
-  const _ProfileReviewsSection({
-    required this.statsStream,
-    required this.reviewsStream,
-  });
-
-  final Stream<ReviewStatsModel>? statsStream;
-  final Stream<List<ReviewModel>>? reviewsStream;
-
-  @override
-  State<_ProfileReviewsSection> createState() => _ProfileReviewsSectionState();
+/// Dados de reviews carregados (stats + lista)
+class _ReviewData {
+  final ReviewStatsModel stats;
+  final List<ReviewModel> reviews;
+  
+  const _ReviewData({required this.stats, required this.reviews});
 }
 
-class _ProfileReviewsSectionState extends State<_ProfileReviewsSection> {
+/// Widget separado para reviews usando FutureBuilder (mais eficiente que StreamBuilder)
+class _ProfileReviewsSection extends StatelessWidget {
+  const _ProfileReviewsSection({
+    required this.reviewDataFuture,
+    super.key,
+  });
+
+  final Future<_ReviewData> reviewDataFuture;
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<ReviewStatsModel>(
-      stream: widget.statsStream,
-      builder: (context, statsSnapshot) {
-        debugPrint('🔍 [ProfileReviewsSection] StreamBuilder status:');
-        debugPrint('  - hasData: ${statsSnapshot.hasData}');
-        debugPrint('  - connectionState: ${statsSnapshot.connectionState}');
+    return FutureBuilder<_ReviewData>(
+      future: reviewDataFuture,
+      builder: (context, snapshot) {
+        debugPrint('🔍 [ProfileReviewsSection] FutureBuilder status:');
+        debugPrint('  - hasData: ${snapshot.hasData}');
+        debugPrint('  - connectionState: ${snapshot.connectionState}');
         
-        if (statsSnapshot.hasData) {
-          final stats = statsSnapshot.data!;
-          debugPrint('  - hasReviews: ${stats.hasReviews}');
-          debugPrint('  - totalReviews: ${stats.totalReviews}');
-          debugPrint('  - overallRating: ${stats.overallRating}');
-          debugPrint('  - badgesCount: ${stats.badgesCount}');
+        if (snapshot.hasData) {
+          final data = snapshot.data!;
+          debugPrint('  - hasReviews: ${data.stats.hasReviews}');
+          debugPrint('  - totalReviews: ${data.stats.totalReviews}');
+          debugPrint('  - overallRating: ${data.stats.overallRating}');
+          debugPrint('  - badgesCount: ${data.stats.badgesCount}');
+        } else if (snapshot.hasError) {
+          debugPrint('  - error: ${snapshot.error}');
         } else {
-          debugPrint('  - data is null');
+          debugPrint('  - loading...');
         }
         
-        if (!statsSnapshot.hasData || !statsSnapshot.data!.hasReviews) {
-          debugPrint('  ❌ Não renderizando ReviewStatsSection/ReviewBadgesSection');
+        // Loading ou erro - não mostra nada
+        if (!snapshot.hasData || !snapshot.data!.stats.hasReviews) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            debugPrint('  ❌ Não renderizando ReviewStatsSection/ReviewBadgesSection');
+          }
           return const SizedBox.shrink();
         }
 
-        final stats = statsSnapshot.data!;
+        final stats = snapshot.data!.stats;
+        final reviews = snapshot.data!.reviews;
         debugPrint('  ✅ Renderizando ReviewStatsSection e ReviewBadgesSection');
 
         return RepaintBoundary(
@@ -257,37 +309,13 @@ class _ProfileReviewsSectionState extends State<_ProfileReviewsSection> {
               if (stats.badgesCount.isNotEmpty)
                 ReviewBadgesSection(badgesCount: stats.badgesCount),
               
-              // Lista de reviews individuais + Seção "Avaliado por"
-              StreamBuilder<List<ReviewModel>>(
-                stream: widget.reviewsStream,
-                builder: (context, reviewsSnapshot) {
-                  if (reviewsSnapshot.hasError) {
-                    debugPrint('❌ Erro ao carregar reviews: ${reviewsSnapshot.error}');
-                    return const SizedBox.shrink();
-                  }
-
-                  if (!reviewsSnapshot.hasData) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final reviews = reviewsSnapshot.data!;
-
-                  if (reviews.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Seção "Avaliado por" com avatares dos reviewers
-                      ReviewedBySection(reviews: reviews),
-                      
-                      // Comentários das reviews
-                      ReviewCommentsSection(reviews: reviews),
-                    ],
-                  );
-                },
-              ),
+              // Seção "Avaliado por" com avatares dos reviewers
+              if (reviews.isNotEmpty)
+                ReviewedBySection(reviews: reviews),
+              
+              // Comentários das reviews
+              if (reviews.isNotEmpty)
+                ReviewCommentsSection(reviews: reviews),
             ],
           ),
         );

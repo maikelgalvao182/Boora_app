@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geolocator/geolocator.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
 
@@ -12,6 +14,7 @@ import 'package:partiu/core/services/location_analytics_service.dart';
 /// 
 /// Este serviço NÃO obtém coordenadas - apenas gerencia permissões
 class LocationPermissionFlow {
+  static Future<LocationPermission>? _requestInFlight;
 
   /// Etapa 1: Verifica o status atual da permissão de localização
   Future<LocationPermission> check() async {
@@ -20,7 +23,23 @@ class LocationPermissionFlow {
 
   /// Etapa 2: Solicita permissão ao usuário
   Future<LocationPermission> request() async {
-    return await Geolocator.requestPermission();
+    if (_requestInFlight != null) {
+      return _requestInFlight!;
+    }
+
+    final completer = Completer<LocationPermission>();
+    _requestInFlight = completer.future;
+
+    try {
+      final result = await Geolocator.requestPermission();
+      completer.complete(result);
+      return result;
+    } catch (e, stackTrace) {
+      completer.completeError(e, stackTrace);
+      rethrow;
+    } finally {
+      _requestInFlight = null;
+    }
   }
 
   /// Etapa 3: Verifica se o serviço de localização (GPS) está ativo no dispositivo

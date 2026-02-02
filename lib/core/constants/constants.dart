@@ -336,6 +336,24 @@ const double DEFAULT_RADIUS_KM = 30.0;
 /// que respeita o raio do RadiusController.
 const double PEOPLE_SEARCH_RADIUS_KM = 30.0;
 
+/// ========================================
+/// === 6. RAIO DE NOTIFICAÇÕES DE EVENTOS ===
+/// ========================================
+/// 
+/// 🎯 O QUE FAZ:
+/// Define o raio (em km) para notificar usuários quando um novo evento
+/// é criado ou está "aquecendo" (heating up).
+/// 
+/// 📍 ONDE É USADO:
+/// - NotificationTargetingService.getUsersForActivityCreated()
+/// - NotificationTargetingService.getTargetingStats()
+/// - ActivityHeatingUpTrigger.execute()
+/// 
+/// 💡 Valor padrão: 30km
+/// Ajuste este valor para receber notificações de eventos mais próximos (ex: 5km)
+/// ou mais distantes (ex: 50km).
+const double EVENT_NOTIFICATION_RADIUS_KM = 30.0;
+
 /// === AGE FILTER LIMITS ===
 /// Minimum age for event participation and filters
 const double MIN_AGE = 18.0;

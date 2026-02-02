@@ -237,7 +237,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                             hintText: widget.hintText,
                             hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                               color: GlimpseColors.textSubTitle,
-                              fontWeight: FontWeight.w300,
+                              fontWeight: FontWeight.w400,
                               fontSize: 14,
                               height: 1.4,
                             ),

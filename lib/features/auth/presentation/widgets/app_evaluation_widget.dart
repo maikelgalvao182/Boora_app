@@ -2,6 +2,7 @@ import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/constants/text_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:in_app_review/in_app_review.dart';
 
@@ -77,7 +78,7 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
     _hasRequestedReview = true;
     
     try {
-      if (!mounted) return;
+      if (!_canRequestReview()) return;
       final inAppReview = InAppReview.instance;
       
       if (await inAppReview.isAvailable()) {
@@ -88,6 +89,15 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
     } catch (e) {
       AppLogger.error('Error requesting review: $e', tag: 'AppEvaluationWidget');
     }
+  }
+
+  bool _canRequestReview() {
+    if (!mounted || kIsWeb) return false;
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) {
+      return false;
+    }
+    return true;
   }
 
   List<_TestimonialData> _getTestimonials() {

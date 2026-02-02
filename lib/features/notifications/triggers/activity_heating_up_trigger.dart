@@ -1,3 +1,4 @@
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/services/geo_index_service.dart';
 import 'package:partiu/features/home/domain/models/activity_model.dart';
 import 'package:partiu/features/notifications/models/activity_notification_types.dart';
@@ -58,11 +59,11 @@ class ActivityHeatingUpTrigger extends BaseActivityTrigger {
       final eventParticipants = await _getEventParticipants(activity.id);
       final excludeIds = [...eventParticipants, activity.createdBy]; // Excluir participantes + criador
 
-      // PASSO 2: Buscar usuários no raio geográfico (30km)
+      // PASSO 2: Buscar usuários no raio geográfico
       final usersInRadius = await _geoIndexService.findUsersInRadius(
         latitude: activity.latitude,
         longitude: activity.longitude,
-        radiusKm: 30.0,
+        radiusKm: EVENT_NOTIFICATION_RADIUS_KM,
         excludeUserIds: excludeIds,
       );
 

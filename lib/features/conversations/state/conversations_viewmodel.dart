@@ -43,6 +43,8 @@ class ConversationsViewModel extends ChangeNotifier {
   
   // WebSocket-backed state (ainda não usado na UI)
   List<ConversationItem> _wsConversations = <ConversationItem>[];
+  // Optimistic UI: hide conversations by id (e.g., event_123) immediately
+  final Set<String> _optimisticHiddenConversationIds = <String>{};
   String _searchQuery = '';
   int _wsUnreadCount = 0;
   
@@ -379,15 +381,26 @@ class ConversationsViewModel extends ChangeNotifier {
         }
         return !isBlocked;
       }).toList();
+
+      // 🚫 Remover conversas ocultadas de forma otimista
+      final visibleItems = _optimisticHiddenConversationIds.isEmpty
+          ? filteredItems
+          : filteredItems
+              .where((conv) => !_optimisticHiddenConversationIds.contains(conv.id))
+              .toList();
       
-      _log('📊 [Firestore Stream] Total: ${items.length}, Bloqueados: ${items.length - filteredItems.length}, Visíveis: ${filteredItems.length}');
-      _log('📊 [Firestore Stream] Chats de evento: ${filteredItems.where((c) => c.isEventChat).length}');
-      _log('📊 [Firestore Stream] Chats 1-1: ${filteredItems.where((c) => !c.isEventChat).length}');
+      _log('📊 [Firestore Stream] Total: ${items.length}, Bloqueados: ${items.length - filteredItems.length}, Visíveis: ${visibleItems.length}');
+      _log('📊 [Firestore Stream] Chats de evento: ${visibleItems.where((c) => c.isEventChat).length}');
+      _log('📊 [Firestore Stream] Chats 1-1: ${visibleItems.where((c) => !c.isEventChat).length}');
       
-      _wsConversations = filteredItems;
+      _wsConversations = visibleItems;
     } else {
       _log('⚠️ [Firestore Stream] currentUserId é null, não filtrando bloqueados');
-      _wsConversations = items;
+      _wsConversations = _optimisticHiddenConversationIds.isEmpty
+          ? items
+          : items
+              .where((conv) => !_optimisticHiddenConversationIds.contains(conv.id))
+              .toList();
     }
 
     // 🧊 Persistir lista para cold start
@@ -473,10 +486,17 @@ class ConversationsViewModel extends ChangeNotifier {
     // 🚫 Filtrar conversas de usuários bloqueados
     final currentUserId = AppState.currentUserId;
     final filteredList = currentUserId != null
-        ? list.where((conv) => !BlockService().isBlockedCached(currentUserId, conv.userId)).toList()
-        : list;
+      ? list.where((conv) => !BlockService().isBlockedCached(currentUserId, conv.userId)).toList()
+      : list;
 
-    _wsConversations = filteredList;
+    // 🚫 Remover conversas ocultadas de forma otimista
+    final visibleList = _optimisticHiddenConversationIds.isEmpty
+      ? filteredList
+      : filteredList
+        .where((conv) => !_optimisticHiddenConversationIds.contains(conv.id))
+        .toList();
+
+    _wsConversations = visibleList;
     _updateVisibleUnreadCount(); // Atualiza contador de não lidas visíveis
     notifyListeners();
   }
@@ -968,6 +988,24 @@ class ConversationsViewModel extends ChangeNotifier {
   /// Optimistically remove conversation by userId
   void optimisticRemoveByUserId(String userId) {
     _paginationService.optimisticRemoveByUserId(userId);
+  }
+
+  /// Optimistically remove conversation by conversationId (e.g., event_123)
+  void optimisticRemoveByConversationId(String conversationId) {
+    if (conversationId.isEmpty) return;
+    if (_optimisticHiddenConversationIds.add(conversationId)) {
+      _wsConversations = _wsConversations
+          .where((conv) => conv.id != conversationId)
+          .toList(growable: false);
+
+      final authUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (authUserId != null && _wsConversations.isNotEmpty) {
+        unawaited(_persistentCache.cacheConversations(authUserId, _wsConversations));
+      }
+
+      _updateVisibleUnreadCount();
+      notifyListeners();
+    }
   }
 
   /// Optimistically mark conversation as read

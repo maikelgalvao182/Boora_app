@@ -23,7 +23,7 @@ class GlimpseStyles {
   // Estilos de texto para subtítulos
   static TextStyle subtitleStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 18,
-        fontWeight: FontWeight.w300,
+        fontWeight: FontWeight.w400,
         color: color ?? GlimpseColors.textSubTitle,
       );
 
@@ -37,7 +37,7 @@ class GlimpseStyles {
   // Estilos de texto para dicas em campos de texto
   static TextStyle hintTextStyle({Color? color}) => GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         fontSize: 18,
-        fontWeight: FontWeight.w300,
+        fontWeight: FontWeight.w400,
         color: color ?? GlimpseColors.textSubTitle,
       );
 

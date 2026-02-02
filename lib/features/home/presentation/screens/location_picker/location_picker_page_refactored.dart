@@ -156,8 +156,8 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
       }
     }
 
-    // DEPOIS: reverse + nearby em background (sem await)
-    unawaited(_controller.moveToLocation(target, loadNearby: true));
+    // DEPOIS: reverse em background (sem await)
+    unawaited(_controller.moveToLocation(target));
   }
 
   /// Obtém localização atual do dispositivo
@@ -241,18 +241,17 @@ class _LocationPickerPageRefactoredState extends State<LocationPickerPageRefacto
 
     if (!mounted) return;
 
-    await _controller.moveToLocation(center, loadNearby: false);
+    await _controller.moveToLocation(center);
   }
 
   /// Callback quando usuário digita na busca
   void _onSearchChanged(String query) {
     // Ignorar se estamos atualizando o texto programaticamente
     if (_isUpdatingSearchText) return;
-    
-    // Ignorar se a localização já foi confirmada (usuário selecionou do dropdown)
-    if (_controller.isLocationConfirmed) {
-      _clearOverlay();
-      return;
+
+    // Se já havia confirmação, liberar para permitir nova busca
+    if (_controller.isLocationConfirmed && query.isNotEmpty) {
+      _controller.unlockLocation();
     }
 
     if (query.isEmpty) {

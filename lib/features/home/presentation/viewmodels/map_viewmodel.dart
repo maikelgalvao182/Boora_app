@@ -143,6 +143,15 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? _buildVisibleBoundsKey() {
+    final bounds = _visibleBounds;
+    if (bounds == null) return null;
+    return '${bounds.southwest.latitude.toStringAsFixed(3)}_'
+        '${bounds.southwest.longitude.toStringAsFixed(3)}_'
+        '${bounds.northeast.latitude.toStringAsFixed(3)}_'
+        '${bounds.northeast.longitude.toStringAsFixed(3)}';
+  }
+
   /// Versão monotônica do dataset de eventos exposto ao mapa.
   ///
   /// Motivo: evitar o gap "ids iguais -> não notifica" + permitir que a UI
@@ -172,11 +181,31 @@ class MapViewModel extends ChangeNotifier {
   /// reconstruir markers por ter aplicado um estado visual incorreto por corrida.
   int _boundsSnapshotVersion = 0;
 
+  // Anti-vazio: evita limpar markers em vazio transitório.
+  final Duration _strongEmptyWindow = const Duration(seconds: 6);
+  String? _lastEmptyBoundsKey;
+  DateTime? _lastEmptyAt;
+  int _consecutiveEmptyForBounds = 0;
+
+  // Single-flight para loads por bounds
+  final Map<String, Future<void>> _inFlightBoundsLoads = {};
+
+  // Cache de nomes de criadores (evita fetch duplicado)
+  static const Duration _creatorNameCacheTtl = Duration(days: 1);
+  final Map<String, _CreatorNameCacheEntry> _creatorNameCache = {};
+  final Set<String> _creatorNameInFlight = {};
+
   /// Filtro de categoria selecionado para o mapa
   /// - null: mostrar todas
   /// - String: mostrar apenas eventos daquela categoria
   String? _selectedCategory;
   String? get selectedCategory => _selectedCategory;
+  
+  /// Filtro de data selecionado para o mapa
+  /// - null: mostrar todos os dias
+  /// - DateTime: mostrar apenas eventos daquele dia
+  DateTime? _selectedDate;
+  DateTime? get selectedDate => _selectedDate;
 
   /// Categorias disponíveis, derivadas dos eventos carregados (coleção Events)
   List<String> get availableCategories {
@@ -191,29 +220,97 @@ class MapViewModel extends ChangeNotifier {
     _recomputeCountsInBounds();
     notifyListeners();
   }
+  
+  /// Define o filtro de data para o mapa
+  void setDateFilter(DateTime? date) {
+    // Normalizar: comparar apenas dia/mês/ano
+    final normalizedNew = date != null 
+        ? DateTime(date.year, date.month, date.day)
+        : null;
+    final normalizedOld = _selectedDate != null 
+        ? DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day)
+        : null;
+    
+    if (normalizedOld == normalizedNew) return;
+    _selectedDate = normalizedNew;
+    _recomputeCountsInBounds();
+    notifyListeners();
+  }
+  
+  /// Verifica se um evento passa nos filtros ativos (categoria + data)
+  bool _eventPassesFilters(EventModel event) {
+    // Filtro de categoria
+    final selectedCat = _selectedCategory;
+    if (selectedCat != null && selectedCat.trim().isNotEmpty) {
+      final eventCategory = event.category?.trim();
+      if (eventCategory != selectedCat) return false;
+    }
+    
+    // Filtro de data
+    if (_selectedDate != null) {
+      final eventDate = event.scheduleDate;
+      if (eventDate == null) return false;
+      
+      // Comparar apenas dia/mês/ano
+      if (eventDate.year != _selectedDate!.year ||
+          eventDate.month != _selectedDate!.month ||
+          eventDate.day != _selectedDate!.day) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+  
+  /// Verifica se um EventLocation passa nos filtros ativos (categoria + data)
+  /// Usado no _recomputeCountsInBounds onde temos EventLocation, não EventModel
+  bool _eventLocationPassesFilters(String? category, DateTime? scheduleDate) {
+    // Filtro de categoria
+    final selectedCat = _selectedCategory;
+    if (selectedCat != null && selectedCat.trim().isNotEmpty) {
+      final eventCategory = category?.trim();
+      if (eventCategory != selectedCat) return false;
+    }
+    
+    // Filtro de data
+    if (_selectedDate != null) {
+      if (scheduleDate == null) return false;
+      
+      // Comparar apenas dia/mês/ano
+      if (scheduleDate.year != _selectedDate!.year ||
+          scheduleDate.month != _selectedDate!.month ||
+          scheduleDate.day != _selectedDate!.day) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
 
   void _recomputeCountsInBounds() {
     final boundsEvents = _mapDiscoveryService.nearbyEvents.value;
 
     final countsByCategory = <String, int>{};
+    int totalFiltered = 0;
+    
     for (final event in boundsEvents) {
       final category = event.category;
-      if (category == null) continue;
-      final normalized = category.trim();
-      if (normalized.isEmpty) continue;
-      countsByCategory[normalized] = (countsByCategory[normalized] ?? 0) + 1;
+      if (category != null && category.trim().isNotEmpty) {
+        final normalized = category.trim();
+        countsByCategory[normalized] = (countsByCategory[normalized] ?? 0) + 1;
+      }
+      
+      // Contar eventos que passam nos filtros (categoria + data)
+      if (_eventLocationPassesFilters(event.category, event.scheduleDate)) {
+        totalFiltered++;
+      }
     }
 
     _eventsInBoundsCount = boundsEvents.length;
     _eventsInBoundsCountByCategory = Map<String, int>.unmodifiable(countsByCategory);
 
-    final selected = _selectedCategory;
-    if (selected == null || selected.trim().isEmpty) {
-      _matchingEventsInBoundsCount = _eventsInBoundsCount;
-    } else {
-      _matchingEventsInBoundsCount =
-          _eventsInBoundsCountByCategory[selected.trim()] ?? 0;
-    }
+    // Matching agora considera AMBOS filtros (categoria E data)
+    _matchingEventsInBoundsCount = totalFiltered;
   }
 
   void _handleBoundsEventsChanged() {
@@ -362,4 +459,93 @@ class MapViewModel extends ChangeNotifier {
     _instance = null; // Limpa referência global
     super.dispose();
   }
+
+  String? _getCachedCreatorName(String creatorId) {
+    final entry = _creatorNameCache[creatorId];
+    if (entry == null) return null;
+    final age = DateTime.now().difference(entry.fetchedAt);
+    if (age >= _creatorNameCacheTtl) {
+      _creatorNameCache.remove(creatorId);
+      return null;
+    }
+    return entry.name;
+  }
+
+  void _cacheCreatorNames(Map<String, String> names) {
+    final now = DateTime.now();
+    for (final entry in names.entries) {
+      _creatorNameCache[entry.key] = _CreatorNameCacheEntry(
+        name: entry.value,
+        fetchedAt: now,
+      );
+    }
+  }
+
+  Future<void> _enrichCreatorNamesInBackground(List<EventModel> events) async {
+    final ids = events
+        .where((e) => e.creatorFullName == null)
+        .map((e) => e.createdBy)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return;
+
+    final idsToFetch = <String>[];
+    for (final id in ids) {
+      if (_creatorNameInFlight.contains(id)) continue;
+      if (_getCachedCreatorName(id) != null) continue;
+      _creatorNameInFlight.add(id);
+      idsToFetch.add(id);
+    }
+
+    if (idsToFetch.isEmpty) return;
+
+    try {
+      final usersData = await _userRepository.getUsersBasicInfo(idsToFetch);
+      final creatorNames = <String, String>{};
+      for (final userData in usersData) {
+        final id = userData['userId'] as String?;
+        final name = userData['fullName'] as String?;
+        if (id != null && name != null) {
+          creatorNames[id] = name;
+        }
+      }
+
+      if (creatorNames.isNotEmpty) {
+        _cacheCreatorNames(creatorNames);
+
+        var changed = false;
+        final updated = _events.map((event) {
+          final cachedName = creatorNames[event.createdBy];
+          if (cachedName != null && event.creatorFullName != cachedName) {
+            changed = true;
+            return event.copyWith(creatorFullName: cachedName);
+          }
+          return event;
+        }).toList(growable: false);
+
+        if (changed) {
+          _events = updated;
+          eventsVersion.value = (eventsVersion.value + 1).clamp(0, 1 << 30);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [MapVM] Erro ao buscar nomes de criadores (bg): $e');
+    } finally {
+      for (final id in idsToFetch) {
+        _creatorNameInFlight.remove(id);
+      }
+    }
+  }
+}
+
+class _CreatorNameCacheEntry {
+  final String name;
+  final DateTime fetchedAt;
+
+  const _CreatorNameCacheEntry({
+    required this.name,
+    required this.fetchedAt,
+  });
 }

@@ -145,6 +145,8 @@ class UserStore {
   final Map<String, ValueNotifier<String?>> _languagesNotifiers = {};
   final Map<String, ValueNotifier<String?>> _instagramNotifiers = {};
   final Map<String, ValueNotifier<bool>> _messageButtonNotifiers = {};
+  final Map<String, ValueNotifier<bool>> _followButtonNotifiers = {};
+  final Map<String, ValueNotifier<bool>> _showDistanceNotifiers = {};
   // Notifiers para campos do wizard foram removidos pois não são utilizados atualmente
   // Podem ser adicionados de volta quando necessário
   
@@ -332,22 +334,28 @@ class UserStore {
   }
   
   void _updateNotifiers(String userId, UserEntry entry) {
-    if (entry.avatarUrl.isNotEmpty) {
-      final avatarEntry = AvatarEntry(AvatarState.loaded, entry.avatarProvider);
-      _avatarEntryNotifiers[userId]?.value = avatarEntry;
-      _avatarNotifiers[userId]?.value = entry.avatarProvider;
-    } else {
-       // Se não tem avatar, verifica se loaded (já tratado no construtor de UserEntry default)
-    }
-    
-    _nameNotifiers[userId]?.value = entry.name;
-    _verifiedNotifiers[userId]?.value = entry.isVerified;
-    _vipNotifiers[userId]?.value = entry.isVip;
-    _onlineNotifiers[userId]?.value = entry.isOnline;
-    _bioNotifiers[userId]?.value = entry.bio;
-    _cityNotifiers[userId]?.value = entry.city;
-    _stateNotifiers[userId]?.value = entry.state;
-    _countryNotifiers[userId]?.value = entry.country;
+    // ✅ CORREÇÃO: Adiar atualização para evitar "setState during build"
+    // Quando resolveUser() encontra dados no cache Hive sincronamente durante
+    // o build de um StableAvatar, a atualização do notifier causaria rebuild
+    // durante o build, gerando exceção do framework.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (entry.avatarUrl.isNotEmpty) {
+        final avatarEntry = AvatarEntry(AvatarState.loaded, entry.avatarProvider);
+        _avatarEntryNotifiers[userId]?.value = avatarEntry;
+        _avatarNotifiers[userId]?.value = entry.avatarProvider;
+      } else {
+         // Se não tem avatar, verifica se loaded (já tratado no construtor de UserEntry default)
+      }
+      
+      _nameNotifiers[userId]?.value = entry.name;
+      _verifiedNotifiers[userId]?.value = entry.isVerified;
+      _vipNotifiers[userId]?.value = entry.isVip;
+      _onlineNotifiers[userId]?.value = entry.isOnline;
+      _bioNotifiers[userId]?.value = entry.bio;
+      _cityNotifiers[userId]?.value = entry.city;
+      _stateNotifiers[userId]?.value = entry.state;
+      _countryNotifiers[userId]?.value = entry.country;
+    });
   }
   
   void _handleUserNotFound(String userId) {
@@ -518,6 +526,30 @@ class UserStore {
     if (userId.isEmpty) return ValueNotifier<bool>(true);
     _ensureFullListening(userId);
     return _messageButtonNotifiers.putIfAbsent(userId, () {
+      return ValueNotifier<bool>(true);
+    });
+  }
+
+  /// ✅ Preferência: exibir botão de seguir no perfil
+  ///
+  /// Campo do Firestore: `advancedSettings.followButton` (bool)
+  /// Default: true (usuários legados sem o campo)
+  ValueNotifier<bool> getFollowButtonNotifier(String userId) {
+    if (userId.isEmpty) return ValueNotifier<bool>(true);
+    _ensureFullListening(userId);
+    return _followButtonNotifiers.putIfAbsent(userId, () {
+      return ValueNotifier<bool>(true);
+    });
+  }
+
+  /// ✅ Preferência: exibir distância no perfil (para outros usuários)
+  ///
+  /// Campo do Firestore: `advancedSettings.showDistance` (bool)
+  /// Default: true (usuários legados sem o campo)
+  ValueNotifier<bool> getShowDistanceNotifier(String userId) {
+    if (userId.isEmpty) return ValueNotifier<bool>(true);
+    _ensureFullListening(userId);
+    return _showDistanceNotifiers.putIfAbsent(userId, () {
       return ValueNotifier<bool>(true);
     });
   }
@@ -729,17 +761,21 @@ class UserStore {
     
     final avatarEntry = AvatarEntry(AvatarState.loaded, provider);
     
-    if (_avatarEntryNotifiers.containsKey(userId)) {
-      _avatarEntryNotifiers[userId]!.value = avatarEntry;
-    } else {
-      _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(avatarEntry);
-    }
-    
-    if (_avatarNotifiers.containsKey(userId)) {
-      _avatarNotifiers[userId]!.value = provider;
-    } else {
-      _avatarNotifiers[userId] = ValueNotifier<ImageProvider>(provider);
-    }
+    // ✅ CORREÇÃO: Adiar atualização de notifiers para evitar "setState during build"
+    // preloadAvatar pode ser chamado durante o build() do StableAvatar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_avatarEntryNotifiers.containsKey(userId)) {
+        _avatarEntryNotifiers[userId]!.value = avatarEntry;
+      } else {
+        _avatarEntryNotifiers[userId] = ValueNotifier<AvatarEntry>(avatarEntry);
+      }
+      
+      if (_avatarNotifiers.containsKey(userId)) {
+        _avatarNotifiers[userId]!.value = provider;
+      } else {
+        _avatarNotifiers[userId] = ValueNotifier<ImageProvider>(provider);
+      }
+    });
 
     // ✅ Warm-up controlado via fila (concorrência limitada + retry/backoff + timeout)
     // Evita disparar dezenas/centenas de downloads simultâneos.
@@ -1228,6 +1264,25 @@ class UserStore {
       messageButtonEnabled = rawMessageButton.toLowerCase() == 'true';
     }
 
+    // Botão de seguir no perfil (default true) - advancedSettings.followButton
+    final advancedSettings = userData['advancedSettings'] as Map<String, dynamic>?;
+    dynamic rawFollowButton = advancedSettings?['followButton'];
+    bool followButtonEnabled = true;
+    if (rawFollowButton is bool) {
+      followButtonEnabled = rawFollowButton;
+    } else if (rawFollowButton is String) {
+      followButtonEnabled = rawFollowButton.toLowerCase() == 'true';
+    }
+
+    // Exibir distância no perfil (default true) - advancedSettings.showDistance
+    dynamic rawShowDistance = advancedSettings?['showDistance'];
+    bool showDistanceEnabled = true;
+    if (rawShowDistance is bool) {
+      showDistanceEnabled = rawShowDistance;
+    } else if (rawShowDistance is String) {
+      showDistanceEnabled = rawShowDistance.toLowerCase() == 'true';
+    }
+
     // Birthdate e idade
     int? age;
     final birthDay = userData['birthDay'] as int?;
@@ -1401,6 +1456,16 @@ class UserStore {
       if (messageButtonNotifier != null && messageButtonNotifier.value != messageButtonEnabled) {
         messageButtonNotifier.value = messageButtonEnabled;
       }
+
+      final followButtonNotifier = _followButtonNotifiers[userId];
+      if (followButtonNotifier != null && followButtonNotifier.value != followButtonEnabled) {
+        followButtonNotifier.value = followButtonEnabled;
+      }
+
+      final showDistanceNotifier = _showDistanceNotifiers[userId];
+      if (showDistanceNotifier != null && showDistanceNotifier.value != showDistanceEnabled) {
+        showDistanceNotifier.value = showDistanceEnabled;
+      }
     }
     
     // 🛡️ PROTEÇÃO: Se estamos durante build phase, adia para próximo frame
@@ -1491,6 +1556,12 @@ class UserStore {
 
     _messageButtonNotifiers[userId]?.dispose();
     _messageButtonNotifiers.remove(userId);
+
+    _followButtonNotifiers[userId]?.dispose();
+    _followButtonNotifiers.remove(userId);
+
+    _showDistanceNotifiers[userId]?.dispose();
+    _showDistanceNotifiers.remove(userId);
     
     _users.remove(userId);
   }
@@ -1573,6 +1644,16 @@ class UserStore {
       notifier.dispose();
     }
     _messageButtonNotifiers.clear();
+
+    for (final notifier in _followButtonNotifiers.values) {
+      notifier.dispose();
+    }
+    _followButtonNotifiers.clear();
+
+    for (final notifier in _showDistanceNotifiers.values) {
+      notifier.dispose();
+    }
+    _showDistanceNotifiers.clear();
   }
 }
 

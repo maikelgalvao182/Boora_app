@@ -8,6 +8,7 @@ import 'package:partiu/features/home/presentation/services/onboarding_service.da
 import 'package:partiu/features/home/presentation/widgets/category_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/create_button.dart';
 import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
+import 'package:partiu/features/home/presentation/widgets/date_filter_calendar.dart';
 import 'package:partiu/features/home/presentation/widgets/list_button.dart';
 import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/liquid_swipe_onboarding.dart';
@@ -15,12 +16,11 @@ import 'package:partiu/features/home/presentation/widgets/navigate_to_user_butto
 import 'package:partiu/features/home/presentation/widgets/people_button.dart';
 import 'package:partiu/features/home/presentation/widgets/whatsapp_share_button.dart';
 import 'package:partiu/features/home/presentation/widgets/vip_event_promo_overlay.dart';
-import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
-import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
 import 'package:partiu/features/home/presentation/screens/find_people_screen.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
+import 'package:partiu/features/home/presentation/widgets/map_controllers/event_card_presenter.dart';
 
 import 'package:partiu/features/home/presentation/coordinators/home_tab_coordinator.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
@@ -41,6 +41,7 @@ class DiscoverTab extends StatefulWidget {
 
 class _DiscoverTabState extends State<DiscoverTab> {
   final GlobalKey<DiscoverScreenState> _discoverKey = GlobalKey<DiscoverScreenState>();
+  late final EventCardPresenter _eventPresenter;
 
   List<String> _lastCategoryKeys = const [];
   String? _lastLocaleTag;
@@ -57,6 +58,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
   @override
   void initState() {
     super.initState();
+    _eventPresenter = EventCardPresenter(viewModel: widget.mapViewModel);
     // Escuta mudanças de aba para tentar consumir pendências quando esta aba virar ativa
     HomeTabCoordinator.instance.addListener(_onTabCoordinatorChanged);
     
@@ -283,11 +285,21 @@ class _DiscoverTabState extends State<DiscoverTab> {
           mapViewModel: widget.mapViewModel,
         ),
 
-        // Botão de compartilhar app (canto superior esquerdo)
+        // Filtro de data (calendário horizontal compacto) - canto superior esquerdo
         Positioned(
           top: _peopleButtonTop,
           left: _peopleButtonLeft,
-          child: const WhatsAppShareButton(),
+          child: ListenableBuilder(
+            listenable: widget.mapViewModel,
+            builder: (context, _) {
+              return DateFilterCalendar(
+                selectedDate: widget.mapViewModel.selectedDate,
+                onDateSelected: (date) {
+                  widget.mapViewModel.setDateFilter(date);
+                },
+              );
+            },
+          ),
         ),
 
         // Botão "Perto de você" (canto superior direito)
@@ -400,30 +412,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 events: widget.mapViewModel.events,
                 visibleBounds: widget.mapViewModel.visibleBounds,
                 onEventTap: (event) async {
-                  // Reusar o mesmo fluxo do marker: abrir EventCard.
-                  // (O handler faz preload/stream via EventCardController)
-                  final controller = EventCardController(
-                    eventId: event.id,
-                    preloadedEvent: event,
-                  );
-                  // Aguarda carregar dados adicionais + avatares ANTES de mostrar o card
-                  await controller.load();
-                  await controller.preloadAvatarsAsync();
-                  
                   if (!mounted) return;
-                  
-                  EventCard.show(
-                    context: context,
-                    controller: controller,
-                    onActionPressed: () {},
-                  );
+                  await _eventPresenter.onMarkerTap(context, event);
                 },
               );
             },
           ),
         ),
         
-        // Botão de centralizar no usuário + Spinner de carregamento (Zoom Out)
+        // Botão de centralizar no usuário + Spinner de carregamento (Zoom Out) + Compartilhar
         Positioned(
           right: 16,
           bottom: 96, // 24 (bottom do CreateButton) + 56 (tamanho do FAB) + 16 (espaçamento)
@@ -460,6 +457,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   }
                   return const SizedBox.shrink();
                 },
+              ),
+              // Botão de compartilhar app (mesmo tamanho do NavigateToUserButton - 56x56)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: WhatsAppShareButton(),
               ),
               NavigateToUserButton(
                 onPressed: _centerOnUser,

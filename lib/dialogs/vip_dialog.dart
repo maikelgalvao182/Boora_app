@@ -81,6 +81,7 @@ class _VipBottomSheetState extends State<VipBottomSheet> {
 
     // Aguarda build completar para iniciar carregamento
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       // Observa mudanças de acesso VIP globalmente (sem Consumer)
       VipAccessService.addAccessListener(_onVipAccessChanged);
 
@@ -99,10 +100,10 @@ class _VipBottomSheetState extends State<VipBottomSheet> {
       }
 
       // Carrega planos
-      if (mounted) {
-        await _controller.initialize();
-        setState(() => _isInitialized = true);
-      }
+      if (!mounted) return;
+      await _controller.initialize();
+      if (!mounted) return;
+      setState(() => _isInitialized = true);
     });
   }
 

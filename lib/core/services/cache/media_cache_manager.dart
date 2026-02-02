@@ -12,7 +12,7 @@ class MediaCacheManager {
   static final CacheManager fullImage = CacheManager(
     Config(
       'event_photo_full_cache',
-      stalePeriod: const Duration(hours: 24),
+      stalePeriod: const Duration(days: 7),
       maxNrOfCacheObjects: 300,
     ),
   );

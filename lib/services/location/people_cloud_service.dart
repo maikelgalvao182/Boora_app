@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/services/location/distance_isolate.dart';
@@ -15,6 +16,10 @@ import 'package:partiu/services/location/distance_isolate.dart';
 /// - Distância calculada no client (melhor performance)
 class PeopleCloudService {
   final _functions = FirebaseFunctions.instance;
+
+  /// Limite máximo do servidor para delta de latitude/longitude (~66km).
+  /// Deve estar alinhado com MAX_DELTA_DEG em get_people.ts.
+  static const double _maxServerDeltaDeg = 0.58; // Margem de segurança (server = 0.6)
   
   /// Converte Map<Object?, Object?> para Map<String, dynamic>
   /// 
@@ -39,6 +44,47 @@ class PeopleCloudService {
     }
     return {};
   }
+
+  /// Limita o bounding box para respeitar o limite do servidor.
+  /// 
+  /// Se o bounds original for maior que o permitido, ele será reduzido
+  /// mantendo o centro, evitando erro "Área de busca muito grande".
+  Map<String, double> _clampBoundingBoxForServer(Map<String, double> boundingBox) {
+    final minLat = boundingBox['minLat'];
+    final maxLat = boundingBox['maxLat'];
+    final minLng = boundingBox['minLng'];
+    final maxLng = boundingBox['maxLng'];
+
+    if (minLat == null || maxLat == null || minLng == null || maxLng == null) {
+      return boundingBox;
+    }
+
+    final deltaLat = (maxLat - minLat).abs();
+    final deltaLng = (maxLng - minLng).abs();
+
+    // Se ambos estão dentro do limite, retorna o original
+    if (deltaLat <= _maxServerDeltaDeg && deltaLng <= _maxServerDeltaDeg) {
+      return boundingBox;
+    }
+
+    // Calcula o centro e reduz o bounds para respeitar o limite
+    final centerLat = (minLat + maxLat) / 2.0;
+    final centerLng = (minLng + maxLng) / 2.0;
+
+    final clampedHalfLat = math.min(deltaLat / 2.0, _maxServerDeltaDeg / 2.0);
+    final clampedHalfLng = math.min(deltaLng / 2.0, _maxServerDeltaDeg / 2.0);
+
+    debugPrint('⚠️ [PeopleCloud] Bounds muito grande, limitando:');
+    debugPrint('   Original: lat=$deltaLat, lng=$deltaLng');
+    debugPrint('   Limitado: lat=${clampedHalfLat * 2}, lng=${clampedHalfLng * 2}');
+
+    return {
+      'minLat': (centerLat - clampedHalfLat).clamp(-90.0, 90.0),
+      'maxLat': (centerLat + clampedHalfLat).clamp(-90.0, 90.0),
+      'minLng': (centerLng - clampedHalfLng).clamp(-180.0, 180.0),
+      'maxLng': (centerLng + clampedHalfLng).clamp(-180.0, 180.0),
+    };
+  }
   
   /// Busca pessoas próximas usando Cloud Function
   /// 
@@ -58,10 +104,13 @@ class PeopleCloudService {
     UserCloudFilters? filters,
   }) async {
     try {
+      // Limita o bounding box para respeitar o limite do servidor
+      final clampedBox = _clampBoundingBoxForServer(boundingBox);
+      
       debugPrint('☁️ [PeopleCloud] Chamando Cloud Function getPeople...');
       debugPrint('   📍 User: ($userLatitude, $userLongitude)');
       debugPrint('   📏 Radius: ${radiusKm}km');
-      debugPrint('   📦 BoundingBox: $boundingBox');
+      debugPrint('   📦 BoundingBox: $clampedBox');
       debugPrint('   🔍 Filters: ${filters?.toMap()}');
       
       final startTime = DateTime.now();
@@ -76,7 +125,7 @@ class PeopleCloudService {
       
       debugPrint('☁️ [PeopleCloud] Executando chamada...');
       final result = await callable.call({
-        'boundingBox': boundingBox,
+        'boundingBox': clampedBox,
         'filters': filters?.toMap(),
       });
       
@@ -118,7 +167,14 @@ class PeopleCloudService {
         totalCandidates: totalCandidates,
       );
     } catch (e, stackTrace) {
-      debugPrint('❌ [PeopleCloud] Erro ao buscar pessoas: $e');
+      if (e is FirebaseFunctionsException) {
+        debugPrint(
+          '❌ [PeopleCloud] Erro ao buscar pessoas: ${e.code} ${e.message ?? ''}',
+        );
+        debugPrint('   Details: ${e.details}');
+      } else {
+        debugPrint('❌ [PeopleCloud] Erro ao buscar pessoas: $e');
+      }
       debugPrint('❌ [PeopleCloud] StackTrace: $stackTrace');
       rethrow;
     }
@@ -132,6 +188,9 @@ class PeopleCloudService {
     required Map<String, double> boundingBox,
     UserCloudFilters? filters,
   }) async {
+    // Limita o bounding box para respeitar o limite do servidor
+    final clampedBox = _clampBoundingBoxForServer(boundingBox);
+    
     final callable = _functions.httpsCallable(
       'getPeople',
       options: HttpsCallableOptions(
@@ -140,7 +199,7 @@ class PeopleCloudService {
     );
 
     final result = await callable.call({
-      'boundingBox': boundingBox,
+      'boundingBox': clampedBox,
       'filters': filters?.toMap(),
     });
 

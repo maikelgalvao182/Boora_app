@@ -17,6 +17,7 @@ import 'package:partiu/core/services/cache/image_cache_stats.dart';
 import 'package:partiu/core/constants/glimpse_variables.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Header principal do perfil com foto, nome, idade e informações básicas
 /// 
@@ -51,6 +52,9 @@ class _ProfileHeaderState extends State<ProfileHeader> {
 
   List<String> _galleryImageUrls = const <String>[];
   int _currentPage = 0;
+  
+  // ValueNotifier para followers count - evita rebuild de todo o widget
+  late final ValueNotifier<int?> _followersCountNotifier;
 
   @override
   void initState() {
@@ -58,11 +62,33 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     _imageUrlNotifier = ValueNotifier<String>(_getFirstValidImage());
     _pageController = PageController();
     _galleryImageUrls = _extractGalleryImageUrls(widget.user.userGallery);
+    _followersCountNotifier = ValueNotifier<int?>(null);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _configureAutoSwipe();
     });
+    
+    // Carrega followers count uma vez no init (sem setState)
+    _loadFollowersCount();
+  }
+  
+  Future<void> _loadFollowersCount() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.user.userId)
+          .collection('followers')
+          .count()
+          .get();
+      
+      if (mounted) {
+        _followersCountNotifier.value = snapshot.count ?? 0;
+      }
+    } catch (e) {
+      debugPrint('❌ [ProfileHeader] Erro ao carregar followers count: $e');
+      // Em caso de erro, não mostra nada
+    }
   }
 
   @override
@@ -96,6 +122,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   @override
   void dispose() {
     _imageUrlNotifier.dispose();
+    _followersCountNotifier.dispose();
     _pageController.dispose();
     _stopAutoSwipeTimers();
     super.dispose();
@@ -119,9 +146,62 @@ class _ProfileHeaderState extends State<ProfileHeader> {
 
             // Indicador de páginas (apenas quando há múltiplas imagens)
             _buildPageIndicatorOverlay(),
+            
+            // Zonas de tap nas bordas (por cima de tudo para capturar gestos)
+            _buildTapZones(),
           ],
         ),
       ),
+    );
+  }
+  
+  /// Constrói zonas de tap transparentes nas bordas esquerda e direita
+  /// para avançar/recuar na galeria. Posicionadas no topo do Stack para
+  /// garantir que capturam os taps mesmo sobre outros overlays.
+  Widget _buildTapZones() {
+    return ValueListenableBuilder<String>(
+      valueListenable: _imageUrlNotifier,
+      builder: (context, imageUrl, _) {
+        final pages = _buildPages(imageUrl);
+        if (pages.length <= 1) return const SizedBox.shrink();
+        
+        return Positioned.fill(
+          child: Row(
+            children: [
+              // Zona esquerda (recuar) - apenas metade superior para não cobrir userInfo
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: 2, // 2/3 superior
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => _goToPreviousPage(pages.length),
+                      ),
+                    ),
+                    const Expanded(flex: 1, child: SizedBox()), // 1/3 inferior (userInfo)
+                  ],
+                ),
+              ),
+              // Zona direita (avançar) - apenas metade superior
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: 2, // 2/3 superior
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => _goToNextPage(pages.length),
+                      ),
+                    ),
+                    const Expanded(flex: 1, child: SizedBox()), // 1/3 inferior (userInfo)
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -265,17 +345,76 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     );
   }
 
+  /// Badge que exibe a contagem de seguidores no canto superior direito (estilo Instagram)
+  Widget _buildFollowersBadge() {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: FutureBuilder<AggregateQuerySnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('Users')
+            .doc(widget.user.userId)
+            .collection('followers')
+            .count()
+            .get(),
+        builder: (context, snapshot) {
+          // Não mostra nada enquanto carrega ou se não tem dados
+          if (!snapshot.hasData) {
+            return const SizedBox.shrink();
+          }
+          
+          final count = snapshot.data!.count ?? 0;
+          
+          // Não mostra badge se não tem seguidores
+          if (count == 0) {
+            return const SizedBox.shrink();
+          }
+          
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Iconsax.people5,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _formatFollowersCount(count),
+                  style: GoogleFonts.getFont(
+                    FONT_PLUS_JAKARTA_SANS,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildGradientOverlay() {
     return Positioned.fill(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Colors.black54,
-            ],
+      child: IgnorePointer(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black54,
+              ],
+            ),
           ),
         ),
       ),
@@ -296,13 +435,23 @@ class _ProfileHeaderState extends State<ProfileHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildNameWithAgeAndFlag(),
-          if (hasLocation) const SizedBox(height: 8),
-          if (hasLocation) _buildLocationWithState(),
+          // Informações não-clicáveis envolvidas em IgnorePointer
+          // para permitir swipe horizontal na galeria
+          IgnorePointer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildNameWithAgeAndFlag(),
+                if (hasLocation) const SizedBox(height: 8),
+                if (hasLocation) _buildLocationWithState(),
+              ],
+            ),
+          ),
           // 🔒 DESATIVADO: Campo country/origin removido da UI
           // if (hasOrigin) const SizedBox(height: 8),
           // if (hasOrigin) _buildOriginFrom(),
           if (hasInstagram) const SizedBox(height: 8),
+          // Instagram é clicável, então não tem IgnorePointer
           if (hasInstagram) _buildInstagram(),
         ],
       ),
@@ -342,6 +491,38 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   void _onUserInteractionEnd() {
     if (!_isUserInteracting) return;
     _isUserInteracting = false;
+    _autoSwipeResumeTimer?.cancel();
+    _autoSwipeResumeTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _configureAutoSwipe();
+    });
+  }
+
+  void _goToNextPage(int total) {
+    if (total <= 1 || !_pageController.hasClients) return;
+    _onUserInteractionStart();
+    final nextPage = (_currentPage + 1) % total;
+    _pageController.animateToPage(
+      nextPage,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+    );
+    _autoSwipeResumeTimer?.cancel();
+    _autoSwipeResumeTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _configureAutoSwipe();
+    });
+  }
+
+  void _goToPreviousPage(int total) {
+    if (total <= 1 || !_pageController.hasClients) return;
+    _onUserInteractionStart();
+    final prevPage = (_currentPage - 1 + total) % total;
+    _pageController.animateToPage(
+      prevPage,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+    );
     _autoSwipeResumeTimer?.cancel();
     _autoSwipeResumeTimer = Timer(const Duration(seconds: 4), () {
       if (!mounted) return;
@@ -443,6 +624,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   /// Calcula e exibe a distância entre o usuário logado e o perfil visualizado
+  /// Respeita a preferência do usuário (advancedSettings.showDistance)
   Widget _buildDistanceText() {
     final profileLat = widget.user.displayLatitude;
     final profileLng = widget.user.displayLongitude;
@@ -452,34 +634,45 @@ class _ProfileHeaderState extends State<ProfileHeader> {
       return const SizedBox.shrink();
     }
     
-    return FutureBuilder<Position?>(
-      future: Geolocator.getLastKnownPosition(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data == null) {
+    // Verifica se o usuário do perfil permite exibir distância
+    return ValueListenableBuilder<bool>(
+      valueListenable: UserStore.instance.getShowDistanceNotifier(widget.user.userId),
+      builder: (context, showDistance, _) {
+        // Se o usuário desativou, não exibe a distância
+        if (!showDistance) {
           return const SizedBox.shrink();
         }
         
-        final myPosition = snapshot.data!;
-        
-        // Calcula distância em metros
-        final distanceMeters = Geolocator.distanceBetween(
-          myPosition.latitude,
-          myPosition.longitude,
-          profileLat,
-          profileLng,
-        );
-        
-        // Converte para km
-        final distanceKm = distanceMeters / 1000.0;
-        
-        return Text(
-          '${distanceKm.toStringAsFixed(1)} km',
-          style: GoogleFonts.getFont(
-            FONT_PLUS_JAKARTA_SANS,
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: Colors.white.withValues(alpha: 0.8),
-          ),
+        return FutureBuilder<Position?>(
+          future: Geolocator.getLastKnownPosition(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData || snapshot.data == null) {
+              return const SizedBox.shrink();
+            }
+            
+            final myPosition = snapshot.data!;
+            
+            // Calcula distância em metros
+            final distanceMeters = Geolocator.distanceBetween(
+              myPosition.latitude,
+              myPosition.longitude,
+              profileLat,
+              profileLng,
+            );
+            
+            // Converte para km
+            final distanceKm = distanceMeters / 1000.0;
+            
+            return Text(
+              '${distanceKm.toStringAsFixed(1)} km',
+              style: GoogleFonts.getFont(
+                FONT_PLUS_JAKARTA_SANS,
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            );
+          },
         );
       },
     );
@@ -584,25 +777,25 @@ class _ProfileHeaderState extends State<ProfileHeader> {
     );
   }
 
-  /// Exibe o número de seguidores de forma estática (carrega uma vez)
+  /// Exibe o número de seguidores de forma estática (carrega uma vez no initState)
+  /// Usa a subcoleção followers da coleção Users
+  /// Usa ValueListenableBuilder para rebuild isolado (sem reconstruir todo o ProfileHeader)
   Widget _buildFollowersCount() {
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance
-          .collection('users_status')
-          .doc(widget.user.userId)
-          .get(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _followersCountNotifier,
+      builder: (context, followersCount, _) {
+        // Não mostra nada enquanto carrega ou se não tem seguidores
+        if (followersCount == null || followersCount == 0) {
           return const SizedBox.shrink();
         }
         
-        final data = snapshot.data!.data();
-        final followersCount = data?['followersCount'] as int? ?? 0;
-        
-        if (followersCount == 0) return const SizedBox.shrink();
+        // Singular/plural
+        final label = followersCount == 1
+            ? widget.i18n.translate('follower')
+            : widget.i18n.translate('followers');
         
         return Text(
-          '${_formatFollowersCount(followersCount)} ${widget.i18n.translate('followers')}',
+          '${_formatFollowersCount(followersCount)} $label',
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
             fontSize: 16,
             fontWeight: FontWeight.w400,

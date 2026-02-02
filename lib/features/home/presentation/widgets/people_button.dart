@@ -114,7 +114,7 @@ class _PeopleButtonState extends State<PeopleButton> {
 
     final titleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: FontWeight.w600,
       color: GlimpseColors.primaryColorLight,
     );
@@ -139,7 +139,6 @@ class _PeopleButtonState extends State<PeopleButton> {
               maintainState: true,
               clip: false,
               child: _ZoomInToSeePeopleButton(
-                label: i18n.translate('zoom_in_to_see_people'),
                 titleStyle: titleStyle,
                 subtitleStyle: subtitleStyle,
               ),
@@ -167,100 +166,32 @@ class _PeopleButtonState extends State<PeopleButton> {
 
 class _ZoomInToSeePeopleButton extends StatelessWidget {
   const _ZoomInToSeePeopleButton({
-    required this.label,
     required this.titleStyle,
     required this.subtitleStyle,
   });
 
-  final String label;
   final TextStyle titleStyle;
   final TextStyle subtitleStyle;
 
   @override
   Widget build(BuildContext context) {
-    final full = label.trim();
-    String line1 = full;
-    String line2 = '';
-
-    // Preferir quebra determinística (pt): "Aproxime o mapa" / "para carregar perfis"
-    final splitToken = ' para ';
-    final splitIdx = full.indexOf(splitToken);
-    if (splitIdx > 0) {
-      line1 = full.substring(0, splitIdx).trimRight();
-      line2 = full.substring(splitIdx + 1).trimLeft(); // mantém "para ..."
-    }
-
-    // Fallback para outros idiomas: divide em duas linhas
-    if (line2.isEmpty) {
-      final words = full.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-      if (words.length >= 2) {
-        final splitAt = (words.length / 2).ceil();
-        line1 = words.take(splitAt).join(' ');
-        line2 = words.skip(splitAt).join(' ');
-      }
-    }
 
     return Material(
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(100),
       child: Container(
+        width: 56,
         height: 56,
-        padding: const EdgeInsets.only(left: 8, right: 8),
         decoration: BoxDecoration(
           color: GlimpseColors.lightTextField,
           borderRadius: BorderRadius.circular(100),
         ),
         alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: GlimpseColors.primaryLight,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: 2,
-                ),
-              ),
-              child: Icon(
-                Iconsax.search_normal,
-                size: 20,
-                color: GlimpseColors.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    line1,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: titleStyle,
-                  ),
-                  if (line2.isNotEmpty)
-                    Text(
-                      line2,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: subtitleStyle,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: GlimpseColors.primaryColorLight,
-            ),
-          ],
+        child: Icon(
+          Iconsax.eye_slash,
+          size: 24,
+          color: GlimpseColors.primary,
         ),
       ),
     );

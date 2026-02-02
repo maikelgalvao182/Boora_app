@@ -223,7 +223,8 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
   void _onCameraMove(CameraPosition position) {
     _currentZoom = position.zoom;
     _renderController?.setZoom(_currentZoom);
-    _renderController?.updateClustersRealtime();
+    // Realtime removed: evita processar clusters durante movimentos intermediários.
+    // _renderController?.updateClustersRealtime();
     _boundsController.scheduleCacheLookahead(position.target, _currentZoom);
   }
 

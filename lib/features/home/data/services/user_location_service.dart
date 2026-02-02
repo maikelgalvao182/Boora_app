@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:partiu/core/services/location_permission_flow.dart';
 
 /// Resultado da tentativa de obter localização
 class LocationResult {
@@ -51,7 +52,7 @@ class UserLocationService {
 
       if (permission == LocationPermission.denied) {
         // Solicitar permissão
-        permission = await Geolocator.requestPermission();
+        permission = await LocationPermissionFlow().request();
 
         if (permission == LocationPermission.denied) {
           return const LocationResult(

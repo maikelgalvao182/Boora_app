@@ -93,7 +93,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                     hintStyle: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
                       color: GlimpseColors.textSubTitle,
-                      fontWeight: FontWeight.w300,
+                      fontWeight: FontWeight.w400,
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -206,7 +206,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
                     fontSize: 14,
-                    fontWeight: FontWeight.w300,
+                    fontWeight: FontWeight.w400,
                     color: GlimpseColors.textSubTitle,
                     height: 1.4,
                   ),

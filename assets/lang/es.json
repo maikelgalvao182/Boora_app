@@ -863,6 +863,10 @@
   "subscribe_monthly_plan": "Suscribirse al Plan Mensual",
   "subscribe_annual_plan": "Suscribirse al Plan Anual",
 
+  "weekly_plan_title": "Plan Semanal",
+  "monthly_plan_title": "Plan Mensual",
+  "annual_plan_title": "Plan Anual",
+
   "subscription_benefit_profile_visits_title": "Mira quién se interesó por ti",
   "subscription_benefit_profile_visits_subtitle": "Descubre quién visitó tu perfil en los últimos días",
   "subscription_benefit_more_visibility_title": "Aparece entre los primeros perfiles de la lista",
@@ -929,6 +933,7 @@
   "event_messages": "Mensajes de eventos",
   "section_visibility": "Visibilidad",
   "message_button": "Botón de mensajes en mi perfil",
+  "follow_button": "Botón de seguir en mi perfil",
   "section_support": "Soporte",
   "safety_and_etiquette": "Seguridad y etiqueta",
   "community_guidelines": "Directrices de la comunidad",
@@ -1123,6 +1128,7 @@
   "later": "Más tarde",
   "actions": "Acciones",
   "share_app_message": "Crea cosas para hacer en el mapa de tu ciudad y mira quién quiere acompañarte.",
+  "follower": "Seguidor",
   "followers": "Seguidores",
   "event_photo_one_participant_label": "con 1 persona",
   "event_photo_participants_count_label": "con {count} personas",

@@ -94,7 +94,10 @@ class ConversationStreamWidget extends StatelessWidget {
             onTap(null, data, item.id);
           },
           onDeleted: () {
-            // Lista atualiza automaticamente via Firestore stream
+            // Remoção otimista para evitar delay do stream
+            if (!context.mounted) return;
+            context.read<ConversationsViewModel>()
+                .optimisticRemoveByConversationId(item.id);
           },
         );
       },

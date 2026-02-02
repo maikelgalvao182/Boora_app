@@ -53,7 +53,17 @@ class ChatService {
       .doc(currentUserId)
       .collection(C_CONVERSATIONS)
       .doc(conversationId)
-      .snapshots();
+      .snapshots()
+      .handleError((error) {
+        final isPermissionDenied = error is FirebaseException && error.code == 'permission-denied';
+        final isLoggedOut = AppState.currentUserId == null;
+
+        if (isPermissionDenied && isLoggedOut) {
+          return;
+        }
+
+        throw error;
+      });
   }
 
   /// ✅ OTIMIZADO: Busca metadata da conversa com get() único
@@ -95,6 +105,16 @@ class ChatService {
         .collection('Users')
         .doc(userId)
         .snapshots()
+        .handleError((error) {
+          final isPermissionDenied = error is FirebaseException && error.code == 'permission-denied';
+          final isLoggedOut = AppState.currentUserId == null;
+
+          if (isPermissionDenied && isLoggedOut) {
+            return;
+          }
+
+          throw error;
+        })
         .map((doc) => chat_user_model.UserModel.fromMap(doc.data() ?? {}, doc.id));
   }
 

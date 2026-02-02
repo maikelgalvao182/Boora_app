@@ -46,7 +46,7 @@ export const onUserWriteUpdatePreview = functions.firestore
     const photoUrl = userData.photoUrl || userData.profilePhoto || null;
     const avatarThumbUrl =
       userData.avatarThumbUrl || userData.photoThumbUrl || null;
-    const isVerified = Boolean(userData.isVerified || userData.verified);
+    const isVerified = Boolean(userData.user_is_verified || userData.isVerified || userData.verified);
     const isVip = Boolean(userData.user_is_vip || userData.isVip || userData.vip);
 
     // Caso 2: Criar/atualizar preview com campos básicos

@@ -136,41 +136,64 @@ extension MapViewModelSync on MapViewModel {
   /// 
   /// Chamado pelo GoogleMapView quando a câmera para de mover.
   /// Isso mantém os chips de categoria sincronizados com o viewport.
+  /// 
+  /// [zoom] - Nível de zoom atual (usado para calcular zoomBucket na chave de cache)
   Future<void> loadEventsInBounds(
     MapBounds bounds, {
     bool prefetchNeighbors = false,
+    double? zoom,
   }) async {
-    debugPrint('🔵 [MapVM] loadEventsInBounds start (events.length=${_events.length})');
-    // Estratégia A (stale-while-revalidate): mantém eventos atuais durante o fetch.
-    // A UI pode reagir ao loading (spinner), mas não apaga markers por um "vazio" transitório.
-    _setLoading(true);
-    try {
-      // ✅ Cache imediato (sem debounce) para acelerar pan/cold start
-      final usedCache = _mapDiscoveryService.tryLoadCachedEventsForBoundsWithPrefetch(
-        bounds,
-        prefetchNeighbors: prefetchNeighbors,
-      );
-      if (usedCache) {
-        await _syncEventsFromBounds();
-      }
+    final loadKey = bounds.toQuadkey();
+    final inFlight = _inFlightBoundsLoads[loadKey];
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
 
-      await _mapDiscoveryService.loadEventsInBounds(
-        bounds,
-        prefetchNeighbors: prefetchNeighbors,
-      );
-      debugPrint('🔵 [MapVM] loadEventsInBounds after service (nearbyEvents.value.length=${_mapDiscoveryService.nearbyEvents.value.length})');
-      await _syncEventsFromBounds();
-      debugPrint('🔵 [MapVM] loadEventsInBounds after sync (events.length=${_events.length})');
+    final future = () async {
+      debugPrint('🔵 [MapVM] loadEventsInBounds start (events.length=${_events.length})');
+      // Estratégia A (stale-while-revalidate): mantém eventos atuais durante o fetch.
+      // A UI pode reagir ao loading (spinner), mas não apaga markers por um "vazio" transitório.
+      _setLoading(true);
+      try {
+        // ✅ Cache imediato (sem debounce) para acelerar pan/cold start
+        final usedCache = _mapDiscoveryService.tryLoadCachedEventsForBoundsWithPrefetch(
+          bounds,
+          prefetchNeighbors: prefetchNeighbors,
+          zoom: zoom,
+        );
+        if (usedCache) {
+          await _syncEventsFromBounds();
+        }
+
+        await _mapDiscoveryService.loadEventsInBounds(
+          bounds,
+          prefetchNeighbors: prefetchNeighbors,
+          zoom: zoom,
+        );
+        debugPrint('🔵 [MapVM] loadEventsInBounds after service (nearbyEvents.value.length=${_mapDiscoveryService.nearbyEvents.value.length})');
+        await _syncEventsFromBounds();
+        debugPrint('🔵 [MapVM] loadEventsInBounds after sync (events.length=${_events.length})');
+      } finally {
+        _setLoading(false);
+      }
+    }();
+
+    _inFlightBoundsLoads[loadKey] = future;
+    try {
+      await future;
     } finally {
-      _setLoading(false);
+      if (_inFlightBoundsLoads[loadKey] == future) {
+        _inFlightBoundsLoads.remove(loadKey);
+      }
     }
   }
 
   /// Lookahead de cache durante pan (soft apply)
   ///
   /// Usa cache sem debounce e só atualiza se tiver novos eventos.
-  Future<bool> softLookaheadForBounds(MapBounds bounds) async {
-    final applied = _mapDiscoveryService.applyCachedEventsIfNew(bounds);
+  Future<bool> softLookaheadForBounds(MapBounds bounds, {double? zoom}) async {
+    final applied = _mapDiscoveryService.applyCachedEventsIfNew(bounds, zoom: zoom);
     if (!applied) return false;
 
     await _syncEventsFromBounds();
@@ -205,15 +228,43 @@ extension MapViewModelSync on MapViewModel {
       debugPrint('🟣 [MapVM] boundsEvents.isEmpty => emptyConfirmed=$emptyConfirmed');
 
       if (emptyConfirmed) {
-        if (_events.isNotEmpty) {
+        final boundsKey = _buildVisibleBoundsKey();
+        final now = DateTime.now();
+        final withinWindow = _lastEmptyAt != null &&
+            now.difference(_lastEmptyAt!) <= _strongEmptyWindow;
+
+        if (boundsKey != null && boundsKey == _lastEmptyBoundsKey && withinWindow) {
+          _consecutiveEmptyForBounds++;
+        } else {
+          _lastEmptyBoundsKey = boundsKey;
+          _consecutiveEmptyForBounds = 1;
+        }
+        _lastEmptyAt = now;
+
+        final strongEmpty = forceEmpty || _consecutiveEmptyForBounds >= 2;
+
+        if (strongEmpty && _events.isNotEmpty) {
+          final requestSeq = _mapDiscoveryService.lastAppliedRequestSeq;
+          debugPrint(
+            '🟣 [MapVM] clear markers (reason=empty_confirmed, requestSeq=$requestSeq, boundsKey=$boundsKey, eventsCount=${boundsEvents.length})',
+          );
           debugPrint('🟣 [MapVM] clearing _events (was ${_events.length})');
           _events = const [];
           eventsVersion.value = (eventsVersion.value + 1).clamp(0, 1 << 30);
           notifyListeners();
+        } else if (_events.isNotEmpty) {
+          final requestSeq = _mapDiscoveryService.lastAppliedRequestSeq;
+          debugPrint(
+            '🟣 [MapVM] empty ignored (anti-vazio, requestSeq=$requestSeq, boundsKey=$boundsKey, eventsCount=${boundsEvents.length}, count=$_consecutiveEmptyForBounds)',
+          );
         }
       }
       return;
     }
+
+    _lastEmptyBoundsKey = null;
+    _lastEmptyAt = null;
+    _consecutiveEmptyForBounds = 0;
 
     // Obter dados do usuário para calcular distância e verificar premium
     final currentUserId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
@@ -269,7 +320,8 @@ extension MapViewModelSync on MapViewModel {
           }
           
           // ✅ Extrair creatorFullName do eventData se disponível (desnormalizado)
-          final creatorFullName = data['creatorFullName'] as String?;
+          final cachedCreatorName = _getCachedCreatorName(e.createdBy);
+          final creatorFullName = data['creatorFullName'] as String? ?? cachedCreatorName;
           // ✅ Extrair avatar desnormalizado (N+1 killer)
           final creatorAvatarUrl = data['organizerAvatarThumbUrl'] as String? ?? 
                                    data['creatorPhotoUrl'] as String? ??
@@ -301,79 +353,97 @@ extension MapViewModelSync on MapViewModel {
         })
         .toList(); // ✅ Lista MUTÁVEL para permitir enriquecimento
     
-    // ✅ ENRIQUECIMENTO: Buscar creatorFullName para eventos que não têm
-    // Faz em paralelo para não bloquear a UI
-    final eventsNeedingCreatorName = mapped.where((e) => e.creatorFullName == null).toList();
-    if (eventsNeedingCreatorName.isNotEmpty) {
-      // Coletar IDs únicos de criadores
-      final creatorIds = eventsNeedingCreatorName.map((e) => e.createdBy).toSet().toList();
-      
-      debugPrint('🔄 [MapVM] Buscando nomes de ${creatorIds.length} criadores...');
-      
-      // Buscar nomes em batch (usar cache do UserRepository)
-      try {
-        final usersData = await _userRepository.getUsersBasicInfo(creatorIds);
-        final creatorNames = <String, String>{};
-        for (final userData in usersData) {
-          final id = userData['userId'] as String?;
-          final name = userData['fullName'] as String?;
-          if (id != null && name != null) {
-            creatorNames[id] = name;
-          }
-        }
-        
-        // Atualizar os eventos com os nomes (lista mutável)
-        for (var i = 0; i < mapped.length; i++) {
-          final event = mapped[i];
-          if (event.creatorFullName == null && creatorNames.containsKey(event.createdBy)) {
-            mapped[i] = event.copyWith(creatorFullName: creatorNames[event.createdBy]);
-          }
-        }
-        
-        debugPrint('✅ [MapVM] Enriqueceu ${creatorNames.length} criadores para ${eventsNeedingCreatorName.length} eventos');
-      } catch (e) {
-        debugPrint('⚠️ [MapVM] Erro ao buscar nomes de criadores: $e');
-        // Continua sem os nomes - o EventCardController vai buscar sob demanda
+    // ✅ ENRIQUECIMENTO: buscar creatorFullName em background (idempotente)
+    unawaited(_enrichCreatorNamesInBackground(mapped));
+
+    // Merge incremental: não substitui _events pelo resultado do bounds.
+    // Isso mantém um cache agregado e evita “apagões” ao voltar para áreas já vistas.
+    final mappedIds = mapped.map((e) => e.id).toSet();
+    final merged = <EventModel>[...mapped];
+    for (final prev in _events) {
+      if (!mappedIds.contains(prev.id)) {
+        merged.add(prev);
       }
     }
 
     // Mantém o mesmo objeto se nada mudou (reduz rebuilds), mas sem criar
     // "zonas mortas" onde a UI fica visualmente errada e nunca é corrigida.
-    final sameLength = mapped.length == _events.length;
+    final sameLength = merged.length == _events.length;
     final sameIds = sameLength && _events.asMap().entries.every((entry) {
       final i = entry.key;
-      return entry.value.id == mapped[i].id;
+      return entry.value.id == merged[i].id;
     });
 
   // Assinatura do snapshot (inclui contexto do viewport), para permitir notify
     // quando o "mesmo dataset" precisa re-renderizar (ex.: bounds mudou,
-    // counts mudaram, ou uma corrida aplicou estado visual inválido).
+    // counts mudaram, zoom bucket mudou, ou uma corrida aplicou estado visual inválido).
     final countsSignature = _eventsInBoundsCountByCategory.entries
         .map((e) => '${e.key}:${e.value}')
         .toList(growable: false)
       ..sort();
-  final nextSignature = '${mapped.length}|v$_boundsSnapshotVersion|${countsSignature.join(',')}';
+    // 🔑 zoomBucket na assinatura: força rebuild quando zoom muda de faixa,
+    // mesmo que _events seja idêntico. Isso corrige o "preciso mexer de novo".
+    final zoomBucket = _currentZoom <= 8 ? 0 : _currentZoom <= 11 ? 1 : _currentZoom <= 14 ? 2 : 3;
+  final nextSignature = '${merged.length}|v$_boundsSnapshotVersion|z$zoomBucket|${countsSignature.join(',')}';
 
     if (sameIds && nextSignature == _eventsSignature) {
       debugPrint('🟣 [MapVM] early-return: sameIds && sameSignature (events.length=${_events.length})');
       return;
     }
 
-    // [FIX] Preservar evento pinado se ele estiver faltando no novo 'mapped'
+    // [FIX] Preservar evento pinado se ele estiver faltando no novo 'merged'
     // Durante navegação via push, o evento injetado pode não vir do bound query imediatamente,
     // então precisamos reinjetá-lo se ele foi pinado recentemente.
-    List<EventModel> finalEvents = mapped;
+    List<EventModel> finalEvents = merged;
     if (_pinnedEventId != null && _isPinned(_pinnedEventId!)) {
-      final isPinnedInList = mapped.any((e) => e.id == _pinnedEventId);
+      final isPinnedInList = finalEvents.any((e) => e.id == _pinnedEventId);
       if (!isPinnedInList) {
         // Tentar encontrar o evento "velho" na lista atual para preservar
         try {
           final pinnedEvent = _events.firstWhere((e) => e.id == _pinnedEventId);
           debugPrint('📌 [MapVM] Preservando evento pinado $_pinnedEventId durante sync (não veio do bounds)');
-          finalEvents = List.from(mapped)..add(pinnedEvent);
+          finalEvents = List.from(finalEvents)..add(pinnedEvent);
         } catch (_) {
           // Se não estava na lista antiga também, não há como salvar.
         }
+      }
+    }
+
+    // ⚖️ Estabilização: se o novo snapshot ficou muito menor, preserva eventos
+    // visíveis do snapshot anterior para evitar “apagões” temporários.
+    final visibleBounds = _visibleBounds;
+    if (visibleBounds != null && finalEvents.length < _events.length) {
+      bool contains(double lat, double lng) {
+        final sw = visibleBounds.southwest;
+        final ne = visibleBounds.northeast;
+
+        final minLat = sw.latitude < ne.latitude ? sw.latitude : ne.latitude;
+        final maxLat = sw.latitude < ne.latitude ? ne.latitude : sw.latitude;
+        final withinLat = lat >= minLat && lat <= maxLat;
+
+        final swLng = sw.longitude;
+        final neLng = ne.longitude;
+        final withinLng = swLng <= neLng
+            ? (lng >= swLng && lng <= neLng)
+            : (lng >= swLng || lng <= neLng);
+
+        return withinLat && withinLng;
+      }
+
+      final mergedById = <String, EventModel>{
+        for (final e in finalEvents) e.id: e,
+      };
+
+      for (final prev in _events) {
+        if (mergedById.containsKey(prev.id)) continue;
+        if (contains(prev.lat, prev.lng)) {
+          mergedById[prev.id] = prev;
+        }
+      }
+
+      final merged = mergedById.values.toList(growable: false);
+      if (merged.length > finalEvents.length) {
+        finalEvents = merged;
       }
     }
 

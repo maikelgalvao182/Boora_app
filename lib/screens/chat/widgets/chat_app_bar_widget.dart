@@ -185,6 +185,12 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
       i18n: AppLocalizations.of(context),
       progressDialog: ProgressDialog(context),
       onSuccess: () {
+        // Remoção otimista do tile do grupo (event_{eventId})
+        try {
+          final viewModel = context.read<ConversationsViewModel?>();
+          viewModel?.optimisticRemoveByConversationId('event_${controller.eventId}');
+        } catch (_) {}
+
         if (context.mounted) {
           Navigator.of(context).pop();
         }

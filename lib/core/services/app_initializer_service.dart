@@ -116,9 +116,11 @@ class AppInitializerService {
           if (currentUserData != null) {
             // ✅ Seed da localização inicial do mapa via Firestore.
             // Evita o primeiro frame em São Paulo quando o user já tem coords persistidas.
+            // 🔒 Usa displayLatitude/displayLongitude (com offset) com fallback para latitude/longitude
             try {
-              final rawLat = currentUserData['latitude'];
-              final rawLng = currentUserData['longitude'];
+              // Prioriza displayLatitude/displayLongitude (dados públicos com offset)
+              final rawLat = currentUserData['displayLatitude'] ?? currentUserData['latitude'];
+              final rawLng = currentUserData['displayLongitude'] ?? currentUserData['longitude'];
 
               final lat = rawLat is num ? rawLat.toDouble() : double.tryParse(rawLat?.toString() ?? '');
               final lng = rawLng is num ? rawLng.toDouble() : double.tryParse(rawLng?.toString() ?? '');

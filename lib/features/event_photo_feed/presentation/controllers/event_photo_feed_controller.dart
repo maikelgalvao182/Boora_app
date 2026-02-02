@@ -135,6 +135,11 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       
       // Registra cache hit
       await tracker.finish(docsRead: 0, cacheHit: true);
+
+      // Atualiza likes em background para itens visíveis
+      Future.microtask(() => _likesCache.fetchLikesForPhotos(
+            preloadedPhotos.map((item) => item.id).toList(growable: false),
+          ));
       
       // Dispara refresh silencioso em background (com debounce)
       Future.microtask(_refreshSilentlyWithDebounce);
@@ -152,6 +157,11 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     if (cachedItems != null && cachedItems.isNotEmpty) {
       // Registra cache hit
       await tracker.finish(docsRead: 0, cacheHit: true);
+
+      // Atualiza likes em background para itens visíveis
+      Future.microtask(() => _likesCache.fetchLikesForPhotos(
+            cachedItems.map((item) => item.id).toList(growable: false),
+          ));
       
       Future.microtask(_refreshSilentlyWithDebounce);
       return EventPhotoFeedState.initial().copyWith(
@@ -208,6 +218,10 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       );
 
       await _cache.setCachedFeed(scope, page.items);
+      // Atualiza likes em background para itens visíveis
+      Future.microtask(() => _likesCache.fetchLikesForPhotos(
+            page.items.map((item) => item.id).toList(growable: false),
+          ));
       await _prefetchInitialThumbnails(page.items);
       return nextState;
     } catch (e, stack) {
@@ -468,53 +482,72 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
   /// - Scope é Following (chunks complexos)
   /// - Erro no refresh incremental
   /// - Forçado pelo usuário
+  /// 
+  /// ⚠️ IMPORTANTE: Não define AsyncLoading durante refresh para evitar shimmer.
+  /// O shimmer só deve aparecer no carregamento inicial (lista vazia).
   Future<void> _refreshFull() async {
     debugPrint('🔄 [EventPhotoFeedController._refreshFull] Iniciando refresh completo...');
     
     final scope = arg;
+    final current = state.valueOrNull;
     
     // Invalida o cache do preloader apenas para este scope
     FeedPreloader.instance.invalidateCacheFor(scope);
     
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final userId = _safeUserId();
-      debugPrint('👤 [_refreshFull] userId: $userId, scope: $scope');
-      
-      try {
-        final page = userId == null
-          ? await _repo.fetchFeedPage(scope: scope, limit: _pageSize)
-          : await _repo.fetchFeedPageWithOwnPending(
-            scope: scope,
-            limit: _pageSize,
-            currentUserId: userId,
-          );
-        
-        // Busca ActivityFeed items
-        final activityItems = await _fetchActivityFeed(scope);
-        
-        debugPrint('✅ [_refreshFull] Refresh completo: ${page.items.length} photos, ${activityItems.length} activities');
-        
-        return EventPhotoFeedState.initial().copyWith(
-          items: page.items,
-          activityItems: activityItems,
-          cursor: page.nextCursor,
-          activeCursor: page.activeCursor,
-          pendingCursor: page.pendingCursor,
-          hasMore: page.hasMore,
-          lastUpdatedAt: DateTime.now(),
+    // ⚠️ CORREÇÃO RACE CONDITION:
+    // Se já tem dados (fotos OU activities), NÃO define AsyncLoading (evita shimmer durante pull-to-refresh)
+    // Shimmer só aparece no carregamento inicial (lista vazia)
+    final hasExistingData = current != null && 
+        (current.items.isNotEmpty || current.activityItems.isNotEmpty);
+    
+    if (!hasExistingData) {
+      // Apenas no carregamento inicial, mostra shimmer
+      state = const AsyncLoading();
+    }
+    
+    final userId = _safeUserId();
+    debugPrint('👤 [_refreshFull] userId: $userId, scope: $scope');
+    
+    try {
+      final page = userId == null
+        ? await _repo.fetchFeedPage(scope: scope, limit: _pageSize)
+        : await _repo.fetchFeedPageWithOwnPending(
+          scope: scope,
+          limit: _pageSize,
+          currentUserId: userId,
         );
-      } catch (e, stack) {
-        debugPrint('❌ [_refreshFull] ERRO no refresh: $e');
-        debugPrint('📚 Stack trace: $stack');
-        rethrow;
+      
+      // Busca ActivityFeed items
+      final activityItems = await _fetchActivityFeed(scope);
+      
+      debugPrint('✅ [_refreshFull] Refresh completo: ${page.items.length} photos, ${activityItems.length} activities');
+      
+      final newState = EventPhotoFeedState.initial().copyWith(
+        items: page.items,
+        activityItems: activityItems,
+        cursor: page.nextCursor,
+        activeCursor: page.activeCursor,
+        pendingCursor: page.pendingCursor,
+        hasMore: page.hasMore,
+        lastUpdatedAt: DateTime.now(),
+      );
+      
+      state = AsyncData(newState);
+      
+      if (newState.items.isNotEmpty) {
+        await _cache.setCachedFeed(scope, newState.items);
+        await _prefetchInitialThumbnails(newState.items);
       }
-    });
-
-    final refreshed = state.valueOrNull;
-    if (refreshed != null && refreshed.items.isNotEmpty) {
-      await _cache.setCachedFeed(arg, refreshed.items);
-      await _prefetchInitialThumbnails(refreshed.items);
+    } catch (e, stack) {
+      debugPrint('❌ [_refreshFull] ERRO no refresh: $e');
+      debugPrint('📚 Stack trace: $stack');
+      
+      // Se tinha dados, mantém (não mostra erro)
+      // Se não tinha dados, mostra erro
+      if (!hasExistingData) {
+        state = AsyncError(e, stack);
+      }
+      // Se tinha dados e deu erro, mantém dados antigos (UX melhor)
     }
   }
   

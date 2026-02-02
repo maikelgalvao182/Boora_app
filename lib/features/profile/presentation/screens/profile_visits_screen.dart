@@ -110,8 +110,8 @@ class _ProfileVisitsScreenState extends State<ProfileVisitsScreen> {
                 key: ValueKey(visitor.userId),
                 user: visitor,
                 userId: visitor.userId,
-                overallRating: visitor.overallRating,
                 showTimeAgo: true,
+                showRating: false,
                 index: index,
               );
             },

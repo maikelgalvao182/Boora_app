@@ -41,6 +41,10 @@ class _RankingTabState extends State<RankingTab> {
   void initState() {
     super.initState();
     debugPrint('🎴 [RankingTab] initState');
+    debugPrint('   - ViewModel loadState: ${widget.peopleRankingViewModel.loadState}');
+    debugPrint('   - ViewModel hasLoadedOnce: ${widget.peopleRankingViewModel.hasLoadedOnce}');
+    debugPrint('   - ViewModel isInitialLoading: ${widget.peopleRankingViewModel.isInitialLoading}');
+    debugPrint('   - ViewModel peopleRankings.length: ${widget.peopleRankingViewModel.peopleRankings.length}');
     
     // Usar o ViewModel pré-carregado do AppInitializer
     _peopleViewModel = widget.peopleRankingViewModel;

@@ -2,7 +2,7 @@ name: partiu
 description: Boora - Não vá sozinho!
 publish_to: 'none'
 
-version: 1.0.28+30
+version: 1.0.40+42
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -87,6 +87,10 @@ dependencies:
   # Monitoring
   sentry_flutter: ^9.6.0
   
+  # Force Update / Remote Config
+  firebase_remote_config: ^6.1.4
+  package_info_plus: ^8.3.0
+  
   # Subscriptions
   purchases_flutter: ^9.9.9
   
@@ -136,6 +140,8 @@ dev_dependencies:
 dependency_overrides:
   image_cropper:
     path: packages/image_cropper
+  markers_cluster_google_maps_flutter:
+    path: packages/markers_cluster_google_maps_flutter
 
 # Configuração de ícones
 flutter_launcher_icons:

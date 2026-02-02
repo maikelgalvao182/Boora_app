@@ -9,6 +9,7 @@ import 'package:partiu/features/event_photo_feed/data/repositories/event_photo_r
 import 'package:partiu/features/event_photo_feed/domain/services/event_photo_cache_service.dart';
 import 'package:partiu/features/feed/data/models/activity_feed_item_model.dart';
 import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
+import 'package:partiu/core/services/cache/media_cache_manager.dart';
 
 /// Cache entry para uma aba específica do feed
 class _FeedCacheEntry {
@@ -46,7 +47,7 @@ class FeedPreloader {
   final Map<String, _FeedCacheEntry> _cache = {};
   
   // TTL do cache em memória
-  static const Duration _memoryTtl = Duration(minutes: 10);
+  static const Duration _memoryTtl = Duration(days: 7);
   static const int _preloadLimit = 6;
   
   // Flag para evitar múltiplas requisições simultâneas
@@ -319,18 +320,25 @@ class FeedPreloader {
       for (final photo in uniquePhotos.values) {
         // Prioriza thumbnailUrl, fallback para imageUrl
         String? url;
+        bool isThumbnail = false;
         if (photo.thumbnailUrls.isNotEmpty) {
           url = photo.thumbnailUrls.first;
+          isThumbnail = true;
         } else if (photo.thumbnailUrl != null && photo.thumbnailUrl!.isNotEmpty) {
           url = photo.thumbnailUrl;
+          isThumbnail = true;
         } else if (photo.imageUrls.isNotEmpty) {
           url = photo.imageUrls.first;
+          isThumbnail = false;
         }
         
         if (url != null && url.isNotEmpty) {
           try {
             await precacheImage(
-              CachedNetworkImageProvider(url),
+              CachedNetworkImageProvider(
+                url,
+                cacheManager: MediaCacheManager.forThumbnail(isThumbnail),
+              ),
               context,
             );
           } catch (_) {

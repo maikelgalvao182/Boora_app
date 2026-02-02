@@ -193,13 +193,13 @@ class _EventCardState extends State<EventCard> {
                         ),
 
                         // Nome centralizado (usando ReactiveUserNameWithBadge como no UserCard)
-                        if (_controller.creatorId != null && _controller.enableReactiveCreatorName)
+                        if (_controller.creatorId != null)
                           ReactiveUserNameWithBadge(
                             userId: _controller.creatorId!,
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
                               fontSize: 15,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: GlimpseColors.primaryColorLight,
                             ),
                             iconSize: 14, // Badge ajustado proporcionalmente
@@ -210,8 +210,8 @@ class _EventCardState extends State<EventCard> {
                             _controller.creatorFullName ?? '',
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
                               color: GlimpseColors.primaryColorLight,
                             ),
                             textAlign: TextAlign.center,

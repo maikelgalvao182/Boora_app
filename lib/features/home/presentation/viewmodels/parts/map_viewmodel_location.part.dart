@@ -32,7 +32,13 @@ extension MapViewModelLocation on MapViewModel {
           .listen((Position position) {
             _handleUserPositionUpdate(position);
           }, onError: (e) {
-            AppLogger.error('❌ [MapViewModel] Erro no tracking de localização: $e', tag: 'MapViewModel');
+            final errorStr = e.toString();
+            if (errorStr.contains('kCLErrorDomain error 1')) {
+               AppLogger.warning('⚠️ [MapViewModel] Permissão de localização negada pelo SO (kCLErrorDomain error 1). Parando tracking.', tag: 'MapViewModel');
+               _stopLocationTracking();
+            } else {
+              AppLogger.error('❌ [MapViewModel] Erro no tracking de localização: $e', tag: 'MapViewModel');
+            }
           });
     } catch (e) {
       AppLogger.error('❌ [MapViewModel] Falha ao iniciar stream de localização: $e', tag: 'MapViewModel');

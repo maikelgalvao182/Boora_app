@@ -169,7 +169,7 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
             ),
             hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               color: GlimpseColors.textSubTitle,
-              fontWeight: FontWeight.w300,
+              fontWeight: FontWeight.w400,
               fontSize: 16,
             ),
             hintText: widget.hintText ?? _getLocalizedHintText(),

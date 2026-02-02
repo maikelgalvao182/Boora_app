@@ -35,7 +35,7 @@ function asFiniteNumber(value: unknown): number | null {
 
 /**
  * Extrai coordenadas do documento de usuário suportando schemas atual
- * e legado.
+ * e legado. Prioriza displayLatitude/displayLongitude (com offset de privacidade)
  * @param {FirebaseFirestore.DocumentData} data - Dados do documento
  * Users/{userId}
  * @return {UserCoordinates|null} Coordenadas ou null se ausentes
@@ -43,7 +43,14 @@ function asFiniteNumber(value: unknown): number | null {
 function extractUserCoordinates(
   data: FirebaseFirestore.DocumentData
 ): UserCoordinates | null {
-  // Schema atual do app (top-level)
+  // 🔒 SEGURANÇA: Prioriza displayLatitude/displayLongitude (com offset ~1-3km)
+  const displayLat = asFiniteNumber(data.displayLatitude);
+  const displayLng = asFiniteNumber(data.displayLongitude);
+  if (displayLat != null && displayLng != null) {
+    return {latitude: displayLat, longitude: displayLng};
+  }
+
+  // Fallback: latitude/longitude no top-level (dados legados)
   const topLat = asFiniteNumber(data.latitude);
   const topLng = asFiniteNumber(data.longitude);
   if (topLat != null && topLng != null) {
@@ -62,6 +69,42 @@ function extractUserCoordinates(
   const geoPointLng = asFiniteNumber(data.location?.longitude);
   if (geoPointLat != null && geoPointLng != null) {
     return {latitude: geoPointLat, longitude: geoPointLng};
+  }
+
+  return null;
+}
+
+/**
+ * Busca coordenadas reais de um usuário da subcoleção privada
+ * @param {string} userId - ID do usuário
+ * @return {Promise<UserCoordinates|null>} Coordenadas ou null
+ */
+async function getPrivateUserCoordinates(
+  userId: string
+): Promise<UserCoordinates | null> {
+  const firestore = admin.firestore();
+
+  // Tenta Users/{userId}/private/location primeiro (novo schema)
+  const privateDoc = await firestore
+    .collection("Users")
+    .doc(userId)
+    .collection("private")
+    .doc("location")
+    .get();
+
+  if (privateDoc.exists) {
+    const data = privateDoc.data();
+    const lat = asFiniteNumber(data?.latitude);
+    const lng = asFiniteNumber(data?.longitude);
+    if (lat != null && lng != null) {
+      return {latitude: lat, longitude: lng};
+    }
+  }
+
+  // Fallback: ler do documento principal (dados legados)
+  const userDoc = await firestore.collection("Users").doc(userId).get();
+  if (userDoc.exists) {
+    return extractUserCoordinates(userDoc.data() || {});
   }
 
   return null;
@@ -148,22 +191,16 @@ export async function findUsersInRadius(options: {
 
   const firestore = admin.firestore();
 
-  // A app grava coordenadas no topo (Users.latitude/longitude).
-  // Mantemos fallback pro legado (Users.lastLocation.latitude/longitude)
-  // durante migração.
-  // Observação: o projeto tem regras para /Users e /users; suportamos ambos.
+  // 🔒 SEGURANÇA: Usa displayLatitude/displayLongitude (com offset ~1-3km)
+  // A localização real está protegida em Users/{userId}/private/location
+  // Mantemos fallback para latitude/longitude durante transição
   const queryDefs = [
-    {collection: "Users", fieldPath: "latitude", label: "Users.latitude"},
+    {collection: "Users", fieldPath: "displayLatitude", label: "Users.displayLatitude"},
+    {collection: "Users", fieldPath: "latitude", label: "Users.latitude (legacy)"},
     {
       collection: "Users",
       fieldPath: "lastLocation.latitude",
-      label: "Users.lastLocation.latitude",
-    },
-    {collection: "users", fieldPath: "latitude", label: "users.latitude"},
-    {
-      collection: "users",
-      fieldPath: "lastLocation.latitude",
-      label: "users.lastLocation.latitude",
+      label: "Users.lastLocation.latitude (legacy)",
     },
   ];
 
@@ -239,6 +276,134 @@ export async function findUsersInRadius(options: {
 }
 
 /**
+ * Raio máximo de busca para notificações (em km)
+ * Usuários podem definir raios de 1 a 30km via advancedSettings.eventNotificationRadiusKm
+ */
+const MAX_EVENT_NOTIFICATION_RADIUS_KM = 30.0;
+
+/**
+ * Raio padrão de notificações se usuário não definiu
+ */
+const DEFAULT_EVENT_NOTIFICATION_RADIUS_KM = 30.0;
+
+/**
+ * Busca usuários que devem receber notificação de evento baseado no raio
+ * personalizado de cada usuário (advancedSettings.eventNotificationRadiusKm)
+ *
+ * @param {object} options - Opções de busca
+ * @return {Promise<string[]>} Lista de IDs de usuários elegíveis
+ */
+export async function findUsersForEventNotification(options: {
+  eventLatitude: number;
+  eventLongitude: number;
+  excludeUserIds?: string[];
+  limit?: number;
+}): Promise<string[]> {
+  const {
+    eventLatitude,
+    eventLongitude,
+    excludeUserIds = [],
+    limit = 500,
+  } = options;
+
+  console.log("\n🔔 [GeoService] findUsersForEventNotification()");
+  console.log(`   Evento em: (${eventLatitude}, ${eventLongitude})`);
+  console.log(`   Raio máximo de busca: ${MAX_EVENT_NOTIFICATION_RADIUS_KM}km`);
+
+  const excludeSet = new Set(excludeUserIds);
+
+  // Buscar todos usuários no raio máximo (100km)
+  const bounds = calculateBoundingBox(
+    eventLatitude,
+    eventLongitude,
+    MAX_EVENT_NOTIFICATION_RADIUS_KM
+  );
+
+  const firestore = admin.firestore();
+
+  // Query com bounding box
+  const queryDefs = [
+    {collection: "Users", fieldPath: "displayLatitude", label: "displayLatitude"},
+    {collection: "Users", fieldPath: "latitude", label: "latitude (legacy)"},
+  ];
+
+  const snapshots = await Promise.all(
+    queryDefs.map((q) =>
+      firestore
+        .collection(q.collection)
+        .where(q.fieldPath, ">=", bounds.minLat)
+        .where(q.fieldPath, "<=", bounds.maxLat)
+        .limit(limit * 2) // Buscar mais para compensar filtros
+        .get()
+    )
+  );
+
+  // Deduplicar documentos
+  const docsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((doc) => {
+      if (!docsById.has(doc.id)) {
+        docsById.set(doc.id, doc);
+      }
+    });
+  });
+
+  console.log(`📍 [GeoService] ${docsById.size} usuários no bounding box`);
+
+  if (docsById.size === 0) {
+    return [];
+  }
+
+  // Filtrar por distância real E raio personalizado do usuário
+  const eligibleUsers: string[] = [];
+
+  for (const doc of docsById.values()) {
+    if (excludeSet.has(doc.id)) {
+      continue;
+    }
+
+    const data = doc.data();
+    const coords = extractUserCoordinates(data);
+    if (coords == null) {
+      continue;
+    }
+
+    // Filtrar longitude
+    if (coords.longitude < bounds.minLng || coords.longitude > bounds.maxLng) {
+      continue;
+    }
+
+    // Calcular distância do usuário até o evento
+    const distance = distanceKm(
+      eventLatitude,
+      eventLongitude,
+      coords.latitude,
+      coords.longitude
+    );
+
+    // Obter raio personalizado do usuário
+    const userRadius = (
+      data.advancedSettings?.eventNotificationRadiusKm as number | undefined
+    ) ?? DEFAULT_EVENT_NOTIFICATION_RADIUS_KM;
+
+    // Usuário recebe notificação se evento está dentro do raio dele
+    if (distance <= userRadius) {
+      eligibleUsers.push(doc.id);
+
+      if (eligibleUsers.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  console.log(
+    `✅ [GeoService] ${eligibleUsers.length} usuários elegíveis ` +
+    "(respeitando raio personalizado)"
+  );
+  return eligibleUsers;
+}
+
+/**
  * Busca participantes de um evento (status approved/autoApproved)
  * @param {string} eventId - ID do evento
  * @return {Promise<string[]>} Lista de IDs dos participantes
@@ -259,3 +424,10 @@ export async function getEventParticipants(
 
   return snapshot.docs.map((doc) => doc.data().userId as string);
 }
+/**
+ * Busca a localização real de um usuário (da subcoleção privada)
+ * Deve ser usado APENAS em Cloud Functions para cálculos de distância
+ * @param {string} userId - ID do usuário
+ * @return {Promise<{latitude: number, longitude: number}|null>} Coordenadas ou null
+ */
+export {getPrivateUserCoordinates};

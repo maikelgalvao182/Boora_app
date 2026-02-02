@@ -43,15 +43,15 @@ class MapDiscoveryService {
   Stream<List<EventLocation>> get eventsStream => _eventsController.stream;
 
   // Cache
-  // Cache por "tiles" (quadkey)
+  // Cache por "tiles" (cacheKey)
   //
-  // Antes: cache de 1 quadkey + TTL.
-  // Agora: cache LRU simples por quadkey (mantém várias áreas recentes).
-  // Isso reduz refetch em pans pequenos (vai e volta) e melhora a velocidade
-  // de borda, mantendo a lógica atual de bounded queries.
-  static const int _maxCachedQuadkeys = 12;
+  // Estratégia profissional:
+  // - LRU com limite de 300 chaves
+  // - TTL variável por zoomBucket (mundo muda menos que bairro)
+  // - Versão do schema na chave para invalidação
+  static const int _maxCachedQuadkeys = 300;
 
-  // quadkey -> entry
+  // quadkey -> entry (cache em memória)
   final Map<String, _QuadkeyCacheEntry> _quadkeyCache = <String, _QuadkeyCacheEntry>{};
   // Ordem LRU (mais antigo no início)
   final List<String> _quadkeyLru = <String>[];
@@ -61,27 +61,58 @@ class MapDiscoveryService {
   /// 60–120s balanceia freshness vs economia real de reads.
   static const Duration memoryCacheTTL = Duration(seconds: 90);
 
-  /// TTL do cache persistente (Hive) por quadkey.
-  /// 5–15 minutos reduz cold starts e retorno do background.
-  static const Duration persistentCacheTTL = Duration(minutes: 10);
+  /// TTL do cache persistente (Hive) por zoomBucket.
+  /// zoomBucket 0: 10 min (mundo muda pouco)
+  /// zoomBucket 1/2: 5 min (cidades/bairros)
+  /// zoomBucket 3: 2 min (individual, mais real-time)
+  static Duration persistentCacheTTLForZoomBucket(int zoomBucket) {
+    switch (zoomBucket) {
+      case 0: return const Duration(minutes: 10);
+      case 1:
+      case 2: return const Duration(minutes: 5);
+      case 3: return const Duration(minutes: 2);
+      default: return const Duration(minutes: 5);
+    }
+  }
+
+  /// TTL padrão para compatibilidade.
+  static const Duration persistentCacheTTL = Duration(minutes: 5);
 
   /// Refresh em background quando o cache persistente estiver "velho".
-  static const Duration persistentSoftRefreshAge = Duration(minutes: 3);
+  /// Varia por zoomBucket (metade do TTL).
+  static Duration persistentSoftRefreshAgeForZoomBucket(int zoomBucket) {
+    final ttl = persistentCacheTTLForZoomBucket(zoomBucket);
+    return Duration(milliseconds: ttl.inMilliseconds ~/ 2);
+  }
+  
+  static const Duration persistentSoftRefreshAge = Duration(minutes: 2);
   
   // Para mapa, 500ms costuma dar sensação de lag e aumenta a janela de corrida.
   // 600ms (Aumentado de 200ms) protege conta micro-ajustes/pans rápidos.
   static const Duration debounceTime = Duration(milliseconds: 600);
-  static const int maxEventsPerQuery = 100;
+  static const int maxEventsPerQuery = 1500; // Aumentado para suportar zoom global (clusters)
 
   // Sequência monotônica de requests para descartar respostas antigas.
   // Isso evita a corrida: request A (lento) termina depois de request B (rápido)
   // e sobrescreve o estado com dados velhos.
   int _requestSeq = 0;
+  int _lastAppliedRequestSeq = 0;
+  int get lastAppliedRequestSeq => _lastAppliedRequestSeq;
 
   // Debounce
   Timer? _debounceTimer;
   MapBounds? _pendingBounds;
   bool _pendingPrefetchNeighbors = false;
+  double? _pendingZoom;
+  
+  /// Calcula zoomBucket para chave de cache (mesma lógica do MapBoundsController)
+  int _zoomBucket(double? zoom) {
+    if (zoom == null) return 2; // default: transição
+    if (zoom <= 8) return 0;   // muito afastado
+    if (zoom <= 11) return 1;  // clusters médios
+    if (zoom <= 14) return 2;  // transição
+    return 3;                  // markers individuais
+  }
   
   /// Completer que é completado quando a query (ou cache hit) efetivamente termina.
   /// Isso permite que callers de `loadEventsInBounds` aguardem o resultado real.
@@ -110,14 +141,18 @@ class MapDiscoveryService {
   /// Aplica debounce automático para evitar queries excessivas
   /// durante o movimento do mapa.
   /// 
+  /// [zoom] - Nível de zoom atual do mapa (usado para calcular zoomBucket na chave de cache)
+  /// 
   /// **Importante**: este método aguarda a query completar (incluindo debounce)
   /// para que o caller possa consumir `nearbyEvents.value` logo após o await.
   Future<void> loadEventsInBounds(
     MapBounds bounds, {
     bool prefetchNeighbors = false,
+    double? zoom,
   }) async {
     _pendingBounds = bounds;
     _pendingPrefetchNeighbors = prefetchNeighbors;
+    _pendingZoom = zoom;
 
     // Marca que existe um request mais recente; se houver outro load antes do
     // debounce estourar, o seq muda e o anterior perde.
@@ -135,11 +170,13 @@ class MapDiscoveryService {
     // Criar novo timer
     _debounceTimer = Timer(debounceTime, () async {
       final boundsToQuery = _pendingBounds;
+      final zoomToQuery = _pendingZoom;
       _pendingBounds = null;
+      _pendingZoom = null;
       
       if (boundsToQuery != null) {
         final shouldPrefetch = _pendingPrefetchNeighbors;
-        await _executeQuery(boundsToQuery, requestId, prefetchNeighbors: shouldPrefetch);
+        await _executeQuery(boundsToQuery, requestId, prefetchNeighbors: shouldPrefetch, zoom: zoomToQuery);
       }
       
       // Completa o completer (permite todos os callers prosseguirem)
@@ -165,14 +202,38 @@ class MapDiscoveryService {
     MapBounds bounds,
     int requestId, {
     bool prefetchNeighbors = false,
+    double? zoom,
   }) async {
-    // Verificar cache por quadkey
-    final quadkey = bounds.toQuadkey();
+    final sw = Stopwatch()..start();
+    String boundsKey(MapBounds b) {
+      return '${b.minLat.toStringAsFixed(3)}_'
+          '${b.minLng.toStringAsFixed(3)}_'
+          '${b.maxLat.toStringAsFixed(3)}_'
+          '${b.maxLng.toStringAsFixed(3)}';
+    }
+
+    // Calcular zoomBucket para chave de cache
+    final zoomBucket = _zoomBucket(zoom);
+
+    // Verificar cache por cacheKey (inclui zoomBucket e versão)
+    final cacheKey = bounds.toCacheKey(zoomBucket: zoomBucket);
+    final quadkey = bounds.toQuadkey(); // Para logs e prefetch
+    final bKey = boundsKey(bounds);
+    debugPrint('🔎 [MapDiscovery] queryStart(seq=$requestId, boundsKey=$bKey, cacheKey=$cacheKey, source=unknown)');
 
     // 1️⃣ Tenta cache em memória primeiro (mais rápido)
-    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    // ⚠️ IMPORTANTE: usar cacheKey (inclui zoomBucket) para consistência com Hive
+    // ✅ FIX: Validar cobertura do cache, não apenas cacheKey
+    final memoryCached = _getFromMemoryCacheIfFresh(cacheKey, requestedBounds: bounds);
     if (memoryCached != null) {
-      debugPrint('📦 [MapDiscovery] Memory cache HIT (quadkey=$quadkey): ${memoryCached.length} eventos');
+      final entry = _quadkeyCache[cacheKey];
+      final remaining = entry == null
+          ? null
+          : memoryCacheTTL - DateTime.now().difference(entry.fetchedAt);
+      final remainingSec = remaining == null ? 'unknown' : remaining.inSeconds.toString();
+      debugPrint(
+        '📦 [MapDiscovery] Memory cache HIT (cacheKey=$cacheKey, ttlRemainingSec=$remainingSec, events=${memoryCached.length})',
+      );
 
       // Se existe um request mais novo, não publica cache velho.
       if (requestId != _requestSeq) {
@@ -180,12 +241,16 @@ class MapDiscoveryService {
       }
 
       // Aplica Tombstones
+      _lastAppliedRequestSeq = requestId;
       final filtered = memoryCached.where((e) => !_tombstones.contains(e.eventId)).toList();
       nearbyEvents.value = filtered;
       _eventsController.add(filtered);
       if (prefetchNeighbors) {
         unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
       }
+      debugPrint(
+        '✅ [MapDiscovery] queryEnd(seq=$requestId, boundsKey=$bKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=cache, latencyMs=${sw.elapsedMilliseconds})',
+      );
       return;
     }
 
@@ -201,15 +266,22 @@ class MapDiscoveryService {
         return;
       }
       
-      // 3️⃣ Salva no cache em memória
-      _putInMemoryCache(quadkey, events);
+      // 3️⃣ Salva no cache em memória (usa cacheKey - mesma chave do Hive)
+      // ⚠️ Não cachear lista vazia (evita cache HIT errado após zoom)
+      if (events.isNotEmpty) {
+        _putInMemoryCache(cacheKey, events, bounds);
+      }
 
-      // 4️⃣ Salva no cache persistente (Hive)
-      await _putInPersistentCache(quadkey, events);
+      // 4️⃣ Salva no cache persistente Hive (usa cacheKey com zoomBucket e TTL variável)
+      // ⚠️ Não cachear lista vazia agressivamente
+      if (events.isNotEmpty) {
+        await _putInPersistentCache(cacheKey, events, zoomBucket: zoomBucket);
+      }
       
       debugPrint('✅ MapDiscoveryService: ${events.length} eventos encontrados');
       
       // Aplica Tombstones
+      _lastAppliedRequestSeq = requestId;
       final filtered = events.where((e) => !_tombstones.contains(e.eventId)).toList();
       nearbyEvents.value = filtered;
       _eventsController.add(filtered);
@@ -217,6 +289,9 @@ class MapDiscoveryService {
       if (prefetchNeighbors) {
         unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
       }
+      debugPrint(
+        '✅ [MapDiscovery] queryEnd(seq=$requestId, boundsKey=$bKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=network, latencyMs=${sw.elapsedMilliseconds})',
+      );
     } catch (error) {
       debugPrint('❌ MapDiscoveryService: Erro na query: $error');
       _eventsController.addError(error);
@@ -228,18 +303,26 @@ class MapDiscoveryService {
   /// Tenta carregar cache imediatamente (sem debounce) para o bounds atual.
   ///
   /// Útil para cold start e pan rápido: mostra dados de cache antes do fetch.
-  bool tryLoadCachedEventsForBounds(MapBounds bounds) {
-    return tryLoadCachedEventsForBoundsWithPrefetch(bounds, prefetchNeighbors: false);
+  bool tryLoadCachedEventsForBounds(MapBounds bounds, {double? zoom}) {
+    return tryLoadCachedEventsForBoundsWithPrefetch(bounds, prefetchNeighbors: false, zoom: zoom);
   }
 
   bool tryLoadCachedEventsForBoundsWithPrefetch(
     MapBounds bounds, {
     bool prefetchNeighbors = false,
+    double? zoom,
   }) {
     final quadkey = bounds.toQuadkey();
+    final zoomBucket = _zoomBucket(zoom);
+    final cacheKey = bounds.toCacheKey(zoomBucket: zoomBucket);
+    final boundsKey = '${bounds.minLat.toStringAsFixed(3)}_'
+        '${bounds.minLng.toStringAsFixed(3)}_'
+        '${bounds.maxLat.toStringAsFixed(3)}_'
+        '${bounds.maxLng.toStringAsFixed(3)}';
 
-    // 1️⃣ Memory cache
-    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    // 1️⃣ Memory cache (usa cacheKey - mesma chave do Hive)
+    // ✅ FIX: Validar cobertura do cache
+    final memoryCached = _getFromMemoryCacheIfFresh(cacheKey, requestedBounds: bounds);
     if (memoryCached != null) {
       final filtered = memoryCached.where((e) => !_tombstones.contains(e.eventId)).toList();
       nearbyEvents.value = filtered;
@@ -250,11 +333,17 @@ class MapDiscoveryService {
       return true;
     }
 
-    // 2️⃣ Hive cache (persistente)
-    final persistentEntries = _getPersistentCacheEntriesIfFresh(quadkey);
-    if (persistentEntries != null) {
+    // 2️⃣ Hive cache (persistente) - usa cacheKey para consistência
+    final persistentEntries = _getPersistentCacheEntriesIfFresh(cacheKey);
+    if (persistentEntries != null && persistentEntries.isNotEmpty) {
+      final age = _getPersistentCacheAge(persistentEntries);
+      final remaining = age == null ? null : persistentCacheTTL - age;
+      final remainingSec = remaining == null ? 'unknown' : remaining.inSeconds.toString();
+      debugPrint(
+        '📦 [MapDiscovery] Hive cache HIT (cacheKey=$cacheKey, ttlRemainingSec=$remainingSec, events=${persistentEntries.length})',
+      );
       final persistentCached = _convertPersistentCacheEntries(persistentEntries);
-      _putInMemoryCache(quadkey, persistentCached);
+      _putInMemoryCache(cacheKey, persistentCached, bounds);
 
       final filtered =
           persistentCached.where((e) => !_tombstones.contains(e.eventId)).toList();
@@ -264,11 +353,13 @@ class MapDiscoveryService {
         unawaited(_prefetchAdjacentQuadkeys(bounds, quadkey));
       }
 
-      final age = _getPersistentCacheAge(persistentEntries);
       if (age != null && age >= persistentSoftRefreshAge) {
-        unawaited(_revalidateInBackground(bounds, quadkey));
+        unawaited(_revalidateInBackground(bounds, cacheKey));
       }
 
+      debugPrint(
+        '✅ [MapDiscovery] queryEnd(seq=${_requestSeq}, boundsKey=$boundsKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=hive, latencyMs=0)',
+      );
       return true;
     }
 
@@ -277,21 +368,24 @@ class MapDiscoveryService {
 
   /// Soft-apply de cache: só publica se houver novos eventos
   /// (evita setState desnecessário durante pan)
-  bool applyCachedEventsIfNew(MapBounds bounds) {
-    final quadkey = bounds.toQuadkey();
+  bool applyCachedEventsIfNew(MapBounds bounds, {double? zoom}) {
+    final zoomBucket = _zoomBucket(zoom);
+    final cacheKey = bounds.toCacheKey(zoomBucket: zoomBucket);
 
     List<EventLocation>? cached;
 
-    final memoryCached = _getFromMemoryCacheIfFresh(quadkey);
+    // Usa cacheKey (mesma chave do Hive) para consistência
+    // ✅ FIX: Validar cobertura do cache
+    final memoryCached = _getFromMemoryCacheIfFresh(cacheKey, requestedBounds: bounds);
     if (memoryCached != null) {
       cached = memoryCached;
     }
 
     if (cached == null) {
-      final persistentEntries = _getPersistentCacheEntriesIfFresh(quadkey);
-      if (persistentEntries != null) {
+      final persistentEntries = _getPersistentCacheEntriesIfFresh(cacheKey);
+      if (persistentEntries != null && persistentEntries.isNotEmpty) {
         cached = _convertPersistentCacheEntries(persistentEntries);
-        _putInMemoryCache(quadkey, cached);
+        _putInMemoryCache(cacheKey, cached, bounds);
       }
     }
 
@@ -337,19 +431,20 @@ class MapDiscoveryService {
       for (final neighbor in neighbors) {
         if (fetched >= _maxPrefetchNeighbors) break;
 
-        final quadkey = neighbor.toQuadkey();
-        if (seen.contains(quadkey)) continue;
-        seen.add(quadkey);
+        // Usar cacheKey com zoomBucket default (2) para prefetch
+        final neighborCacheKey = neighbor.toCacheKey(zoomBucket: 2);
+        if (seen.contains(neighborCacheKey)) continue;
+        seen.add(neighborCacheKey);
 
         // Se já existe cache em memória, pula
-        if (_getFromMemoryCacheIfFresh(quadkey) != null) continue;
+        if (_getFromMemoryCacheIfFresh(neighborCacheKey, requestedBounds: neighbor) != null) continue;
 
         // Fetch best-effort em background
         try {
           final events = await _queryFirestore(neighbor);
-          if (events.isEmpty) continue;
-          _putInMemoryCache(quadkey, events);
-          await _putInPersistentCache(quadkey, events);
+          if (events.isEmpty) continue; // Não cachear vazio
+          _putInMemoryCache(neighborCacheKey, events, neighbor);
+          await _putInPersistentCache(neighborCacheKey, events);
           fetched++;
         } catch (_) {
           // Ignorar falhas de prefetch
@@ -397,13 +492,15 @@ class MapDiscoveryService {
   /// Revalida cache em background (Stale-While-Revalidate)
   /// 
   /// Busca dados frescos do Firestore e atualiza UI se houver diferença
-  Future<void> _revalidateInBackground(MapBounds bounds, String quadkey) async {
+  Future<void> _revalidateInBackground(MapBounds bounds, String cacheKey) async {
     try {
       final freshEvents = await _queryFirestore(bounds);
       
-      // Atualiza caches
-      _putInMemoryCache(quadkey, freshEvents);
-      await _putInPersistentCache(quadkey, freshEvents);
+      // Atualiza caches (só se não vazio)
+      if (freshEvents.isNotEmpty) {
+        _putInMemoryCache(cacheKey, freshEvents, bounds);
+        await _putInPersistentCache(cacheKey, freshEvents);
+      }
       
       // Só atualiza UI se o quadkey ainda for relevante (usuário não moveu o mapa)
       final currentEvents = nearbyEvents.value;
@@ -428,7 +525,7 @@ class MapDiscoveryService {
     return !oldIds.containsAll(freshIds) || !freshIds.containsAll(oldIds);
   }
 
-  List<EventLocation>? _getFromMemoryCacheIfFresh(String quadkey) {
+  List<EventLocation>? _getFromMemoryCacheIfFresh(String quadkey, {MapBounds? requestedBounds}) {
     final entry = _quadkeyCache[quadkey];
     if (entry == null) return null;
 
@@ -439,6 +536,12 @@ class MapDiscoveryService {
       _quadkeyLru.remove(quadkey);
       return null;
     }
+    
+    // ✅ FIX: Validar cobertura do cache, não apenas cacheKey
+    if (requestedBounds != null && !entry.covers(requestedBounds)) {
+      debugPrint('⚠️ [MapDiscovery] Cache key HIT mas COBERTURA insuficiente - indo pra rede');
+      return null;
+    }
 
     // Toca no LRU.
     _quadkeyLru.remove(quadkey);
@@ -447,10 +550,11 @@ class MapDiscoveryService {
     return entry.events;
   }
 
-  void _putInMemoryCache(String quadkey, List<EventLocation> events) {
+  void _putInMemoryCache(String quadkey, List<EventLocation> events, MapBounds coverage) {
     _quadkeyCache[quadkey] = _QuadkeyCacheEntry(
       events: events,
       fetchedAt: DateTime.now(),
+      coverage: coverage,
     );
 
     _quadkeyLru.remove(quadkey);
@@ -474,9 +578,12 @@ class MapDiscoveryService {
     }
   }
 
-  List<EventLocationCache>? _getPersistentCacheEntriesIfFresh(String quadkey) {
+  /// Lê do cache persistente Hive.
+  /// 
+  /// [key] pode ser quadkey simples (legado) ou cacheKey com zoomBucket (novo).
+  List<EventLocationCache>? _getPersistentCacheEntriesIfFresh(String key) {
     if (!_persistentCacheReady || !_persistentCache.isInitialized) return null;
-    return _persistentCache.get(quadkey);
+    return _persistentCache.get(key);
   }
 
   List<EventLocation> _convertPersistentCacheEntries(
@@ -501,9 +608,10 @@ class MapDiscoveryService {
   }
 
   Future<void> _putInPersistentCache(
-    String quadkey,
-    List<EventLocation> events,
-  ) async {
+    String cacheKey,
+    List<EventLocation> events, {
+    int zoomBucket = 2,
+  }) async {
     if (!_persistentCacheReady || !_persistentCache.isInitialized) return;
     final cacheEntries = events
         .map((e) => EventLocationCache.fromEventLocation(
@@ -514,10 +622,11 @@ class MapDiscoveryService {
             ))
         .toList();
 
+    final ttl = persistentCacheTTLForZoomBucket(zoomBucket);
     await _persistentCache.put(
-      quadkey,
+      cacheKey,
       cacheEntries,
-      ttl: persistentCacheTTL,
+      ttl: ttl,
     );
   }
 
@@ -526,97 +635,62 @@ class MapDiscoveryService {
   /// Firestore suporta apenas 1 range query por vez,
   /// então fazemos a query por latitude e filtramos longitude em código.
   /// 
-  /// Filtra eventos com isActive = false (desativados pela Cloud Function)
+  /// ✅ NOTA: events_map DESATIVADO (estava vazio/desatualizado)
+  /// Agora usa apenas a coleção `events` diretamente.
   Future<List<EventLocation>> _queryFirestore(MapBounds bounds) async {
+    // ========================================
+    // ✅ QUERY DIRETA NA COLEÇÃO `events`
+    // events_map estava vazio, então vamos direto na fonte
+    // ========================================
+    debugPrint('🔍 [events] Query direta na coleção events...');
+    
     final query = await _firestore
-      .collection(_eventsMapCollection)
-      .where('isActive', isEqualTo: true) // ⭐ Filtrar apenas eventos ativos
-      .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
-      .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
-      .limit(maxEventsPerQuery)
-      .get();
+        .collection(_eventsCollection)
+        .where('isActive', isEqualTo: true)
+        .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
+        .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
+        .limit(maxEventsPerQuery)
+        .get();
+
+    debugPrint('🧪 [events] fetched=${query.docs.length} '
+      'lat=[${bounds.minLat.toStringAsFixed(3)}..${bounds.maxLat.toStringAsFixed(3)}] '
+      'lng=[${bounds.minLng.toStringAsFixed(3)}..${bounds.maxLng.toStringAsFixed(3)}]');
 
     final events = <EventLocation>[];
-    int docsFetched = 0;
-    int docsKept = 0;
+    int docsFilteredByLongitude = 0;
 
     for (final doc in query.docs) {
-      docsFetched++;
       try {
         final data = doc.data();
 
-        // Filtros defensivos (evita cards vazios no drawer)
-        // - Cancelados
-        // - Status != active (quando presente)
         final isCanceled = data['isCanceled'] as bool? ?? false;
-        if (isCanceled) {
-          continue;
-        }
+        if (isCanceled) continue;
 
         final status = data['status'] as String?;
-        if (status != null && status != 'active') {
-          continue;
-        }
+        if (status != null && status != 'active') continue;
 
-        final event = EventLocation.fromFirestore(doc.id, doc.data());
+        final event = EventLocation.fromFirestore(doc.id, data);
         
-        // Filtrar por longitude (Firestore não permite 2 ranges)
         if (bounds.contains(event.latitude, event.longitude)) {
           events.add(event);
-          docsKept++;
+        } else {
+          docsFilteredByLongitude++;
         }
       } catch (error) {
         debugPrint('⚠️ MapDiscoveryService: Erro ao processar evento ${doc.id}: $error');
       }
     }
 
+    debugPrint('🧪 [events] kept=${events.length} (lngFiltered=$docsFilteredByLongitude)');
 
-    if (docsFetched > 0) {
-      final waste = (docsFetched - docsKept).clamp(0, docsFetched);
-      final wastePct = (waste / docsFetched) * 100.0;
-      debugPrint(
-        '📉 [MapDiscovery] Waste longitude: fetched=$docsFetched kept=$docsKept waste=${wastePct.toStringAsFixed(1)}%'
-      );
-    }
-
-    if (events.isEmpty && _allowEventsFallback) {
-      final fallbackQuery = await _firestore
-          .collection(_eventsCollection)
-          .where('isActive', isEqualTo: true)
-          .where('location.latitude', isGreaterThanOrEqualTo: bounds.minLat)
-          .where('location.latitude', isLessThanOrEqualTo: bounds.maxLat)
-          .limit(maxEventsPerQuery)
-          .get();
-
-      for (final doc in fallbackQuery.docs) {
-        try {
-          final data = doc.data();
-
-          final isCanceled = data['isCanceled'] as bool? ?? false;
-          if (isCanceled) {
-            continue;
-          }
-
-          final status = data['status'] as String?;
-          if (status != null && status != 'active') {
-            continue;
-          }
-
-          final event = EventLocation.fromFirestore(doc.id, doc.data());
-          if (bounds.contains(event.latitude, event.longitude)) {
-            events.add(event);
-          }
-        } catch (error) {
-          debugPrint('⚠️ MapDiscoveryService: Erro ao processar evento fallback ${doc.id}: $error');
-        }
-      }
-    }
+    // ✅ events_map DESATIVADO - não precisa mais de fallback
+    // Agora vai direto na coleção `events`
 
     AnalyticsService.instance.logEvent('map_bounds_query', parameters: {
       'docs_returned': events.length,
-      'docs_fetched_count': docsFetched,
-      'docs_kept_count': docsKept,
-      'waste_ratio': docsFetched > 0 ? (1.0 - (docsKept / docsFetched)).toStringAsFixed(2) : '0.00',
+      'docs_fetched_count': query.docs.length,
+      'docs_kept_count': events.length,
+      'waste_ratio': query.docs.isNotEmpty ? (1.0 - (events.length / query.docs.length)).toStringAsFixed(2) : '0.00',
       'bounds_min_lat': bounds.minLat,
       'bounds_max_lat': bounds.maxLat,
       'bounds_min_lng': bounds.minLng,
@@ -654,7 +728,11 @@ class MapDiscoveryService {
       final next = entry.events.where((e) => e.eventId != eventId).toList(growable: false);
       if (next.length != before) {
         removedSomewhere = true;
-        _quadkeyCache[key] = _QuadkeyCacheEntry(events: next, fetchedAt: entry.fetchedAt);
+        _quadkeyCache[key] = _QuadkeyCacheEntry(
+          events: next, 
+          fetchedAt: entry.fetchedAt,
+          coverage: entry.coverage,
+        );
       }
     }
 
@@ -688,9 +766,19 @@ class MapDiscoveryService {
 class _QuadkeyCacheEntry {
   final List<EventLocation> events;
   final DateTime fetchedAt;
+  final MapBounds coverage; // ✅ Bounds que este cache realmente cobre
 
   const _QuadkeyCacheEntry({
     required this.events,
     required this.fetchedAt,
+    required this.coverage,
   });
+  
+  /// Verifica se o cache cobre os bounds solicitados
+  bool covers(MapBounds requested) {
+    return coverage.minLat <= requested.minLat &&
+           coverage.maxLat >= requested.maxLat &&
+           coverage.minLng <= requested.minLng &&
+           coverage.maxLng >= requested.maxLng;
+  }
 }

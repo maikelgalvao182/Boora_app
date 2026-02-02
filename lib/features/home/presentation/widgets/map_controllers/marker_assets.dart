@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/services/avatar_service.dart';
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_bitmap_generator.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 
 class MapMarkerAssets {
   // Cache de ícones de cluster (estilo antigo) por contagem.
@@ -71,6 +72,13 @@ class MapMarkerAssets {
       final pin = await MarkerBitmapGenerator.generateAvatarPinForGoogleMaps(
         avatarUrl,
         size: _avatarPinSizePx,
+        cacheManager: AppCacheService.instance.avatarCacheManager,
+        cacheKey: AppCacheService.instance.avatarCacheKey(avatarUrl),
+        markerCacheManager: AppCacheService.instance.markerBitmapCacheManager,
+        markerCacheKey: AppCacheService.instance.markerBitmapCacheKey(
+          avatarUrl,
+          sizePx: _avatarPinSizePx,
+        ),
       );
       _avatarPinCache[userId] = pin;
       return pin;

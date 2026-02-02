@@ -6,6 +6,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/screens/media_viewer_screen.dart';
 
@@ -96,7 +97,7 @@ class GalleryProfileSection extends StatelessWidget {
     );
   }
   
-  /// Obtém URLs da galeria com cache (TTL: 10 min)
+  /// Obtém URLs da galeria com cache (TTL: 6h)
   /// Galerias mudam raramente, então cache mais longo é apropriado
   List<String> _getImageUrlsCached(Map<String, dynamic> gallery) {
     final cacheKey = 'gallery_${gallery.hashCode}';
@@ -110,7 +111,7 @@ class GalleryProfileSection extends StatelessWidget {
     GlobalCacheService.instance.set(
       cacheKey, 
       urls, 
-      ttl: const Duration(minutes: 10),
+      ttl: const Duration(hours: 6),
     );
     
     return urls;
@@ -187,6 +188,8 @@ class _ImageThumb extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.cover,
+            cacheManager: AppCacheService.instance.galleryCacheManager,
+            cacheKey: AppCacheService.instance.galleryCacheKey(imageUrl),
             placeholder: (context, url) => Container(
               color: GlimpseColors.lightTextField,
               child: const Center(

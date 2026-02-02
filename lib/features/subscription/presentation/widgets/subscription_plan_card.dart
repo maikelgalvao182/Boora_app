@@ -66,7 +66,7 @@ class SubscriptionPlanCard extends StatelessWidget {
           children: [
             // Título do plano
             Text(
-              product.title,
+              _getTitle(i18n),
               style: const TextStyle(
                 fontFamily: FONT_PLUS_JAKARTA_SANS,
                 fontSize: 13,
@@ -119,6 +119,20 @@ class SubscriptionPlanCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Retorna o título do plano baseado no tipo de pacote
+  String _getTitle(AppLocalizations i18n) {
+    switch (package.packageType) {
+      case PackageType.weekly:
+        return i18n.translate('weekly_plan_title');
+      case PackageType.monthly:
+        return i18n.translate('monthly_plan_title');
+      case PackageType.annual:
+        return i18n.translate('annual_plan_title');
+      default:
+        return package.storeProduct.title;
+    }
   }
 
   /// Retorna descrição do plano (usa description do produto ou fallback)

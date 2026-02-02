@@ -250,18 +250,33 @@ class _ListDrawerContent extends StatelessWidget {
       listenable: mapViewModel,
       builder: (context, _) {
         final selectedCategory = mapViewModel.selectedCategory;
+        final selectedDate = mapViewModel.selectedDate;
 
         // ValueNotifier de eventos próximos (Singleton - lista viva sem rebuild)
         return ValueListenableBuilder<List<EventLocation>>(
           valueListenable: discoveryService.nearbyEvents,
           builder: (context, nearbyEventsList, _) {
-            // Filtrar eventos pela categoria selecionada
-            final filteredNearbyEvents = selectedCategory == null
-                ? nearbyEventsList
-                : nearbyEventsList.where((event) {
-                    final eventCategory = event.category?.trim();
-                    return eventCategory == selectedCategory.trim();
-                  }).toList();
+            // Filtrar eventos pela categoria E data selecionadas
+            final filteredNearbyEvents = nearbyEventsList.where((event) {
+              // Filtro de categoria
+              if (selectedCategory != null && selectedCategory.trim().isNotEmpty) {
+                final eventCategory = event.category?.trim();
+                if (eventCategory != selectedCategory.trim()) return false;
+              }
+              
+              // Filtro de data
+              if (selectedDate != null) {
+                final eventDate = event.scheduleDate;
+                if (eventDate == null) return false;
+                if (eventDate.year != selectedDate.year ||
+                    eventDate.month != selectedDate.month ||
+                    eventDate.day != selectedDate.day) {
+                  return false;
+                }
+              }
+              
+              return true;
+            }).toList();
 
             final hasNearbyEvents = filteredNearbyEvents.isNotEmpty;
 

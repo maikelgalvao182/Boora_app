@@ -65,10 +65,24 @@ class MarkerCluster {
 /// **Importante**: Não recrie o Fluster a cada movimento do mapa.
 /// Recrie apenas quando o dataset mudar (novos eventos do backend).
 class MarkerClusterService {
-  final Map<int, List<MarkerCluster>> _clusterCache = {};
+  /// Cache de clusters por chave determinística: "{zoomInt}_{radiusPx}_{eventsHash}"
+  final Map<String, List<MarkerCluster>> _clusterCache = {};
+  /// Cache de clusters por view (bounds): "{zoomInt}_{radiusPx}_{eventsHash}_{boundsKey}"
   final Map<String, List<MarkerCluster>> _boundsCache = {};
   Fluster<EventMapMarker>? _fluster;
   int? _eventsHash;
+
+  /// Chave do último build: "eventsHash_zoomBucket".
+  /// Usado pelo RenderController para verificar se o Fluster está pronto
+  /// antes de renderizar em zoom alto (evita primeira renderização incompleta).
+  String? _lastBuiltKey;
+  String? get lastBuiltKey => _lastBuiltKey;
+
+  /// Verifica se o Fluster está pronto para o dataset + zoomBucket atual.
+  bool isReadyFor({required int eventsHash, required int zoomBucket}) {
+    final expectedKey = '${eventsHash}_$zoomBucket';
+    return _lastBuiltKey == expectedKey;
+  }
 
   static const int _minZoom = 0;
   static const int _maxZoom = 20;
@@ -87,6 +101,9 @@ class MarkerClusterService {
   // Isso garante que o usuário sempre consiga acessar eventos sobrepostos.
   static const int _forceExpandZoom = 14;
   static const int _maxClusterSizeToExpand = 5;
+
+  /// Hash do dataset atual (para uso externo na verificação de estado).
+  int? get eventsHash => _eventsHash;
 
   /// Calcula jitter determinístico para separar markers sobrepostos.
   /// Retorna: 0, +j, -j, +2j, -2j, ...
@@ -120,6 +137,8 @@ class MarkerClusterService {
 
     _eventsHash = newHash;
     _clusterCache.clear();
+    _boundsCache.clear();
+    _lastBuiltKey = null; // Reset até o próximo clustersForView
 
     // Detectar coordenadas duplicadas (lat/lng). Só nesses casos aplicamos jitter.
     final Map<String, int> duplicateIndexByKey = {};
@@ -188,10 +207,16 @@ class MarkerClusterService {
     if (events.isEmpty) return const [];
     final zoomInt = zoom.floor().clamp(_minZoom, _maxZoom);
 
+    // Atualiza hash dos eventos
     final ids = events.map((e) => e.id).toList()..sort();
     final hashNow = Object.hashAll(ids);
-    if (useCache && _clusterCache.containsKey(zoomInt) && _eventsHash == hashNow) {
-      return _clusterCache[zoomInt]!;
+
+    // ✅ Chave determinística: zoomInt + radiusPx + eventsHash
+    // Inclui todos os fatores que afetam o resultado do clustering
+    final cacheKey = '${zoomInt}_${_radiusPx}_$hashNow';
+
+    if (useCache && _clusterCache.containsKey(cacheKey) && _eventsHash == hashNow) {
+      return _clusterCache[cacheKey]!;
     }
 
     final sw = Stopwatch()..start();
@@ -249,7 +274,12 @@ class MarkerClusterService {
       }
     }
 
-    _clusterCache[zoomInt] = out;
+    // ✅ Chave determinística: zoomInt + radiusPx + eventsHash
+    // Cache com limite LRU simples
+    if (_clusterCache.length > 30) {
+      _clusterCache.remove(_clusterCache.keys.first);
+    }
+    _clusterCache[cacheKey] = out;
 
     sw.stop();
     debugPrint(
@@ -300,12 +330,21 @@ class MarkerClusterService {
 
     final zoomInt = zoom.floor().clamp(_minZoom, _maxZoom);
 
-    // Cache key inclui bounds arredondados + zoom
+    // ✅ Chave determinística: zoomInt + radiusPx + eventsHash + boundsKey
+    // Inclui TODOS os fatores que afetam o resultado
     final boundsKey = '${bounds.southwest.latitude.toStringAsFixed(3)}_'
         '${bounds.southwest.longitude.toStringAsFixed(3)}_'
         '${bounds.northeast.latitude.toStringAsFixed(3)}_'
         '${bounds.northeast.longitude.toStringAsFixed(3)}';
-    final cacheKey = '${zoomInt}_$boundsKey';
+    final cacheKey = '${zoomInt}_${_radiusPx}_${_eventsHash ?? 0}_$boundsKey';
+
+    // Atualiza lastBuiltKey para indicar que estamos prontos para este zoomBucket
+    final zoomBucket = zoomInt <= 8 ? 0 : zoomInt <= 11 ? 1 : zoomInt <= 14 ? 2 : 3;
+    final newBuildKey = _eventsHash != null ? '${_eventsHash}_$zoomBucket' : null;
+    debugPrint('🔑 [DIAG] clusterViewKey=$newBuildKey, clusterBuildKey=$_lastBuiltKey, match=${newBuildKey == _lastBuiltKey}');
+    if (_eventsHash != null) {
+      _lastBuiltKey = newBuildKey;
+    }
 
     // Verifica cache de bounds (separado do cache por zoom)
     if (_boundsCache.containsKey(cacheKey)) {
@@ -379,8 +418,8 @@ class MarkerClusterService {
       }
     }
 
-    // Cache com limite de tamanho
-    if (_boundsCache.length > 20) {
+    // Cache LRU simples - aumentado para 50 entradas para views diferentes
+    if (_boundsCache.length > 50) {
       _boundsCache.remove(_boundsCache.keys.first);
     }
     _boundsCache[cacheKey] = out;
@@ -399,12 +438,16 @@ class MarkerClusterService {
     _boundsCache.clear();
     _fluster = null;
     _eventsHash = null;
+    _lastBuiltKey = null;
+    debugPrint('🧹 [ClusterService] Cache limpo completamente');
   }
 
   /// Remove cache de um zoom específico.
+  /// Chaves são no formato "{zoomInt}_{radiusPx}_{eventsHash}[_{boundsKey}]"
   void clearCacheForZoom(double zoom) {
-    _clusterCache.remove(zoom.floor());
-    // Limpa bounds cache também
-    _boundsCache.removeWhere((key, _) => key.startsWith('${zoom.floor()}_'));
+    final zoomPrefix = '${zoom.floor()}_';
+    _clusterCache.removeWhere((key, _) => key.startsWith(zoomPrefix));
+    _boundsCache.removeWhere((key, _) => key.startsWith(zoomPrefix));
+    debugPrint('🧹 [ClusterService] Cache limpo para zoom ${zoom.floor()}');
   }
 }

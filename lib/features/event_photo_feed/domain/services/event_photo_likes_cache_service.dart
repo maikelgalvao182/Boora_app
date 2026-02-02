@@ -189,6 +189,16 @@ class EventPhotoLikesCacheService {
       await _saveToHive();
 
       debugPrint('✅ [EventPhotoLikesCacheService] Hidratação completa: ${photoIds.length} likes carregados');
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        debugPrint('⚠️ [EventPhotoLikesCacheService] Hidratação bloqueada por rules: ${e.code}');
+        _lastHydrationAt = DateTime.now();
+        return;
+      }
+
+      debugPrint('❌ [EventPhotoLikesCacheService] Erro na hidratação: $e');
+      // Em caso de erro, marca como hidratado para não ficar tentando em loop
+      _lastHydrationAt = DateTime.now().subtract(const Duration(hours: 12));
     } catch (e) {
       debugPrint('❌ [EventPhotoLikesCacheService] Erro na hidratação: $e');
       // Em caso de erro, marca como hidratado para não ficar tentando em loop

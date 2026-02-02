@@ -4,13 +4,13 @@ import 'package:partiu/core/services/cache/hive_initializer.dart';
 
 /// Cache persistente para páginas de galeria do perfil
 ///
-/// TTL padrão: 24h
+/// TTL padrão: 7d
 class ProfileGalleryCacheService {
   ProfileGalleryCacheService._();
 
   static final ProfileGalleryCacheService instance = ProfileGalleryCacheService._();
 
-  static const Duration defaultTtl = Duration(hours: 24);
+  static const Duration defaultTtl = Duration(days: 7);
 
   final HiveCacheService<List> _cache =
       HiveCacheService<List>('profile_gallery_page_cache');
@@ -58,6 +58,13 @@ class ProfileGalleryCacheService {
 
     if (sanitized.isEmpty) return;
     await _cache.put(_key(userId, page), sanitized, ttl: ttl);
+  }
+
+  Future<void> invalidateUserGallery(String userId) async {
+    if (userId.trim().isEmpty) return;
+    await ensureInitialized();
+    if (!_initialized) return;
+    await _cache.delete(_key(userId, 0));
   }
 
   String _key(String userId, int page) => 'gallery_page:$userId:$page';

@@ -5,8 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/common/state/app_state.dart';
-import 'package:partiu/core/services/cache/cache_key_utils.dart';
-import 'package:partiu/core/services/cache/image_caches.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/core/models/user.dart';
@@ -62,8 +61,8 @@ class StableAvatar extends StatelessWidget {
 
       final provider = CachedNetworkImageProvider(
         providedUrl,
-        cacheManager: AvatarImageCache.instance,
-        cacheKey: stableImageCacheKey(providedUrl),
+        cacheManager: AppCacheService.instance.avatarCacheManager,
+        cacheKey: AppCacheService.instance.avatarCacheKey(providedUrl),
       );
 
       return _AvatarShell(

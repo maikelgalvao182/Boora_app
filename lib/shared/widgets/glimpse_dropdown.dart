@@ -193,7 +193,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
       hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         color: descriptionTextColor,
         fontSize: 16,
-        fontWeight: FontWeight.w300,
+        fontWeight: FontWeight.w400,
         height: 1,
       ),
       closedSuffixIcon: widget.suffixIconPath != null 
@@ -242,7 +242,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
         hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
           color: descriptionTextColor,
           fontSize: 16,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           height: 1,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),

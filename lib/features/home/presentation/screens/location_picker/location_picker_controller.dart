@@ -34,9 +34,6 @@ class LocationPickerController extends ChangeNotifier {
   // Controla se usuário confirmou a seleção clicando no dropdown
   bool _isLocationConfirmed = false;
 
-  // Nearby Places
-  List<NearbyPlace> _nearbyPlaces = [];
-
   // Autocomplete
   List<RichSuggestion> _suggestions = [];
   bool _hasSearchTerm = false;
@@ -51,7 +48,6 @@ class LocationPickerController extends ChangeNotifier {
   Set<Circle> get circles => _circles;
   LocationResult? get locationResult => _locationResult;
   List<String> get selectedPlacePhotos => _selectedPlacePhotos;
-  List<NearbyPlace> get nearbyPlaces => _nearbyPlaces;
   bool get hasSearchTerm => _hasSearchTerm;
   List<RichSuggestion> get suggestions => _suggestions;
   bool get isLocked => _lockOnSelectedPlace;
@@ -86,8 +82,10 @@ class LocationPickerController extends ChangeNotifier {
     };
   }
 
-  Future<void> moveToLocation(LatLng location,
-      {String? placeId, bool loadNearby = false}) async {
+  Future<void> moveToLocation(
+    LatLng location, {
+    String? placeId,
+  }) async {
     // Evitar processamento se a localização não mudou significativamente
     if (_selectedLocation != null && _isSameCoord(_selectedLocation!, location) && placeId == null) {
       // Mesmo se as coordenadas não mudaram, garantir que o círculo está visível
@@ -111,8 +109,6 @@ class LocationPickerController extends ChangeNotifier {
     // reverse geocode NUNCA altera as fotos
     await _loadReverseGeocode(location);
 
-    if (loadNearby) await _loadNearbyPlaces(location);
-    
     // Notificar apenas uma vez após todas as operações
     notifyListeners();
   }
@@ -168,7 +164,7 @@ class LocationPickerController extends ChangeNotifier {
     _lockOnSelectedPlace = true; // trava o mapa
     _isLocationConfirmed = true; // confirma a seleção
 
-    // ✅ Buscar detalhes completos do lugar (name + formatted_address)
+    // ✅ Buscar detalhes essenciais do lugar (name + geometry)
     final locationResult = await placeService.getPlaceDetails(
       placeId: placeId,
       languageCode: localizationItem.languageCode,
@@ -186,8 +182,6 @@ class LocationPickerController extends ChangeNotifier {
 
       // Fotos do Google Places desativadas (custo). Mantemos lista vazia.
       _selectedPlacePhotos = [];
-      await _loadNearbyPlaces(location);
-
       notifyListeners();
       return location;
     }
@@ -211,15 +205,6 @@ class LocationPickerController extends ChangeNotifier {
       result.isApproximateLocation = true;
       _locationResult = result;
     }
-  }
-
-  Future<void> _loadNearbyPlaces(LatLng location) async {
-    final places = await placeService.getNearbyPlaces(
-      location: location,
-      languageCode: localizationItem.languageCode,
-    );
-
-    _nearbyPlaces = places;
   }
 
   // -------------------------------------------------------------

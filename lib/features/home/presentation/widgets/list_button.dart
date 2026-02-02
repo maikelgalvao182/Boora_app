@@ -45,7 +45,7 @@ class ListButton extends StatelessWidget {
                 i18n.translate('activities_list'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primaryColorLight,
                 ),

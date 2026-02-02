@@ -8,6 +8,7 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
+import 'package:partiu/features/profile/data/services/profile_gallery_cache_service.dart';
 
 class OperationResult {
   const OperationResult._(this.success, this.errorMessage);
@@ -109,6 +110,9 @@ class ImageUploadViewModel {
       }, SetOptions(merge: true));
       print('[ImageUploadVM] ✅ Firestore save complete');
 
+      // Invalida cache persistente da galeria (page 0)
+      await ProfileGalleryCacheService.instance.invalidateUserGallery(uid);
+
       // Atualizar sessão local
       print('[ImageUploadVM] 🔄 Refreshing user data...');
       await _refreshUserData(uid);
@@ -197,6 +201,9 @@ class ImageUploadViewModel {
         'user_gallery.$primaryKey': FieldValue.delete(),
         'user_gallery.$legacyKey': FieldValue.delete(),
       });
+
+      // Invalida cache persistente da galeria (page 0)
+      await ProfileGalleryCacheService.instance.invalidateUserGallery(uid);
 
       // Evict cache
       if (existingImageUrl != null && existingImageUrl.isNotEmpty) {
