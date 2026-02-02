@@ -1034,6 +1034,8 @@
   "terms": "Terms",
   "and_separator": " and ",
   "privacy": "Privacy",
+  "agree_terms_and_privacy_prefix": "By creating an account, you agree to our ",
+  "agree_terms_and_privacy_suffix": ".",
   "have_you_signed_before": ". Have you subscribed before? ",
   "restore_subscription_link": "Restore subscription",
   "wedconnex_pro_active": "Wedconnex Pro Active",

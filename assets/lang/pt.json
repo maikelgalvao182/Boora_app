@@ -1041,6 +1041,8 @@
   "terms": "Termos",
   "and_separator": " e ",
   "privacy": "Privacidade",
+  "agree_terms_and_privacy_prefix": "Ao criar uma conta, você concorda com nossos ",
+  "agree_terms_and_privacy_suffix": ".",
   "have_you_signed_before": ". Já assinou antes? ",
   "restore_subscription_link": "Restaurar assinatura",
   "wedconnex_pro_active": "Wedconnex Pro Ativo",

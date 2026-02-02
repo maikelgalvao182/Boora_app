@@ -30,6 +30,11 @@ export {
   migrateUserLocationToPrivate,
 } from "./users/migrateLocationToPrivate";
 export {syncRankingFilters} from "./ranking/rankingFiltersSync";
+export {
+  checkDeviceBlacklist,
+  registerDevice,
+  onUserStatusChange,
+} from "./devices/deviceBlacklist";
 // Feed Fanout System - distribui posts para feeds dos seguidores
 export {
   onEventPhotoWriteFanout,

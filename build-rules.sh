@@ -21,6 +21,7 @@ cat > "$OUTPUT_FILE" << 'EOF'
 /// - rules/app_config.rules     → Coleção AppInfo/{configName}
 /// - rules/notifications.rules  → Subcoleção Users/{userId}/Notifications/{notificationId}
 /// - rules/device_tokens.rules  → Coleção DeviceTokens/{tokenId}
+/// - rules/device_blacklist.rules → Coleção BlacklistDevices/{deviceIdHash}
 /// - rules/reviews.rules        → Coleção Reviews/{reviewId}
 /// - rules/events.rules         → Coleção events/{eventId}
 /// - rules/applications.rules   → Coleção EventApplications/{applicationId} [CORRIGIDO: permite leitura de aprovados]
@@ -65,6 +66,12 @@ echo "    // ======================================" >> "$OUTPUT_FILE"
 echo "    // 🔑 Tokens FCM" >> "$OUTPUT_FILE"
 echo "    // ======================================" >> "$OUTPUT_FILE"
 cat "$RULES_DIR/device_tokens.rules" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "    // ======================================" >> "$OUTPUT_FILE"
+echo "    // 🚫 Dispositivos Bloqueados" >> "$OUTPUT_FILE"
+echo "    // ======================================" >> "$OUTPUT_FILE"
+cat "$RULES_DIR/device_blacklist.rules" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 echo "    // ======================================" >> "$OUTPUT_FILE"

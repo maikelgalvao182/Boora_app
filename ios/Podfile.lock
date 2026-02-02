@@ -1204,6 +1204,9 @@ PODS:
   - BoringSSL-GRPC/Implementation (0.0.37):
     - BoringSSL-GRPC/Interface (= 0.0.37)
   - BoringSSL-GRPC/Interface (0.0.37)
+  - client_information (1.0.0):
+    - Flutter
+    - SAMKeychain
   - cloud_firestore (6.1.0):
     - Firebase/Firestore (= 12.8.0)
     - firebase_core
@@ -1623,6 +1626,7 @@ PODS:
     - RevenueCat (= 5.49.0)
   - RecaptchaInterop (101.0.0)
   - RevenueCat (5.49.0)
+  - SAMKeychain (1.5.3)
   - SDWebImage (5.21.5):
     - SDWebImage/Core (= 5.21.5)
   - SDWebImage/Core (5.21.5)
@@ -1652,6 +1656,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - client_information (from `.symlinks/plugins/client_information/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - cloud_functions (from `.symlinks/plugins/cloud_functions/ios`)
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
@@ -1735,12 +1740,15 @@ SPEC REPOS:
     - PurchasesHybridCommon
     - RecaptchaInterop
     - RevenueCat
+    - SAMKeychain
     - SDWebImage
     - SDWebImageWebPCoder
     - Sentry
     - TOCropViewController
 
 EXTERNAL SOURCES:
+  client_information:
+    :path: ".symlinks/plugins/client_information/ios"
   cloud_firestore:
     :path: ".symlinks/plugins/cloud_firestore/ios"
   cloud_functions:
@@ -1817,6 +1825,7 @@ SPEC CHECKSUMS:
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
+  client_information: dc34b4d464e909eec01badb96a8b6b005e654cb5
   cloud_firestore: 284664fc11ca15df78d81628f394b5b8fbd06bfe
   cloud_functions: 9cd4d45e8295acc7e53db6bede522ebd26f8479a
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
@@ -1886,6 +1895,7 @@ SPEC CHECKSUMS:
   PurchasesHybridCommon: 988d080cd69d7aa0895e52f993dae53b45a0e929
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   RevenueCat: fa9ad7e1c8817deddb737646946b6b3d8b25f54b
+  SAMKeychain: 483e1c9f32984d50ca961e26818a534283b4cd5c
   SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
   SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   Sentry: b53951377b78e21a734f5dc8318e333dbfc682d7

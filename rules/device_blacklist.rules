@@ -1,0 +1,7 @@
+/// 🚫 Dispositivos bloqueados (Blacklist)
+/// Path: BlacklistDevices/{deviceIdHash}
+/// Escrita somente via Cloud Functions
+
+match /BlacklistDevices/{deviceIdHash} {
+  allow read, write: if false;
+}

@@ -11,6 +11,7 @@ import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/shared/widgets/auth_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
+import 'package:partiu/shared/widgets/terms_and_privacy_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -348,13 +349,30 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
           );
 
           // Botão de Submit (desabilitado durante loading)
-          final bottomButton = GlimpseButton(
-            text: viewModel.isLogin
-                ? _i18n.translate('sign_in')
-                : _i18n.translate('create_account'),
-            onTap: viewModel.isLoading ? null : _submit,
-            backgroundColor: GlimpseColors.primary,
-            isProcessing: viewModel.isLoading,
+          final bottomButton = Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GlimpseButton(
+                text: viewModel.isLogin
+                    ? _i18n.translate('sign_in')
+                    : _i18n.translate('create_account'),
+                onTap: viewModel.isLoading ? null : _submit,
+                backgroundColor: GlimpseColors.primary,
+                isProcessing: viewModel.isLoading,
+              ),
+              if (!viewModel.isLogin)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: TermsAndPrivacyLinks(
+                    prefixText: _i18n
+                        .translate('agree_terms_and_privacy_prefix'),
+                    suffixText: _i18n
+                        .translate('agree_terms_and_privacy_suffix'),
+                    termsTextKey: 'terms_of_service',
+                    privacyTextKey: 'privacy_policy',
+                  ),
+                ),
+            ],
           );
 
           // Layout completo com fundo branco e ícones da barra de status pretos

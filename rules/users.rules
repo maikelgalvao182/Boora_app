@@ -98,6 +98,14 @@ match /Users/{userId} {
     allow read: if isOwner(userId);
     allow write: if isOwner(userId);
   }
+
+  /// 📱 Subcoleção de dispositivos registrados
+  /// Path: Users/{userId}/clients/{clientId}
+  /// Escrita somente via Cloud Functions
+  match /clients/{clientId} {
+    allow read: if isOwner(userId);
+    allow write: if false;
+  }
 }
 
 

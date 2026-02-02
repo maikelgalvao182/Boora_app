@@ -11,6 +11,8 @@ import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/common/services/notifications_counter_service.dart';
 import 'package:partiu/features/notifications/services/fcm_token_service.dart';
 import 'package:partiu/features/subscription/services/simple_revenue_cat_service.dart';
+import 'package:partiu/core/services/device_identity_service.dart';
+import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/services/location_background_updater.dart';
 import 'package:partiu/core/services/location_service.dart';
 import 'package:get_it/get_it.dart';
@@ -36,6 +38,7 @@ class AuthSyncService extends ChangeNotifier {
   
   bool _notificationServiceInitialized = false; // Flag para inicializar apenas uma vez
   bool _locationSyncSchedulerInitialized = false; // Flag para LocationSyncScheduler
+  bool _deviceIdentityChecked = false;
   StreamSubscription<fire_auth.User?>? _authSubscription;
   StreamSubscription<DocumentSnapshot>? _userSubscription;
 
@@ -108,6 +111,7 @@ class AuthSyncService extends ChangeNotifier {
       
       // Reset session ready - será marcado quando tudo estiver pronto
       _sessionReady = false;
+      _deviceIdentityChecked = false;
 
       // Cancela subscription anterior do usuário se existir
       await _userSubscription?.cancel();
@@ -167,6 +171,7 @@ class AuthSyncService extends ChangeNotifier {
         
         // Resetar flag para permitir reinicialização no próximo login
         _notificationServiceInitialized = false;
+        _deviceIdentityChecked = false;
         
         // ✅ Sessão pronta (logout completo)
         _sessionReady = true;
@@ -226,6 +231,35 @@ class AuthSyncService extends ChangeNotifier {
               notifyListeners();
             }
             return;
+          }
+
+          if (!_deviceIdentityChecked) {
+            _log('📱 Verificando device blacklist...');
+            final checkResult =
+                await DeviceIdentityService.instance.checkAndRegisterOnLogin();
+
+            if (checkResult.blocked) {
+              _log('⛔ Dispositivo bloqueado. Encerrando sessão.');
+
+              ToastService.showError(
+                message: checkResult.reason ??
+                    'Dispositivo bloqueado. Contate o suporte.',
+              );
+
+              await _userSubscription?.cancel();
+              _userSubscription = null;
+              await SessionManager.instance.logout();
+              await fire_auth.FirebaseAuth.instance.signOut();
+
+              if (!_sessionReady) {
+                _sessionReady = true;
+                notifyListeners();
+              }
+              return;
+            }
+
+            _deviceIdentityChecked = true;
+            _log('✅ Device aprovado e registrado');
           }
 
           // CORREÇÃO: Garantir que o documento tem o campo userId

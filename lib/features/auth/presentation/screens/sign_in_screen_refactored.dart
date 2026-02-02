@@ -9,6 +9,7 @@ import 'package:partiu/shared/models/user_model.dart';
 import 'package:partiu/features/auth/presentation/controllers/sign_in_view_model.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/shared/widgets/cached_svg_icon.dart';
+import 'package:partiu/shared/widgets/terms_and_privacy_links.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -405,6 +406,30 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                               ),
                             ],
                           ),
+                        ),
+                      ),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                      child: TermsAndPrivacyLinks(
+                        prefixText:
+                            _i18n.translate('agree_terms_and_privacy_prefix'),
+                        suffixText:
+                            _i18n.translate('agree_terms_and_privacy_suffix'),
+                        termsTextKey: 'terms_of_service',
+                        privacyTextKey: 'privacy_policy',
+                        baseStyle: const TextStyle(
+                          fontFamily: FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                        linkStyle: const TextStyle(
+                          fontFamily: FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
