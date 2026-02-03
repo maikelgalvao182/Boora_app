@@ -74,20 +74,37 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
   
   Future<void> _loadFollowersCount() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('Users')
-          .doc(widget.user.userId)
-          .collection('followers')
-          .count()
-          .get();
-      
-      if (mounted) {
-        _followersCountNotifier.value = snapshot.count ?? 0;
+    const maxRetries = 3;
+    var retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(widget.user.userId)
+            .collection('followers')
+            .count()
+            .get();
+        
+        if (mounted) {
+          _followersCountNotifier.value = snapshot.count ?? 0;
+        }
+        return; // Sucesso, sai do loop
+        
+      } catch (e) {
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          debugPrint('❌ [ProfileHeader] Erro ao carregar followers count após $maxRetries tentativas: $e');
+          // Em caso de erro final, não mostra nada
+          return;
+        }
+        
+        // Backoff exponencial: 500ms, 1s, 2s
+        final delayMs = 500 * (1 << (retryCount - 1));
+        debugPrint('⚠️ [ProfileHeader] Tentativa $retryCount falhou, retrying em ${delayMs}ms...');
+        await Future.delayed(Duration(milliseconds: delayMs));
       }
-    } catch (e) {
-      debugPrint('❌ [ProfileHeader] Erro ao carregar followers count: $e');
-      // Em caso de erro, não mostra nada
     }
   }
 

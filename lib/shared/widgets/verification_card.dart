@@ -63,7 +63,9 @@ class VerificationCard extends StatelessWidget {
         },
         child: Container(
           width: double.maxFinite,
-          height: MediaQuery.of(context).size.height * 0.12,
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height * 0.12,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: GlimpseColors.primaryColorLight,

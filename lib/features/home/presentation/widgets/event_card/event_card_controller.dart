@@ -78,6 +78,10 @@ class EventCardController extends ChangeNotifier {
   String? _currentUserGender;
   bool _isGenderRestricted = false;
 
+  // VIP status (allows events beyond 30km)
+  bool _isUserVip = false;
+  bool _vipStatusChecked = false;
+
   EventCardController({
     required this.eventId,
     EventModel? preloadedEvent,
@@ -136,6 +140,17 @@ class EventCardController extends ChangeNotifier {
       // Se tiver restrição, validar o usuário
       if (_enableOpenFetches && _requiredGender != null && _requiredGender != GENDER_ALL) {
         _validateUserGender(_auth.currentUser?.uid ?? '');
+      }
+
+      // 👑 INICIALIZAR status VIP para permitir eventos além de 30km
+      // NOTA: Esta verificação é redundante se o MapViewModel já enriqueceu o isAvailable
+      // considerando o status VIP. Mas mantemos como fallback para casos onde o evento
+      // não passou pelo enriquecimento do MapViewModel.
+      if (_enableOpenFetches && !_preloadedEvent!.isAvailable) {
+        final currentUserId = _auth.currentUser?.uid;
+        if (currentUserId != null && currentUserId.isNotEmpty) {
+          _checkUserVipStatus(currentUserId);
+        }
       }
 
       if (_preloadedEvent!.participants != null) {
@@ -450,9 +465,12 @@ class EventCardController extends ChangeNotifier {
     if (isPending) return 'awaiting_approval';
     if (isRejected) return 'application_rejected';
 
-    if (_preloadedEvent != null && !_preloadedEvent!.isAvailable) {
-      return 'out_of_your_area';
+    // 👑 Se evento não está disponível e usuário NÃO é VIP:
+    // Mostrar botão ATIVO "Desbloquear acesso" que abre VipDialog
+    if (isOutsideAreaNonVip) {
+      return 'unlock_vip_access';
     }
+    // Se é VIP, continua para verificações normais abaixo
     
     // ✅ RETORNAR mensagem de restrição de idade
     if (_isAgeRestricted) {
@@ -471,24 +489,48 @@ class EventCardController extends ChangeNotifier {
   String get deleteButtonText => 'Deletar';
 
   bool get isButtonEnabled {
+    debugPrint('🔘 [EventCard] isButtonEnabled check:');
+    debugPrint('   - isCreator: $isCreator');
+    debugPrint('   - isApplying: $isApplying, isLeaving: $isLeaving, isDeleting: $isDeleting');
+    debugPrint('   - isApproved: $isApproved');
+    debugPrint('   - isPending: $isPending, isRejected: $isRejected');
+    debugPrint('   - isAvailable: ${_preloadedEvent?.isAvailable}');
+    debugPrint('   - _isUserVip: $_isUserVip');
+    debugPrint('   - _isAgeRestricted: $_isAgeRestricted');
+    debugPrint('   - _isGenderRestricted: $_isGenderRestricted');
+    
     if (isCreator) return true;
     if (isApplying || isLeaving || isDeleting) return false;
     if (isApproved) return true;
     if (isPending || isRejected) return false;
 
+    // 👑 NOVO FLUXO: Se fora da área e NÃO é VIP, manter botão ATIVO
+    // Ao clicar, abrirá VipDialog para conversão
+    if (isOutsideAreaNonVip) {
+      debugPrint('💎 [EventCard] Fora da área + não-VIP - botão ATIVO para abrir VipDialog');
+      return true;
+    }
+    
+    // 👑 Se usuário é VIP, permitir aplicar mesmo em eventos fora do raio de 30km
     if (_preloadedEvent != null && !_preloadedEvent!.isAvailable) {
-      return false;
+      if (_isUserVip) {
+        debugPrint('👑 [EventCard] Usuário VIP - permitindo evento fora do raio de 30km');
+        return true;
+      }
     }
     
     // ✅ BLOQUEAR se idade não está na faixa permitida
     if (_isAgeRestricted) {
+      debugPrint('🔒 [EventCard] Idade restrita - bloqueando');
       return false;
     }
 
     if (_isGenderRestricted) {
+      debugPrint('🔒 [EventCard] Gênero restrito - bloqueando');
       return false;
     }
 
+    debugPrint('✅ [EventCard] Botão habilitado');
     return true;
   }
   
@@ -498,6 +540,15 @@ class EventCardController extends ChangeNotifier {
       return 'Indisponível para sua idade';
     }
     return null;
+  }
+
+  bool get isUserVip => _isUserVip;
+  
+  /// Verifica se evento está fora da área e usuário não é VIP
+  /// Neste caso, mostramos botão ATIVO para abrir VipDialog
+  bool get isOutsideAreaNonVip {
+    if (_preloadedEvent == null) return false;
+    return !_preloadedEvent!.isAvailable && !_isUserVip;
   }
 
   String get _genderRestrictionButtonTextKey {
@@ -524,8 +575,15 @@ class EventCardController extends ChangeNotifier {
     _listenersInitialized = true;
 
     _authSub ??= _auth.authStateChanges().listen((user) {
-      if (user != null) return;
-      _cancelRealtimeSubscriptions();
+      if (user == null) {
+        _cancelRealtimeSubscriptions();
+        return;
+      }
+      
+      // 👑 Verificar status VIP quando usuário faz login
+      if (!_vipStatusChecked && user.uid.isNotEmpty) {
+        _checkUserVipStatus(user.uid);
+      }
     });
 
     final uid = _auth.currentUser?.uid;
@@ -914,42 +972,65 @@ class EventCardController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> applyToEvent() async {
-    if (_isApplying || hasApplied || _privacyType == null) return;
+    debugPrint('🎯 [EventCard] applyToEvent() INICIADO');
+    debugPrint('   - _isApplying: $_isApplying');
+    debugPrint('   - hasApplied: $hasApplied');
+    debugPrint('   - _privacyType: $_privacyType');
+    
+    if (_isApplying || hasApplied || _privacyType == null) {
+      debugPrint('⚠️ [EventCard] applyToEvent() BLOQUEADO - returnando');
+      return;
+    }
 
     final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
+    debugPrint('   - userId: $uid');
+    if (uid == null) {
+      debugPrint('❌ [EventCard] userId é null - returnando');
+      return;
+    }
     
+    debugPrint('🔍 [EventCard] Validando idade...');
     // ✅ VALIDAR idade antes de aplicar
     await _validateUserAge(uid);
     
     if (_isAgeRestricted) {
+      debugPrint('❌ [EventCard] Idade restrita - abortando');
       _error = ageRestrictionMessage;
       notifyListeners();
       return;
     }
+    debugPrint('✅ [EventCard] Idade validada');
 
+    debugPrint('🔍 [EventCard] Validando gênero...');
     // ✅ VALIDAR gênero antes de aplicar
     await _validateUserGender(uid);
 
     if (_isGenderRestricted) {
+      debugPrint('❌ [EventCard] Gênero restrito - abortando');
       notifyListeners();
       return;
     }
+    debugPrint('✅ [EventCard] Gênero validado');
 
     _isApplying = true;
+    debugPrint('🔄 [EventCard] _isApplying = true, notificando listeners');
     notifyListeners();
 
     try {
+      debugPrint('📝 [EventCard] Chamando _applicationRepo.createApplication...');
       await _applicationRepo.createApplication(
         eventId: eventId,
         userId: uid,
         eventPrivacyType: _privacyType!,
       );
+      debugPrint('✅ [EventCard] createApplication completou com sucesso');
       
       // ✅ Atualizar userApplication localmente para refletir o novo estado
       // Isso garante que a UI mostre corretamente "Pendente" ou "Sair"
       final now = DateTime.now();
       final isAutoApproved = _privacyType == 'open';
+      debugPrint('🔍 [EventCard] isAutoApproved: $isAutoApproved');
+      
       _userApplication = EventApplicationModel(
         id: '', // ID será preenchido pelo stream/fetch posterior
         eventId: eventId,
@@ -961,18 +1042,25 @@ class EventCardController extends ChangeNotifier {
         decisionAt: isAutoApproved ? now : null,
         presence: PresenceStatus.going,
       );
+      debugPrint('✅ [EventCard] _userApplication atualizado localmente');
       
       // ✅ Se evento é open (autoApproved), adicionar usuário à lista local imediatamente
       // Isso garante que a UI reflita a mudança sem depender de streams/realtime
       if (isAutoApproved) {
+        debugPrint('🔄 [EventCard] Adicionando usuário aos participantes locais...');
         await _addCurrentUserToParticipants(uid);
+        debugPrint('✅ [EventCard] Usuário adicionado aos participantes');
       }
       
+      debugPrint('✅ [EventCard] applyToEvent() COMPLETO COM SUCESSO');
       // Stream do ParticipantsAvatarsList vai atualizar automaticamente (se enableRealtime)
     } catch (e) {
+      debugPrint('❌ [EventCard] ERRO em applyToEvent: $e');
+      debugPrint('   Stack trace: ${StackTrace.current}');
       rethrow;
     } finally {
       _isApplying = false;
+      debugPrint('🔄 [EventCard] _isApplying = false, notificando listeners');
       notifyListeners();
     }
   }
@@ -1078,6 +1166,67 @@ class EventCardController extends ChangeNotifier {
       debugPrint('❌ [EventCard] Erro ao validar gênero: $e');
       _isGenderRestricted = true;
       notifyListeners();
+    }
+  }
+
+  /// Verifica se o usuário tem status VIP em users_preview
+  /// Permite que usuários VIP apliquem em eventos além de 30km
+  Future<void> _checkUserVipStatus(String userId) async {
+    debugPrint('👑 [EventCard] _checkUserVipStatus CHAMADO para userId: $userId');
+    debugPrint('👑 [EventCard] _vipStatusChecked antes: $_vipStatusChecked');
+    
+    if (_vipStatusChecked) {
+      debugPrint('👑 [EventCard] VIP já verificado anteriormente - ignorando');
+      return;
+    }
+    
+    try {
+      debugPrint('👑 [EventCard] Buscando users_preview/$userId...');
+      final userPreviewDoc = await FirebaseFirestore.instance
+          .collection('users_preview')
+          .doc(userId)
+          .get();
+
+      debugPrint('👑 [EventCard] Documento existe: ${userPreviewDoc.exists}');
+
+      if (!userPreviewDoc.exists) {
+        debugPrint('⚠️ [EventCard] users_preview não encontrado para userId: $userId');
+        _isUserVip = false;
+        _vipStatusChecked = true;
+        return;
+      }
+
+      final data = userPreviewDoc.data();
+      debugPrint('👑 [EventCard] Dados do documento: $data');
+      
+      if (data == null) {
+        debugPrint('⚠️ [EventCard] data é null');
+        _isUserVip = false;
+        _vipStatusChecked = true;
+        return;
+      }
+
+      // Verificar user_is_vip (compatível com múltiplos formatos)
+      dynamic rawVip = data['IsVip'] ?? data['user_is_vip'] ?? data['isVip'] ?? data['vip'];
+      
+      debugPrint('👑 [EventCard] rawVip encontrado: $rawVip (type: ${rawVip.runtimeType})');
+      
+      if (rawVip is bool) {
+        _isUserVip = rawVip;
+      } else if (rawVip is String) {
+        _isUserVip = rawVip.toLowerCase() == 'true';
+      } else {
+        _isUserVip = false;
+      }
+
+      _vipStatusChecked = true;
+      
+      debugPrint('👑 [EventCard] Status VIP verificado: $_isUserVip para userId: $userId');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ [EventCard] Erro ao verificar status VIP: $e');
+      _isUserVip = false;
+      _vipStatusChecked = true;
     }
   }
 

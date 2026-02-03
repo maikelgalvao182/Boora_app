@@ -38,12 +38,17 @@ class NotificationsCounterService {
   // Contadores internos
   int _applicationsCount = 0;
   int _reviewsCount = 0;
+  bool _isInitialized = false;
 
   /// Verifica se os listeners estão ativos
   bool get isActive => _notificationsSubscription != null;
 
   /// Inicializa os listeners de contadores
   Future<void> initialize() async {
+    if (_isInitialized && isActive) {
+      debugPrint('ℹ️ [NotificationsCounterService] initialize ignorado (já ativo)');
+      return;
+    }
     // Cancelar listeners anteriores se existirem
     _cancelAllSubscriptions();
     
@@ -54,6 +59,7 @@ class NotificationsCounterService {
     _listenToPendingReviews();
     _listenToUnreadConversations();
     _listenToUnreadNotifications();
+    _isInitialized = true;
   }
 
   /// Cancela todas as subscriptions ativas
@@ -67,6 +73,7 @@ class NotificationsCounterService {
     _pendingReviewsSubscription = null;
     _conversationsSubscription = null;
     _notificationsSubscription = null;
+    _isInitialized = false;
   }
 
   /// Atualiza o badge do ícone do app com todos os contadores
@@ -128,6 +135,7 @@ class NotificationsCounterService {
         .collection('Connections')
         .doc(currentUserId)
         .collection('Conversations')
+      .limit(1000)
         .snapshots()
         .listen(
       (snapshot) {
@@ -190,6 +198,7 @@ class NotificationsCounterService {
         .collection('Notifications')
         .where('n_receiver_id', isEqualTo: currentUserId)
         .where('n_read', isEqualTo: false)
+      .limit(1000)
         .snapshots()
         .listen(
       (snapshot) {

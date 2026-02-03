@@ -1,14 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/services/cache/app_cache_service.dart';
+import 'package:partiu/features/profile/presentation/screens/profile_screen_router.dart';
 import 'package:partiu/shared/stores/user_store.dart';
-import 'package:partiu/shared/repositories/user_repository.dart';
-import 'package:partiu/core/models/user.dart';
 
 /// Avatar reativo, quadrado, leve, sem jank e com skeleton automático.
 ///
@@ -173,36 +170,11 @@ class _AvatarShell extends StatelessWidget {
     final currentUserId = AppState.currentUserId;
     if (currentUserId == null) return;
 
-    try {
-      User userToShow;
-
-      // Se for o próprio usuário, usa AppState
-      if (userId == currentUserId) {
-        final currentUser = AppState.currentUser.value;
-        if (currentUser == null) return;
-        userToShow = currentUser;
-      } else {
-        // Buscar dados do outro usuário
-        final userRepository = UserRepository();
-        final userData = await userRepository.getUserById(userId!);
-        if (userData == null) return;
-        
-        userToShow = User.fromDocument(userData);
-      }
-
-      // Navega para o perfil usando GoRouter
-      if (context.mounted) {
-        context.push(
-          '${AppRoutes.profile}/$userId',
-          extra: {
-            'user': userToShow,
-            'currentUserId': currentUserId,
-          },
-        );
-      }
-    } catch (e) {
-      debugPrint('❌ Error navigating to profile from avatar: $e');
-    }
+    // Usar ProfileScreenRouter que já verifica status do usuário
+    await ProfileScreenRouter.navigateByUserId(
+      context,
+      userId: userId!,
+    );
   }
 
   @override

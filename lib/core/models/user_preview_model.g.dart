@@ -60,20 +60,21 @@ class UserPreviewModelAdapter extends TypeAdapter<UserPreviewModel> {
       uid: fields[0] as String,
       fullName: fields[1] as String?,
       avatarUrl: fields[2] as String?,
-      isVerified: fields[3] as bool,
-      isVip: fields[4] as bool,
+      isVerified: fields[3] as bool? ?? false,
+      isVip: fields[4] as bool? ?? false,
       city: fields[5] as String?,
       state: fields[6] as String?,
       country: fields[7] as String?,
       bio: fields[8] as String?,
-      isOnline: fields[9] as bool,
+      isOnline: fields[9] as bool? ?? false,
+      status: fields[10] as String? ?? 'active',
     );
   }
 
   @override
   void write(BinaryWriter writer, UserPreviewModel obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.uid)
       ..writeByte(1)
@@ -93,7 +94,9 @@ class UserPreviewModelAdapter extends TypeAdapter<UserPreviewModel> {
       ..writeByte(8)
       ..write(obj.bio)
       ..writeByte(9)
-      ..write(obj.isOnline);
+      ..write(obj.isOnline)
+      ..writeByte(10)
+      ..write(obj.status);
   }
 
   @override

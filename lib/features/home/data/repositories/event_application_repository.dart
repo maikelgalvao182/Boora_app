@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
@@ -149,13 +150,21 @@ class EventApplicationRepository {
     required String userId,
     required String eventPrivacyType,
   }) async {
+    debugPrint('📝 [EventApplicationRepo] createApplication INICIADO');
+    debugPrint('   - eventId: $eventId');
+    debugPrint('   - userId: $userId');
+    debugPrint('   - eventPrivacyType: $eventPrivacyType');
+    
     // ✅ VERIFICAR se já existe aplicação deste usuário para este evento
+    debugPrint('🔍 [EventApplicationRepo] Verificando aplicação existente...');
     final existingQuery = await _firestore
         .collection('EventApplications')
         .where('eventId', isEqualTo: eventId)
         .where('userId', isEqualTo: userId)
         .limit(1)
         .get();
+    
+    debugPrint('✅ [EventApplicationRepo] Query existente completou - docs: ${existingQuery.docs.length}');
     
     if (existingQuery.docs.isNotEmpty) {
       debugPrint('⚠️ [EventApplicationRepo] Usuário já aplicou para este evento');
@@ -167,8 +176,53 @@ class EventApplicationRepository {
         ? ApplicationStatus.autoApproved 
         : ApplicationStatus.pending;
 
-    final now = DateTime.now();
+    debugPrint('📊 [EventApplicationRepo] Status determinado: ${status.value}');
     
+    final now = DateTime.now();
+
+    Map<String, dynamic>? userPreview;
+    Map<String, dynamic>? eventData;
+
+    try {
+      debugPrint('🔍 [EventApplicationRepo] Buscando users_preview...');
+      final userPreviewDoc = await _firestore
+          .collection('users_preview')
+          .doc(userId)
+          .get();
+      userPreview = userPreviewDoc.data();
+      debugPrint('✅ [EventApplicationRepo] users_preview obtido: ${userPreview != null}');
+    } catch (e) {
+      debugPrint('⚠️ [EventApplicationRepo] Falha ao buscar users_preview: $e');
+    }
+
+    try {
+      debugPrint('🔍 [EventApplicationRepo] Buscando evento...');
+      final eventDoc = await _firestore
+          .collection('events')
+          .doc(eventId)
+          .get();
+      eventData = eventDoc.data();
+      debugPrint('✅ [EventApplicationRepo] Evento obtido: ${eventData != null}');
+      
+      // DEBUG: verificar estrutura do evento
+      if (eventData != null) {
+        debugPrint('🔍 [EventApplicationRepo] Dados do evento:');
+        debugPrint('   - status: ${eventData['status']}');
+        debugPrint('   - createdBy: ${eventData['createdBy']}');
+        debugPrint('   - participants: ${eventData['participants']}');
+        
+        final participants = eventData['participants'] as Map<String, dynamic>?;
+        if (participants != null) {
+          debugPrint('   - participants.privacyType: ${participants['privacyType']}');
+        } else {
+          debugPrint('   ⚠️ participants é null!');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [EventApplicationRepo] Falha ao buscar evento: $e');
+    }
+
+    debugPrint('📝 [EventApplicationRepo] Criando objeto EventApplicationModel...');
     final application = EventApplicationModel(
       id: '', // Será gerado pelo Firestore
       eventId: eventId,
@@ -177,12 +231,41 @@ class EventApplicationRepository {
       appliedAt: now,
       decisionAt: status == ApplicationStatus.autoApproved ? now : null,
       presence: PresenceStatus.going,
+      userFullName: userPreview?['fullName'] as String? ??
+          userPreview?['displayName'] as String?,
+      userPhotoUrl: userPreview?['photoUrl'] as String? ??
+          userPreview?['avatarThumbUrl'] as String?,
+      eventTitle: eventData?['activityText'] as String? ??
+          eventData?['name'] as String?,
+      eventEmoji: eventData?['emoji'] as String? ?? '🎉',
     );
 
     try {
-      final docRef = await _firestore
+      debugPrint('💾 [EventApplicationRepo] Adicionando ao Firestore...');
+      
+      // DEBUG: mostrar dados que serão enviados
+      final firestoreData = application.toFirestore();
+      debugPrint('📦 [EventApplicationRepo] Dados a serem enviados:');
+      debugPrint('   - eventId: ${firestoreData['eventId']}');
+      debugPrint('   - userId: ${firestoreData['userId']}');
+      debugPrint('   - status: ${firestoreData['status']}');
+      debugPrint('   - appliedAt: ${firestoreData['appliedAt']}');
+      debugPrint('   - decisionAt: ${firestoreData['decisionAt']}');
+      debugPrint('   - presence: ${firestoreData['presence']}');
+      debugPrint('   - Campos enviados: ${firestoreData.keys.toList()}');
+      
+      final addFuture = _firestore
           .collection('EventApplications')
-          .add(application.toFirestore());
+          .add(firestoreData);
+      
+      // Adicionar timeout de 10 segundos
+      final docRef = await addFuture.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('⏱️ [EventApplicationRepo] TIMEOUT ao adicionar ao Firestore');
+          throw TimeoutException('Timeout ao criar aplicação');
+        },
+      );
 
       debugPrint('✅ Aplicação criada: ${docRef.id} (status: ${status.value})');
       
@@ -190,14 +273,18 @@ class EventApplicationRepository {
       _cache.remove('event_participants_$eventId');
       _cache.remove('user_application_${eventId}_$userId');
       
+      debugPrint('✅ [EventApplicationRepo] createApplication COMPLETO');
+      
       // ✅ Notificações agora são criadas via Cloud Functions:
       // - onActivityHeatingUp: monitora EventApplications e notifica usuários no raio
       // - onApplicationApproved (index.ts): já envia push de novo participante
       // Removidas chamadas diretas que causavam permission-denied
       
       return docRef.id;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Erro ao criar aplicação: $e');
+      debugPrint('❌ Tipo do erro: ${e.runtimeType}');
+      debugPrint('❌ Stack trace: $stackTrace');
       rethrow;
     }
   }

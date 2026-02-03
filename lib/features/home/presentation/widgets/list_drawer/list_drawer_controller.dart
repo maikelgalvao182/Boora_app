@@ -91,11 +91,8 @@ class ListDrawerController {
       final isCanceled = data['isCanceled'] as bool? ?? false;
       if (isCanceled) return false;
 
-      final isActive = data['isActive'] as bool?;
-      if (isActive == false) return false;
-
       final status = data['status'] as String?;
-      if (status != null && status != 'active') return false;
+      if (status != 'active') return false;
 
       return true;
     }).toList();

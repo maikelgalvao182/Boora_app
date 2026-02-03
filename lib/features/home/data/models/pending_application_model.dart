@@ -50,9 +50,11 @@ class PendingApplicationModel {
                      userData['image'] as String?;
     debugPrint('   photoUrl: $photoUrl');
 
-    final activityName = eventData['activityText'] as String? ?? 
-                         eventData['name'] as String? ?? 
-                         'um evento';
+    final activityName = eventData['activityText'] as String? ??
+               eventData['name'] as String? ??
+               applicationData['eventTitle'] as String? ??
+               applicationData['event_title'] as String? ??
+               'um evento';
 
     return PendingApplicationModel(
       applicationId: applicationId,
@@ -61,7 +63,10 @@ class PendingApplicationModel {
       userFullName: fullName,
       userPhotoUrl: photoUrl,
       activityText: activityName,
-      eventEmoji: eventData['emoji'] as String? ?? '🎉',
+      eventEmoji: eventData['emoji'] as String? ??
+          applicationData['eventEmoji'] as String? ??
+          applicationData['event_emoji'] as String? ??
+          '🎉',
       appliedAt: (applicationData['appliedAt'] as Timestamp).toDate(),
     );
   }

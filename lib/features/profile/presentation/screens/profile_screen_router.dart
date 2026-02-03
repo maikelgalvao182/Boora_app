@@ -5,6 +5,7 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 
@@ -39,6 +40,17 @@ class ProfileScreenRouter {
         _showError(context, 'user_not_authenticated');
       }
       return;
+    }
+
+    // Verificar se o usuário está ativo
+    if (user.userId != currentUserId) {
+      final status = await UserStatusService().fetchUserStatus(user.userId);
+      if (status != 'active') {
+        if (context.mounted) {
+          _showError(context, 'profile_not_available');
+        }
+        return;
+      }
     }
 
     context.push(
@@ -98,6 +110,17 @@ class ProfileScreenRouter {
           _showError(context, 'user_not_authenticated');
         }
         return;
+      }
+
+      // Verificar se o usuário está ativo (exceto para o próprio usuário)
+      if (userId != currentUserId) {
+        final status = await UserStatusService().fetchUserStatus(userId);
+        if (status != 'active') {
+          if (context.mounted) {
+            _showError(context, 'profile_not_available');
+          }
+          return;
+        }
       }
 
       User? userToShow;

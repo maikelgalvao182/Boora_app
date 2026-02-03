@@ -58,6 +58,9 @@ class UserPreviewModel {
   @HiveField(9)
   final bool isOnline;
 
+  @HiveField(10)
+  final String status; // 'active' or 'inactive'
+
   const UserPreviewModel({
     required this.uid,
     this.fullName,
@@ -69,6 +72,7 @@ class UserPreviewModel {
     this.country,
     this.bio,
     this.isOnline = false,
+    this.status = 'active',
   });
 
   /// Constrói a partir de um DocumentSnapshot do Firestore (users_preview/{uid})
@@ -116,6 +120,9 @@ class UserPreviewModel {
       isOnline = rawOnline;
     }
 
+    // Tratamento de status (default: 'active')
+    final status = data['status'] as String? ?? 'active';
+
     return UserPreviewModel(
       uid: doc.id,
       fullName: fullName,
@@ -127,6 +134,7 @@ class UserPreviewModel {
       state: data['state'] as String?,
       country: data['country'] as String?,
       bio: data['bio'] as String?,
+      status: status,
     );
   }
 
@@ -140,6 +148,7 @@ class UserPreviewModel {
         city != other.city ||
         state != other.state ||
         country != other.country ||
-        isOnline != other.isOnline;
+        isOnline != other.isOnline ||
+        status != other.status;
   }
 }

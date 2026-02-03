@@ -254,10 +254,9 @@ export const onActivityHeatingUp = functions.firestore
 
     const eventId = after.eventId;
     if (!eventId) {
+      console.error("❌ [HeatingUp] eventId ausente");
       return;
     }
-
-    console.log(`\n🔥 [HeatingUp] Checking event: ${eventId}`);
 
     try {
       // 1. Contar participantes atuais
@@ -316,11 +315,13 @@ export const onActivityHeatingUp = functions.firestore
 
       // 5. Buscar usuários elegíveis (respeitando raio personalizado de cada um)
       const excludeIds = [...participants, creatorId];
+
       const usersInRadius = await findUsersForEventNotification({
         eventLatitude: latitude,
         eventLongitude: longitude,
         excludeUserIds: excludeIds,
         limit: 500,
+
       });
 
       if (usersInRadius.length === 0) {

@@ -44,7 +44,7 @@ match /EventApplications/{applicationId} {
     request.resource.data.userId == request.auth.uid &&
     request.resource.data.userId != getEventFromRequest().createdBy &&
     request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&
-    getEventFromRequest().isActive == true &&
+    getEventFromRequest().status == 'active' &&
     (
       (getEventFromRequest().participants.privacyType == 'open' && 
        request.resource.data.status == 'autoApproved') ||

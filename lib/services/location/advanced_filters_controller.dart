@@ -134,11 +134,12 @@ class AdvancedFiltersController extends ChangeNotifier {
       await userRef.update(updateData);
       
       debugPrint('✅ AdvancedFiltersController.saveToFirestore: update() concluído');
-      
-      // Verificar o que foi realmente salvo
-      final verifyDoc = await userRef.get();
-      final savedSettings = verifyDoc.data()?['advancedSettings'];
-      debugPrint('📡 Firebase retornou advancedSettings: $savedSettings');
+      if (kDebugMode) {
+        // Verificar o que foi realmente salvo (apenas debug)
+        final verifyDoc = await userRef.get();
+        final savedSettings = verifyDoc.data()?['advancedSettings'];
+        debugPrint('📡 Firebase retornou advancedSettings: $savedSettings');
+      }
       
     } catch (e, stackTrace) {
       debugPrint('❌ AdvancedFiltersController.saveToFirestore: ERRO: $e');

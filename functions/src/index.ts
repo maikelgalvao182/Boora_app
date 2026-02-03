@@ -20,12 +20,13 @@ export {followUser, unfollowUser} from "./users/followSystem";
 export {cleanupOldProfileVisits} from "./profileVisitsCleanup";
 export {
   onUserAvatarUpdated,
-  backfillMissingCreatorAvatarUrl,
 } from "./events/creatorAvatarSync";
 export {onUserLocationUpdated} from "./events/usersGridSync";
 export {onEventWriteUpdateCardPreview} from "./events/eventCardPreviewSync";
+// export {onEventWriteUpdateGeohash} from "./events/eventGeohashSync"; // Arquivo não existe
 export {onUserWriteUpdatePreview} from "./users/usersPreviewSync";
 export {resyncUsersPreview} from "./users/resyncUsersPreview";
+// export {backfillEventGeohash} from "./migrations/backfillEventGeohash"; // Arquivo não existe
 export {
   migrateUserLocationToPrivate,
 } from "./users/migrateLocationToPrivate";
@@ -473,10 +474,6 @@ export * from "./chatPushNotifications";
 // ===== ACTIVITY PUSH NOTIFICATIONS =====
 // Monitora coleção Notifications e dispara push para 8 tipos de atividades
 export * from "./activityPushNotifications";
-
-// ===== MAP SYNC =====
-// Sincroniza eventos para coleção lightweight events_map
-export * from "./events/mapSync";
 
 // ===== ACTIVITY IN-APP NOTIFICATIONS =====
 // Cria notificações in-app na coleção Notifications

@@ -6,6 +6,7 @@ import 'package:partiu/features/home/data/services/people_ranking_service.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
 import 'package:partiu/core/services/analytics_service.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 
 /// Estados de carregamento
@@ -173,7 +174,19 @@ class PeopleRankingViewModel extends ChangeNotifier {
     // 🔒 REGRA 2: refresh() NÃO pode usar cache - sempre forçar network
     if (cached != null && cached.isNotEmpty && !_isRefreshing) {
       debugPrint('🗂️ [PeopleRanking] Cache HIT - ${cached.length} pessoas');
-      _peopleRankings = cached;
+      
+      // 🔍 Filtrar usuários inativos do cache (validação em tempo real)
+      final beforeStatusFilter = cached.length;
+      _peopleRankings = cached.where((person) {
+        final isActive = UserStatusService.instance.isUserActiveCached(person.userId);
+        // Se não está em cache, mantém na lista (será validado no próximo load)
+        // Se está em cache e é inativo, remove
+        return isActive == null || isActive == true;
+      }).toList();
+      final afterStatusFilter = _peopleRankings.length;
+      if (beforeStatusFilter != afterStatusFilter) {
+        debugPrint('🚫 ${beforeStatusFilter - afterStatusFilter} usuários inativos removidos do cache');
+      }
       
       // 🔒 REGRA 3: loadState NÃO pode voltar para idle durante operação
       if (_loadState == LoadState.idle) {
@@ -275,6 +288,19 @@ class PeopleRankingViewModel extends ChangeNotifier {
       _peopleRankings = result;
       debugPrint('✅ Ranking de pessoas carregado: ${_peopleRankings.length} pessoas');
       
+      // 🔍 Filtrar usuários inativos (validação em tempo real)
+      final beforeStatusFilter = _peopleRankings.length;
+      _peopleRankings = _peopleRankings.where((person) {
+        final isActive = UserStatusService.instance.isUserActiveCached(person.userId);
+        // Se não está em cache, mantém na lista (será validado no próximo load)
+        // Se está em cache e é inativo, remove
+        return isActive == null || isActive == true;
+      }).toList();
+      final afterStatusFilter = _peopleRankings.length;
+      if (beforeStatusFilter != afterStatusFilter) {
+        debugPrint('🚫 ${beforeStatusFilter - afterStatusFilter} usuários inativos removidos');
+      }
+      
       // Filtra usuários bloqueados imediatamente
       final currentUserId = AppState.currentUserId;
       if (currentUserId != null) {
@@ -296,11 +322,11 @@ class PeopleRankingViewModel extends ChangeNotifier {
           debugPrint('     ${i + 1}. ${r.fullName} - ${r.overallRating}⭐ (${r.totalReviews} reviews)');
         }
         
-        // 🔵 STEP 2: Salvar no cache global (TTL: 10 minutos)
+        // 🔵 STEP 2: Salvar no cache global (TTL: 6 horas)
         _cache.set(
           cacheKey,
           _peopleRankings,
-          ttl: const Duration(minutes: 10),
+          ttl: const Duration(hours: 6),
         );
         debugPrint('🗂️ [PeopleRanking] Cache SAVED - ${_peopleRankings.length} pessoas');
 

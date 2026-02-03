@@ -105,16 +105,16 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     const cardHeight = 92.0;
     const topPadding = 0.0;
     
-    // Calcular posição do 20º card (índice 19)
-    // 19 cards anteriores * 92px = 1748px
-    const card20Position = (19 * cardHeight) + topPadding;
+    // Calcular posição do 13º card (índice 12)
+    // 12 cards anteriores * 92px = 1104px
+    const card13Position = (12 * cardHeight) + topPadding;
     
-    // O card 20 se torna visível quando: scrollPosition + viewportHeight >= posição do card
-    final card20Visible = (scrollPosition + viewportHeight) >= card20Position;
+    // O card 13 se torna visível quando: scrollPosition + viewportHeight >= posição do card
+    final card13Visible = (scrollPosition + viewportHeight) >= card13Position;
     
-    // Se o card 20 está visível scrollando para baixo e não está VIP
-    if (card20Visible && !_vipDialogOpen) {
-      debugPrint('🔒 [Scroll] BLOQUEIO ATIVADO! Card 20 (VIP Lock) está visível');
+    // Se o card 13 está visível scrollando para baixo e não está VIP
+    if (card13Visible && !_vipDialogOpen) {
+      debugPrint('🔒 [Scroll] BLOQUEIO ATIVADO! Card 13 (VIP Lock) está visível');
       _vipDialogOpen = true;
       _showVipDialog();
     }
@@ -148,10 +148,9 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
       elevation: 0,
       centerTitle: true,
       automaticallyImplyLeading: false,
-      title: ValueListenableBuilder<List<User>>(
-        valueListenable: _peopleDiscoveryService.nearbyPeople,
-        builder: (context, usersList, _) {
-          final count = usersList.length;
+      title: ValueListenableBuilder<int>(
+        valueListenable: _peopleDiscoveryService.nearbyPeopleCount,
+        builder: (context, count, _) {
           final titleTemplate = count > 0
               ? (count == 1
                   ? i18n.translate('people_in_region_count_singular')
@@ -296,9 +295,9 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                       padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
                       itemCount: _hasVip
                           ? usersList.length
-                          : (usersList.length > 20 ? 21 : usersList.length),
+                          : (usersList.length > 13 ? 14 : usersList.length),
                       itemBuilder: (context, index) {
-                        if (!_hasVip && index == 20) {
+                        if (!_hasVip && index == 13) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: VipLockedCard(

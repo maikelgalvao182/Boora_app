@@ -14,6 +14,7 @@ import 'package:partiu/features/event_photo_feed/domain/services/feed_preloader.
 import 'package:partiu/features/feed/data/models/activity_feed_item_model.dart';
 import 'package:partiu/features/feed/data/repositories/activity_feed_repository.dart';
 import 'package:partiu/core/services/cache/media_cache_manager.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 
 class EventPhotoFeedState {
   const EventPhotoFeedState({
@@ -201,15 +202,19 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
       // Busca ActivityFeed items (global por enquanto)
       final activityItems = await _fetchActivityFeed(scope);
       
+      // 👤 Filtrar posts de usuários inativos (exceto os próprios posts)
+      final filteredItems = await _filterInactiveUsers(page.items, userId);
+      final filteredActivities = await _filterInactiveActivities(activityItems, userId);
+      
       // Registra métricas de load
       final docsRead = page.items.length + activityItems.length;
       await tracker.finish(docsRead: docsRead, cacheHit: false);
       
-      debugPrint('✅ [EventPhotoFeedController.build] Dados carregados: ${page.items.length} photos, ${activityItems.length} activities');
+      debugPrint('✅ [EventPhotoFeedController.build] Dados carregados: ${filteredItems.length}/${page.items.length} photos, ${filteredActivities.length}/${activityItems.length} activities');
 
       final nextState = EventPhotoFeedState.initial().copyWith(
-        items: page.items,
-        activityItems: activityItems,
+        items: filteredItems,
+        activityItems: filteredActivities,
         cursor: page.nextCursor,
         activeCursor: page.activeCursor,
         pendingCursor: page.pendingCursor,
@@ -217,7 +222,7 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
         lastUpdatedAt: DateTime.now(),
       );
 
-      await _cache.setCachedFeed(scope, page.items);
+      await _cache.setCachedFeed(scope, filteredItems);
       // Atualiza likes em background para itens visíveis
       Future.microtask(() => _likesCache.fetchLikesForPhotos(
             page.items.map((item) => item.id).toList(growable: false),
@@ -292,6 +297,72 @@ class EventPhotoFeedController extends FamilyAsyncNotifier<EventPhotoFeedState, 
     } catch (_) {
       return null;
     }
+  }
+
+  /// 👤 Filtra posts de usuários inativos (mantém posts próprios)
+  Future<List<EventPhotoModel>> _filterInactiveUsers(
+    List<EventPhotoModel> items, 
+    String? currentUserId,
+  ) async {
+    if (items.isEmpty) return items;
+    
+    // Coleta todos os userIds únicos
+    final userIds = items
+        .map((item) => item.userId)
+        .where((id) => id != currentUserId) // Não verifica o próprio usuário
+        .toSet()
+        .toList();
+    
+    if (userIds.isEmpty) return items;
+    
+    // Busca status de todos os usuários de uma vez
+    final statuses = await UserStatusService().fetchUsersStatus(userIds);
+    
+    // Filtra itens de usuários inativos
+    return items.where((item) {
+      // Sempre mostra posts próprios
+      if (item.userId == currentUserId) return true;
+      
+      // Verifica status do usuário
+      final status = statuses[item.userId] ?? 'active';
+      if (status == 'inactive') {
+        debugPrint('👤 [FeedController] Ocultando post de usuário inativo: ${item.userId}');
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+  
+  /// 👤 Filtra activities de usuários inativos
+  Future<List<ActivityFeedItemModel>> _filterInactiveActivities(
+    List<ActivityFeedItemModel> items,
+    String? currentUserId,
+  ) async {
+    if (items.isEmpty) return items;
+    
+    // Coleta todos os userIds únicos
+    final userIds = items
+        .map((item) => item.userId)
+        .where((id) => id != currentUserId)
+        .toSet()
+        .toList();
+    
+    if (userIds.isEmpty) return items;
+    
+    // Busca status de todos os usuários de uma vez
+    final statuses = await UserStatusService().fetchUsersStatus(userIds);
+    
+    // Filtra itens de usuários inativos
+    return items.where((item) {
+      if (item.userId == currentUserId) return true;
+      
+      final status = statuses[item.userId] ?? 'active';
+      if (status == 'inactive') {
+        debugPrint('👤 [FeedController] Ocultando activity de usuário inativo: ${item.userId}');
+        return false;
+      }
+      return true;
+    }).toList();
   }
 
   /// Busca IDs dos usuários seguidos pelo usuário atual

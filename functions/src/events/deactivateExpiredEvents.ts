@@ -81,7 +81,7 @@ export const deactivateExpiredEvents = functions
         // Busca eventos cuja data já passou (schedule.date < início de hoje)
         let query = admin.firestore()
           .collection("events")
-          .where("isActive", "==", true)
+          .where("status", "==", "active")
           .where("schedule.date", "<", todayStartTimestamp)
           .orderBy("schedule.date", "asc") // Necessário para paginação
           .limit(BATCH_SIZE);

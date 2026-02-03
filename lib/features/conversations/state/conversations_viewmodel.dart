@@ -19,6 +19,7 @@ import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/services/socket_service.dart';
 import 'package:partiu/core/services/subscription_monitoring_service.dart';
 import 'package:partiu/core/services/global_cache_service.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -375,11 +376,23 @@ class ConversationsViewModel extends ChangeNotifier {
     final currentUserId = AppState.currentUserId;
     if (currentUserId != null) {
       final filteredItems = items.where((conv) {
+        // 🚫 Filtrar usuários bloqueados
         final isBlocked = BlockService().isBlockedCached(currentUserId, conv.userId);
         if (isBlocked) {
           _log('   🚫 Conversa ${conv.id} bloqueada (userId: ${conv.userId})');
+          return false;
         }
-        return !isBlocked;
+        
+        // 👤 Filtrar usuários inativos (apenas para chats 1-1, não para eventos)
+        if (!conv.isEventChat) {
+          final isInactive = UserStatusService().isUserInactive(conv.userId);
+          if (isInactive) {
+            _log('   👤 Conversa ${conv.id} ocultada (usuário inativo: ${conv.userId})');
+            return false;
+          }
+        }
+        
+        return true;
       }).toList();
 
       // 🚫 Remover conversas ocultadas de forma otimista

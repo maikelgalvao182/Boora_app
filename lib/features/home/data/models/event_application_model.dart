@@ -44,6 +44,10 @@ class EventApplicationModel {
   final DateTime appliedAt;
   final DateTime? decisionAt;
   final PresenceStatus presence;
+  final String? userFullName;
+  final String? userPhotoUrl;
+  final String? eventTitle;
+  final String? eventEmoji;
 
   const EventApplicationModel({
     required this.id,
@@ -53,6 +57,10 @@ class EventApplicationModel {
     required this.appliedAt,
     this.decisionAt,
     this.presence = PresenceStatus.maybe,
+    this.userFullName,
+    this.userPhotoUrl,
+    this.eventTitle,
+    this.eventEmoji,
   });
 
   /// Cria instância a partir de documento Firestore
@@ -71,6 +79,10 @@ class EventApplicationModel {
       presence: data['presence'] != null
           ? PresenceStatus.fromString(data['presence'] as String)
           : PresenceStatus.maybe,
+      userFullName: data['userFullName'] as String?,
+      userPhotoUrl: data['userPhotoUrl'] as String?,
+      eventTitle: data['eventTitle'] as String?,
+      eventEmoji: data['eventEmoji'] as String?,
     );
   }
 
@@ -82,6 +94,10 @@ class EventApplicationModel {
       'status': status.value,
       'appliedAt': Timestamp.fromDate(appliedAt),
       'presence': presence.value,
+      if (userFullName != null) 'userFullName': userFullName,
+      if (userPhotoUrl != null) 'userPhotoUrl': userPhotoUrl,
+      if (eventTitle != null) 'eventTitle': eventTitle,
+      if (eventEmoji != null) 'eventEmoji': eventEmoji,
       if (decisionAt != null) 'decisionAt': Timestamp.fromDate(decisionAt!),
     };
   }

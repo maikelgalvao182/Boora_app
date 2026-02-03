@@ -9,6 +9,14 @@ import 'package:hive/hive.dart';
 /// 
 /// 🧠 Filosofia: Isso ajuda o app a PARECER rápido.
 /// O marker aparece instantaneamente, dados completos carregam depois.
+/// 
+/// Campos baseados no uso real:
+/// - emoji: ícone do marker
+/// - category: filtro de categoria
+/// - scheduleDate: filtro de data
+/// - createdBy: avatar do criador, checagem de bloqueio
+/// - title: exibição em lista/card
+/// - isActive: estado do evento (já filtrado na query mas útil pra validação)
 class EventLocationCache {
   final String eventId;
   final double latitude;
@@ -18,7 +26,8 @@ class EventLocationCache {
   final String createdBy;
   final String? category;
   final int? scheduleDateMillis; // DateTime como millis para Hive
-  final int cachedAtMillis; // Quando foi cacheado
+  final bool isActive;           // ✅ FASE 3: estado do evento
+  final int cachedAtMillis;      // Quando foi cacheado
 
   EventLocationCache({
     required this.eventId,
@@ -29,6 +38,7 @@ class EventLocationCache {
     required this.createdBy,
     this.category,
     this.scheduleDateMillis,
+    this.isActive = true,
     int? cachedAtMillis,
   }) : cachedAtMillis = cachedAtMillis ?? DateTime.now().millisecondsSinceEpoch;
 
@@ -56,6 +66,7 @@ class EventLocationCache {
       createdBy: eventData['createdBy'] as String? ?? '',
       category: eventData['category'] as String?,
       scheduleDateMillis: scheduleDate?.millisecondsSinceEpoch,
+      isActive: eventData['isActive'] as bool? ?? true,
     );
   }
 
@@ -78,6 +89,7 @@ class EventLocationCache {
       'activityText': title,
       'createdBy': createdBy,
       'category': category,
+      'isActive': isActive,
       // scheduleDate não incluído pois precisaria de Timestamp
     };
   }
@@ -100,6 +112,9 @@ class EventLocationCache {
 /// TypeAdapter manual para EventLocationCache
 /// 
 /// TypeId: 10 (reservado para eventos/mapa)
+/// 
+/// ⚠️ VERSÃO 2: Adicionado campo isActive (field 9)
+/// Compatível com dados antigos (isActive=true como default)
 class EventLocationCacheAdapter extends TypeAdapter<EventLocationCache> {
   @override
   final int typeId = 10;
@@ -120,13 +135,14 @@ class EventLocationCacheAdapter extends TypeAdapter<EventLocationCache> {
       category: fields[6] as String?,
       scheduleDateMillis: fields[7] as int?,
       cachedAtMillis: fields[8] as int?,
+      isActive: fields[9] as bool? ?? true, // ✅ v2: default true para compat
     );
   }
 
   @override
   void write(BinaryWriter writer, EventLocationCache obj) {
     writer
-      ..writeByte(9) // número de campos
+      ..writeByte(10) // ✅ v2: 10 campos agora
       ..writeByte(0)
       ..write(obj.eventId)
       ..writeByte(1)
@@ -144,7 +160,9 @@ class EventLocationCacheAdapter extends TypeAdapter<EventLocationCache> {
       ..writeByte(7)
       ..write(obj.scheduleDateMillis)
       ..writeByte(8)
-      ..write(obj.cachedAtMillis);
+      ..write(obj.cachedAtMillis)
+      ..writeByte(9)          // ✅ v2: novo campo
+      ..write(obj.isActive);
   }
 
   @override

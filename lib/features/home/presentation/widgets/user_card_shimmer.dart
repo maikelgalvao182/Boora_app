@@ -27,9 +27,9 @@ class UserCardShimmer extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: GlimpseColors.lightTextField,
-                borderRadius: BorderRadius.circular(8),
+                shape: BoxShape.circle,
               ),
             ),
             

@@ -298,81 +298,94 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     final i18n = AppLocalizations.of(context);
     final controller = ChatAppBarController(userId: user.userId);
     
-    return AppBar(
-      backgroundColor: GlimpseColors.bgColorLight,
-      elevation: 0,
-      automaticallyImplyLeading: false,
-      centerTitle: false,
-      title: Row(
-        children: [
-          GlimpseBackButton(
-            onTap: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                ProfileScreenRouter.navigateByUserId(
-                  context,
-                  userId: user.userId,
-                );
-              },
-              child: Row(
-                children: [
-                  ChatAvatarWidget(
-                    user: user,
-                    chatService: chatService,
-                    controller: controller,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildNameRow(context, controller),
-                        if (controller.isEvent) ...[
-                          const SizedBox(height: 4),
-                          EventInfoRow(
-                            user: user,
-                            chatService: chatService,
-                            controller: controller,
-                          ),
-                        ] else ...[
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: UserLocationTimeWidget(
-                                  user: user,
-                                  chatService: chatService,
-                                  showTime: false,
-                                ),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: chatService.getConversationSummary(user.userId),
+      builder: (context, snapshot) {
+        final conversationData = snapshot.data?.data();
+
+        return AppBar(
+          backgroundColor: GlimpseColors.bgColorLight,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          centerTitle: false,
+          title: Row(
+            children: [
+              GlimpseBackButton(
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    ProfileScreenRouter.navigateByUserId(
+                      context,
+                      userId: user.userId,
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      ChatAvatarWidget(
+                        user: user,
+                        controller: controller,
+                        conversationData: conversationData,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildNameRow(context, controller, conversationData),
+                            if (controller.isEvent) ...[
+                              const SizedBox(height: 4),
+                              EventInfoRow(
+                                user: user,
+                                controller: controller,
+                                conversationData: conversationData,
+                              ),
+                            ] else ...[
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: UserLocationTimeWidget(
+                                      user: user,
+                                      showTime: false,
+                                      conversationData: conversationData,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                        ],
-                      ],
-                    ),
+                          ],
+                        ),
+                      ),
+                      _buildMenuButton(context, i18n, controller),
+                    ],
                   ),
-                  _buildMenuButton(context, i18n, controller),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   /// Constrói linha com nome e status
-  Widget _buildNameRow(BuildContext context, ChatAppBarController controller) {
+  Widget _buildNameRow(
+    BuildContext context,
+    ChatAppBarController controller,
+    Map<String, dynamic>? conversationData,
+  ) {
     return Row(
       children: [
         if (controller.isEvent)
-          EventNameText(
-            user: user,
-            chatService: chatService,
-            controller: controller,
+          Flexible(
+            child: EventNameText(
+              user: user,
+              controller: controller,
+              conversationData: conversationData,
+            ),
           )
         else
           Flexible(

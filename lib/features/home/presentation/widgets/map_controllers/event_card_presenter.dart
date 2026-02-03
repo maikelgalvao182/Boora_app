@@ -131,7 +131,7 @@ class EventCardPresenter {
       preloadedEvent: enrichedEvent,
       mapViewModel: viewModel, // ✅ INJETANDO VIEWMODEL
       enableRealtime: false,
-      enableOpenFetches: false,
+      enableOpenFetches: true, // ✅ HABILITADO para verificar VIP status
       enableReactiveCreatorName: false,
     );
     

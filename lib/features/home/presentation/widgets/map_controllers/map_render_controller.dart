@@ -86,11 +86,13 @@ class MapRenderController extends ChangeNotifier {
   }
 
   void setCameraMoving(bool isMoving) {
+    debugPrint('📹 [MapRender] setCameraMoving($isMoving) - renderPending: $_renderPendingAfterMove');
     _isCameraMoving = isMoving;
     // Se parou de mover e tinha render pendente, executa DEPOIS de um delay
     // para garantir que o mapa estabilizou o viewport interno.
     if (!isMoving && _renderPendingAfterMove) {
       _renderPendingAfterMove = false;
+      debugPrint('⏭️ [MapRender] Camera parou - executando render pendente em 100ms');
       // Damos um tempo extra pro Google Maps estabilizar bounds antes de clusterizar
       Future.delayed(const Duration(milliseconds: 100), scheduleRender);
     }
@@ -143,10 +145,13 @@ class MapRenderController extends ChangeNotifier {
   void scheduleRender() {
     if (_isDisposed) return;
     
+    debugPrint('🎨 [MapRender] scheduleRender() - isAnimating: $_isAnimating, isCameraMoving: $_isCameraMoving');
+    
     // Durante zoom/pan, cancelamos renders ativos para evitar flicker
     if (_isAnimating || _isCameraMoving) {
       _renderDebounce?.cancel(); // Cancela timer anterior se houver
       _renderPendingAfterMove = true;
+      debugPrint('⏸️ [MapRender] Render adiado (camera em movimento)');
       return;
     }
 
@@ -156,8 +161,10 @@ class MapRenderController extends ChangeNotifier {
       // Dupla checagem: se começou a mover nesse meio tempo, aborta
       if (_isAnimating || _isCameraMoving) {
           _renderPendingAfterMove = true;
+          debugPrint('⏸️ [MapRender] Render abortado (camera moveu durante debounce)');
           return;
       }
+      debugPrint('▶️ [MapRender] Executando _rebuildMarkersUsingClusterService');
       _rebuildMarkersUsingClusterService();
     });
   }
@@ -224,17 +231,9 @@ class MapRenderController extends ChangeNotifier {
     final eventsHash = _clusterService.eventsHash;
     final isClusterReady = eventsHash == null || _clusterService.isReadyFor(eventsHash: eventsHash, zoomBucket: zoomBucket);
 
-    // Se o bounds atual não intersecta o dataset (ex.: corrida entre bounds e eventos),
-    // evitamos “mapa vazio” usando clusterização global como fallback.
-    if (clusters.isEmpty && filteredEvents.isNotEmpty) {
-      debugPrint(
-        '🧭 [MapRender] clusters empty (events=${filteredEvents.length}, zoom=${_currentZoom.toStringAsFixed(1)}) -> fallback global',
-      );
-      clusters = _clusterService.clusterEvents(
-        events: filteredEvents,
-        zoom: _currentZoom,
-      );
-    }
+    // ✅ REMOVIDO: fallback global que causava render de TODOS os eventos em zoom baixo
+    // Agora confiamos no filtro por viewport em todos os níveis de zoom
+    // (o fallback global estava sendo acionado desnecessariamente causando problemas de performance)
 
     // Removido: placeholder com BitmapDescriptor.defaultMarker causava flash de markers nativos
     // Os markers personalizados são gerados diretamente abaixo
@@ -247,29 +246,8 @@ class MapRenderController extends ChangeNotifier {
 
     for (final cluster in clusters) {
       if (cluster.isSingleEvent) {
-        final allowIndividual = _currentZoom >= _individualMarkerZoomThreshold &&
-            individualMarkersRendered < _maxIndividualMarkers;
-        if (!allowIndividual) {
-          // Em zoom baixo ou com muitos markers, renderiza como cluster com emoji
-          final event = cluster.firstEvent;
-          final clusterPin = await assets.getClusterPinWithEmoji(
-            1, // count = 1 para evento único
-            event.emoji,
-          );
-          nextMarkers.add(
-            Marker(
-              markerId: MarkerId(cluster.id),
-              position: cluster.center,
-              icon: clusterPin,
-              anchor: const Offset(0.5, 1.0),
-              zIndex: 1000,
-              infoWindow: InfoWindow.noText,
-              onTap: () => onMarkerTap(event),
-            ),
-          );
-          continue;
-        }
-
+        // ✅ Eventos únicos SEMPRE renderizados como markers individuais (nunca como cluster)
+        // Clusters só devem ser usados para 2+ eventos
         final event = cluster.firstEvent;
         final position = cluster.center;
         final baseZIndex = 100 + (zIndexCounter * 2);

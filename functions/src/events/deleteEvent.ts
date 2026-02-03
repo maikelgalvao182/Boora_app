@@ -168,14 +168,14 @@ export const deleteEvent = functions
         `🗑️ Starting deletion for event ${eventId} by user ${userId}`
       );
 
-      // 2. Busca todas as aplicações para saber quais conversas remover
+      // 2. Busca todas as aplicações para saber quais conversas ocultar
       const applicationsSnapshot = await firestore
         .collection("EventApplications")
         .where("eventId", "==", eventId)
         .get();
 
       const participantIds = new Set<string>();
-      participantIds.add(userId); // Adiciona o criador
+      participantIds.add(userId);
 
       applicationsSnapshot.docs.forEach((doc) => {
         const appUserId = doc.data().userId;
@@ -184,15 +184,35 @@ export const deleteEvent = functions
         }
       });
 
-      console.log(`👥 Found ${participantIds.size} participants to clean up`);
+      console.log(`👥 Found ${participantIds.size} participants to hide`);
 
-      // 3. Inicia batch operations (máximo 500 operações por batch)
+      // 3. Soft-delete no evento e chat principal
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      await firestore.collection("events").doc(eventId).set(
+        {
+          isActive: false,
+          isDeleted: true,
+          deletedAt: now,
+          deletedBy: userId,
+        },
+        {merge: true}
+      );
+
+      await firestore.collection("EventChats").doc(eventId).set(
+        {
+          isDeleted: true,
+          deletedAt: now,
+        },
+        {merge: true}
+      );
+
+      // 4. Oculta conversas dos participantes (soft-delete local)
+      const eventUserId = `event_${eventId}`;
       const batches: FirebaseFirestore.WriteBatch[] = [];
       let currentBatch = firestore.batch();
       let operationCount = 0;
-      const MAX_BATCH_SIZE = 500;
+      const MAX_BATCH_SIZE = 450;
 
-      // Helper para adicionar operação ao batch
       const addToBatch = (
         operation: (batch: FirebaseFirestore.WriteBatch) => void
       ) => {
@@ -205,38 +225,6 @@ export const deleteEvent = functions
         operationCount++;
       };
 
-      // 4. Remove documento do evento
-      addToBatch((batch) =>
-        batch.delete(firestore.collection("events").doc(eventId))
-      );
-
-      // 5. Remove chat do evento
-      addToBatch((batch) =>
-        batch.delete(firestore.collection("EventChats").doc(eventId))
-      );
-
-      // 6. Remove mensagens do chat (subcoleção)
-      const messagesSnapshot = await firestore
-        .collection("EventChats")
-        .doc(eventId)
-        .collection("Messages")
-        .get();
-
-      console.log(`💬 Deleting ${messagesSnapshot.size} messages`);
-      messagesSnapshot.docs.forEach((doc) => {
-        addToBatch((batch) => batch.delete(doc.ref));
-      });
-
-      // 7. Remove todas as aplicações
-      console.log(`📋 Deleting ${applicationsSnapshot.size} applications`);
-      applicationsSnapshot.docs.forEach((doc) => {
-        addToBatch((batch) => batch.delete(doc.ref));
-      });
-
-      // 8. Remove conversas de todos os participantes
-      const eventUserId = `event_${eventId}`;
-      console.log(`🗑️ Removing conversations for ${participantIds.size} users`);
-
       for (const participantId of participantIds) {
         const conversationRef = firestore
           .collection("Connections")
@@ -244,37 +232,30 @@ export const deleteEvent = functions
           .collection("Conversations")
           .doc(eventUserId);
 
-        addToBatch((batch) => batch.delete(conversationRef));
+        addToBatch((batch) =>
+          batch.set(
+            conversationRef,
+            {
+              hidden: true,
+              eventDeleted: true,
+              deletedAt: now,
+            },
+            {merge: true}
+          )
+        );
       }
 
-      // 9. Adiciona o último batch se houver operações pendentes
       if (operationCount > 0) {
         batches.push(currentBatch);
       }
 
-      // 10. Executa todos os batches
-      console.log(`📦 Executing ${batches.length} batch(es)...`);
+      console.log(`📦 Executing ${batches.length} batch(es) to hide chats...`);
       await Promise.all(batches.map((batch) => batch.commit()));
-      console.log("✅ All Firestore operations completed");
 
-      // 11. Remove notificações relacionadas ao evento
-      console.log(`🔔 Deleting notifications for event ${eventId}...`);
-      const notificationsDeleted = await deleteEventNotifications(
-        eventId,
-        firestore
-      );
-      console.log(
-        `✅ Deleted ${notificationsDeleted} notifications for event ${eventId}`
-      );
+      // 5. Enfileira cleanup assíncrono
+      await enqueueEventDeletionJob(eventId, userId, firestore);
 
-      // 12. Remove itens do feed relacionados ao evento
-      console.log(`📰 Deleting feed items for event ${eventId}...`);
-      const feedItemsDeleted = await deleteEventFeedItems(eventId, firestore);
-      console.log(
-        `✅ Deleted ${feedItemsDeleted} feed items for event ${eventId}`
-      );
-
-      // 13. Remove arquivos do Storage (async, não aguarda conclusão)
+      // 6. Remove arquivos do Storage (async, não aguarda conclusão)
       deleteEventStorage(eventId, eventData, storage)
         .then(() =>
           console.log(`🗑️ Storage cleanup completed for event ${eventId}`)
@@ -283,13 +264,11 @@ export const deleteEvent = functions
           console.error(`⚠️ Storage cleanup failed: ${err.message}`)
         );
 
-      console.log(`✅ Event ${eventId} deleted successfully`);
+      console.log(`✅ Event ${eventId} marked as deleted and queued for cleanup`);
 
       return {
         success: true,
-        message: "Event deleted successfully",
-        notificationsDeleted,
-        feedItemsDeleted,
+        message: "Event deletion scheduled",
       };
     } catch (error: unknown) {
       const err = error as Error;
@@ -307,6 +286,54 @@ export const deleteEvent = functions
       );
     }
   });
+
+async function enqueueEventDeletionJob(
+  eventId: string,
+  userId: string,
+  firestore: admin.firestore.Firestore
+): Promise<void> {
+  const jobRef = firestore.collection("eventdeletions").doc(eventId);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  await firestore.runTransaction(async (transaction) => {
+    const jobSnap = await transaction.get(jobRef);
+
+    if (!jobSnap.exists) {
+      transaction.set(jobRef, {
+        eventId,
+        createdBy: userId,
+        status: "pending",
+        phase: "messages",
+        createdAt: now,
+        updatedAt: now,
+        messageCursor: null,
+        applicationCursor: null,
+        notificationPhase: "eventId",
+        notificationCursor: null,
+        feedCursor: null,
+        stats: {
+          messages: 0,
+          applications: 0,
+          conversations: 0,
+          notifications: 0,
+          feedItems: 0,
+        },
+      });
+      return;
+    }
+
+    const currentData = jobSnap.data() || {};
+    const currentStatus = String(currentData.status || "");
+    if (currentStatus === "completed") {
+      return;
+    }
+
+    transaction.update(jobRef, {
+      status: "pending",
+      updatedAt: now,
+    });
+  });
+}
 
 /**
  * Remove arquivos do Storage relacionados ao evento
@@ -386,55 +413,5 @@ async function deleteEventStorage(
     const err = error as Error;
     console.error("❌ Storage cleanup error:", err.message);
     throw error;
-  }
-}
-
-/**
- * Remove itens do feed relacionados ao evento
- * @param {string} eventId - ID do evento
- * @param {admin.firestore.Firestore} firestore - Firestore instance
- * @return {Promise<number>} - Número de itens deletados
- */
-async function deleteEventFeedItems(
-  eventId: string,
-  firestore: admin.firestore.Firestore
-): Promise<number> {
-  console.log(`📰 [deleteEventFeedItems] Starting for eventId: ${eventId}`);
-
-  try {
-    // Busca todos os itens do feed relacionados ao evento
-    const feedSnapshot = await firestore
-      .collection("ActivityFeed")
-      .where("eventId", "==", eventId)
-      .get();
-
-    if (feedSnapshot.empty) {
-      console.log(
-        `ℹ️ [deleteEventFeedItems] No feed items found for event ${eventId}`
-      );
-      return 0;
-    }
-
-    console.log(
-      `📋 [deleteEventFeedItems] Found ${feedSnapshot.size} feed items to delete`
-    );
-
-    // Deleta em batch
-    const batch = firestore.batch();
-    feedSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-
-    await batch.commit();
-    console.log(
-      `✅ [deleteEventFeedItems] Deleted ${feedSnapshot.size} feed items`
-    );
-
-    return feedSnapshot.size;
-  } catch (error: unknown) {
-    const err = error as Error;
-    console.error(`❌ [deleteEventFeedItems] Error: ${err.message}`);
-    // Não propaga erro para não bloquear o delete do evento
-    return 0;
   }
 }

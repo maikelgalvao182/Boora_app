@@ -70,8 +70,9 @@ class SubscriptionHeader extends StatelessWidget {
                   i18n.translate('take_advantage_of_the_benefits_of_being_a_pro'),
                   style: const TextStyle(
                     fontFamily: FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
-                    color: Colors.black54,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
                   ),
                   textAlign: TextAlign.center,
                 ),

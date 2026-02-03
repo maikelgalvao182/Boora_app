@@ -5,7 +5,7 @@ import 'package:partiu/features/home/data/models/ranking_filters_model.dart';
 import 'package:partiu/features/home/data/models/user_ranking_model.dart';
 
 class PeopleRankingCacheService {
-  static const Duration rankingTtl = Duration(minutes: 10);
+  static const Duration rankingTtl = Duration(hours: 6);
   static const Duration filtersTtl = Duration(minutes: 30);
 
   final HiveCacheService<List> _rankingCache =

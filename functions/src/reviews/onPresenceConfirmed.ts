@@ -127,6 +127,9 @@ export const onPresenceConfirmed = functions
         reviewer_role: "participant",
         reviewee_id: ownerId,
 
+        reviewee_name: ownerName,
+        reviewee_photo_url: ownerPhoto,
+
         // Dados do Owner para exibição
         owner_name: ownerName,
         owner_photo_url: ownerPhoto,

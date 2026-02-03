@@ -235,7 +235,7 @@ class _PeopleNearYouButton extends StatelessWidget {
                 final peopleCountLabel =
                     countTemplate.replaceAll('{count}', count.toString());
 
-                const subtitleLineHeight = 14.0;
+                const subtitleLineHeight = 18.0;
 
                 final user = nearbyPeople.isNotEmpty ? nearbyPeople.first : null;
 

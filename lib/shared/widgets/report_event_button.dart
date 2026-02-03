@@ -5,11 +5,13 @@ import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
+import 'package:partiu/core/services/report_service.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/shared/widgets/animated_expandable.dart';
+import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
-import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 
 /// Widget com ícone de denúncia e dialog para reportar eventos
 class ReportEventButton extends StatelessWidget {
@@ -109,18 +111,24 @@ class _ReportDialogContent extends StatefulWidget {
   State<_ReportDialogContent> createState() => _ReportDialogContentState();
 }
 
+/// Enum para os motivos de denúncia
+enum ReportReason {
+  violenceDrugs,
+  pornographyNudity,
+  underage,
+  fakeProfile,
+  other,
+}
+
 class _ReportDialogContentState extends State<_ReportDialogContent> {
   final TextEditingController _reportController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isSubmitting = false;
+  ReportReason? _selectedReason;
 
   @override
   void initState() {
     super.initState();
-    // Foca o campo automaticamente quando o dialog abre
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
   }
 
   @override
@@ -130,16 +138,43 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
     super.dispose();
   }
 
+  String _getReasonText(ReportReason reason, AppLocalizations i18n) {
+    switch (reason) {
+      case ReportReason.violenceDrugs:
+        return i18n.translate('report_reason_violence_drugs');
+      case ReportReason.pornographyNudity:
+        return i18n.translate('report_reason_pornography');
+      case ReportReason.underage:
+        return i18n.translate('report_reason_underage');
+      case ReportReason.fakeProfile:
+        return i18n.translate('report_reason_fake_profile');
+      case ReportReason.other:
+        return i18n.translate('report_reason_other');
+    }
+  }
+
   Future<void> _submitReport(BuildContext context) async {
     final i18n = AppLocalizations.of(context);
-    final reportText = _reportController.text.trim();
+    final otherText = _reportController.text.trim();
 
-    if (reportText.isEmpty) {
+    if (_selectedReason == null) {
       ToastService.showError(
-        message: i18n.translate('report_empty_error'),
+        message: i18n.translate('report_select_reason_error'),
       );
       return;
     }
+
+    if (_selectedReason == ReportReason.other && otherText.isEmpty) {
+      ToastService.showError(
+        message: i18n.translate('report_empty_error'),
+      );
+      _focusNode.requestFocus();
+      return;
+    }
+
+    final reportText = _selectedReason == ReportReason.other
+        ? '${_getReasonText(_selectedReason!, i18n)}: $otherText'
+        : _getReasonText(_selectedReason!, i18n);
 
     setState(() {
       _isSubmitting = true;
@@ -151,16 +186,18 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         throw Exception('User not logged in');
       }
 
-      // Buscar dados do evento para obter o activityText
+      // Buscar dados do evento para obter o activityText e ownerId
       final eventDoc = await FirebaseFirestore.instance
           .collection('events')
           .doc(widget.eventId)
           .get();
 
       String? activityText;
+      String? eventOwnerId;
       if (eventDoc.exists) {
         final eventData = eventDoc.data();
         activityText = eventData?['activityText'] as String?;
+        eventOwnerId = eventData?['ownerId'] as String?;
       }
 
       await FirebaseFirestore.instance.collection('reports').add({
@@ -171,7 +208,22 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         'status': 'pending',
         'type': 'event',
         if (activityText != null) 'activityText': activityText,
+        if (eventOwnerId != null) 'eventOwnerId': eventOwnerId,
       });
+
+      // ✅ Criar report do dono do evento também (mesma lógica do ReportWidget no perfil)
+      if (eventOwnerId != null && eventOwnerId != currentUser.userId) {
+        try {
+          await ReportService.instance.sendReport(
+            message: reportText,
+            targetUserId: eventOwnerId,
+            eventId: widget.eventId,
+          );
+          debugPrint('✅ [Report] Report do dono do evento criado: $eventOwnerId');
+        } catch (e) {
+          debugPrint('⚠️ [Report] Erro ao criar report do dono (não bloqueante): $e');
+        }
+      }
 
       // ✅ Remover conversa do evento da lista de chats do usuário
       // Mesma lógica usada no leaveEvent para limpar a UI
@@ -211,9 +263,73 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
     }
   }
 
+  Widget _buildRadioOption(ReportReason reason, AppLocalizations i18n) {
+    final isSelected = _selectedReason == reason;
+    return InkWell(
+      onTap: _isSubmitting
+          ? null
+          : () {
+              setState(() {
+                _selectedReason = reason;
+              });
+              if (reason == ReportReason.other) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _focusNode.requestFocus();
+                });
+              }
+            },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? GlimpseColors.error : Colors.grey.shade400,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: GlimpseColors.error,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _getReasonText(reason, i18n),
+                style: GoogleFonts.getFont(
+                  FONT_PLUS_JAKARTA_SANS,
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected
+                      ? GlimpseColors.primaryColorLight
+                      : Colors.grey.shade700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isOtherSelected = _selectedReason == ReportReason.other;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -221,7 +337,7 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header com título e botão fechar
+          // Header com título e botão fechar/voltar
           Row(
             children: [
               Expanded(
@@ -235,24 +351,114 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
                   ),
                 ),
               ),
-              GlimpseCloseButton(
-                onPressed: () => Navigator.of(context).pop(),
-              ),
+              // Botão voltar substitui o fechar quando "Outro" está selecionado
+              if (isOtherSelected)
+                GlimpseBackButton(
+                  onTap: () {
+                    setState(() {
+                      _selectedReason = null;
+                      _reportController.clear();
+                    });
+                    _focusNode.unfocus();
+                  },
+                )
+              else
+                GlimpseCloseButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Campo de texto para denúncia
-          GlimpseTextField(
-            controller: _reportController,
-            focusNode: _focusNode,
-            hintText: i18n.translate('report_reason_hint'),
-            maxLines: 6,
-            maxLength: 500,
-            enabled: !_isSubmitting,
-            textCapitalization: TextCapitalization.sentences,
+          // Radio options (esconde quando "Outro" está selecionado)
+          AnimatedExpandable(
+            isExpanded: !isOtherSelected,
+            duration: const Duration(milliseconds: 250),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildRadioOption(ReportReason.violenceDrugs, i18n),
+                _buildRadioOption(ReportReason.pornographyNudity, i18n),
+                _buildRadioOption(ReportReason.underage, i18n),
+                _buildRadioOption(ReportReason.fakeProfile, i18n),
+                _buildRadioOption(ReportReason.other, i18n),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+
+          // Campo de texto expandível para "Outro"
+          AnimatedExpandable(
+            isExpanded: isOtherSelected,
+            duration: const Duration(milliseconds: 250),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    i18n.translate('report_reason_hint'),
+                    style: GoogleFonts.getFont(
+                      FONT_PLUS_JAKARTA_SANS,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ListenableBuilder(
+                    listenable: _focusNode,
+                    builder: (context, _) {
+                      final hasFocus = _focusNode.hasFocus;
+                      return TextField(
+                        controller: _reportController,
+                        focusNode: _focusNode,
+                        maxLines: 4,
+                        maxLength: 300,
+                        enabled: !_isSubmitting,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 14,
+                          color: GlimpseColors.primaryColorLight,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: i18n.translate('report_details_placeholder'),
+                          hintStyle: GoogleFonts.getFont(
+                            FONT_PLUS_JAKARTA_SANS,
+                            fontSize: 14,
+                            color: Colors.grey.shade400,
+                          ),
+                          filled: true,
+                          fillColor: hasFocus ? Colors.white : Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: GlimpseColors.error,
+                              width: 1.5,
+                            ),
+                          ),
+                          counterText: '',
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Botão Enviar
           GlimpseButton(

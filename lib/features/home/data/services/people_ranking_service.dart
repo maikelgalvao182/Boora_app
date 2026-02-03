@@ -75,8 +75,8 @@ class PeopleRankingService {
       debugPrint('\n📊 PASSO 1: Buscando Reviews...');
       
       // 🚀 OTIMIZAÇÃO: Universo menor e expansão só se bater no teto
-      // Reviews: inicia em 30 e expande no máximo até 50
-      int currentLimit = 30;
+      // Reviews: inicia direto em 50 para garantir máximo de perfis únicos
+      int currentLimit = 50;
       final int targetUniqueUsers = limit;
       const int maxLimit = 50;
 
@@ -378,6 +378,14 @@ class PeopleRankingService {
 
         // Pular se não temos dados do usuário
         if (userData == null) {
+          skippedNoUser++;
+          continue;
+        }
+
+        // ✅ Filtrar usuários inativos (status != 'active')
+        final userStatus = userData['status'] as String? ?? 'active';
+        if (userStatus != 'active') {
+          debugPrint('   ⏭️ Skipping inactive user: $userId (status: $userStatus)');
           skippedNoUser++;
           continue;
         }

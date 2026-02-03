@@ -541,20 +541,6 @@ match /events_card_preview/{eventId} {
     // ======================================
     // 🗺️ Eventos no Mapa
     // ======================================
-/// 🗺️ Coleção de preview de eventos para o mapa (Lightweight)
-/// Path usado no app:
-/// - events_map/{eventId}
-
-match /events_map/{eventId} {
-  // Qualquer um autenticado pode ler eventos no mapa
-  allow read: if isSignedIn();
-  
-  // Escrita SOMENTE via Cloud Function (syncEventToMap)
-  // O app nunca escreve diretamente aqui
-  allow write: if false;
-}
-
-    // ======================================
     // 🎫 Aplicações para Eventos
     // ======================================
 /// 🎫 Coleção de aplicações para eventos
@@ -603,7 +589,7 @@ match /EventApplications/{applicationId} {
     request.resource.data.userId == request.auth.uid &&
     request.resource.data.userId != getEventFromRequest().createdBy &&
     request.resource.data.keys().hasAll(['eventId', 'userId', 'status', 'appliedAt']) &&
-    getEventFromRequest().isActive == true &&
+    getEventFromRequest().status == 'active' &&
     (
       (getEventFromRequest().participants.privacyType == 'open' && 
        request.resource.data.status == 'autoApproved') ||

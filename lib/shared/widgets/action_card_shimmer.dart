@@ -30,9 +30,9 @@ class ActionCardShimmer extends StatelessWidget {
             child: Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: GlimpseColors.lightTextField,
-                borderRadius: BorderRadius.circular(8),
+                shape: BoxShape.circle,
               ),
             ),
           ),

@@ -22,6 +22,7 @@ import 'package:partiu/screens/chat/services/event_application_removal_service.d
 import 'package:partiu/screens/chat/services/event_deletion_service.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/services/block_service.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
@@ -51,6 +52,7 @@ class GroupInfoController extends ChangeNotifier {
   final EventApplicationRepository _applicationRepository = EventApplicationRepository();
 
   bool _isLoading = true;
+  bool _isLeaving = false;
   String? _error;
   Map<String, dynamic>? _eventData;
   List<Map<String, dynamic>> _participants = [];
@@ -60,6 +62,7 @@ class GroupInfoController extends ChangeNotifier {
   final ValueNotifier<List<String>> participantsNotifier = ValueNotifier([]);
 
   bool get isLoading => _isLoading;
+  bool get isLeaving => _isLeaving;
   String? get error => _error;
   String get eventName => _eventData?['activityText'] as String? ?? 'Event';
   String get eventEmoji => _eventData?['emoji'] as String? ?? '🎉';
@@ -111,13 +114,24 @@ class GroupInfoController extends ChangeNotifier {
     if (isCreator) {
       filteredList = allUserIds;
     } else {
-      // Participantes não veem bloqueados
+      // Participantes não veem bloqueados nem inativos
       final currentUserId = AppState.currentUserId;
       if (currentUserId == null) {
         filteredList = allUserIds;
       } else {
         filteredList = allUserIds
-            .where((userId) => !BlockService().isBlockedCached(currentUserId, userId))
+            .where((userId) {
+              // Filtrar usuários bloqueados
+              if (BlockService().isBlockedCached(currentUserId, userId)) {
+                return false;
+              }
+              // Filtrar usuários inativos
+              if (UserStatusService().isUserInactive(userId)) {
+                debugPrint('👤 [GroupInfo] Ocultando participante inativo: $userId');
+                return false;
+              }
+              return true;
+            })
             .toList();
       }
     }
@@ -837,28 +851,92 @@ class GroupInfoController extends ChangeNotifier {
     return false;
   }
 
-  void showLeaveEventDialog(BuildContext context) {
+  Future<void> showLeaveEventDialog(BuildContext context) async {
     if (isCreator) return; // Criador não pode sair, só deletar
 
     final i18n = AppLocalizations.of(context);
-    final progressDialog = ProgressDialog(context);
-    final removalService = EventApplicationRemovalService();
     
+    debugPrint('🚪 [GroupInfo] showLeaveEventDialog iniciado');
+    debugPrint('   - eventId: $eventId');
+    
+    final confirmed = await GlimpseCupertinoDialog.showDestructive(
+      context: context,
+      title: i18n.translate('leave_event'),
+      message: i18n.translate('leave_event_confirmation')
+          .replaceAll('{event}', eventName),
+      destructiveText: i18n.translate('leave'),
+      cancelText: i18n.translate('cancel'),
+    );
+
+    debugPrint('🚪 [GroupInfo] Usuário confirmou sair? $confirmed');
+    
+    if (confirmed != true || !context.mounted) {
+      debugPrint('🚪 [GroupInfo] Ação cancelada ou context não montado');
+      return;
+    }
+
     // Captura o router ANTES de qualquer operação assíncrona
     final router = GoRouter.of(context);
+    debugPrint('🚪 [GroupInfo] Router capturado: ${router.hashCode}');
 
-    removalService.handleLeaveEvent(
-      context: context,
-      eventId: eventId,
-      i18n: i18n,
-      progressDialog: progressDialog,
-      onSuccess: () {
-        // Navega para ConversationsTab (tab 3) usando router capturado
-        // Pequeno delay para garantir que dialogs fecharam
-        Future.delayed(const Duration(milliseconds: 100), () {
-          router.go(Uri(path: AppRoutes.home, queryParameters: {'tab': '3'}).toString());
-        });
-      },
-    );
+    // Ativa loading no botão
+    _isLeaving = true;
+    notifyListeners();
+    debugPrint('🚪 [GroupInfo] Loading ativado (_isLeaving = true)');
+
+    try {
+      final currentUserId = AppState.currentUserId;
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      debugPrint('🚪 [GroupInfo] Removendo aplicação do evento...');
+      debugPrint('   - userId: $currentUserId');
+      debugPrint('   - eventId: $eventId');
+
+      // Remove a aplicação do evento
+      await _applicationRepository.removeUserApplication(
+        eventId: eventId,
+        userId: currentUserId,
+      );
+
+      debugPrint('✅ [GroupInfo] Aplicação removida com sucesso');
+
+      // Desativa loading ANTES de navegar para evitar rebuilds
+      _isLeaving = false;
+      notifyListeners();
+      debugPrint('🚪 [GroupInfo] Loading desativado (_isLeaving = false)');
+
+      if (!context.mounted) {
+        debugPrint('⚠️ [GroupInfo] Context não está mais montado após remoção');
+        return;
+      }
+
+      // Navega para ConversationsTab (tab 3) usando pushReplacement
+      final targetRoute = Uri(path: AppRoutes.home, queryParameters: {'tab': '3'}).toString();
+      debugPrint('🚪 [GroupInfo] Navegando para: $targetRoute');
+      debugPrint('   - AppRoutes.home: ${AppRoutes.home}');
+      
+      // Usa pushReplacement para substituir toda a pilha de navegação
+      router.pushReplacement(targetRoute);
+      debugPrint('✅ [GroupInfo] Navegação executada (pushReplacement)');
+
+      ToastService.showSuccess(
+        message: i18n.translate('left_event_success'),
+      );
+      debugPrint('✅ [GroupInfo] Toast de sucesso exibido');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [GroupInfo] Erro ao sair do evento: $e');
+      debugPrint('❌ [GroupInfo] Stack trace: $stackTrace');
+      
+      _isLeaving = false;
+      notifyListeners();
+      
+      if (context.mounted) {
+        ToastService.showError(
+          message: i18n.translate('leave_event_error'),
+        );
+      }
+    }
   }
 }

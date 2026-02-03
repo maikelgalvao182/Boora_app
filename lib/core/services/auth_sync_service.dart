@@ -199,6 +199,18 @@ class AuthSyncService extends ChangeNotifier {
         _log('🔥 Criando snapshot listener para Users/$uid...');
         _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
+      // 🛡️ TIMEOUT DE SEGURANÇA: Se snapshot não responder em 10s, marcar como pronto
+      // para evitar que o app fique travado no splash
+      bool timeoutFired = false;
+      Timer(const Duration(seconds: 10), () {
+        if (!_sessionReady && !timeoutFired) {
+          timeoutFired = true;
+          _log('⏱️ TIMEOUT: Snapshot listener não respondeu em 10s - marcando sessão como pronta');
+          _sessionReady = true;
+          notifyListeners();
+        }
+      });
+        
       // Escuta atualizações do Firestore em tempo real
       _userSubscription = FirebaseFirestore.instance
           .collection('Users')
@@ -206,6 +218,12 @@ class AuthSyncService extends ChangeNotifier {
           .snapshots()
           .listen((snapshot) async {
         try {
+          // Cancelar timeout se snapshot responder
+          if (timeoutFired) {
+            _log('⏱️ Snapshot respondeu após timeout - ignorando');
+            return;
+          }
+          
           _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           _log('🔥 SNAPSHOT RECEBIDO para $uid - exists: ${snapshot.exists}');
           _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

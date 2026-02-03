@@ -58,6 +58,11 @@ class FcmTokenService {
       return;
     }
     
+    print('🚀 [FCM Token] initialize() chamado - estado inicial:');
+    print('   - _initialized: $_initialized');
+    print('   - _saving: $_saving');
+    print('   - currentUser: ${fire_auth.FirebaseAuth.instance.currentUser?.uid ?? "null"}');
+    
     // ⚠️ IMPORTANTE: Verificar user ANTES de setar _initialized
     // Evita "queimar" a sessão se chamado antes do login
     final user = fire_auth.FirebaseAuth.instance.currentUser;
@@ -425,14 +430,27 @@ class FcmTokenService {
       print('  🔍 [FCM Token] Verificando se documento já existe...');
       print('  📍 [FCM Token] Collection path: DeviceTokens');
       print('  📄 [FCM Token] Full path: DeviceTokens/$docId');
+      print('  🌐 [FCM Token] Firestore instance: ${_firestore.hashCode}');
+      print('  🔗 [FCM Token] Verificando conectividade...');
       
       final now = FieldValue.serverTimestamp();
       
       // Verifica se já existe
       try {
         print('  ⏳ [FCM Token] Executando docRef.get()...');
-        final existingDoc = await docRef.get();
+        print('  ⏱️ [FCM Token] Iniciando timeout de 10 segundos...');
+        print('  📡 [FCM Token] Esperando resposta do Firestore...');
+        
+        final existingDoc = await docRef.get().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('  ⏰ [FCM Token] TIMEOUT após 10s! Firestore não respondeu.');
+            throw TimeoutException('Firestore get() timeout após 10 segundos');
+          },
+        );
+        
         print('  ✅ [FCM Token] docRef.get() executado - exists: ${existingDoc.exists}');
+        print('  ⏱️ [FCM Token] Tempo de resposta: OK');
       
       if (existingDoc.exists) {
         print('  📋 [FCM Token] Documento existente encontrado');
@@ -479,6 +497,29 @@ class FcmTokenService {
       } catch (e) {
         print('  ❌ [FCM Token] Erro específico na operação: $e');
         print('  🔍 [FCM Token] Tipo do erro: ${e.runtimeType}');
+        
+        // Se timeout, tenta criar/atualizar com set (merge: true) sem verificar existência
+        if (e is TimeoutException) {
+          print('  🔄 [FCM Token] FALLBACK: Usando set(merge:true) devido ao timeout...');
+          try {
+            await docRef.set({
+              'userId': userId,
+              'token': token,
+              'deviceId': deviceId,
+              'deviceName': deviceName,
+              'platform': platform,
+              'updatedAt': now,
+              'lastUsedAt': now,
+            }, SetOptions(merge: true));
+            
+            print('  ✅ [FCM Token] Documento salvo via fallback com sucesso');
+            return; // Sucesso via fallback
+          } catch (fallbackError) {
+            print('  ❌ [FCM Token] Fallback também falhou: $fallbackError');
+            rethrow;
+          }
+        }
+        
         if (e.toString().contains('permission-denied')) {
           print('  💡 [FCM Token] DIAGNÓSTICO DE PERMISSÃO:');
           print('     - Collection: DeviceTokens');
@@ -490,10 +531,22 @@ class FcmTokenService {
         rethrow;
       }
       
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ [FCM Token] Erro ao salvar token: $e');
+      print('📚 [FCM Token] Stack trace:');
+      print(stackTrace.toString().split('\n').take(5).join('\n'));
+      print('🔍 [FCM Token] Tipo de erro: ${e.runtimeType}');
+      
+      // Se for timeout, provavelmente é problema de rede/Firestore
+      if (e is TimeoutException) {
+        print('⏰ [FCM Token] DIAGNÓSTICO DE TIMEOUT:');
+        print('   - Firestore pode estar offline ou lento');
+        print('   - Verifique conectividade de rede');
+        print('   - Em emulador, verifique se o Firestore Emulator está rodando');
+      }
     } finally {
       _saving = false;
+      print('🔓 [FCM Token] Mutex liberado (_saving = false)');
     }
   }
   

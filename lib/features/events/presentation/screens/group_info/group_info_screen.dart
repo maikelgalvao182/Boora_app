@@ -312,6 +312,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       backgroundColor: GlimpseColors.primary,
       textColor: Colors.white,
       onTap: () => _controller.showLeaveEventDialog(context),
+      isProcessing: _controller.isLeaving,
       height: 55,
     );
   }

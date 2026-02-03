@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/dialogs/vip_dialog.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/shared/widgets/confetti_celebration.dart';
@@ -19,6 +20,34 @@ class EventCardHandler {
   }) async {
     debugPrint('🔘 EventCardHandler.handleButtonPress iniciado');
     
+    // 💎 NOVO: Se está fora da área e não é VIP, abrir VipDialog
+    if (controller.isOutsideAreaNonVip) {
+      debugPrint('💎 [EventCardHandler] Fora da área + não-VIP: abrindo VipDialog');
+      final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => const VipBottomSheet(),
+      );
+      
+      // Se comprou VIP (dialog retorna true), verificar novamente e permitir entrada
+      if (result == true && context.mounted) {
+        debugPrint('✅ [EventCardHandler] Usuário comprou VIP, verificando status...');
+        // Aguarda um momento para VIP status ser atualizado
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Se agora é VIP, permitir aplicar
+        if (controller.isUserVip) {
+          debugPrint('✅ [EventCardHandler] VIP confirmado, aplicando ao evento');
+          // Aplicar normalmente (fluxo padrão abaixo)
+          if (!controller.hasApplied) {
+            await _applyToEvent(context, controller, onActionSuccess);
+          }
+        }
+      }
+      return;
+    }
+    
     // Se é o criador, mostrar lista de participantes
     if (controller.isCreator) {
       debugPrint('✅ Usuário é criador, chamando onActionSuccess');
@@ -35,7 +64,19 @@ class EventCardHandler {
 
     // Se ainda não aplicou, aplicar agora
     if (!controller.hasApplied) {
-      debugPrint('🔄 Aplicando para o evento...');
+      await _applyToEvent(context, controller, onActionSuccess);
+    } else {
+      debugPrint('⚠️ Usuário já aplicou anteriormente');
+    }
+  }
+  
+  /// Extrai lógica de aplicação para reutilizar após compra VIP
+  static Future<void> _applyToEvent(
+    BuildContext context,
+    EventCardController controller,
+    VoidCallback onActionSuccess,
+  ) async {
+    debugPrint('🔄 Aplicando para o evento...');
       
       // 🎯 Verificar se é evento open (será auto-aprovado)
       final isOpenEvent = controller.privacyType == 'open';
@@ -95,9 +136,6 @@ class EventCardHandler {
           }
         }
       }
-    } else {
-      debugPrint('⚠️ Usuário já aplicou anteriormente');
-    }
   }
 
   /// Lida com a deleção do evento (apenas para owner)

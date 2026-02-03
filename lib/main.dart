@@ -35,6 +35,7 @@ import 'package:partiu/features/home/presentation/viewmodels/people_ranking_view
 import 'package:partiu/features/home/presentation/viewmodels/ranking_viewmodel.dart';
 import 'package:partiu/features/notifications/services/push_notification_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/services/cache/hive_initializer.dart';
 import 'package:partiu/shared/widgets/force_update_dialog.dart';
 
@@ -67,6 +68,15 @@ Future<void> main() async {
       }
     } catch (e) {
       debugPrint('Firebase já inicializado: $e');
+    }
+
+    if (Firebase.apps.isNotEmpty) {
+      final options = Firebase.app().options;
+      final apiKey = options.apiKey;
+      final apiKeyShort = apiKey.length > 8 ? '${apiKey.substring(0, 6)}...' : apiKey;
+      debugPrint(
+        '🔎 [firebase] projectId=${options.projectId} apiKey=$apiKeyShort bucket=${options.storageBucket}',
+      );
     }
 
     // Captura erros do Flutter framework e envia para Crashlytics
@@ -312,9 +322,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     if (!mounted) return;
     
     try {
-      final locale = Localizations.localeOf(context);
+      final rootContext = rootNavigatorKey.currentContext;
+      final locale = rootContext != null
+          ? Localizations.maybeLocaleOf(rootContext)
+          : null;
       final updateInfo = await ForceUpdateService.instance.checkForUpdate(
-        languageCode: locale.languageCode,
+        languageCode: (locale?.languageCode ?? 'pt'),
       );
 
       if (!mounted) return;
@@ -368,24 +381,31 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
     final localeController = context.watch<LocaleController>();
 
-    return MaterialApp.router(
-      title: APP_NAME,
-      debugShowCheckedModeBanner: false,
-      
-      // Configuração de rotas com go_router protegido por AuthSyncService
-      routerConfig: router,
-      
-      // Builder para setar o contexto no PushNotificationManager
+    return ScreenUtilInit(
+      // iPhone 14 Pro dimensions (seu device)
+      designSize: const Size(393, 852),
+      minTextAdapt: true,
+      splitScreenMode: true,
       builder: (context, child) {
-        // Setar contexto para navegação de notificações push
-        // Isso garante que o contexto tenha acesso aos Providers
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          PushNotificationManager.instance.setAppContext(context);
-          // ✅ Verificar force update na inicialização
-          _checkForceUpdate();
-        });
-        return child ?? const SizedBox.shrink();
-      },
+        return MaterialApp.router(
+          title: APP_NAME,
+          debugShowCheckedModeBanner: false,
+          
+          // Configuração de rotas com go_router protegido por AuthSyncService
+          routerConfig: router,
+          
+          // Builder para setar o contexto no PushNotificationManager
+          builder: (context, child) {
+            // Setar contexto para navegação de notificações push
+            // Isso garante que o contexto tenha acesso aos Providers
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              PushNotificationManager.instance.setAppContext(context);
+              // ✅ Verificar force update na inicialização
+              _checkForceUpdate();
+            });
+            
+            return child ?? const SizedBox.shrink();
+          },
         
       // Configuração de localização
       localizationsDelegates: const [
@@ -424,6 +444,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           surfaceTintColor: Colors.transparent, // Remove overlay Material 3
         ),
       ),
+    );
+      },
     );
   }
 }

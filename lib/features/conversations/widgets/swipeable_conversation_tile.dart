@@ -130,7 +130,6 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
         isVipEffective: widget.isVipEffective,
         isLast: widget.isLast,
         onTap: widget.onTap,
-        chatService: widget.chatService,
         showAvatarLoadingOverlay: _isLoading,
       ),
     );

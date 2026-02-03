@@ -19,6 +19,10 @@ class ReviewRepository {
   final ReviewPageCacheService _reviewsCache = ReviewPageCacheService.instance;
   final ReviewStatsCacheService _statsCache = ReviewStatsCacheService.instance;
 
+  String _buildReviewId(String eventId, String reviewerId, String revieweeId) {
+    return '${eventId}_${reviewerId}_$revieweeId';
+  }
+
   // ==================== PENDING REVIEWS ====================
 
   /// Busca reviews pendentes do usuário atual
@@ -49,8 +53,8 @@ class ReviewRepository {
     // Converte diretamente sem verificação extra
     // (A verificação de duplicata será feita no momento do submit)
     return snapshot.docs
-        .map((doc) => PendingReviewModel.fromFirestore(doc))
-        .toList();
+      .map((doc) => PendingReviewModel.fromFirestore(doc))
+      .toList();
   }
 
   /// Stream de reviews pendentes (para ActionsTab)
@@ -113,17 +117,23 @@ class ReviewRepository {
             return;
           }
 
-          final reviews = snapshot.docs
-              .map((doc) => PendingReviewModel.fromFirestore(doc))
-              .toList();
+              final reviews = snapshot.docs
+                .map((doc) => PendingReviewModel.fromFirestore(doc))
+                .toList();
 
-          final eventIds = reviews.map((r) => r.eventId).toSet().toList();
-          debugPrint('🔍 [ReviewRepository] Buscando dados de ${eventIds.length} eventos');
+          final missingOwnerData = reviews.where((review) {
+            return review.reviewerRole == 'participant' && review.revieweeName.isEmpty;
+          }).toList(growable: false);
 
-          final ownersData = await _actionsRepo.getMultipleEventOwnersData(eventIds);
+          Map<String, Map<String, dynamic>> ownersData = {};
+          if (missingOwnerData.isNotEmpty) {
+            final eventIds = missingOwnerData.map((r) => r.eventId).toSet().toList();
+            debugPrint('🔍 [ReviewRepository] Buscando dados de ${eventIds.length} eventos');
+            ownersData = await _actionsRepo.getMultipleEventOwnersData(eventIds);
+          }
 
           final enrichedReviews = reviews.map((review) {
-            if (review.reviewerRole == 'participant') {
+            if (review.reviewerRole == 'participant' && review.revieweeName.isEmpty) {
               final ownerData = ownersData[review.eventId];
 
               if (ownerData != null) {
@@ -362,17 +372,12 @@ class ReviewRepository {
       throw Exception('Você não pode avaliar a si mesmo');
     }
 
-    // Verifica duplicata
-    debugPrint('🔍 [createReview] Verificando duplicata...');
-    final existing = await _firestore
-        .collection('Reviews')
-        .where('reviewer_id', isEqualTo: userId)
-        .where('reviewee_id', isEqualTo: revieweeId)
-        .where('event_id', isEqualTo: eventId)
-        .limit(1)
-        .get();
-
-    if (existing.docs.isNotEmpty) {
+    // Verifica duplicata via docId determinístico
+    debugPrint('🔍 [createReview] Verificando duplicata (docId determinístico)...');
+    final reviewId = _buildReviewId(eventId, userId, revieweeId);
+    final reviewRef = _firestore.collection('Reviews').doc(reviewId);
+    final existing = await reviewRef.get();
+    if (existing.exists) {
       debugPrint('❌ [createReview] Review duplicado encontrado');
       throw Exception('Você já avaliou esta pessoa neste evento');
     }
@@ -392,7 +397,7 @@ class ReviewRepository {
     // Cria review
     final now = DateTime.now();
     final review = ReviewModel(
-      reviewId: '', // Será preenchido após criação
+      reviewId: reviewId,
       eventId: eventId,
       reviewerId: userId,
       revieweeId: revieweeId,
@@ -423,7 +428,7 @@ class ReviewRepository {
     // Salva no Firestore
     debugPrint('💾 [createReview] Salvando no Firestore...');
     try {
-      await _firestore.collection('Reviews').add(firestoreData);
+      await reviewRef.set(firestoreData);
       debugPrint('   ✅ Review salvo com sucesso');
     } catch (e, stack) {
       debugPrint('❌ [createReview] ERRO ao salvar no Firestore: $e');
@@ -534,24 +539,12 @@ class ReviewRepository {
         .orderBy('created_at', descending: true)
         .limit(20)
         .snapshots()
-        .asyncMap((snapshot) async {
+        .map((snapshot) {
       final pendingReviews = <PendingReviewModel>[];
 
       for (final doc in snapshot.docs) {
         final pending = PendingReviewModel.fromFirestore(doc);
-
-        // Verifica se já existe review
-        final existingReview = await _firestore
-            .collection('Reviews')
-            .where('reviewer_id', isEqualTo: userId)
-            .where('reviewee_id', isEqualTo: pending.revieweeId)
-            .where('event_id', isEqualTo: pending.eventId)
-            .limit(1)
-            .get();
-
-        if (existingReview.docs.isEmpty) {
-          pendingReviews.add(pending);
-        }
+        pendingReviews.add(pending);
       }
 
       return pendingReviews;

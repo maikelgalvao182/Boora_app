@@ -57,7 +57,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
     debugPrint('🏠 [ProfileScreenOptimized] initState() chamado - widget.hashCode: ${widget.hashCode}');
     
     AppLogger.info(
-      'Inicializando para userId: ${widget.user.userId.substring(0, 8)}...',
+      'Inicializando para userId: ${widget.user.userId.length > 8 ? widget.user.userId.substring(0, 8) : widget.user.userId}...',
       tag: 'ProfileScreen',
     );
     
@@ -288,7 +288,8 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
           child: ValueListenableBuilder<User?>(
             valueListenable: _controller.profile,
             builder: (context, profile, _) {
-              debugPrint('🏠 [ProfileScreenOptimized] ValueListenableBuilder<User?> rebuild - profile changed: ${profile?.userId.substring(0, 8) ?? "null"}');
+              final pid = profile?.userId ?? "null";
+              debugPrint('🏠 [ProfileScreenOptimized] ValueListenableBuilder<User?> rebuild - profile changed: ${pid.length > 8 ? pid.substring(0, 8) : pid}');
               final displayUser = profile ?? widget.user;
 
               return ProfileContentBuilderV2(
@@ -312,7 +313,7 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   @override
   void dispose() {
     AppLogger.info(
-      'Dispose chamado para userId: ${widget.user.userId.substring(0, 8)}...',
+      'Dispose chamado para userId: ${widget.user.userId.length > 8 ? widget.user.userId.substring(0, 8) : widget.user.userId}...',
       tag: 'ProfileScreen',
     );
     _followController?.dispose();

@@ -354,6 +354,22 @@ const double PEOPLE_SEARCH_RADIUS_KM = 30.0;
 /// ou mais distantes (ex: 50km).
 const double EVENT_NOTIFICATION_RADIUS_KM = 30.0;
 
+/// ========================================
+/// === 7. DISTÂNCIA PARA ATUALIZAÇÃO DE GEOCODING ===
+/// ========================================
+/// 
+/// 🎯 O QUE FAZ:
+/// Define a distância mínima (em km) para chamar a API de geocoding reverso
+/// e atualizar locality/state (cidade/estado) do usuário.
+/// 
+/// 📍 ONDE É USADO:
+/// - SmartGeocodingService._shouldSkipFetch()
+/// 
+/// 💡 Valor: 25km
+/// Locality/State só mudam em distâncias grandes (mudança de cidade).
+/// Economiza chamadas de API desnecessárias.
+const double GEOCODING_UPDATE_DISTANCE_KM = 25.0;
+
 /// === AGE FILTER LIMITS ===
 /// Minimum age for event participation and filters
 const double MIN_AGE = 18.0;

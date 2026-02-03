@@ -188,7 +188,7 @@ export const updateLocationRanking = functions.firestore
         .firestore()
         .collection("events")
         .where("location.placeId", "==", placeId)
-        .where("isActive", "==", true)
+        .where("status", "==", "active")
         .where("isCanceled", "==", false)
         .get();
 

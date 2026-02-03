@@ -1,6 +1,7 @@
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 
 /// Serviço inteligente de Geocoding para reduzir custos com APIs
@@ -16,7 +17,7 @@ class SmartGeocodingService {
   static final SmartGeocodingService instance = SmartGeocodingService._();
 
   static const String _boxName = 'geo_cache_v1';
-  static const int _cacheValidityDays = 30;
+  static const int _cacheValidityDays = 7; // Reduzido de 30 para 7 dias
   
   // Memória RAM para debounce e filtros imediatos
   Position? _lastFetchedPosition;
@@ -146,22 +147,22 @@ class SmartGeocodingService {
     // Mudou significativamente de lugar (Ex: mudou de bairro). 300m é razoável.
     // Limitar frequência também é bom.
 
-    // A regra passada: "Só chama se distance > 300 E time > 8s".
-    // Isso é bem restritivo. Significa que preciso satisfazer AMBOTH.
-    // Se eu correr muito rápido (500m) em 5s, não chama.
-    // Se eu esperar 10m parado, não chama.
-    // OK, vou seguir à risca.
+    // Regra simples: Chama APENAS se distance > GEOCODING_UPDATE_DISTANCE_KM
+    // Locality/State (cidade/estado) só mudam em distâncias grandes
+    // Tempo não importa - se usuário ficou parado, cidade/estado não mudaram
+    // Valor configurável em constants.dart
     
-    final isFarEnough = distance > 300;
-    final isOldEnough = timeDiff.inSeconds > 8;
+    final isFarEnough = distance > (GEOCODING_UPDATE_DISTANCE_KM * 1000); // Converte km para metros
 
-    return !(isFarEnough && isOldEnough);
+    // Skip se não moveu o suficiente
+    return !isFarEnough;
   }
 
   String _generateCacheKey(double lat, double lng) {
-    // 3 casas decimais ~ 110m de precisão.
-    // Suficiente para "Bairro/Cidade".
-    return '${lat.toStringAsFixed(3)},${lng.toStringAsFixed(3)}';
+    // 2 casas decimais ~ 1.1km de precisão.
+    // Perfeito para cache de cidade/estado (não precisa ser tão preciso)
+    // Reduz colisões de cache e melhora hit rate
+    return '${lat.toStringAsFixed(2)},${lng.toStringAsFixed(2)}';
   }
 
   Future<void> _saveToCache(String key, Placemark place) async {

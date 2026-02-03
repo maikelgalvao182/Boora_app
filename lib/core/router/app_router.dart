@@ -132,6 +132,15 @@ GoRouter createAppRouter(BuildContext context) {
         // o fluxo de navegação (callbacks com context desmontado).
         if (!authSync.initialized) {
           debugPrint('⏳ [GoRouter] Aguardando inicialização do AuthSyncService');
+          
+          // 🛡️ PROTEÇÃO: Se o usuário está logado no Firebase mas initialized é false,
+          // e já está na home, permitir navegação para evitar loop infinito.
+          // Isso pode acontecer quando o snapshot listener do Firestore demora a responder.
+          if (currentPath == AppRoutes.home && authSync.firebaseUser != null) {
+            debugPrint('⚠️ [GoRouter] FirebaseUser presente mas initialized=false na home - permitindo navegação para evitar loop');
+            return null;
+          }
+          
           if (publicRoutes.contains(currentPath)) {
             return null;
           }

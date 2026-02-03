@@ -11,6 +11,7 @@ import 'package:partiu/screens/chat/models/message_cache_item.dart';
 import 'package:partiu/screens/chat/models/reply_snapshot.dart';
 import 'package:partiu/core/services/image_compress_service.dart';
 import 'package:partiu/core/services/block_service.dart';
+import 'package:partiu/core/services/user_status_service.dart';
 import 'package:partiu/screens/chat/services/message_persistent_cache_repository.dart';
 
 /// Implementação do repositório de chat
@@ -53,6 +54,16 @@ class ChatRepository implements IChatRepository {
             .map((doc) => Message.fromDocument(doc.data(), doc.id))
             .where((m) => m != null)
             .cast<Message>()
+            // 👤 Filtrar mensagens de usuários inativos (exceto próprias)
+            .where((m) {
+              if (m.senderId == currentUserId) return true;
+              final senderId = m.senderId;
+              if (senderId != null && UserStatusService().isUserInactive(senderId)) {
+                print('👤 [ChatRepo] Ocultando mensagem de usuário inativo: $senderId');
+                return false;
+              }
+              return true;
+            })
             .toList();
         return messages.reversed.toList(); // ✅ Cronológico: mais antiga primeiro
       });

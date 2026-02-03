@@ -56,7 +56,6 @@ class _AutoShowTooltipState extends State<AutoShowTooltip> {
   void dispose() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
-    _tooltipController.dispose();
     super.dispose();
   }
 
@@ -130,7 +129,6 @@ class _ReportHintTooltipState extends State<ReportHintTooltip> {
   void dispose() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
-    _tooltipController.dispose();
     super.dispose();
   }
 

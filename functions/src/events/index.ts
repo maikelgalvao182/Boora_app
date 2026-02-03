@@ -11,3 +11,4 @@ export {
 } from "./removeUserApplication";
 export {deactivateExpiredEvents} from "./deactivateExpiredEvents";
 export {cleanupOnEventDelete} from "./cleanupOnDelete";
+export {processEventDeletions} from "./processEventDeletions";

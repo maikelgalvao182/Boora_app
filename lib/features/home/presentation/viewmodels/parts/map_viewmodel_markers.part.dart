@@ -41,7 +41,35 @@ extension MapViewModelMarkers on MapViewModel {
 
     // Buscar dados do usuário atual para verificar premium E idade
     final currentUserDoc = await _userRepository.getUserById(currentUserId);
-    final isPremium = currentUserDoc?['hasPremium'] as bool? ?? false;
+    bool isPremium = currentUserDoc?['hasPremium'] as bool? ?? false;
+    
+    // 👑 VERIFICAR status VIP em users_preview (se não for premium via RevenueCat)
+    if (!isPremium) {
+      try {
+        final userPreviewDoc = await firebase_firestore.FirebaseFirestore.instance
+            .collection('users_preview')
+            .doc(currentUserId)
+            .get();
+        
+        if (userPreviewDoc.exists) {
+          final data = userPreviewDoc.data();
+          dynamic rawVip = data?['IsVip'] ?? data?['user_is_vip'] ?? data?['isVip'] ?? data?['vip'];
+          
+          if (rawVip is bool) {
+            isPremium = rawVip;
+          } else if (rawVip is String) {
+            isPremium = rawVip.toLowerCase() == 'true';
+          }
+          
+          if (isPremium) {
+            debugPrint('👑 [MapViewModel] Usuário é VIP (users_preview) - permitindo eventos além de 30km');
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [MapViewModel] Erro ao verificar IsVip: $e');
+      }
+    }
+    
     final userAge = currentUserDoc?['age'] as int?;
 
     // Enriquecer cada evento (agora assíncrono para buscar nomes faltantes)

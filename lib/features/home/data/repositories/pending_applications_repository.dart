@@ -37,7 +37,7 @@ class PendingApplicationsRepository {
     eventsSub = _firestore
         .collection('events')
         .where('createdBy', isEqualTo: userId)
-        .where('isActive', isEqualTo: true)
+        .where('status', isEqualTo: 'active')
         .where('isCanceled', isEqualTo: false)
         .snapshots()
         .listen((eventsSnapshot) {
@@ -85,8 +85,8 @@ class PendingApplicationsRepository {
             return;
           }
 
-          final usersSnapshot = await _firestore
-              .collection('Users')
+            final usersSnapshot = await _firestore
+              .collection('users_preview')
               .where(FieldPath.documentId, whereIn: userIds)
               .get();
 
@@ -109,7 +109,7 @@ class PendingApplicationsRepository {
             debugPrint('🔍 applicantId (userId): $applicantId');
 
             final eventData = eventsMap[eventId];
-            final userData = usersMap[applicantId];
+            final userData = usersMap[applicantId] ?? _buildFallbackUserData(data);
             
             debugPrint('🔍 eventData found: ${eventData != null}');
             debugPrint('🔍 userData found: ${userData != null}');
@@ -174,5 +174,31 @@ class PendingApplicationsRepository {
     };
 
     return controller.stream;
+  }
+
+  Map<String, dynamic>? _buildFallbackUserData(Map<String, dynamic> applicationData) {
+    final name = applicationData['user_fullname'] as String? ??
+        applicationData['userFullname'] as String? ??
+        applicationData['fullname'] as String? ??
+        applicationData['fullName'] as String? ??
+        applicationData['user_name'] as String? ??
+        applicationData['userName'] as String?;
+
+    final photoUrl = applicationData['user_photo_url'] as String? ??
+        applicationData['userPhotoUrl'] as String? ??
+        applicationData['photo_url'] as String? ??
+        applicationData['photoUrl'] as String? ??
+        applicationData['avatarThumbUrl'] as String? ??
+        applicationData['avatar_thumb_url'] as String? ??
+        applicationData['image'] as String?;
+
+    if ((name == null || name.isEmpty) && (photoUrl == null || photoUrl.isEmpty)) {
+      return null;
+    }
+
+    return {
+      if (name != null) 'fullName': name,
+      if (photoUrl != null) 'photoUrl': photoUrl,
+    };
   }
 }

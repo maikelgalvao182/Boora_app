@@ -111,8 +111,8 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 6,
         crossAxisSpacing: 8,
-        mainAxisSpacing: 4,
-        childAspectRatio: 0.95, // Mais compacto (-4px altura)
+        mainAxisSpacing: 8,
+        childAspectRatio: 1.0, // Quadrado perfeito para avatares redondos
       ),
       itemCount: _reviewers.length,
       itemBuilder: (context, index) {
@@ -133,56 +133,11 @@ class _ReviewerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Avatar com navegação para perfil
-        StableAvatar(
-          userId: reviewer.userId,
-          size: 40,
-          photoUrl: reviewer.photoUrl,
-          enableNavigation: true,
-        ),
-        const SizedBox(height: 2),
-        // Nome do reviewer - usa somente dados denormalizados
-        _buildNameWidget(),
-      ],
+    return StableAvatar(
+      userId: reviewer.userId,
+      size: 26,
+      photoUrl: reviewer.photoUrl,
+      enableNavigation: true,
     );
-  }
-
-  Widget _buildNameWidget() {
-    // Primeiro tenta usar o nome da review
-    final nameFromReview = _getFirstName(reviewer.displayName);
-    
-    if (nameFromReview.isNotEmpty) {
-      return _buildNameText(nameFromReview);
-    }
-    
-    // Sem fallback para userDoc do autor
-    return const SizedBox.shrink();
-  }
-
-  Widget _buildNameText(String name) {
-    return Text(
-      name,
-      style: GoogleFonts.getFont(
-        FONT_PLUS_JAKARTA_SANS,
-        fontSize: 10,
-        fontWeight: FontWeight.w500,
-        color: GlimpseColors.primaryColorLight,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-    );
-  }
-
-  /// Extrai apenas o primeiro nome para exibição compacta
-  String _getFirstName(String? fullName) {
-    if (fullName == null || fullName.trim().isEmpty) {
-      return '';
-    }
-    final parts = fullName.trim().split(' ');
-    return parts.first;
   }
 }

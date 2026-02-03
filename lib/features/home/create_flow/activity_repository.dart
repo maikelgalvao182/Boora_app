@@ -39,6 +39,12 @@ class ActivityRepository {
     final eventId = docRef.id;
 
     // Construir documento
+    final geohash = GeohashHelper.encode(
+      draft.location!.latLng!.latitude,
+      draft.location!.latLng!.longitude,
+      precision: 7,
+    );
+
     final docData = {
       // Id do documento (útil para queries/serialização)
       'eventId': eventId,
@@ -68,12 +74,10 @@ class ActivityRepository {
         'placeId': draft.location!.isApproximateLocation ? null : draft.location!.placeId,
         'isApproximateLocation': draft.location!.isApproximateLocation,
         // 🗺️ Geohash para queries geográficas mais eficientes (precision 7 = ~150m)
-        'geohash': GeohashHelper.encode(
-          draft.location!.latLng!.latitude,
-          draft.location!.latLng!.longitude,
-          precision: 7,
-        ),
+        'geohash': geohash,
       },
+      // ✅ Geohash na raiz para queries por prefixo
+      'geohash': geohash,
 
       // Fotos do lugar (opcional)
       if (draft.photoReferences != null && draft.photoReferences!.isNotEmpty)

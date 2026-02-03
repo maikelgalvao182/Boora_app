@@ -296,61 +296,25 @@ class _PromoCardState extends State<_PromoCard> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Emoji + Avatar empilhados
+              // Avatar (emoji removido)
               Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: SizedBox(
-                  width: 56,
-                  height: 44,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Emoji no fundo (esquerda)
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        child: Container(
-          width: kAvatarAndEmojiSize,
-          height: kAvatarAndEmojiSize,
-                          decoration: BoxDecoration(
-                            color: widget.backgroundColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-          width: kAvatarAndEmojiBorderWidth,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            widget.event.emoji,
-                            style: const TextStyle(fontSize: 20),
-                          ),
-                        ),
-                      ),
-                      // Avatar sobreposto (direita)
-                      Positioned(
-        left: 22,
-        top: 0,
-                        child: Container(
-                          width: kAvatarAndEmojiSize,
-                          height: kAvatarAndEmojiSize,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-          width: kAvatarAndEmojiBorderWidth,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: StableAvatar(
-                            userId: widget.event.createdBy,
-                            photoUrl: '',
-                            size: kAvatarInnerSize,
-                            enableNavigation: false,
-                          ),
-                        ),
-                      ),
-                    ],
+                padding: const EdgeInsets.only(right: 8),
+                child: Container(
+                  width: kAvatarAndEmojiSize,
+                  height: kAvatarAndEmojiSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: kAvatarAndEmojiBorderWidth,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: StableAvatar(
+                    userId: widget.event.createdBy,
+                    photoUrl: '',
+                    size: kAvatarInnerSize,
+                    enableNavigation: false,
                   ),
                 ),
               ),
