@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:el_tooltip/el_tooltip.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -15,6 +16,7 @@ import 'package:partiu/shared/widgets/list_emoji_avatar.dart';
 import 'package:partiu/shared/widgets/place_details_modal.dart';
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/report_event_button.dart';
+import 'package:partiu/shared/widgets/report_hint_wrapper.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 
 /// Bottom sheet de evento que exibe informações do criador e localização
@@ -223,7 +225,11 @@ class _EventCardState extends State<EventCard> {
                     Positioned(
                       top: 0,
                       right: 0,
-                      child: ReportEventButton(eventId: _controller.eventId),
+                      child: ReportHintTooltip(
+                        position: ElTooltipPosition.topEnd,
+                        duration: const Duration(seconds: 3),
+                        child: ReportEventButton(eventId: _controller.eventId),
+                      ),
                     ),
                   ],
                 ),

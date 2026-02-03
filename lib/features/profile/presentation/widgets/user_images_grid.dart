@@ -32,6 +32,9 @@ class _UserImagesGridState extends State<UserImagesGrid> {
   Map<String, dynamic> _gallery = {};
   bool _loading = true;
   
+  /// ✅ Flag para evitar múltiplas chamadas ao ImagePicker simultaneamente
+  bool _isPickerActive = false;
+  
   @override
   void initState() {
     super.initState();
@@ -157,10 +160,19 @@ class _UserImagesGridState extends State<UserImagesGrid> {
   Future<void> _handleAddImage(BuildContext context, int index) async {
     debugPrint('[UserImagesGrid] 🖼️ handleAddImage called for index: $index');
     
+    // ✅ Bloqueia se já há um picker ativo ou upload em andamento
+    if (_isPickerActive || _isUploading.any((uploading) => uploading)) {
+      debugPrint('[UserImagesGrid] ⚠️ Picker already active or upload in progress, ignoring tap');
+      return;
+    }
+    
     // Captura dependências antes de qualquer await
     final i18n = AppLocalizations.of(context);
     final serviceLocator = DependencyProvider.of(context).serviceLocator;
     final vm = serviceLocator.get<ImageUploadViewModel>();
+    
+    // ✅ Marca picker como ativo
+    _isPickerActive = true;
     
     try {
       final picker = ImagePicker();
@@ -238,7 +250,8 @@ class _UserImagesGridState extends State<UserImagesGrid> {
         message: '${i18n.translate('unexpected_error')}: $e',
       );
     } finally {
-      // Garantir que loading seja removido
+      // ✅ Liberar picker e garantir que loading seja removido
+      _isPickerActive = false;
       if (mounted) {
         setState(() => _isUploading[index] = false);
         debugPrint('[UserImagesGrid] 🏁 Loading state cleared for index: $index');
@@ -287,11 +300,14 @@ class _UserImagesGridState extends State<UserImagesGrid> {
         final key = 'image_$index';
         final item = imgs[key];
         final url = item is Map<String, dynamic> ? (item['url'] as String?) : null;
+        // ✅ Verifica se alguma operação está em andamento (picker ativo ou upload)
+        final isAnyOperationActive = _isPickerActive || _isUploading.any((u) => u);
         return _UserImageCell(
           key: ValueKey(key),
           url: url,
           index: index,
           isUploading: _isUploading[index],
+          isAnyOperationActive: isAnyOperationActive,
           onAdd: () => _handleAddImage(context, index),
           onDelete: () => _handleDeleteImage(context, index),
           onOpenViewer: url == null
@@ -336,6 +352,7 @@ class _UserImageCell extends StatelessWidget {
     required this.url,
     required this.index,
     required this.isUploading,
+    required this.isAnyOperationActive,
     required this.onAdd,
     required this.onDelete,
     this.onOpenViewer,
@@ -344,27 +361,35 @@ class _UserImageCell extends StatelessWidget {
   final String? url;
   final int index;
   final bool isUploading;
+  /// ✅ Indica se alguma operação (picker/upload) está ativa em qualquer célula
+  final bool isAnyOperationActive;
   final VoidCallback onAdd;
   final VoidCallback onDelete;
   final VoidCallback? onOpenViewer;
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Desabilita interação em células vazias quando há operação ativa
+    final hasImage = url != null && url!.isNotEmpty;
+    final canTap = hasImage || !isAnyOperationActive;
+    
     return RepaintBoundary(
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            debugPrint('[_UserImageCell] 👆 Cell tapped - index: $index, hasUrl: ${url != null && url!.isNotEmpty}, isUploading: $isUploading');
-            
-            if (url != null && url!.isNotEmpty) {
-              debugPrint('[_UserImageCell] 🖼️ Opening image viewer for: ${url!.substring(0, 50)}...');
-              onOpenViewer?.call();
-            } else {
-              debugPrint('[_UserImageCell] ➕ Calling onAdd for empty cell at index: $index');
-              onAdd();
-            }
-          },
+          onTap: canTap
+              ? () {
+                  debugPrint('[_UserImageCell] 👆 Cell tapped - index: $index, hasUrl: $hasImage, isUploading: $isUploading');
+                  
+                  if (hasImage) {
+                    debugPrint('[_UserImageCell] 🖼️ Opening image viewer for: ${url!.substring(0, 50)}...');
+                    onOpenViewer?.call();
+                  } else {
+                    debugPrint('[_UserImageCell] ➕ Calling onAdd for empty cell at index: $index');
+                    onAdd();
+                  }
+                }
+              : null,
           borderRadius: _cellRadius,
           child: Ink(
             decoration: const BoxDecoration(

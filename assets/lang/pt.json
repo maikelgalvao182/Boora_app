@@ -978,6 +978,8 @@
   "report_message_empty": "Por favor, descreva o que aconteceu",
   "report_message_too_short": "Por favor, forneça mais detalhes (mínimo 10 caracteres)",
   "send_report": "Enviar Denúncia",
+  "report_hint_click_here": "Clique aqui\npara denunciar",
+  "feed_post_photos_hint": "Poste as fotos\ndo seu evento",
   "report_sent_successfully": "✅ Denúncia enviada com sucesso! Vamos analisar e tomar as medidas necessárias.",
   "report_error": "❌ Erro ao enviar denúncia. Tente novamente.",
   "user_blocked_cannot_message": "Você não pode enviar mensagens para este usuário",

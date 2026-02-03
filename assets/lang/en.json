@@ -1105,6 +1105,8 @@
   "verification_benefit_more_visibility": "More visibility",
   "verification_benefit_premium_events": "Access to premium events",
   "report_event": "Report Event",
+  "report_hint_click_here": "Click here\nto report",
+  "feed_post_photos_hint": "Post photos\nfrom your event",
   "report_reason_hint": "Describe the reason for reporting...",
   "send": "Send",
   "report_empty_error": "Please describe the reason for the report",

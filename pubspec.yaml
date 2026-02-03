@@ -102,6 +102,9 @@ dependencies:
   # Toast
   fluttertoast: ^8.2.8
   
+  # Tooltip
+  el_tooltip: ^2.2.1
+  
   # Badge do ícone do app
   
   # WebView

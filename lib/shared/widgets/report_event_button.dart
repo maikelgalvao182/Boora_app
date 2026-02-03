@@ -173,6 +173,20 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
         if (activityText != null) 'activityText': activityText,
       });
 
+      // ✅ Remover conversa do evento da lista de chats do usuário
+      // Mesma lógica usada no leaveEvent para limpar a UI
+      try {
+        await FirebaseFirestore.instance
+            .collection('Connections')
+            .doc(currentUser.userId)
+            .collection('Conversations')
+            .doc('event_${widget.eventId}')
+            .delete();
+        debugPrint('✅ [Report] Conversa do evento removida da lista de chats');
+      } catch (e) {
+        debugPrint('⚠️ [Report] Erro ao remover conversa (não bloqueante): $e');
+      }
+
       if (!context.mounted) return;
 
       Navigator.of(context).pop();

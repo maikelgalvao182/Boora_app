@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:el_tooltip/el_tooltip.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import 'package:partiu/features/event_photo_feed/presentation/services/feed_onbo
 import 'package:partiu/features/feed/presentation/widgets/activity_feed_item.dart';
 import 'package:partiu/features/home/presentation/coordinators/home_navigation_coordinator.dart';
 import 'package:partiu/features/home/presentation/widgets/create_button.dart';
+import 'package:partiu/shared/widgets/report_hint_wrapper.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/shared/widgets/glimpse_tab_app_bar.dart';
@@ -140,8 +142,14 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      floatingActionButton: CreateButton(
-        onPressed: () => _handleCreateTap(context),
+      floatingActionButton: AutoShowTooltip(
+        message: i18n.translate('feed_post_photos_hint'),
+        position: ElTooltipPosition.topEnd,
+        color: GlimpseColors.primary,
+        duration: const Duration(seconds: 3),
+        child: CreateButton(
+          onPressed: () => _handleCreateTap(context),
+        ),
       ),
       body: SafeArea(
         child: Column(

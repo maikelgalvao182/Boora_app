@@ -9,6 +9,7 @@ import 'package:partiu/features/profile/presentation/controllers/profile_control
 import 'package:partiu/features/profile/presentation/controllers/follow_controller.dart';
 import 'package:partiu/features/profile/presentation/components/profile_content_builder_v2.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
+import 'package:partiu/shared/widgets/report_hint_wrapper.dart';
 import 'package:partiu/shared/widgets/report_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -145,15 +146,17 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
         : GlimpseAppBar(
             title: _i18n.translate('profile'),
             onBack: () => Navigator.of(context).pop(),
-            actionWidget: ReportWidget(
-              userId: widget.user.userId,
-              iconSize: 24,
-              iconColor: Colors.black87,
-              onBlockSuccess: () {
-                if (mounted) {
-                  context.go(AppRoutes.home);
-                }
-              },
+            actionWidget: ReportHintTooltip(
+              child: ReportWidget(
+                userId: widget.user.userId,
+                iconSize: 24,
+                iconColor: Colors.black87,
+                onBlockSuccess: () {
+                  if (mounted) {
+                    context.go(AppRoutes.home);
+                  }
+                },
+              ),
             ),
           ),
       body: ValueListenableBuilder<bool>(
