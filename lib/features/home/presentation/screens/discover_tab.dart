@@ -333,7 +333,10 @@ class _DiscoverTabState extends State<DiscoverTab> {
               final categories = widget.mapViewModel.availableCategories;
               final categoriesWithCarnaval = _withCarnavalCategory(categories);
               final allLabel = i18n.translate('notif_filter_all');
+              // Usa contagens já filtradas por data
               final countsByCategory = widget.mapViewModel.eventsInBoundsCountByCategory;
+              // Total filtrado por data (para "Todas")
+              final filteredTotal = countsByCategory.values.fold<int>(0, (sum, c) => sum + c);
 
               final localeTag = Localizations.localeOf(context).toLanguageTag();
               if (_lastLocaleTag != localeTag ||
@@ -354,7 +357,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     .toList(growable: false);
               }
 
-              final allItem = '$allLabel ($totalInBounds)';
+              final allItem = '$allLabel ($filteredTotal)';
               final items = <String>[
                 allItem,
                 ...List<String>.generate(
@@ -374,23 +377,23 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 selected == null ? -1 : categoriesWithCarnaval.indexOf(selected);
               final selectedIndex =
                 selectedCategoryIndex >= 0 ? selectedCategoryIndex + 1 : 0;
+              
+              // Key inclui data selecionada para forçar rebuild quando filtro muda
+              final selectedDateKey = widget.mapViewModel.selectedDate?.toIso8601String() ?? 'all';
 
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: NotificationHorizontalFilters(
-                  key: ValueKey('filters_$totalInBounds'),
-                  items: items,
-                  selectedIndex: selectedIndex,
-                  onSelected: (index) {
-                    if (index == 0) {
-                      widget.mapViewModel.setCategoryFilter(null);
-                    } else {
-                      widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
-                    }
-                  },
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  unselectedBackgroundColor: Colors.white,
-                ),
+              return NotificationHorizontalFilters(
+                key: ValueKey('filters_${filteredTotal}_$selectedDateKey'),
+                items: items,
+                selectedIndex: selectedIndex,
+                onSelected: (index) {
+                  if (index == 0) {
+                    widget.mapViewModel.setCategoryFilter(null);
+                  } else {
+                    widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
+                  }
+                },
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                unselectedBackgroundColor: Colors.white,
               );
             },
           ),
@@ -505,9 +508,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   static List<String> _withCarnavalCategory(List<String> categories) {
     const carnavalKey = 'carnaval';
+    // Só adiciona carnaval no topo se já existir na lista
     if (categories.contains(carnavalKey)) {
       return <String>[carnavalKey, ...categories.where((c) => c != carnavalKey)];
     }
-    return <String>[carnavalKey, ...categories];
+    // Não adiciona carnaval artificialmente se não há eventos de carnaval
+    return categories;
   }
 }

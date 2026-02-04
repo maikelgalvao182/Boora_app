@@ -11,11 +11,17 @@ class DateFilterCalendar extends StatefulWidget {
   const DateFilterCalendar({
     required this.selectedDate,
     required this.onDateSelected,
+    this.showShadow = true,
+    this.unselectedColor = Colors.white,
+    this.expandWidth = false,
     super.key,
   });
 
   final DateTime? selectedDate;
   final ValueChanged<DateTime?> onDateSelected;
+  final bool showShadow;
+  final Color unselectedColor;
+  final bool expandWidth;
 
   @override
   State<DateFilterCalendar> createState() => _DateFilterCalendarState();
@@ -81,7 +87,7 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
   Widget build(BuildContext context) {
     // Responsivo: telas pequenas mostram 2 círculos, telas maiores mostram 3
     final screenWidth = MediaQuery.of(context).size.width;
-    final calendarWidth = screenWidth < 380 ? 128.0 : 192.0; // 2 círculos vs 3 círculos
+    final calendarWidth = widget.expandWidth ? double.infinity : (screenWidth < 380 ? 128.0 : 192.0);
     
     return SizedBox(
       height: 56, // Altura visual do calendário
@@ -93,11 +99,13 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
             top: -8,
             bottom: -8,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: widget.expandWidth ? BorderRadius.zero : BorderRadius.circular(100),
               child: ListView.builder(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(0, 8, 8, 8), // Padding para sombra
+                padding: widget.expandWidth 
+                    ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
+                    : const EdgeInsets.fromLTRB(0, 8, 8, 8),
                 physics: const BouncingScrollPhysics(),
                 itemCount: _weekDays.length,
                 itemBuilder: (context, index) {
@@ -113,6 +121,8 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
                     child: _CompactDayCard(
                       date: date,
                       isSelected: isSelected,
+                      showShadow: widget.showShadow,
+                      unselectedColor: widget.unselectedColor,
                       onTap: () {
                         // Toggle: se já está selecionado, deseleciona (mostra todos)
                         if (isSelected) {
@@ -141,12 +151,16 @@ class _CompactDayCard extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.locale,
+    this.showShadow = true,
+    this.unselectedColor = Colors.white,
   });
 
   final DateTime date;
   final bool isSelected;
   final VoidCallback onTap;
   final Locale locale;
+  final bool showShadow;
+  final Color unselectedColor;
 
   @override
   Widget build(BuildContext context) {
@@ -166,15 +180,17 @@ class _CompactDayCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? GlimpseColors.primary
-              : Colors.white,
+              : unselectedColor,
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: showShadow
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

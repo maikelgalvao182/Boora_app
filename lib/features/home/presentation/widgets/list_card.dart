@@ -97,7 +97,7 @@ class _ListCardState extends State<ListCard> {
           height: size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: GlimpseColors.primary,
+            color: GlimpseColors.primaryLight,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: border),
           ),
@@ -107,7 +107,7 @@ class _ListCardState extends State<ListCard> {
               FONT_PLUS_JAKARTA_SANS,
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: GlimpseColors.primary,
             ),
           ),
         ),
@@ -238,7 +238,7 @@ class _ListCardState extends State<ListCard> {
           children: [
             // Row: Emoji à esquerda + Texto formatado à direita
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Avatar de emoji
                 _buildEmojiAvatar(),

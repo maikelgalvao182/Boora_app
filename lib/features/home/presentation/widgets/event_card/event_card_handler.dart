@@ -23,12 +23,7 @@ class EventCardHandler {
     // 💎 NOVO: Se está fora da área e não é VIP, abrir VipDialog
     if (controller.isOutsideAreaNonVip) {
       debugPrint('💎 [EventCardHandler] Fora da área + não-VIP: abrindo VipDialog');
-      final result = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => const VipBottomSheet(),
-      );
+      final result = await VipBottomSheet.show(context);
       
       // Se comprou VIP (dialog retorna true), verificar novamente e permitir entrada
       if (result == true && context.mounted) {

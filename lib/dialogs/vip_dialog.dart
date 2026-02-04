@@ -27,6 +27,22 @@ import 'package:provider/provider.dart';
 class VipBottomSheet extends StatefulWidget {
   const VipBottomSheet({super.key});
 
+  /// Altura padrão do dialog (90% da tela)
+  static const double heightFactor = 0.90;
+
+  /// Exibe o VipBottomSheet como um bottom sheet padronizado
+  static Future<bool?> show(BuildContext context) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * heightFactor,
+        child: const VipBottomSheet(),
+      ),
+    );
+  }
+
   @override
   State<VipBottomSheet> createState() => _VipBottomSheetState();
 }

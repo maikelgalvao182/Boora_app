@@ -62,23 +62,6 @@ class SubscriptionHeader extends StatelessWidget {
               ),
               
               const SizedBox(height: 8),
-              
-              // Subtítulo
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  i18n.translate('take_advantage_of_the_benefits_of_being_a_pro'),
-                  style: const TextStyle(
-                    fontFamily: FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              
-              const SizedBox(height: 8),
             ],
           ),
         ),

@@ -44,7 +44,7 @@ class MapRenderController extends ChangeNotifier {
   // Timers
   Timer? _renderDebounce;
   // Aumentado levemente para aguardar estabilização do cluster manager
-  static const Duration _renderDebounceDuration = Duration(milliseconds: 150);
+  static const Duration _renderDebounceDuration = Duration(milliseconds: 50);
 
   
   // State from view

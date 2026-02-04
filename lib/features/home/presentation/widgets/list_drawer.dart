@@ -14,6 +14,7 @@ import 'package:partiu/features/home/presentation/widgets/list_drawer/list_drawe
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card_shimmer.dart';
+import 'package:partiu/features/home/presentation/widgets/date_filter_calendar.dart';
 
 /// Cache global de ListCardController para evitar recriação
 class ListCardControllerCache {
@@ -75,7 +76,7 @@ class ListDrawer extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     
     return Container(
-      height: screenHeight * 0.7,
+      height: screenHeight * 0.9,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
@@ -125,6 +126,11 @@ class ListDrawer extends StatelessWidget {
           
           const SizedBox(height: 16),
 
+          // Filtro de data (calendário)
+          _DateFilterRow(mapViewModel: mapViewModel),
+
+          const SizedBox(height: 12),
+
           // Filtro horizontal por categoria
           _CategoryFilterBar(mapViewModel: mapViewModel),
 
@@ -136,6 +142,29 @@ class ListDrawer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Row com filtro de data (calendário)
+class _DateFilterRow extends StatelessWidget {
+  const _DateFilterRow({required this.mapViewModel});
+
+  final MapViewModel mapViewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: mapViewModel,
+      builder: (context, _) {
+        return DateFilterCalendar(
+          selectedDate: mapViewModel.selectedDate,
+          onDateSelected: mapViewModel.setDateFilter,
+          showShadow: false,
+          unselectedColor: GlimpseColors.lightTextField,
+          expandWidth: true,
+        );
+      },
     );
   }
 }

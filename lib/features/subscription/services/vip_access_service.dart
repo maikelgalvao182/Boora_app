@@ -118,15 +118,7 @@ class VipAccessService {
       _log('❌ Sem acesso VIP (Firestore), mostrando dialog');
       if (!context.mounted) return false;
       
-      final result = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => SizedBox(
-          height: MediaQuery.of(context).size.height * 0.90,
-          child: const VipBottomSheet(),
-        ),
-      );
+      final result = await VipBottomSheet.show(context);
       
       return result ?? false;
       
@@ -160,15 +152,7 @@ class VipAccessService {
   static Future<bool> checkOrShowDialog(BuildContext context) async {
     if (isVip) return true;
 
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: const VipBottomSheet(),
-      ),
-    );
+    final result = await VipBottomSheet.show(context);
 
     return result == true;
   }

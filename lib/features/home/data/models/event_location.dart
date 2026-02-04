@@ -122,14 +122,32 @@ class EventLocation {
   }
   
   DateTime? get scheduleDate {
-    final timestamp = eventData['scheduleDate'];
-    if (timestamp == null) return null;
-    
-    try {
-      return timestamp.toDate();
-    } catch (_) {
-      return null;
+    // 1. Tenta scheduleDate diretamente (formato moderno)
+    final directDate = eventData['scheduleDate'];
+    if (directDate != null) {
+      try {
+        if (directDate is Timestamp) return directDate.toDate();
+        if (directDate is DateTime) return directDate;
+        if (directDate is int) return DateTime.fromMillisecondsSinceEpoch(directDate);
+        if (directDate is String) return DateTime.tryParse(directDate);
+      } catch (_) {}
     }
+    
+    // 2. Tenta schedule.date (formato Firestore usado no app)
+    final schedule = eventData['schedule'];
+    if (schedule is Map) {
+      final dateField = schedule['date'];
+      if (dateField != null) {
+        try {
+          if (dateField is Timestamp) return dateField.toDate();
+          if (dateField is DateTime) return dateField;
+          if (dateField is int) return DateTime.fromMillisecondsSinceEpoch(dateField);
+          if (dateField is String) return DateTime.tryParse(dateField);
+        } catch (_) {}
+      }
+    }
+    
+    return null;
   }
 
   @override
