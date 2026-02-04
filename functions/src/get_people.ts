@@ -311,13 +311,35 @@ export const getPeople = functions.https.onCall(async (data, context) => {
     }
 
     // Verifica flag de VIP e expiração
+    // ✅ Verifica múltiplos campos por compatibilidade
     const now = admin.firestore.Timestamp.now();
-    const isVip = userData.user_is_vip === true ||
-      (userData.vipExpiresAt && userData.vipExpiresAt > now);
+    const hasVipFlag = userData.user_is_vip === true ||
+      userData.isVip === true ||
+      userData.vip === true;
+    const hasVipLevel = userData.user_level === "vip";
+    const hasValidExpiration = userData.vipExpiresAt &&
+      userData.vipExpiresAt.toMillis &&
+      userData.vipExpiresAt.toMillis() > now.toMillis();
+
+    const isVip = hasVipFlag || hasVipLevel || hasValidExpiration;
+
+    // 📊 Log detalhado para debug
+    console.log(`👑 [getPeople] VIP Check for ${userId}:`, {
+      user_is_vip: userData.user_is_vip,
+      isVip_field: userData.isVip,
+      vip_field: userData.vip,
+      user_level: userData.user_level,
+      vipExpiresAt: userData.vipExpiresAt?.toDate?.() || null,
+      hasVipFlag,
+      hasVipLevel,
+      hasValidExpiration,
+      finalIsVip: isVip,
+    });
 
     // 4. Definir Limites
-    // Resultados: Free: 17, VIP: 300
-    const limit = isVip ? 300 : 17;
+    // Free: 17 | VIP: 500 (cobre a maioria dos cenários reais)
+    // Lista já vem ordenada por VIP → Rating → Distância
+    const limit = isVip ? 500 : 17;
 
     // Cap de Raio por Plano (Segurança e Custo)
     // Free: max 15km | VIP: max 30km
@@ -331,9 +353,10 @@ export const getPeople = functions.https.onCall(async (data, context) => {
       defaultRadius;
 
     // Firestore Limit: dinâmico (sobe se não atingir resultados mínimos)
-    const baseFetchLimit = isVip ? 400 : 200;
-    const maxFetchLimit = isVip ? 800 : 400;
-    const minResults = isVip ? 120 : 17;
+    // VIP: busca mais agressiva para pegar todos disponíveis
+    const baseFetchLimit = isVip ? 600 : 200;
+    const maxFetchLimit = isVip ? 1500 : 400;
+    const minResults = isVip ? 200 : 17;
 
     console.log(
       `🔍 [getPeople] User ${userId} - VIP:${isVip}, ` +
@@ -721,6 +744,7 @@ export const getPeople = functions.https.onCall(async (data, context) => {
     console.log(`🏆 [getPeople] Top 3 metadados: ${top3}`);
 
     // 9. Retornar dados completos (client precisa para UI e Analytics)
+    const hasMore = candidates.length > limit;
     const response = {
       users: limitedUsers,
       isVip: isVip,
@@ -728,6 +752,7 @@ export const getPeople = functions.https.onCall(async (data, context) => {
       fetchedCount: usersSnap.size,
       totalCandidates: candidates.length,
       returnedCount: limitedUsers.length,
+      hasMore, // Indica se há mais usuários além do limite
     };
 
     const durationMs = Date.now() - startTime;

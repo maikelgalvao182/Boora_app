@@ -19,24 +19,9 @@ class MapRenderController extends ChangeNotifier {
 
   Set<Marker> _markers = {};
   Set<Marker> _avatarOverlayMarkers = {};
-  final Map<MarkerId, Marker> _staleMarkers = {};
-  final Map<MarkerId, DateTime> _staleMarkersExpiry = {};
-  Timer? _staleMarkersTimer;
-
-  static const Duration _staleMarkersTtl = Duration(seconds: 6);
   
   Set<Marker> get allMarkers {
-    final merged = <MarkerId, Marker>{};
-    for (final entry in _staleMarkers.entries) {
-      merged[entry.key] = entry.value;
-    }
-    for (final marker in _markers) {
-      merged[marker.markerId] = marker;
-    }
-    for (final marker in _avatarOverlayMarkers) {
-      merged[marker.markerId] = marker;
-    }
-    return merged.values.toSet();
+    return {..._markers, ..._avatarOverlayMarkers};
   }
 
   final MarkerClusterService _clusterService = MarkerClusterService();
@@ -44,7 +29,7 @@ class MapRenderController extends ChangeNotifier {
   // Timers
   Timer? _renderDebounce;
   // Aumentado levemente para aguardar estabilização do cluster manager
-  static const Duration _renderDebounceDuration = Duration(milliseconds: 50);
+  static const Duration _renderDebounceDuration = Duration(milliseconds: 150);
 
   
   // State from view
@@ -54,8 +39,6 @@ class MapRenderController extends ChangeNotifier {
   
   // Loading state for low zoom (clusters)
   static const double lowZoomThreshold = 5.0;
-  static const double _individualMarkerZoomThreshold = 12.0;
-  static const int _maxIndividualMarkers = 150;
   bool _isLoadingLowZoom = false;
   bool get isLoadingLowZoom => _isLoadingLowZoom && _currentZoom <= lowZoomThreshold;
   
@@ -86,13 +69,11 @@ class MapRenderController extends ChangeNotifier {
   }
 
   void setCameraMoving(bool isMoving) {
-    debugPrint('📹 [MapRender] setCameraMoving($isMoving) - renderPending: $_renderPendingAfterMove');
     _isCameraMoving = isMoving;
     // Se parou de mover e tinha render pendente, executa DEPOIS de um delay
     // para garantir que o mapa estabilizou o viewport interno.
     if (!isMoving && _renderPendingAfterMove) {
       _renderPendingAfterMove = false;
-      debugPrint('⏭️ [MapRender] Camera parou - executando render pendente em 100ms');
       // Damos um tempo extra pro Google Maps estabilizar bounds antes de clusterizar
       Future.delayed(const Duration(milliseconds: 100), scheduleRender);
     }
@@ -138,20 +119,16 @@ class MapRenderController extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _renderDebounce?.cancel();
-    _staleMarkersTimer?.cancel();
     super.dispose();
   }
 
   void scheduleRender() {
     if (_isDisposed) return;
     
-    debugPrint('🎨 [MapRender] scheduleRender() - isAnimating: $_isAnimating, isCameraMoving: $_isCameraMoving');
-    
     // Durante zoom/pan, cancelamos renders ativos para evitar flicker
     if (_isAnimating || _isCameraMoving) {
       _renderDebounce?.cancel(); // Cancela timer anterior se houver
       _renderPendingAfterMove = true;
-      debugPrint('⏸️ [MapRender] Render adiado (camera em movimento)');
       return;
     }
 
@@ -161,10 +138,8 @@ class MapRenderController extends ChangeNotifier {
       // Dupla checagem: se começou a mover nesse meio tempo, aborta
       if (_isAnimating || _isCameraMoving) {
           _renderPendingAfterMove = true;
-          debugPrint('⏸️ [MapRender] Render abortado (camera moveu durante debounce)');
           return;
       }
-      debugPrint('▶️ [MapRender] Executando _rebuildMarkersUsingClusterService');
       _rebuildMarkersUsingClusterService();
     });
   }
@@ -179,11 +154,7 @@ class MapRenderController extends ChangeNotifier {
     if (allEvents.isEmpty) {
       if (_markers.isNotEmpty || _avatarOverlayMarkers.isNotEmpty) {
         debugPrint(
-          '🧭 [MapRender] clear markers (reason=dataset_empty, prev=${_markers.length + _avatarOverlayMarkers.length}, stale=${_staleMarkers.length})',
-        );
-        _addStaleMarkers(
-          previousMarkers: {..._markers, ..._avatarOverlayMarkers},
-          nextMarkers: const <Marker>{},
+          '🧭 [MapRender] clear markers (reason=dataset_empty, prev=${_markers.length + _avatarOverlayMarkers.length})',
         );
         _markers = {};
         _avatarOverlayMarkers.clear();
@@ -197,11 +168,7 @@ class MapRenderController extends ChangeNotifier {
       final hasFilters = viewModel.selectedCategory != null || viewModel.selectedDate != null;
       if (hasFilters) {
         debugPrint(
-          '🧭 [MapRender] clear markers (reason=filters_empty, prev=${_markers.length + _avatarOverlayMarkers.length}, stale=${_staleMarkers.length})',
-        );
-        _addStaleMarkers(
-          previousMarkers: {..._markers, ..._avatarOverlayMarkers},
-          nextMarkers: const <Marker>{},
+          '🧭 [MapRender] clear markers (reason=filters_empty, prev=${_markers.length + _avatarOverlayMarkers.length})',
         );
         _markers = {};
         _avatarOverlayMarkers.clear();
@@ -231,9 +198,17 @@ class MapRenderController extends ChangeNotifier {
     final eventsHash = _clusterService.eventsHash;
     final isClusterReady = eventsHash == null || _clusterService.isReadyFor(eventsHash: eventsHash, zoomBucket: zoomBucket);
 
-    // ✅ REMOVIDO: fallback global que causava render de TODOS os eventos em zoom baixo
-    // Agora confiamos no filtro por viewport em todos os níveis de zoom
-    // (o fallback global estava sendo acionado desnecessariamente causando problemas de performance)
+    // Se o bounds atual não intersecta o dataset (ex.: corrida entre bounds e eventos),
+    // evitamos “mapa vazio” usando clusterização global como fallback.
+    if (clusters.isEmpty && filteredEvents.isNotEmpty) {
+      debugPrint(
+        '🧭 [MapRender] clusters empty (events=${filteredEvents.length}, zoom=${_currentZoom.toStringAsFixed(1)}) -> fallback global',
+      );
+      clusters = _clusterService.clusterEvents(
+        events: filteredEvents,
+        zoom: _currentZoom,
+      );
+    }
 
     // Removido: placeholder com BitmapDescriptor.defaultMarker causava flash de markers nativos
     // Os markers personalizados são gerados diretamente abaixo
@@ -246,8 +221,7 @@ class MapRenderController extends ChangeNotifier {
 
     for (final cluster in clusters) {
       if (cluster.isSingleEvent) {
-        // ✅ Eventos únicos SEMPRE renderizados como markers individuais (nunca como cluster)
-        // Clusters só devem ser usados para 2+ eventos
+        // ✅ Evento único SEMPRE renderiza como marker individual (nunca como cluster de 1)
         final event = cluster.firstEvent;
         final position = cluster.center;
         final baseZIndex = 100 + (zIndexCounter * 2);
@@ -302,11 +276,6 @@ class MapRenderController extends ChangeNotifier {
       }
     }
 
-    _addStaleMarkers(
-      previousMarkers: {..._markers, ..._avatarOverlayMarkers},
-      nextMarkers: {...nextMarkers, ...nextAvatarOverlays},
-    );
-
     _avatarOverlayMarkers = nextAvatarOverlays;
     _markers = nextMarkers;
 
@@ -319,10 +288,10 @@ class MapRenderController extends ChangeNotifier {
             '${bounds.northeast.latitude.toStringAsFixed(3)}_'
             '${bounds.northeast.longitude.toStringAsFixed(3)}';
     debugPrint(
-      '🧭 [MapRender] applyMarkers(boundsKey=$boundsKey, nextCount=$markersProduced, stale=${_staleMarkers.length})',
+      '🧭 [MapRender] applyMarkers(boundsKey=$boundsKey, nextCount=$markersProduced)',
     );
     debugPrint(
-      '🧭 [MapRender] render done (boundsKey=$boundsKey, zoom=${_currentZoom.toStringAsFixed(1)}, clusters=${clusters.length}, markersProduced=$markersProduced, individualRendered=$individualMarkersRendered, stale=${_staleMarkers.length}, ms=$renderMs)',
+      '🧭 [MapRender] render done (boundsKey=$boundsKey, zoom=${_currentZoom.toStringAsFixed(1)}, clusters=${clusters.length}, markersProduced=$markersProduced, individualRendered=$individualMarkersRendered, ms=$renderMs)',
     );
 
     if (_isLoadingLowZoom && _currentZoom <= lowZoomThreshold) {
@@ -345,47 +314,6 @@ class MapRenderController extends ChangeNotifier {
           scheduleRender();
         }
       });
-    }
-  }
-
-  void _addStaleMarkers({
-    required Set<Marker> previousMarkers,
-    required Set<Marker> nextMarkers,
-  }) {
-    final nextIds = nextMarkers.map((m) => m.markerId).toSet();
-    final now = DateTime.now();
-
-    for (final marker in previousMarkers) {
-      if (nextIds.contains(marker.markerId)) continue;
-      _staleMarkers[marker.markerId] = marker.copyWith(
-        alphaParam: 0.0,
-        onTapParam: null,
-        zIndexParam: -10000,
-        infoWindowParam: InfoWindow.noText,
-      );
-      _staleMarkersExpiry[marker.markerId] = now.add(_staleMarkersTtl);
-    }
-
-    _pruneStaleMarkers(now);
-
-    _staleMarkersTimer?.cancel();
-    _staleMarkersTimer = Timer(_staleMarkersTtl, () {
-      if (_isDisposed) return;
-      _pruneStaleMarkers(DateTime.now());
-      notifyListeners();
-    });
-  }
-
-  void _pruneStaleMarkers(DateTime now) {
-    final expired = <MarkerId>[];
-    _staleMarkersExpiry.forEach((id, expiry) {
-      if (expiry.isBefore(now)) {
-        expired.add(id);
-      }
-    });
-    for (final id in expired) {
-      _staleMarkersExpiry.remove(id);
-      _staleMarkers.remove(id);
     }
   }
 

@@ -233,6 +233,20 @@ class MarkerClusterService {
         final childEvents = _collectChildEvents(fluster, item.clusterId!);
         final safeEvents = childEvents.isEmpty ? <EventModel>[events.first] : childEvents;
 
+        // ✅ Cluster de 1 evento = marker individual (não é cluster)
+        if (safeEvents.length == 1) {
+          final e = safeEvents.first;
+          out.add(
+            MarkerCluster(
+              events: [e],
+              center: LatLng(e.lat, e.lng),
+              id: 'marker_${e.id}',
+              isCluster: false,
+            ),
+          );
+          continue;
+        }
+
         // ✅ Em zoom alto, forçar separação de clusters pequenos em markers individuais.
         final shouldExpandCluster = zoomInt >= _forceExpandZoom && 
             safeEvents.length <= _maxClusterSizeToExpand;
@@ -373,6 +387,20 @@ class MarkerClusterService {
       if ((item.isCluster ?? false) && item.clusterId != null) {
         final childEvents = _collectChildEvents(_fluster!, item.clusterId!);
         if (childEvents.isEmpty) continue;
+
+        // ✅ Cluster de 1 evento = marker individual (não é cluster)
+        if (childEvents.length == 1) {
+          final e = childEvents.first;
+          out.add(
+            MarkerCluster(
+              events: [e],
+              center: LatLng(e.lat, e.lng),
+              id: 'marker_${e.id}',
+              isCluster: false,
+            ),
+          );
+          continue;
+        }
 
         // ✅ Em zoom alto, forçar separação de clusters pequenos em markers individuais.
         // Isso garante que o usuário sempre consiga acessar eventos sobrepostos.

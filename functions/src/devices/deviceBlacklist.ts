@@ -135,25 +135,33 @@ export const registerDevice = functions
 export const onUserStatusChange = functions.firestore
   .document("Users/{userId}")
   .onWrite(async (change, context) => {
+    const userId = context.params.userId;
+    console.log(`🔍 [onUserStatusChange] Triggered for user ${userId}`);
+
     const before = change.before.exists ? change.before.data() : null;
     const after = change.after.exists ? change.after.data() : null;
 
     if (!after) {
+      console.log("ℹ️ [onUserStatusChange] Document deleted, skipping");
       return;
     }
 
     const beforeStatus = (before?.status ?? "").toString();
     const afterStatus = (after.status ?? "").toString();
 
+    console.log(`📊 [onUserStatusChange] Status: "${beforeStatus}" → "${afterStatus}"`);
+
     if (beforeStatus === afterStatus) {
+      console.log("ℹ️ [onUserStatusChange] Status unchanged, skipping");
       return;
     }
 
     if (afterStatus !== "inactive") {
+      console.log("ℹ️ [onUserStatusChange] Status is not \"inactive\", skipping");
       return;
     }
 
-    const userId = context.params.userId;
+    console.log(`🚫 [onUserStatusChange] User ${userId} marked as inactive, blacklisting devices...`);
     const firestore = admin.firestore();
 
     try {
@@ -163,21 +171,27 @@ export const onUserStatusChange = functions.firestore
         .collection("clients")
         .get();
 
+      console.log(`📱 [onUserStatusChange] Found ${clientsSnapshot.size} clients for user ${userId}`);
+
       if (clientsSnapshot.empty) {
         console.log(
-          `ℹ️ [onUserStatusChange] No clients for user ${userId}`
+          `⚠️ [onUserStatusChange] No clients for user ${userId} - nothing to blacklist`
         );
         return;
       }
 
       const batch = firestore.batch();
+      let blacklistedCount = 0;
 
       clientsSnapshot.docs.forEach((doc) => {
         const clientData = doc.data() || {};
         const deviceIdHash =
           (clientData.deviceIdHash ?? doc.id ?? "").toString().trim();
 
+        console.log(`📱 [onUserStatusChange] Processing client: ${doc.id}, deviceIdHash: ${deviceIdHash}`);
+
         if (!deviceIdHash) {
+          console.log("⚠️ [onUserStatusChange] Skipping client without deviceIdHash");
           return;
         }
 
@@ -185,12 +199,15 @@ export const onUserStatusChange = functions.firestore
           .collection(BLACKLIST_COLLECTION)
           .doc(deviceIdHash);
 
+        console.log(`🔒 [onUserStatusChange] Adding to blacklist: ${deviceIdHash}`);
+        blacklistedCount++;
+
         batch.set(
           blacklistRef,
           {
             deviceIdHash,
             active: true,
-            reason: "user_status_inactive",
+            reason: "Sua conta foi desativada. Entre em contato com o suporte.",
             userId,
             platform: clientData.platform || "",
             deviceName: clientData.deviceName || "",
@@ -208,7 +225,7 @@ export const onUserStatusChange = functions.firestore
       await batch.commit();
 
       console.log(
-        `✅ [onUserStatusChange] Blacklist updated for user ${userId}`
+        `✅ [onUserStatusChange] Blacklist updated for user ${userId} - ${blacklistedCount} devices blacklisted`
       );
     } catch (error) {
       console.error("❌ onUserStatusChange error", error);

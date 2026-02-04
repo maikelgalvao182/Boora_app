@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:el_tooltip/el_tooltip.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -39,7 +38,6 @@ class ConversationsTab extends StatelessWidget {
                   actions: [
                     AutoShowTooltip(
                       message: i18n.translate('safety_tips_title'),
-                      position: ElTooltipPosition.bottomEnd,
                       color: Colors.red,
                       duration: const Duration(seconds: 3),
                       child: const SafetyTipsButton(

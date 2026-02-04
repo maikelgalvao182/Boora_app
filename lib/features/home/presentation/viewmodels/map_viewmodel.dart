@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-import 'package:cloud_firestore/cloud_firestore.dart' as firebase_firestore;
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -59,10 +58,7 @@ class MapViewModel extends ChangeNotifier {
   int _eventsInBoundsCount = 0;
   int _matchingEventsInBoundsCount = 0;
 
-  // Contagens de categorias (sempre baseado em TODOS os eventos se não há filtro de data)
   Map<String, int> _eventsInBoundsCountByCategory = const {};
-  // Contagens de categorias sem nenhum filtro (para exibir lista de categorias)
-  Map<String, int> _allCategoriesCount = const {};
 
   // Mecanismo de Pinning para evitar que eventos sejam removidos da memória durante Push Navigation
   // Isso evita o cenário de race condition onde o evento é injetado, o bounds sync roda e limpa tudo.
@@ -294,80 +290,27 @@ class MapViewModel extends ChangeNotifier {
   void _recomputeCountsInBounds() {
     final boundsEvents = _mapDiscoveryService.nearbyEvents.value;
 
-    // Duas contagens separadas:
-    // 1. allCategories: todas as categorias no bounds (para mostrar na lista de filtros)
-    // 2. countsByCategory: contagens filtradas por data (para mostrar números)
-    final allCategories = <String, int>{};
     final countsByCategory = <String, int>{};
     int totalFiltered = 0;
     
-    debugPrint('📊 [MapVM] _recomputeCountsInBounds: ${boundsEvents.length} eventos, selectedDate=$_selectedDate');
-    
-    // Debug: verificar primeiro evento para ver scheduleDate
-    if (boundsEvents.isNotEmpty && _selectedDate != null) {
-      final first = boundsEvents.first;
-      debugPrint('📊 [MapVM] Primeiro evento: scheduleDate=${first.scheduleDate}, category=${first.category}');
-    }
-    
     for (final event in boundsEvents) {
       final category = event.category;
-      final scheduleDate = event.scheduleDate;
-      
-      // Sempre conta categorias disponíveis (independente do filtro de data)
-      if (category != null && category.trim().isNotEmpty) {
-        final normalized = category.trim();
-        allCategories[normalized] = (allCategories[normalized] ?? 0) + 1;
-      }
-      
-      // Verifica se passa no filtro de DATA
-      bool passesDateFilter = true;
-      if (_selectedDate != null) {
-        if (scheduleDate == null) {
-          passesDateFilter = false;
-        } else {
-          passesDateFilter = scheduleDate.year == _selectedDate!.year &&
-              scheduleDate.month == _selectedDate!.month &&
-              scheduleDate.day == _selectedDate!.day;
-        }
-      }
-      
-      // Se não passa no filtro de data, não conta nas métricas filtradas
-      if (!passesDateFilter) continue;
-      
-      // Conta por categoria (eventos que passam no filtro de data)
       if (category != null && category.trim().isNotEmpty) {
         final normalized = category.trim();
         countsByCategory[normalized] = (countsByCategory[normalized] ?? 0) + 1;
       }
       
-      // Conta eventos que passam no filtro de categoria também
-      final selectedCat = _selectedCategory;
-      final passesCategoryFilter = selectedCat == null || 
-          selectedCat.trim().isEmpty ||
-          (category != null && category.trim() == selectedCat.trim());
-      
-      if (passesCategoryFilter) {
+      // Contar eventos que passam nos filtros (categoria + data)
+      if (_eventLocationPassesFilters(event.category, event.scheduleDate)) {
         totalFiltered++;
       }
     }
 
-    debugPrint('📊 [MapVM] allCategories: $allCategories');
-    debugPrint('📊 [MapVM] countsByCategory (filtered): $countsByCategory');
-    debugPrint('📊 [MapVM] totalFiltered: $totalFiltered');
-
     _eventsInBoundsCount = boundsEvents.length;
-    _allCategoriesCount = Map<String, int>.unmodifiable(allCategories);
-    // Se não há filtro de data, usa allCategories. Se há filtro, usa countsByCategory.
-    _eventsInBoundsCountByCategory = _selectedDate == null 
-        ? Map<String, int>.unmodifiable(allCategories)
-        : Map<String, int>.unmodifiable(countsByCategory);
+    _eventsInBoundsCountByCategory = Map<String, int>.unmodifiable(countsByCategory);
+
+    // Matching agora considera AMBOS filtros (categoria E data)
     _matchingEventsInBoundsCount = totalFiltered;
-    
-    // Atualiza categorias disponíveis (baseado em TODOS os eventos, não filtrados por data)
-    final nextCategories = allCategories.keys.toList()..sort();
-    if (!listEquals(_availableCategoriesInBounds, nextCategories)) {
-      _availableCategoriesInBounds = nextCategories;
-    }
   }
 
   void _handleBoundsEventsChanged() {
@@ -376,14 +319,18 @@ class MapViewModel extends ChangeNotifier {
     final previousTotal = _eventsInBoundsCount;
     final previousMatching = _matchingEventsInBoundsCount;
     final previousCountsByCategory = _eventsInBoundsCountByCategory;
-    final previousCategories = _availableCategoriesInBounds;
 
     _recomputeCountsInBounds();
 
     if (_eventsInBoundsCount != previousTotal ||
         _matchingEventsInBoundsCount != previousMatching ||
-        !mapEquals(previousCountsByCategory, _eventsInBoundsCountByCategory) ||
-        !listEquals(previousCategories, _availableCategoriesInBounds)) {
+        !mapEquals(previousCountsByCategory, _eventsInBoundsCountByCategory)) {
+      changed = true;
+    }
+
+    final next = _eventsInBoundsCountByCategory.keys.toList()..sort();
+    if (!listEquals(_availableCategoriesInBounds, next)) {
+      _availableCategoriesInBounds = next;
       changed = true;
     }
 
@@ -602,3 +549,4 @@ class _CreatorNameCacheEntry {
     required this.fetchedAt,
   });
 }
+

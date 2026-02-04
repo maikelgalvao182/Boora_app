@@ -15,7 +15,7 @@ class ListCardShimmer extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: GlimpseColors.borderColorLight,
+          color: GlimpseColors.lightTextField,
           width: 1,
         ),
       ),

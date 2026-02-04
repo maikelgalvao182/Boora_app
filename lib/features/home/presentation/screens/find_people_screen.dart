@@ -13,13 +13,11 @@ import 'package:partiu/features/home/presentation/screens/advanced_filters_scree
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
 import 'package:partiu/features/home/presentation/widgets/user_card.dart';
 import 'package:partiu/features/home/presentation/widgets/user_card_shimmer.dart';
-import 'package:partiu/features/home/presentation/widgets/vip_locked_card.dart';
-import 'package:partiu/features/subscription/services/vip_access_service.dart';
 
 /// Tela para encontrar pessoas na região
 /// 
-/// ✅ Usa ValueListenableBuilder para rebuild granular
-/// ✅ Evita rebuilds desnecessários do StarBadge
+/// ✅ Acesso exclusivo VIP (bloqueio feito no PeopleButton)
+/// ✅ Lazy loading de 30 em 30 para listas longas
 class FindPeopleScreen extends StatefulWidget {
   const FindPeopleScreen({super.key});
 
@@ -30,39 +28,20 @@ class FindPeopleScreen extends StatefulWidget {
 class _FindPeopleScreenState extends State<FindPeopleScreen> {
   late final ScrollController _scrollController;
   final PeopleMapDiscoveryService _peopleDiscoveryService = PeopleMapDiscoveryService();
-  bool _vipDialogOpen = false;
-  double _lastScrollPosition = 0.0;
-  late bool _hasVip;
-
-  void _onVipAccessChanged(bool hasAccess) {
-    if (!mounted) return;
-
-    final next = hasAccess || VipAccessService.isVip;
-    if (_hasVip == next) return;
-
-    setState(() {
-      _hasVip = next;
-      if (_hasVip) {
-        _vipDialogOpen = false;
-      }
-    });
-  }
+  
+  /// 📄 Lazy loading: quantidade de itens exibidos atualmente
+  static const int _pageSize = 30;
+  int _displayedCount = _pageSize;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
-
-    _hasVip = VipAccessService.hasVipAccessRealtime || VipAccessService.isVip;
-    VipAccessService.addAccessListener(_onVipAccessChanged);
     
-    final isVip = _hasVip;
-    debugPrint('🎯 [FindPeopleScreen] Usando controller singleton');
-    debugPrint('👤 [FindPeopleScreen] Status VIP: ${isVip ? "✅ VIP ATIVO" : "❌ NÃO-VIP (bloqueio será aplicado)"}');
+    debugPrint('🎯 [FindPeopleScreen] Inicializando (acesso VIP garantido pelo PeopleButton)');
 
     // Se já existir um bounds conhecido do mapa, força refresh para popular a lista
-    // A lista agora vem diretamente do PeopleMapDiscoveryService (igual ListDrawer)
     debugPrint('🔄 [FindPeopleScreen] Verificando bounds atual...');
     debugPrint('   📐 currentBounds: ${_peopleDiscoveryService.currentBounds.value}');
     debugPrint('   📋 nearbyPeople.length: ${_peopleDiscoveryService.nearbyPeople.value.length}');
@@ -74,61 +53,33 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
 
   @override
   void dispose() {
-    // NÃO faz dispose do controller singleton
-    // Ele deve persistir entre navegações para manter o estado
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    VipAccessService.removeAccessListener(_onVipAccessChanged);
     super.dispose();
   }
 
   void _onScroll() {
-    final isVip = _hasVip;
-    
-    if (isVip) {
-      return;
-    }
-
-    final scrollPosition = _scrollController.position.pixels;
-    final viewportHeight = _scrollController.position.viewportDimension;
-    
-    // 🔒 Detecta apenas quando está scrollando PARA BAIXO
-    final isScrollingDown = scrollPosition > _lastScrollPosition;
-    _lastScrollPosition = scrollPosition;
-    
-    if (!isScrollingDown) {
-      return; // Ignorar scroll para cima
-    }
-    
-    // Cada card tem ~80px de altura + 12px de separador = ~92px
-    // Sem padding no topo
-    const cardHeight = 92.0;
-    const topPadding = 0.0;
-    
-    // Calcular posição do 13º card (índice 12)
-    // 12 cards anteriores * 92px = 1104px
-    const card13Position = (12 * cardHeight) + topPadding;
-    
-    // O card 13 se torna visível quando: scrollPosition + viewportHeight >= posição do card
-    final card13Visible = (scrollPosition + viewportHeight) >= card13Position;
-    
-    // Se o card 13 está visível scrollando para baixo e não está VIP
-    if (card13Visible && !_vipDialogOpen) {
-      debugPrint('🔒 [Scroll] BLOQUEIO ATIVADO! Card 13 (VIP Lock) está visível');
-      _vipDialogOpen = true;
-      _showVipDialog();
+    // � Lazy loading: carregar mais itens quando chegar perto do final
+    if (_scrollController.position.pixels >= 
+        _scrollController.position.maxScrollExtent - 300) {
+      _loadMoreItems();
     }
   }
-
-  Future<void> _showVipDialog() async {
-    debugPrint('🔒 [VipDialog] Abrindo dialog...');
-    HapticFeedback.mediumImpact();
-    await VipAccessService.checkOrShowDialog(context);
-    debugPrint('🔒 [VipDialog] Dialog fechado');
-    // Delay para evitar múltiplos triggers
-    await Future.delayed(const Duration(seconds: 1));
-    _vipDialogOpen = false;
-    debugPrint('🔒 [VipDialog] Flag resetada');
+  
+  /// 📄 Carrega mais itens na lista (lazy loading)
+  void _loadMoreItems() {
+    final totalAvailable = _peopleDiscoveryService.nearbyPeople.value.length;
+    if (_displayedCount >= totalAvailable) return; // Já carregou tudo
+    
+    setState(() {
+      _displayedCount = (_displayedCount + _pageSize).clamp(0, totalAvailable);
+      debugPrint('📄 [LazyLoad] Carregando mais: $_displayedCount / $totalAvailable');
+    });
+  }
+  
+  /// 📄 Reseta a contagem quando a lista muda (novo bounds/filtros)
+  void _resetDisplayCount() {
+    _displayedCount = _pageSize;
   }
 
   @override
@@ -288,20 +239,34 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                         ),
                       );
                     }
+                    
+                    // 📄 Lazy loading: calcular quantos itens mostrar
+                    final totalUsers = usersList.length;
+                    final displayCount = _displayedCount.clamp(0, totalUsers);
+                    final hasMoreToLoad = _displayedCount < totalUsers;
 
                     return PlatformPullToRefresh(
-                      onRefresh: () async => _peopleDiscoveryService.refreshCurrentBounds(),
+                      onRefresh: () async {
+                        _resetDisplayCount();
+                        await _peopleDiscoveryService.refreshCurrentBounds();
+                      },
                       controller: _scrollController,
                       padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-                      itemCount: _hasVip
-                          ? usersList.length
-                          : (usersList.length > 13 ? 14 : usersList.length),
+                      // +1 para o loading indicator se houver mais
+                      itemCount: hasMoreToLoad ? displayCount + 1 : displayCount,
                       itemBuilder: (context, index) {
-                        if (!_hasVip && index == 13) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: VipLockedCard(
-                              onTap: _showVipDialog,
+                        // Loading indicator no final
+                        if (hasMoreToLoad && index == displayCount) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
                             ),
                           );
                         }

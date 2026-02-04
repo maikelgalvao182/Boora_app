@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -8,6 +9,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/models/user.dart' as app_user;
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/services/people_map_discovery_service.dart';
+import 'package:partiu/features/subscription/services/vip_access_service.dart';
 import 'package:partiu/shared/widgets/animated_expandable.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:partiu/shared/widgets/typing_indicator.dart';
@@ -215,6 +217,19 @@ class _PeopleNearYouButton extends StatelessWidget {
   final TextStyle titleStyle;
   final TextStyle subtitleStyle;
 
+  /// Verifica se é VIP antes de abrir a tela
+  Future<void> _handleTap(BuildContext context) async {
+    // checkAccessOrShowDialog verifica Firestore E mostra dialog se necessário
+    final hasAccess = await VipAccessService.checkAccessOrShowDialog(
+      context,
+      source: 'PeopleButton',
+    );
+    
+    if (hasAccess) {
+      onPressed();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
@@ -249,7 +264,7 @@ class _PeopleNearYouButton extends StatelessWidget {
                       shadowColor: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(100),
                       child: InkWell(
-                        onTap: onPressed,
+                        onTap: () => _handleTap(context),
                         borderRadius: BorderRadius.circular(100),
                         child: Container(
                           height: 56,

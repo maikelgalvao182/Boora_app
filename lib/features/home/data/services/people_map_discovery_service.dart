@@ -56,9 +56,9 @@ class PeopleMapDiscoveryService {
   /// TTL do cache por tile. 3min reduz refetch em pan/zoom.
   static const Duration cacheTTL = Duration(seconds: 180);
   /// TTL do cache persistente (Hive) por tile.
-  static const Duration persistentCacheTTL = Duration(hours: 2);
+  static const Duration persistentCacheTTL = Duration(hours: 24);
   /// Refresh em background quando o cache persistente estiver "velho".
-  static const Duration persistentSoftRefreshAge = Duration(minutes: 45);
+  static const Duration persistentSoftRefreshAge = Duration(hours: 6);
   static const Duration debounceTime = Duration(milliseconds: 300);
   static const Duration softRefreshCooldown = Duration(minutes: 10);
   static const Duration softRefreshMinIdle = Duration(seconds: 4);

@@ -95,8 +95,30 @@ class ForceUpdateService {
         _keyIosUrl: 'https://apps.apple.com/app/boora/id123456789', // TODO: Atualizar com ID real
       });
 
-      // Buscar e ativar valores remotos
-      await _remoteConfig.fetchAndActivate();
+      // Buscar e ativar valores remotos com retry
+      try {
+        await _remoteConfig.fetchAndActivate();
+      } catch (fetchError) {
+        // Se fetch falhar (cancelado, rede, etc), usa valores em cache ou defaults
+        final errorStr = fetchError.toString().toLowerCase();
+        if (errorStr.contains('cancelled') || errorStr.contains('canceled')) {
+          AppLogger.warning(
+            'Remote Config fetch cancelado - usando valores em cache/default',
+            tag: _tag,
+          );
+        } else {
+          AppLogger.warning(
+            'Remote Config fetch falhou: $fetchError - usando valores em cache/default',
+            tag: _tag,
+          );
+        }
+        // Tenta ativar valores em cache se disponíveis
+        try {
+          await _remoteConfig.activate();
+        } catch (_) {
+          // Ignora - usa defaults
+        }
+      }
 
       _initialized = true;
       AppLogger.info(

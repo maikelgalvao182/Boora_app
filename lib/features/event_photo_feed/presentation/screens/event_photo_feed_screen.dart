@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:el_tooltip/el_tooltip.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -144,7 +143,6 @@ class _EventPhotoFeedScreenState extends ConsumerState<EventPhotoFeedScreen> {
       backgroundColor: Colors.white,
       floatingActionButton: AutoShowTooltip(
         message: i18n.translate('feed_post_photos_hint'),
-        position: ElTooltipPosition.topEnd,
         color: GlimpseColors.primary,
         duration: const Duration(seconds: 3),
         child: CreateButton(

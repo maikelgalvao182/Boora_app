@@ -1,6 +1,8 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
+import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/reviews/presentation/services/pending_reviews_checker_service.dart';
 
 /// Widget que protege telas que necessitam de usuário autenticado.
@@ -8,13 +10,11 @@ import 'package:partiu/features/reviews/presentation/services/pending_reviews_ch
 /// Após autenticação, verifica automaticamente se há pending reviews.
 class AuthProtectedWrapper extends StatefulWidget {
   final Widget child;
-  final String? loadingMessage;
   final bool checkPendingReviews;
   
   const AuthProtectedWrapper({
     super.key,
     required this.child,
-    this.loadingMessage,
     this.checkPendingReviews = true,
   });
 
@@ -36,22 +36,10 @@ class _AuthProtectedWrapperState extends State<AuthProtectedWrapper> {
           
           return Scaffold(
             backgroundColor: Colors.white,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  if (widget.loadingMessage != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.loadingMessage!,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ],
+            body: const Center(
+              child: CupertinoActivityIndicator(
+                radius: 16,
+                color: GlimpseColors.primaryColorLight,
               ),
             ),
           );

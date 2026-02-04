@@ -36,7 +36,7 @@ class SignupWizardScreen extends StatefulWidget {
 class _SignupWizardScreenState extends State<SignupWizardScreen> {
   static const String _tag = 'SignupWizardScreen';
   
-  late CadastroViewModel _cadastroViewModel;
+  CadastroViewModel? _cadastroViewModel;
   late SignupWizardViewModel _wizardViewModel;
   bool _hasInitialized = false;
   bool _isLoading = false;
@@ -91,10 +91,10 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       _cadastroViewModel = serviceLocator.get<CadastroViewModel>();
       
       // Adiciona listener para forçar rebuild quando os campos mudarem
-      _cadastroViewModel.addListener(_onCadastroChanged);
+      _cadastroViewModel!.addListener(_onCadastroChanged);
       
       // Reseta dados do cadastro anterior
-      _cadastroViewModel.resetData();
+      _cadastroViewModel!.resetData();
       
       // Reseta wizard para começar do zero
       _wizardViewModel.reset();
@@ -126,8 +126,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         }
         
         // Se tem nome, preenche IMEDIATAMENTE
-        if (prefillName.isNotEmpty && mounted) {
-          _cadastroViewModel.setFullName(prefillName);
+        if (prefillName.isNotEmpty && mounted && _cadastroViewModel != null) {
+          _cadastroViewModel!.setFullName(prefillName);
           AppLogger.info('OAuth name preloaded: $prefillName', tag: _tag);
         }
       } catch (e) {
@@ -145,7 +145,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
 
   @override
   void dispose() {
-    _cadastroViewModel.removeListener(_onCadastroChanged);
+    _cadastroViewModel?.removeListener(_onCadastroChanged);
     _wizardViewModel.removeListener(_onWizardChanged);
     _wizardViewModel.dispose();
     super.dispose();
@@ -189,6 +189,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
   /// Valida se o campo atual está preenchido
   bool _isCurrentFieldValid() {
     final model = _cadastroViewModel;
+    if (model == null) return false;
+    
     final step = _wizardViewModel.currentStep;
     
     switch (step) {
@@ -220,6 +222,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
     AppLogger.info('Finalizing signup', tag: _tag);
     
     final model = _cadastroViewModel;
+    if (model == null) return;
 
     // Aceita os termos automaticamente
     model.setAgreeTerms(true);
@@ -359,9 +362,18 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Guard: se _cadastroViewModel ainda não foi inicializado, mostra loading
+    if (_cadastroViewModel == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: _cadastroViewModel),
+        ChangeNotifierProvider.value(value: _cadastroViewModel!),
         ChangeNotifierProvider.value(value: _wizardViewModel),
       ],
       child: Consumer2<CadastroViewModel, SignupWizardViewModel>(
@@ -448,6 +460,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
 
   /// Constrói o widget de um step específico
   Widget _buildStepWidget(SignupWizardStep step) {
+    // Usa ! pois este método só é chamado após o guard no build()
+    final vm = _cadastroViewModel!;
+    
     switch (step) {
       case SignupWizardStep.profilePhoto:
         return Container(
@@ -455,8 +470,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: ProfilePhotoWidget(
-              imageFile: _cadastroViewModel.imageFile as File?,
-              onImageSelected: (file) => _cadastroViewModel.setImageFile(file),
+              imageFile: vm.imageFile as File?,
+              onImageSelected: (file) => vm.setImageFile(file),
             ),
           ),
         );
@@ -469,14 +484,14 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
             child: Column(
               children: [
                 PersonalInfoWidget(
-                  initialName: _cadastroViewModel.fullName,
-                  onNameChanged: _cadastroViewModel.setFullName,
+                  initialName: vm.fullName,
+                  onNameChanged: vm.setFullName,
                 ),
                 const SizedBox(height: 24),
                 BirthDateWidget(
-                  initialDate: _cadastroViewModel.birthDate,
+                  initialDate: vm.birthDate,
                   onDateChanged: (DateTime? date) {
-                    if (date != null) _cadastroViewModel.setBirthDate(date);
+                    if (date != null) vm.setBirthDate(date);
                   },
                 ),
               ],
@@ -490,9 +505,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: GenderSelectorWidget(
-              initialGender: _cadastroViewModel.selectedGender,
+              initialGender: vm.selectedGender,
               onGenderChanged: (value) {
-                _cadastroViewModel.setGender(value ?? '');
+                vm.setGender(value ?? '');
                 _onCadastroChanged();
               },
             ),
@@ -505,9 +520,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: LookingForSelectorWidget(
-              initialSelection: _cadastroViewModel.lookingFor,
+              initialSelection: vm.lookingFor,
               onSelectionChanged: (value) {
-                _cadastroViewModel.setLookingFor(value ?? '');
+                vm.setLookingFor(value ?? '');
                 _onCadastroChanged();
               },
             ),
@@ -520,8 +535,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: BioWidget(
-              initialBio: _cadastroViewModel.bio,
-              onBioChanged: _cadastroViewModel.setBio,
+              initialBio: vm.bio,
+              onBioChanged: vm.setBio,
             ),
           ),
         );
@@ -532,8 +547,8 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: SpecialtySelectorWidget(
-              initialSpecialty: _cadastroViewModel.interests,
-              onSpecialtyChanged: (value) => _cadastroViewModel.setInterests(value ?? ''),
+              initialSpecialty: vm.interests,
+              onSpecialtyChanged: (value) => vm.setInterests(value ?? ''),
             ),
           ),
         );
@@ -544,9 +559,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: InstagramWidget(
-              initialInstagram: _cadastroViewModel.instagram,
+              initialInstagram: vm.instagram,
               onInstagramChanged: (value) {
-                _cadastroViewModel.setInstagram(value);
+                vm.setInstagram(value);
                 _onCadastroChanged(); // Força update do botão
               },
             ),
@@ -559,14 +574,14 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: CountrySelectorWidget(
-              initialCountry: _cadastroViewModel.country,
+              initialCountry: vm.country,
               onCountryChanged: (countryData) {
                 if (countryData != null) {
-                  _cadastroViewModel.setCountry(countryData.name);
-                  _cadastroViewModel.setCountryFlag(countryData.flag);
+                  vm.setCountry(countryData.name);
+                  vm.setCountryFlag(countryData.flag);
                 } else {
-                  _cadastroViewModel.setCountry(null);
-                  _cadastroViewModel.setCountryFlag(null);
+                  vm.setCountry(null);
+                  vm.setCountryFlag(null);
                 }
                 _onCadastroChanged(); // Força update do botão
               },
@@ -580,9 +595,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: OriginSelectorWidget(
-              initialOrigin: _cadastroViewModel.originSource,
+              initialOrigin: vm.originSource,
               onOriginChanged: (value) {
-                _cadastroViewModel.originSource = value;
+                vm.originSource = value;
                 _onCadastroChanged(); // Força update do botão
               },
             ),

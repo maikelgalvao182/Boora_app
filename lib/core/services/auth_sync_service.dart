@@ -196,6 +196,19 @@ class AuthSyncService extends ChangeNotifier {
         _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         _log('🔥🔥🔥 _loadUserDataAndSaveToSession CHAMADO!');
         _log('🔥🔥🔥 Carregando dados do usuário do Firestore: $uid');
+        
+        // 🔑 FORÇA REFRESH DO TOKEN antes de acessar Firestore
+        // Isso evita "permission-denied" por token expirado
+        try {
+          final currentUser = fire_auth.FirebaseAuth.instance.currentUser;
+          if (currentUser != null) {
+            await currentUser.getIdToken(true); // force refresh
+            _log('🔑 Token Firebase refreshado com sucesso');
+          }
+        } catch (e) {
+          _log('⚠️ Erro ao refreshar token (continuando): $e');
+        }
+        
         _log('🔥 Criando snapshot listener para Users/$uid...');
         _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
@@ -257,23 +270,60 @@ class AuthSyncService extends ChangeNotifier {
                 await DeviceIdentityService.instance.checkAndRegisterOnLogin();
 
             if (checkResult.blocked) {
-              _log('⛔ Dispositivo bloqueado. Encerrando sessão.');
+              // 🔄 Tratamento especial para conta desativada:
+              // Isso acontece quando o usuário foi desativado, mas pode ser reativado
+              final reason = checkResult.reason ?? '';
+              final isUserInactive = reason.contains('user_status_inactive') || 
+                                     reason.contains('conta foi desativada') ||
+                                     reason.contains('desativada');
+              
+              if (isUserInactive) {
+                _log('⚠️ Dispositivo bloqueado por conta desativada - verificando status atual...');
+                
+                // Verifica se o usuário atual está ativo no Firestore
+                final userStatus = data['status']?.toString() ?? 'active';
+                if (userStatus == 'active') {
+                  // Usuário está ativo mas dispositivo ainda na blacklist
+                  // Isso pode acontecer se o status foi reativado mas blacklist não foi limpa
+                  _log('✅ Usuário está ativo - ignorando blacklist desatualizada');
+                  _deviceIdentityChecked = true;
+                  // Continua o fluxo normal sem bloquear
+                } else {
+                  _log('⛔ Usuário está inativo ($userStatus). Encerrando sessão.');
+                  ToastService.showError(
+                    message: 'Sua conta está desativada. Contate o suporte.',
+                  );
 
-              ToastService.showError(
-                message: checkResult.reason ??
-                    'Dispositivo bloqueado. Contate o suporte.',
-              );
+                  await _userSubscription?.cancel();
+                  _userSubscription = null;
+                  await SessionManager.instance.logout();
+                  await fire_auth.FirebaseAuth.instance.signOut();
 
-              await _userSubscription?.cancel();
-              _userSubscription = null;
-              await SessionManager.instance.logout();
-              await fire_auth.FirebaseAuth.instance.signOut();
+                  if (!_sessionReady) {
+                    _sessionReady = true;
+                    notifyListeners();
+                  }
+                  return;
+                }
+              } else {
+                _log('⛔ Dispositivo bloqueado (${checkResult.reason}). Encerrando sessão.');
 
-              if (!_sessionReady) {
-                _sessionReady = true;
-                notifyListeners();
+                ToastService.showError(
+                  message: checkResult.reason ??
+                      'Dispositivo bloqueado. Contate o suporte.',
+                );
+
+                await _userSubscription?.cancel();
+                _userSubscription = null;
+                await SessionManager.instance.logout();
+                await fire_auth.FirebaseAuth.instance.signOut();
+
+                if (!_sessionReady) {
+                  _sessionReady = true;
+                  notifyListeners();
+                }
+                return;
               }
-              return;
             }
 
             _deviceIdentityChecked = true;
@@ -383,10 +433,19 @@ class AuthSyncService extends ChangeNotifier {
         final isLoggedOut = fire_auth.FirebaseAuth.instance.currentUser == null;
 
         if (isPermissionDenied && isLoggedOut) {
+          // Usuário deslogado e permission denied = esperado, ignorar
           return;
         }
 
         _logError('Erro no stream Users/$uid', error, stack);
+        
+        // ✅ CORREÇÃO: Marcar sessão como pronta mesmo em caso de erro
+        // para evitar que o app fique travado no splash
+        if (!_sessionReady) {
+          _log('⚠️ Erro no snapshot - marcando sessão como pronta para evitar travamento');
+          _sessionReady = true;
+          notifyListeners();
+        }
       });
     } catch (e, stack) {
       _logError('Erro ao carregar dados do usuário', e, stack);

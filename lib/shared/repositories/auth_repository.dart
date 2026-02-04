@@ -112,7 +112,26 @@ class AuthRepository implements IAuthRepository {
     }
 
     try {
-      final user = _firebaseAuth.currentUser;
+      // Aguarda um momento para garantir que o Firebase Auth atualizou o estado
+      // Isso é necessário porque o callback checkUserAccount pode ser chamado
+      // antes do FirebaseAuth.instance.currentUser ser atualizado
+      User? user = _firebaseAuth.currentUser;
+      
+      // Se currentUser ainda é null, aguarda um pouco e tenta novamente
+      if (user == null) {
+        AppLogger.info('Waiting for Firebase Auth state to update...', tag: 'AUTH_REPOSITORY');
+        await Future.delayed(const Duration(milliseconds: 500));
+        user = _firebaseAuth.currentUser;
+      }
+      
+      // Ainda null? Tenta aguardar o authStateChanges
+      if (user == null) {
+        AppLogger.info('Waiting for authStateChanges...', tag: 'AUTH_REPOSITORY');
+        user = await _firebaseAuth.authStateChanges().first.timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
+      }
       
       if (user == null) {
         AppLogger.warning('No authenticated user found', tag: 'AUTH_REPOSITORY');

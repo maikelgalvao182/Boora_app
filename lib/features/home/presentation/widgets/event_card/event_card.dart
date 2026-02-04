@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:el_tooltip/el_tooltip.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -226,7 +225,6 @@ class _EventCardState extends State<EventCard> {
                       top: 0,
                       right: 0,
                       child: ReportHintTooltip(
-                        position: ElTooltipPosition.topEnd,
                         duration: const Duration(seconds: 3),
                         child: ReportEventButton(eventId: _controller.eventId),
                       ),
