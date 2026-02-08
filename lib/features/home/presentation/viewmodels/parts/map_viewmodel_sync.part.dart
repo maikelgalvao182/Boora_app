@@ -278,21 +278,40 @@ extension MapViewModelSync on MapViewModel {
     }
 
     // Converte EventLocation -> EventModel
-    // ✅ Agora extrai TODOS os campos necessários do eventData
+    // ✅ Suporta tanto `events` (nested) quanto `events_card_preview` (flat)
     final mapped = boundsEvents
         .map((e) {
           final data = e.eventData;
           final location = data['location'] as Map<String, dynamic>?;
+          
+          // events_card_preview: campos flat (privacyType, scheduleDate, minAge)
+          // events: campos nested (participants.privacyType, schedule.date)
           final participantsData = data['participants'] as Map<String, dynamic>?;
           final scheduleData = data['schedule'] as Map<String, dynamic>?;
           
-          // Parse schedule date
+          // Parse schedule date - suporta flat (events_card_preview) e nested (events)
           DateTime? scheduleDate;
-          final dateField = scheduleData?['date'];
-          if (dateField != null) {
+          // 1. Flat: scheduleDate no top-level (events_card_preview)
+          final flatDate = data['scheduleDate'];
+          if (flatDate != null) {
             try {
-              scheduleDate = dateField.toDate();
+              if (flatDate is DateTime) {
+                scheduleDate = flatDate;
+              } else if (flatDate is String) {
+                scheduleDate = DateTime.tryParse(flatDate);
+              } else {
+                scheduleDate = flatDate.toDate();
+              }
             } catch (_) {}
+          }
+          // 2. Nested: schedule.date (coleção events)
+          if (scheduleDate == null) {
+            final dateField = scheduleData?['date'];
+            if (dateField != null) {
+              try {
+                scheduleDate = dateField.toDate();
+              } catch (_) {}
+            }
           }
           
           // Parse photoReferences
@@ -327,6 +346,16 @@ extension MapViewModelSync on MapViewModel {
                                    data['creatorPhotoUrl'] as String? ??
                                    data['authorPhotoUrl'] as String?;
           
+          // Ler campos flat (events_card_preview) OU nested (events)
+          final privacyType = data['privacyType'] as String? ??
+              participantsData?['privacyType'] as String? ?? 'open';
+          final minAge = data['minAge'] as int? ?? participantsData?['minAge'] as int?;
+          final maxAge = data['maxAge'] as int? ?? participantsData?['maxAge'] as int?;
+          final locationName = data['locationName'] as String? ??
+              location?['locationName'] as String?;
+          final formattedAddress = data['formattedAddress'] as String? ??
+              location?['formattedAddress'] as String?;
+          
           return EventModel(
             id: e.eventId,
             emoji: e.emoji,
@@ -335,20 +364,26 @@ extension MapViewModelSync on MapViewModel {
             lng: e.longitude,
             title: data['activityText'] as String? ?? e.title,
             category: e.category?.trim(),
-            // ✅ Campos essenciais que estavam faltando:
-            locationName: location?['locationName'] as String?,
-            formattedAddress: location?['formattedAddress'] as String?,
+            locationName: locationName,
+            formattedAddress: formattedAddress,
             placeId: location?['placeId'] as String?,
             photoReferences: photoReferences,
             scheduleDate: scheduleDate,
-            privacyType: participantsData?['privacyType'] as String? ?? 'open',
-            minAge: participantsData?['minAge'] as int?,
-            maxAge: participantsData?['maxAge'] as int?,
+            privacyType: privacyType,
+            minAge: minAge,
+            maxAge: maxAge,
             // ✅ Campos de distância e disponibilidade
             distanceKm: distanceKm,
             isAvailable: isAvailable,
             creatorFullName: creatorFullName,
             creatorAvatarUrl: creatorAvatarUrl,
+            // ✅ Dados desnormalizados do criador (para filtros)
+            creatorGender: data['creatorGender'] as String?,
+            creatorAge: data['creatorAge'] as int?,
+            creatorVerified: data['creatorVerified'] as bool? ?? false,
+            creatorInterests: (data['creatorInterests'] as List<dynamic>?)
+                ?.whereType<String>().toList() ?? const [],
+            creatorSexualOrientation: data['creatorSexualOrientation'] as String?,
           );
         })
         .toList(); // ✅ Lista MUTÁVEL para permitir enriquecimento

@@ -5,6 +5,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
 import 'package:partiu/shared/stores/user_store.dart';
+import 'package:partiu/shared/widgets/AnimatedSlideIn.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 
 /// Overlay que promove evento(s) de usuários VIP para TODOS verem.
@@ -56,10 +57,7 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
   Widget build(BuildContext context) {
     final bounds = widget.visibleBounds;
     if (bounds == null) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: const SizedBox.shrink(),
-      );
+      return const SizedBox.shrink();
     }
 
     // Primeiro, filtra eventos dentro do viewport
@@ -68,10 +66,7 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
         .toList(growable: false);
 
     if (inViewport.isEmpty) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: const SizedBox.shrink(),
-      );
+      return const SizedBox.shrink();
     }
 
     final theme = Theme.of(context);
@@ -82,19 +77,15 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
       getVipNotifier: _getVipNotifier,
       builder: (context, vipEvents) {
         if (vipEvents.isEmpty) {
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: const SizedBox.shrink(),
-          );
+          return const SizedBox.shrink();
         }
 
         // Gera uma key baseada nos IDs dos eventos VIP para animar mudanças
         final eventsKey = vipEvents.map((e) => e.id).join('_');
 
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
+        return AnimatedSlideIn(
+          key: ValueKey('vip_overlay_$eventsKey'),
           child: SizedBox(
-            key: ValueKey('vip_overlay_$eventsKey'),
             height: 58, // 48 (card) + 10 (espaço para sombra)
             child: ListView.builder(
               scrollDirection: Axis.horizontal,

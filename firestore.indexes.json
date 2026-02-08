@@ -683,6 +683,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "event_tombstones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "regionKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deletedAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

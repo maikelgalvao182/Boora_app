@@ -40,6 +40,13 @@ class ProfileStaticCacheService {
     await _cache.put(_key(userId), _sanitize(data), ttl: ttl);
   }
 
+  /// Invalida cache de um usuário específico
+  Future<void> invalidate(String userId) async {
+    if (userId.trim().isEmpty) return;
+    if (!_initialized) return;
+    await _cache.delete(_key(userId));
+  }
+
   String _key(String userId) => 'profile_static_$userId';
 
   Map<String, dynamic> _sanitize(Map<String, dynamic> data) {

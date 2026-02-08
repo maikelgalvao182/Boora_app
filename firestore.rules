@@ -539,7 +539,24 @@ match /events_card_preview/{eventId} {
 }
 
     // ======================================
-    // 🗺️ Eventos no Mapa
+    // � Tombstones de Deleção de Eventos
+    // ======================================
+/// 💀 Coleção de tombstones para propagação eficiente de deleções.
+/// Path: event_tombstones/{eventId}
+///   - eventId: string
+///   - regionKey: string (geohash prefix 4 chars, ~40km)
+///   - reason: string ("deleted" | "expired" | "canceled" | "inactive")
+///   - deletedAt: timestamp
+///
+/// Leitura: qualquer usuário autenticado (polling delta por região).
+/// Escrita: somente Cloud Functions (Admin SDK).
+match /event_tombstones/{tombstoneId} {
+  allow read: if isSignedIn();
+  allow write: if false;
+}
+
+    // ======================================
+    // �🗺️ Eventos no Mapa
     // ======================================
     // 🎫 Aplicações para Eventos
     // ======================================

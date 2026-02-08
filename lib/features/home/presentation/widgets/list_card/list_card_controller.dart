@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
@@ -138,5 +142,72 @@ class ListCardController extends ChangeNotifier {
     _error = null;
     notifyListeners();
     await load();
+  }
+
+  /// 🎯 Aguarda até que os dados E avatares estejam carregados
+  /// Chamar ANTES de exibir o card em listas para evitar "pop" dos avatares
+  Future<void> ensureDataAndAvatarsLoaded() async {
+    await load();
+    await preloadAvatarsAsync();
+  }
+
+  /// Aguarda o download real dos avatares dos participantes
+  /// 
+  /// Use ANTES de exibir o ListCard para garantir que os avatares
+  /// apareçam imediatamente, sem "popping".
+  Future<void> preloadAvatarsAsync() async {
+    final futures = <Future<void>>[];
+
+    // Avatar do criador
+    if (_creatorPhotoUrl != null && _creatorPhotoUrl!.isNotEmpty) {
+      futures.add(_downloadImage(_creatorPhotoUrl!));
+    }
+
+    // Avatares dos participantes
+    for (final p in _recentParticipants) {
+      final photoUrl = p['photoUrl'] as String?;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        futures.add(_downloadImage(photoUrl));
+      }
+    }
+
+    if (futures.isEmpty) return;
+
+    // Aguarda todos os avatares (com timeout de 3s para não travar UI)
+    await Future.wait(futures).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => [], // Timeout silencioso
+    );
+  }
+
+  /// Força o download de uma imagem para o cache
+  Future<void> _downloadImage(String url) async {
+    final imageProvider = CachedNetworkImageProvider(
+      url,
+      cacheManager: AppCacheService.instance.avatarCacheManager,
+      cacheKey: AppCacheService.instance.avatarCacheKey(url),
+    );
+    final stream = imageProvider.resolve(ImageConfiguration.empty);
+    final completer = Completer<void>();
+
+    late ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onError: (error, __) {
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+
+    stream.addListener(listener);
+
+    try {
+      await completer.future.timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Timeout silencioso
+    } finally {
+      stream.removeListener(listener);
+    }
   }
 }

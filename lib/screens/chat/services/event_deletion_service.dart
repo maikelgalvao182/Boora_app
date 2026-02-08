@@ -17,8 +17,11 @@ class EventDeletionService {
     
     try {
       final callable = FirebaseFunctions.instance.httpsCallable('deleteEvent');
+      debugPrint('📡 Chamando CF deleteEvent...');
       final result = await callable.call({"eventId": eventId});
       final data = result.data;
+      debugPrint('📡 CF deleteEvent response type: ${data.runtimeType}');
+      debugPrint('📡 CF deleteEvent response data: $data');
 
       if (data is Map && data["success"] == true) {
         debugPrint('✅ Deleção iniciada com sucesso');

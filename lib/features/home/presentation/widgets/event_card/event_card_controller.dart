@@ -5,11 +5,13 @@ import 'package:flutter/painting.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/services/cache/app_cache_service.dart';
 import 'package:partiu/features/home/data/models/event_application_model.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
+import 'package:partiu/features/home/presentation/services/event_card_action_warmup_service.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/shared/utils/date_formatter.dart';
@@ -24,6 +26,7 @@ class EventCardController extends ChangeNotifier {
   final MapViewModel? _mapViewModel; // Injected dependency
   final String eventId;
   final EventModel? _preloadedEvent;
+  final EventCardActionWarmupState? _warmupState;
   final bool _enableRealtime;
   final bool _enableOpenFetches;
   final bool _enableReactiveCreatorName;
@@ -49,6 +52,7 @@ class EventCardController extends ChangeNotifier {
   bool _loaded = false;
   String? _error;
   bool _disposed = false;
+  Future<void>? _loadFuture;
 
   // Application state
   EventApplicationModel? _userApplication;
@@ -66,6 +70,7 @@ class EventCardController extends ChangeNotifier {
   // 🎯 Controle de inicialização dos participantes (evita "pop" ao abrir card)
   bool _participantsInitialized = false;
   Future<void>? _participantsHydrationFuture;
+  Completer<void>? _participantsReadyCompleter;
   
   // Age restriction
   int? _minAge;
@@ -90,6 +95,7 @@ class EventCardController extends ChangeNotifier {
     EventRepository? eventRepo,
     UserRepository? userRepo,
     MapViewModel? mapViewModel,
+    EventCardActionWarmupState? warmupState,
     bool enableRealtime = true,
     bool enableOpenFetches = true,
     bool enableReactiveCreatorName = true,
@@ -99,6 +105,7 @@ class EventCardController extends ChangeNotifier {
         _eventRepo = eventRepo ?? EventRepository(),
         _userRepo = userRepo ?? UserRepository(),
         _mapViewModel = mapViewModel,
+      _warmupState = warmupState,
         _enableRealtime = enableRealtime,
         _enableOpenFetches = enableOpenFetches,
         _enableReactiveCreatorName = enableReactiveCreatorName {
@@ -118,6 +125,8 @@ class EventCardController extends ChangeNotifier {
   void _initializeFromPreload() {
     debugPrint('🎫 [EventCard] _initializeFromPreload - eventId: $eventId');
     debugPrint('🎫 [EventCard] _preloadedEvent: ${_preloadedEvent != null ? "EXISTS" : "NULL"}');
+
+    _applyWarmupState();
     
     if (_preloadedEvent != null) {
       _emoji = _preloadedEvent!.emoji;
@@ -128,7 +137,21 @@ class EventCardController extends ChangeNotifier {
       _privacyType = _preloadedEvent!.privacyType;
       _creatorId = _preloadedEvent!.createdBy;
 
-      _userApplication = _preloadedEvent!.userApplication;
+      // ✅ Preload avatar do criador no UserStore
+      // events_card_preview não tem creatorPhotoUrl,
+      // então resolvemos via Users/{creatorId} (one-time fetch)
+      if (_creatorId != null && _creatorId!.isNotEmpty) {
+        final creatorAvatar = _preloadedEvent!.creatorAvatarUrl;
+        if (creatorAvatar != null && creatorAvatar.isNotEmpty) {
+          UserStore.instance.preloadAvatar(_creatorId!, creatorAvatar);
+        } else {
+          UserStore.instance.resolveUser(_creatorId!);
+        }
+      }
+
+      if (_preloadedEvent!.userApplication != null) {
+        _userApplication = _preloadedEvent!.userApplication;
+      }
       
       // ✅ INICIALIZAR isAgeRestricted E minAge/maxAge a partir do evento pré-carregado
       _isAgeRestricted = _preloadedEvent!.isAgeRestricted;
@@ -157,7 +180,7 @@ class EventCardController extends ChangeNotifier {
         _approvedParticipants = _preloadedEvent!.participants!;
         // Preload avatares para evitar "popping" na UI
         _preloadParticipantAvatars();
-        _participantsInitialized = true;
+        _markParticipantsReady();
       } else {
         // ✅ Se não há participantes no preload, tentar cache (memória + Hive)
         // Iniciamos a hidratação mas guardamos o Future para poder awaitar depois
@@ -185,6 +208,36 @@ class EventCardController extends ChangeNotifier {
       }
     } else {
       debugPrint('🎫 [EventCard] ❌ _preloadedEvent é NULL - sem dados para carregar');
+    }
+  }
+
+  void _applyWarmupState() {
+    final warmupState = _warmupState;
+    if (warmupState == null) return;
+
+    if (_userApplication == null && warmupState.userApplication != null) {
+      _userApplication = warmupState.userApplication;
+    }
+
+    if (warmupState.currentUserGender != null) {
+      _currentUserGender = warmupState.currentUserGender;
+    }
+
+    if (warmupState.isGenderRestricted != null) {
+      _isGenderRestricted = warmupState.isGenderRestricted!;
+    }
+
+    if (warmupState.userAge != null) {
+      _userAge = warmupState.userAge;
+    }
+
+    if (warmupState.isAgeRestricted != null) {
+      _isAgeRestricted = warmupState.isAgeRestricted!;
+    }
+
+    if (warmupState.isUserVip != null) {
+      _isUserVip = warmupState.isUserVip!;
+      _vipStatusChecked = true;
     }
   }
 
@@ -219,6 +272,7 @@ class EventCardController extends ChangeNotifier {
       }
       
       _participantsInitialized = true;
+      _markParticipantsReady();
       
       if (participantsLoaded) {
         notifyListeners();
@@ -226,6 +280,7 @@ class EventCardController extends ChangeNotifier {
     } catch (e) {
       debugPrint('⚠️ [EventCard] Erro ao hidratar participantes do cache: $e');
       _participantsInitialized = true; // Marcar como inicializado mesmo com erro
+      _markParticipantsReady();
     }
   }
   
@@ -423,13 +478,26 @@ class EventCardController extends ChangeNotifier {
   int get participantsCount => _approvedParticipants.length;
   bool get participantsReady => _participantsInitialized;
   
-  /// 🎯 Aguarda até que os participantes estejam carregados
+  /// 🎯 Aguarda até que os participantes estejam carregados E avatares baixados
   /// Chamar ANTES de abrir o EventCard para evitar "pop" dos avatares
   Future<void> ensureParticipantsLoaded() async {
-    if (_participantsInitialized) return;
+    if (_participantsInitialized) {
+      // Já carregou dados, mas precisa garantir que imagens foram baixadas
+      await preloadAvatarsAsync();
+      return;
+    }
+    _participantsReadyCompleter ??= Completer<void>();
     if (_participantsHydrationFuture != null) {
       await _participantsHydrationFuture;
     }
+    if (!_participantsInitialized && _participantsReadyCompleter != null) {
+      await _participantsReadyCompleter!.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+    }
+    // Forçar download real das imagens após os dados estarem prontos
+    await preloadAvatarsAsync();
   }
   
   Stream<int> get participantsCountStream => (_participantsSnapshotStream ??
@@ -498,6 +566,11 @@ class EventCardController extends ChangeNotifier {
     debugPrint('   - _isUserVip: $_isUserVip');
     debugPrint('   - _isAgeRestricted: $_isAgeRestricted');
     debugPrint('   - _isGenderRestricted: $_isGenderRestricted');
+
+    if (!_loaded || _privacyType == null) {
+      debugPrint('⏳ [EventCard] Estado ainda carregando - botão desabilitado');
+      return false;
+    }
     
     if (isCreator) return true;
     if (isApplying || isLeaving || isDeleting) return false;
@@ -710,6 +783,7 @@ class EventCardController extends ChangeNotifier {
         // Se já temos participantes pré-carregados E a contagem bate, usar eles
         if (_approvedParticipants.isNotEmpty && (snapshotCount - localCount).abs() <= 1) {
           debugPrint('📱 [EventCard] Usando participantes pré-carregados (${_approvedParticipants.length})');
+          _markParticipantsReady();
           return;
         }
         
@@ -730,12 +804,18 @@ class EventCardController extends ChangeNotifier {
             }).toList();
             
             _preloadParticipantAvatars();
+            _markParticipantsReady();
             debugPrint('✅ [EventCard] Participantes carregados: ${_approvedParticipants.length}');
             unawaited(_applicationRepo.cacheApprovedParticipants(eventId, _approvedParticipants));
             notifyListeners();
           } catch (e) {
             debugPrint('⚠️ [EventCard] Erro ao buscar participantes: $e');
           }
+          return;
+        }
+
+        if (snapshotCount == 0) {
+          _markParticipantsReady();
           return;
         }
       }
@@ -869,6 +949,19 @@ class EventCardController extends ChangeNotifier {
     }
   }
 
+  Future<void> ensureEventDataLoaded() async {
+    if (_loaded) return;
+    _loadFuture ??= load();
+
+    try {
+      await _loadFuture;
+    } finally {
+      if (_loaded || _error != null) {
+        _loadFuture = null;
+      }
+    }
+  }
+
   Future<void> _loadEventData() async {
     final eventData = await _eventRepo.getEventBasicInfo(eventId);
     if (eventData == null) throw Exception('Evento não encontrado');
@@ -904,6 +997,15 @@ class EventCardController extends ChangeNotifier {
     
     // Preload avatares para evitar "popping" na UI
     _preloadParticipantAvatars();
+    _markParticipantsReady();
+  }
+
+  void _markParticipantsReady() {
+    _participantsInitialized = true;
+    _participantsReadyCompleter ??= Completer<void>();
+    if (!_participantsReadyCompleter!.isCompleted) {
+      _participantsReadyCompleter!.complete();
+    }
   }
 
   /// Preload dos avatares dos participantes para exibição instantânea
@@ -942,7 +1044,11 @@ class EventCardController extends ChangeNotifier {
 
   /// Força o download de uma imagem para o cache
   Future<void> _downloadImage(String url) async {
-    final imageProvider = CachedNetworkImageProvider(url);
+    final imageProvider = CachedNetworkImageProvider(
+      url,
+      cacheManager: AppCacheService.instance.avatarCacheManager,
+      cacheKey: AppCacheService.instance.avatarCacheKey(url),
+    );
     final stream = imageProvider.resolve(ImageConfiguration.empty);
     final completer = Completer<void>();
     
@@ -1060,8 +1166,10 @@ class EventCardController extends ChangeNotifier {
       rethrow;
     } finally {
       _isApplying = false;
-      debugPrint('🔄 [EventCard] _isApplying = false, notificando listeners');
-      notifyListeners();
+      if (!_disposed) {
+        debugPrint('🔄 [EventCard] _isApplying = false, notificando listeners');
+        notifyListeners();
+      }
     }
   }
   
@@ -1293,6 +1401,10 @@ class EventCardController extends ChangeNotifier {
       // ✅ Remover usuário da lista de participantes local imediatamente
       // Isso garante que a UI reflita a mudança sem depender de streams/realtime
       _removeCurrentUserFromParticipants(uid);
+
+      // 🗑️ Invalidar AMBOS os caches (memória + Hive) para forçar fetch fresco
+      // Evita que o Hive sirva lista antiga quando o memory cache expirar
+      await _applicationRepo.invalidateParticipantsCache(eventId);
     } catch (e, stackTrace) {
       debugPrint('❌ Erro ao remover aplicação: $e');
       debugPrint('📚 StackTrace: $stackTrace');

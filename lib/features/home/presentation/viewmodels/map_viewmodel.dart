@@ -6,6 +6,7 @@ import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/utils/geo_distance_helper.dart';
 import 'package:partiu/core/utils/geohash_helper.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
+import 'package:partiu/features/home/data/models/event_location.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
 import 'package:partiu/features/home/data/services/map_discovery_service.dart';
 import 'package:partiu/features/home/data/repositories/event_map_repository.dart';
@@ -13,6 +14,7 @@ import 'package:partiu/features/home/data/repositories/event_application_reposit
 import 'package:partiu/features/home/data/services/user_location_service.dart';
 import 'package:partiu/features/home/presentation/services/google_event_marker_service.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
+import 'package:partiu/services/events/event_creator_filters_controller.dart';
 import 'package:partiu/shared/repositories/user_repository.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/utils/app_logger.dart';
@@ -262,18 +264,19 @@ class MapViewModel extends ChangeNotifier {
     return true;
   }
   
-  /// Verifica se um EventLocation passa nos filtros ativos (categoria + data)
+  /// Verifica se um EventLocation passa nos filtros ativos (categoria + data + criador)
   /// Usado no _recomputeCountsInBounds onde temos EventLocation, não EventModel
-  bool _eventLocationPassesFilters(String? category, DateTime? scheduleDate) {
+  bool _eventLocationPassesFilters(EventLocation event) {
     // Filtro de categoria
     final selectedCat = _selectedCategory;
     if (selectedCat != null && selectedCat.trim().isNotEmpty) {
-      final eventCategory = category?.trim();
+      final eventCategory = event.category?.trim();
       if (eventCategory != selectedCat) return false;
     }
     
     // Filtro de data
     if (_selectedDate != null) {
+      final scheduleDate = event.scheduleDate;
       if (scheduleDate == null) return false;
       
       // Comparar apenas dia/mês/ano
@@ -284,29 +287,89 @@ class MapViewModel extends ChangeNotifier {
       }
     }
     
+    // Filtros de criador
+    final creatorFilters = EventCreatorFiltersController();
+    if (creatorFilters.filtersEnabled && creatorFilters.hasActiveFilters) {
+      if (!_eventLocationPassesCreatorFilters(event, creatorFilters.currentFilters)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /// Verifica se um evento passa nos filtros de criador (reutilizável)
+  bool _eventLocationPassesCreatorFilters(EventLocation event, EventCreatorFilterOptions filters) {
+    // Gênero - case-insensitive; exclui se campo vazio/null
+    if (filters.creatorGender != null) {
+      final eventGender = (event.creatorGender?.trim().isNotEmpty == true) ? event.creatorGender!.trim().toLowerCase() : null;
+      if (eventGender == null) return false;
+      if (eventGender != filters.creatorGender!.trim().toLowerCase()) return false;
+    }
+    
+    // Orientação sexual - case-insensitive; exclui se campo vazio/null
+    if (filters.creatorSexualOrientation != null) {
+      final eventOrientation = (event.creatorSexualOrientation?.trim().isNotEmpty == true) ? event.creatorSexualOrientation!.trim().toLowerCase() : null;
+      if (eventOrientation == null) return false;
+      if (eventOrientation != filters.creatorSexualOrientation!.trim().toLowerCase()) return false;
+    }
+    
+    // Idade - exclui se sem idade definida
+    if (filters.creatorMinAge != null || filters.creatorMaxAge != null) {
+      final age = event.creatorAge;
+      if (age == null) return false;
+      if (filters.creatorMinAge != null && age < filters.creatorMinAge!) return false;
+      if (filters.creatorMaxAge != null && age > filters.creatorMaxAge!) return false;
+    }
+    
+    // Verificado
+    if (filters.creatorVerified == true) {
+      if (!event.creatorVerified) return false;
+    }
+    
+    // Interesses - exclui se sem interesses definidos
+    if (filters.creatorInterests != null && filters.creatorInterests!.isNotEmpty) {
+      final eventInterests = event.creatorInterests;
+      if (eventInterests.isEmpty) return false;
+      if (!filters.creatorInterests!.any((i) => eventInterests.contains(i))) return false;
+    }
+    
     return true;
   }
 
   void _recomputeCountsInBounds() {
     final boundsEvents = _mapDiscoveryService.nearbyEvents.value;
 
+    // Verificar se há filtros de criador ativos
+    final creatorFilters = EventCreatorFiltersController();
+    final hasCreatorFilters = creatorFilters.filtersEnabled && creatorFilters.hasActiveFilters;
+    final filters = hasCreatorFilters ? creatorFilters.currentFilters : null;
+
     final countsByCategory = <String, int>{};
     int totalFiltered = 0;
+    int totalAfterCreatorFilter = 0;
     
     for (final event in boundsEvents) {
+      // Se há filtros de criador, aplicar ANTES de contar por categoria
+      if (filters != null) {
+        if (!_eventLocationPassesCreatorFilters(event, filters)) continue;
+      }
+
+      totalAfterCreatorFilter++;
+
       final category = event.category;
       if (category != null && category.trim().isNotEmpty) {
         final normalized = category.trim();
         countsByCategory[normalized] = (countsByCategory[normalized] ?? 0) + 1;
       }
       
-      // Contar eventos que passam nos filtros (categoria + data)
-      if (_eventLocationPassesFilters(event.category, event.scheduleDate)) {
+      // Contar eventos que passam nos filtros (categoria + data + criador)
+      if (_eventLocationPassesFilters(event)) {
         totalFiltered++;
       }
     }
 
-    _eventsInBoundsCount = boundsEvents.length;
+    _eventsInBoundsCount = totalAfterCreatorFilter;
     _eventsInBoundsCountByCategory = Map<String, int>.unmodifiable(countsByCategory);
 
     // Matching agora considera AMBOS filtros (categoria E data)
@@ -359,6 +422,9 @@ class MapViewModel extends ChangeNotifier {
   /// Subscription para mudanças de filtros/reload
   StreamSubscription<void>? _reloadSubscription;
 
+  /// Subscription para deleções remotas detectadas pelo snapshot listener
+  StreamSubscription<String>? _remoteDeletionSub;
+
   /// Subscription para localização do usuário (Reverse Geocoding em tempo real)
   StreamSubscription<Position>? _positionSubscription;
 
@@ -381,6 +447,28 @@ class MapViewModel extends ChangeNotifier {
     _instance = this; // Registra instância global
     _initializeRadiusListener();
     _startBoundsCategoriesListener();
+    _startRemoteDeletionListener();
+  }
+
+  /// Inscreve-se no stream de deleções remotas do MapDiscoveryService.
+  ///
+  /// Quando o polling de tombstones detecta que um evento foi deletado
+  /// ou desativado, este callback chama [removeEvent] para atualizar
+  /// a UI instantaneamente. Também inicia o polling periódico.
+  void _startRemoteDeletionListener() {
+    _remoteDeletionSub?.cancel();
+    _remoteDeletionSub = _mapDiscoveryService.onEventDeletionDetected.listen(
+      (eventId) {
+        debugPrint('💀 [MapVM] Deleção remota via tombstone: $eventId');
+        removeEvent(eventId);
+      },
+      onError: (error) {
+        debugPrint('⚠️ [MapVM] Erro no listener de deleções remotas: $error');
+      },
+    );
+    // Inicia polling periódico (~30s) para detectar deleções
+    // mesmo quando o usuário não movimenta o mapa.
+    _mapDiscoveryService.startPeriodicTombstonePolling();
   }
 
   /// Injeta um evento manualmente na lista (usado após criação)
@@ -452,9 +540,21 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Recarrega eventos aplicando os filtros atuais
+  /// 
+  /// Chamado quando filtros de criador são alterados.
+  void reloadEvents() {
+    debugPrint('🔄 [MapViewModel] reloadEvents: Recomputando filtros');
+    _recomputeCountsInBounds();
+    _handleBoundsEventsChanged();
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     cancelAllStreams(); // Cancela streams primeiro
+    _remoteDeletionSub?.cancel();
+    _remoteDeletionSub = null;
     _googleMarkerService.clearCache();
     _instance = null; // Limpa referência global
     super.dispose();

@@ -150,6 +150,36 @@ class EventLocation {
     return null;
   }
 
+  // ============================================================
+  // Campos desnormalizados do criador (vindos de events_card_preview)
+  // Permitem filtragem eficiente sem N+1 queries
+  // ============================================================
+
+  /// Gênero do criador do evento
+  String? get creatorGender => eventData['creatorGender'] as String?;
+
+  /// Ano de nascimento do criador (usar para calcular idade)
+  int? get creatorBirthYear => eventData['creatorBirthYear'] as int?;
+
+  /// Idade do criador (já calculada)
+  int? get creatorAge => eventData['creatorAge'] as int?;
+
+  /// Se o criador é verificado
+  bool get creatorVerified => eventData['creatorVerified'] as bool? ?? false;
+
+  /// Interesses do criador
+  List<String> get creatorInterests {
+    final raw = eventData['creatorInterests'];
+    if (raw is List) {
+      return raw.whereType<String>().toList();
+    }
+    return const [];
+  }
+
+  /// Orientação sexual do criador
+  String? get creatorSexualOrientation =>
+      eventData['creatorSexualOrientation'] as String?;
+
   @override
   String toString() {
     return 'EventLocation(id: $eventId, title: $title, lat: $latitude, lng: $longitude)';

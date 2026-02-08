@@ -166,9 +166,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('owner_cannot_leave_must_delete')
           .replaceAll('{event}', eventName),
       positiveText: i18n.translate('delete'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
         progressDialog.show(i18n.translate('deleting_event'));
         
         final success = await _deleteEvent(eventId: eventId);
@@ -267,10 +266,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('leave_event_confirmation')
           .replaceAll('{event}', eventName),
       positiveText: i18n.translate('leave'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
-        
         // Callback: usuário confirmou, iniciar loading
         onConfirmed();
         
@@ -314,10 +311,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('owner_cannot_leave_must_delete')
           .replaceAll('{event}', eventName),
       positiveText: i18n.translate('delete'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
-        
         // Callback: usuário confirmou, iniciar loading
         onConfirmed();
         
@@ -386,9 +381,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('leave_event_confirmation')
           .replaceAll('{event}', eventName),
       positiveText: i18n.translate('leave'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
         progressDialog.show(i18n.translate('leaving_event'));
         
         final success = await _removeApplicationData(
@@ -431,9 +425,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('remove_application_confirmation')
           .replaceAll('{event}', eventName),
       positiveText: i18n.translate('remove'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
         progressDialog.show(i18n.translate('removing_application'));
         
         final success = await _removeApplicationData(
@@ -588,9 +581,8 @@ class EventApplicationRemovalService {
       message: i18n.translate('remove_participant_confirmation')
           .replaceAll('{user}', participantName),
       positiveText: i18n.translate('remove'),
-      negativeAction: () => _safePopDialog(context),
+      negativeAction: () {},
       positiveAction: () async {
-        _safePopDialog(context);
         progressDialog.show(i18n.translate('removing_participant'));
         
         // Chama Cloud Function para remover participante

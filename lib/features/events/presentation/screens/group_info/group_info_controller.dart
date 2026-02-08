@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -16,10 +18,12 @@ import 'package:partiu/features/home/presentation/widgets/category/activity_cate
 import 'package:partiu/features/home/presentation/widgets/participants_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/participants/privacy_type_selector.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
+import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/data/repositories/event_application_repository.dart';
 import 'package:partiu/features/home/data/repositories/event_repository.dart';
 import 'package:partiu/screens/chat/services/event_application_removal_service.dart';
 import 'package:partiu/screens/chat/services/event_deletion_service.dart';
+import 'package:partiu/features/conversations/state/conversations_viewmodel.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/services/user_status_service.dart';
@@ -807,14 +811,61 @@ class GroupInfoController extends ChangeNotifier {
       
       await progressDialog.hide();
       
+      // 🔍 DIAGNÓSTICO: Verificar se o CF realmente setou hidden/eventDeleted no Firestore
+      if (success) {
+        try {
+          final userId = AppState.currentUserId;
+          if (userId != null) {
+            final convDoc = await FirebaseFirestore.instance
+                .collection('Connections')
+                .doc(userId)
+                .collection('Conversations')
+                .doc('event_$eventId')
+                .get(const GetOptions(source: Source.server));
+            
+            if (convDoc.exists) {
+              final data = convDoc.data();
+              debugPrint('🔍 [DIAG] Conversation doc APÓS CF:');
+              debugPrint('🔍 [DIAG]   hidden = ${data?['hidden']}');
+              debugPrint('🔍 [DIAG]   eventDeleted = ${data?['eventDeleted']}');
+              debugPrint('🔍 [DIAG]   deletedAt = ${data?['deletedAt']}');
+              debugPrint('🔍 [DIAG]   timestamp = ${data?['timestamp']}');
+              debugPrint('🔍 [DIAG]   All keys: ${data?.keys.toList()}');
+            } else {
+              debugPrint('🔍 [DIAG] Conversation doc NÃO EXISTE no Firestore');
+            }
+          }
+        } catch (e) {
+          debugPrint('🔍 [DIAG] Erro ao verificar doc: $e');
+        }
+      }
+      
       if (success && context.mounted) {
         ToastService.showSuccess(
           message: i18n.translate('event_deleted_successfully'),
         );
         
+        // 🗑️ Remoção otimista: ocultar conversation tile imediatamente
+        try {
+          final viewModel = Provider.of<ConversationsViewModel>(context, listen: false);
+          viewModel.optimisticRemoveByConversationId('event_$eventId');
+          debugPrint('🗑️ Conversa event_$eventId removida otimisticamente');
+        } catch (e) {
+          debugPrint('⚠️ Não foi possível remover conversa otimisticamente: $e');
+        }
+        
+        // 🗺️ Remover marker do mapa
+        MapViewModel.instance?.removeEvent(eventId);
+        debugPrint('🗺️ Marker removido do mapa');
+        
+        // 🗑️ Remover instância do controller (evento não existe mais)
+        _instances.remove(eventId);
+        
         // ⚠️ IMPORTANTE: Fechar TODAS as telas e ir para home
         // Primeiro, pop até a raiz (remove Chat e GroupInfo da pilha)
+        debugPrint('🏠 ============================================= ');
         debugPrint('🏠 Evento deletado! Navegando para home...');
+        debugPrint('🏠 ============================================= ');
         
         // Usar Navigator para pop até a raiz e depois go para home
         if (context.mounted) {
@@ -824,7 +875,9 @@ class GroupInfoController extends ChangeNotifier {
           // Agora navegar para home com tab 0
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) {
+              debugPrint('🏠 ============================================= ');
               debugPrint('🏠 Executando context.go para home...');
+              debugPrint('🏠 ============================================= ');
               context.go('${AppRoutes.home}?tab=0');
             }
           });
@@ -895,12 +948,29 @@ class GroupInfoController extends ChangeNotifier {
       debugPrint('   - eventId: $eventId');
 
       // Remove a aplicação do evento
-      await _applicationRepository.removeUserApplication(
-        eventId: eventId,
-        userId: currentUserId,
-      );
+      try {
+        await _applicationRepository.removeUserApplication(
+          eventId: eventId,
+          userId: currentUserId,
+        );
+        debugPrint('✅ [GroupInfo] Aplicação removida com sucesso');
+      } on FirebaseFunctionsException catch (e) {
+        // Se a aplicação não existe (evento deletado ou já saiu), trata como sucesso
+        if (e.code == 'not-found') {
+          debugPrint('⚠️ [GroupInfo] Aplicação não encontrada (evento já deletado ou já saiu). Tratando como sucesso.');
+        } else {
+          rethrow;
+        }
+      }
 
-      debugPrint('✅ [GroupInfo] Aplicação removida com sucesso');
+      // 🗑️ Remoção otimista: ocultar conversation tile imediatamente
+      try {
+        final viewModel = Provider.of<ConversationsViewModel>(context, listen: false);
+        viewModel.optimisticRemoveByConversationId('event_$eventId');
+        debugPrint('🗑️ Conversa event_$eventId removida otimisticamente');
+      } catch (e) {
+        debugPrint('⚠️ Não foi possível remover conversa otimisticamente: $e');
+      }
 
       // Desativa loading ANTES de navegar para evitar rebuilds
       _isLeaving = false;

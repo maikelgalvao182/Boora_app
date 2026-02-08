@@ -91,7 +91,29 @@ export const onEventChatMessageCreated = functions.firestore
         `Updating ${participantsCount} conversations...`
       );
 
+      // Pre-fetch conversation docs para verificar quem saiu (leftEvent)
+      const leftEventUserIds = new Set<string>();
+      const conversationChecks = participantIds.map(async (uid: string) => {
+        const convDoc = await admin.firestore()
+          .collection("Connections").doc(uid)
+          .collection("Conversations").doc(`event_${eventId}`)
+          .get();
+        if (convDoc.exists && convDoc.data()?.leftEvent === true) {
+          leftEventUserIds.add(uid);
+        }
+      });
+      await Promise.all(conversationChecks);
+
+      if (leftEventUserIds.size > 0) {
+        console.log(
+          `⏭️ Ignorando ${leftEventUserIds.size} usuários que saíram do evento`
+        );
+      }
+
       for (const userId of participantIds) {
+        // Não recriar/atualizar conversation para quem saiu do evento
+        if (leftEventUserIds.has(userId)) continue;
+
         const conversationRef = admin
           .firestore()
           .collection("Connections")
@@ -145,6 +167,7 @@ export const onEventChatMessageCreated = functions.firestore
       // Disparar push notifications para cada participante (exceto remetente)
       const pushPromises = participantIds
         .filter((id: string) => senderId !== "system" && id !== senderId)
+        .filter((id: string) => !leftEventUserIds.has(id))
         .map((participantId: string) =>
           sendPush({
             userId: participantId,

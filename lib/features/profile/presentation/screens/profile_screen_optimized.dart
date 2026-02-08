@@ -120,11 +120,21 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   }
 
   Future<void> _handleRefresh() async {
+    final start = DateTime.now();
+    
     await _controller.refresh(
       widget.user.userId,
       useStream: false,
       includeReviews: false,
     );
+    
+    // Garante que o spinner fique visível tempo suficiente (mesmo que o refresh seja rápido)
+    final elapsed = DateTime.now().difference(start);
+    if (elapsed < const Duration(milliseconds: 800)) {
+      await Future<void>.delayed(const Duration(milliseconds: 800) - elapsed);
+    }
+    // Recuo natural após o término
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
   @override

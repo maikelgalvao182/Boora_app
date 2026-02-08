@@ -8,6 +8,7 @@ import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart'
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_bitmap_generator.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/map_bounds_controller.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/marker_assets.dart';
+import 'package:partiu/services/events/event_creator_filters_controller.dart';
 
 class MapRenderController extends ChangeNotifier {
   final MapViewModel viewModel;
@@ -165,7 +166,8 @@ class MapRenderController extends ChangeNotifier {
 
     final filteredEvents = _applyCategoryFilter(allEvents);
     if (filteredEvents.isEmpty) {
-      final hasFilters = viewModel.selectedCategory != null || viewModel.selectedDate != null;
+      final creatorFilters = EventCreatorFiltersController();
+      final hasFilters = viewModel.selectedCategory != null || viewModel.selectedDate != null || (creatorFilters.filtersEnabled && creatorFilters.hasActiveFilters);
       if (hasFilters) {
         debugPrint(
           '🧭 [MapRender] clear markers (reason=filters_empty, prev=${_markers.length + _avatarOverlayMarkers.length})',
@@ -321,40 +323,116 @@ class MapRenderController extends ChangeNotifier {
     return _applyFilters(events);
   }
   
-  /// Aplica filtros de categoria E data aos eventos
+  /// Aplica filtros de categoria, data E criador aos eventos
   List<EventModel> _applyFilters(List<EventModel> events) {
     final selectedCategory = viewModel.selectedCategory;
     final selectedDate = viewModel.selectedDate;
+    final creatorFilters = EventCreatorFiltersController();
+    final hasCreatorFilters = creatorFilters.filtersEnabled && creatorFilters.hasActiveFilters;
     
     // Se não há filtros ativos, retorna tudo
     if ((selectedCategory == null || selectedCategory.trim().isEmpty) &&
-        selectedDate == null) {
+        selectedDate == null &&
+        !hasCreatorFilters) {
       return events;
     }
 
-    return events.where((event) {
+    final filters = hasCreatorFilters ? creatorFilters.currentFilters : null;
+
+    // 🔍 DEBUG: log dos filtros ativos
+    debugPrint('🔍 [Filter] category=$selectedCategory, date=$selectedDate, '
+        'creatorFilters=${filters != null}, filtersEnabled=${creatorFilters.filtersEnabled}, '
+        'hasActive=${creatorFilters.hasActiveFilters}');
+    if (filters != null) {
+      debugPrint('🔍 [Filter] gender=${filters.creatorGender}, '
+          'orientation=${filters.creatorSexualOrientation}, '
+          'minAge=${filters.creatorMinAge}, maxAge=${filters.creatorMaxAge}, '
+          'verified=${filters.creatorVerified}, '
+          'interests=${filters.creatorInterests}');
+    }
+
+    int rejectedByCategory = 0;
+    int rejectedByDate = 0;
+    int rejectedByGender = 0;
+    int rejectedByOrientation = 0;
+    int rejectedByAge = 0;
+    int rejectedByVerified = 0;
+    int rejectedByInterests = 0;
+
+    final result = events.where((event) {
       // Filtro de categoria
       if (selectedCategory != null && selectedCategory.trim().isNotEmpty) {
         final category = event.category;
-        if (category == null) return false;
-        if (category.trim() != selectedCategory.trim()) return false;
+        if (category == null) { rejectedByCategory++; return false; }
+        if (category.trim() != selectedCategory.trim()) { rejectedByCategory++; return false; }
       }
       
       // Filtro de data
       if (selectedDate != null) {
         final eventDate = event.scheduleDate;
-        if (eventDate == null) return false;
+        if (eventDate == null) { rejectedByDate++; return false; }
         
-        // Comparar apenas dia/mês/ano
         if (eventDate.year != selectedDate.year ||
             eventDate.month != selectedDate.month ||
             eventDate.day != selectedDate.day) {
+          rejectedByDate++;
           return false;
+        }
+      }
+
+      // Filtros de criador
+      if (filters != null) {
+        // Gênero - case-insensitive; exclui se campo vazio/null
+        if (filters.creatorGender != null) {
+          final eventGender = (event.creatorGender?.trim().isNotEmpty == true) ? event.creatorGender!.trim().toLowerCase() : null;
+          if (eventGender == null) { rejectedByGender++; return false; }
+          if (eventGender != filters.creatorGender!.trim().toLowerCase()) { rejectedByGender++; return false; }
+        }
+        // Orientação sexual - case-insensitive; exclui se campo vazio/null
+        if (filters.creatorSexualOrientation != null) {
+          final eventOrientation = (event.creatorSexualOrientation?.trim().isNotEmpty == true) ? event.creatorSexualOrientation!.trim().toLowerCase() : null;
+          if (eventOrientation == null) { rejectedByOrientation++; return false; }
+          if (eventOrientation != filters.creatorSexualOrientation!.trim().toLowerCase()) { rejectedByOrientation++; return false; }
+        }
+        // Idade - exclui se criador não tem idade definida
+        if (filters.creatorMinAge != null || filters.creatorMaxAge != null) {
+          if (event.creatorAge == null) { rejectedByAge++; return false; }
+          if (filters.creatorMinAge != null && event.creatorAge! < filters.creatorMinAge!) { rejectedByAge++; return false; }
+          if (filters.creatorMaxAge != null && event.creatorAge! > filters.creatorMaxAge!) { rejectedByAge++; return false; }
+        }
+        // Verificado
+        if (filters.creatorVerified == true) {
+          if (!event.creatorVerified) { rejectedByVerified++; return false; }
+        }
+        // Interesses - exclui se criador não tem interesses definidos
+        if (filters.creatorInterests != null && filters.creatorInterests!.isNotEmpty) {
+          if (event.creatorInterests.isEmpty) { rejectedByInterests++; return false; }
+          if (!filters.creatorInterests!.any((i) => event.creatorInterests.contains(i))) { rejectedByInterests++; return false; }
         }
       }
       
       return true;
     }).toList(growable: false);
+
+    debugPrint('🔍 [Filter] result: ${result.length}/${events.length} passed. '
+        'Rejected: cat=$rejectedByCategory, date=$rejectedByDate, '
+        'gender=$rejectedByGender, orient=$rejectedByOrientation, '
+        'age=$rejectedByAge, verified=$rejectedByVerified, '
+        'interests=$rejectedByInterests');
+
+    // 🔍 DEBUG: amostra de dados de criador (primeiros 3 eventos)
+    if (result.isEmpty && events.isNotEmpty) {
+      for (var i = 0; i < events.length && i < 3; i++) {
+        final e = events[i];
+        debugPrint('🔍 [Filter] sample[$i]: id=${e.id}, '
+            'creatorGender=${e.creatorGender}, creatorAge=${e.creatorAge}, '
+            'creatorVerified=${e.creatorVerified}, '
+            'creatorOrientation=${e.creatorSexualOrientation}, '
+            'creatorInterests=${e.creatorInterests}');
+      }
+    }
+
+    return result;
   }
 
 }

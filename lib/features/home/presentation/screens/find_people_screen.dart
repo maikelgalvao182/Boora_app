@@ -248,6 +248,8 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                     return PlatformPullToRefresh(
                       onRefresh: () async {
                         _resetDisplayCount();
+                        // Limpa cache para garantir dados frescos do servidor
+                        _peopleDiscoveryService.clearCache();
                         await _peopleDiscoveryService.refreshCurrentBounds();
                       },
                       controller: _scrollController,

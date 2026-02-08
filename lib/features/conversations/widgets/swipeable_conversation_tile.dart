@@ -152,6 +152,10 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
 
     if (_isLeavingEvent) return;
 
+    // ✅ Remoção otimista IMEDIATA: remover tile antes da CF call
+    // Isso evita o tile reaparecer após o DismissiblePane dismiss
+    widget.onDeleted();
+
     final removalService = EventApplicationRemovalService();
     
     // Chama o método que já cuida da confirmação e execução
@@ -172,9 +176,8 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
             _isLeavingEvent = false;
           });
         }
-        if (success) {
-          widget.onDeleted();
-        }
+        // Não chamar widget.onDeleted() aqui - já foi chamado acima
+        // Se falhar, o Firestore stream vai restaurar o tile automaticamente
       },
     );
   }

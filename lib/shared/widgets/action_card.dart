@@ -7,6 +7,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/presentation/widgets/animated_removal_wrapper.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
+import 'package:partiu/shared/stores/user_store.dart';
 
 /// Card genérico para ações pendentes (aprovações, reviews, etc)
 /// 
@@ -48,6 +49,24 @@ class ActionCard extends StatefulWidget {
 class _ActionCardState extends State<ActionCard> {
   final GlobalKey<AnimatedRemovalWrapperState> _animationKey = GlobalKey();
   bool _isProcessing = false;
+
+  /// Converte fullName em displayName (primeiro nome + inicial do último)
+  String _buildDisplayName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) return 'Usuário';
+
+    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'Usuário';
+
+    final first = parts.first;
+    if (parts.length == 1) {
+      return first.length > 15 ? first.substring(0, 15) : first;
+    }
+
+    final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final safeFirst = first.length > 15 ? first.substring(0, 15) : first;
+    return lastInitial.isEmpty ? safeFirst : '$safeFirst $lastInitial.';
+  }
 
   Future<void> _handlePrimaryAction() async {
     if (_isProcessing) return;
@@ -141,19 +160,38 @@ class _ActionCardState extends State<ActionCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Texto formatado
-                  RichText(
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    text: TextSpan(
-                      style: GoogleFonts.getFont(
-                        FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: GlimpseColors.primaryColorLight,
-                      ),
-                      children: widget.textSpans,
-                    ),
+                  // Texto formatado com nome reativo do UserStore
+                  ValueListenableBuilder<String?>(
+                    valueListenable: UserStore.instance.getNameNotifier(widget.userId),
+                    builder: (context, reactiveName, _) {
+                      // Substituir o primeiro TextSpan (nome) pelo nome reativo
+                      final displayName = _buildDisplayName(reactiveName ?? '');
+                      
+                      // Criar novos textSpans com o nome reativo
+                      final updatedSpans = <TextSpan>[
+                        TextSpan(
+                          text: displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        // Adicionar os demais spans (exceto o primeiro que era o nome)
+                        if (widget.textSpans.length > 1)
+                          ...widget.textSpans.skip(1),
+                      ];
+
+                      return RichText(
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        text: TextSpan(
+                          style: GoogleFonts.getFont(
+                            FONT_PLUS_JAKARTA_SANS,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: GlimpseColors.primaryColorLight,
+                          ),
+                          children: updatedSpans,
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 4),

@@ -80,6 +80,14 @@ class DiscoverScreenState extends State<DiscoverScreen> {
 
   // 2) Warmup de compute/UI: clusters/bitmaps em zoom baixo sem mexer na câmera.
   unawaited(_mapKey.currentState?.preloadZoomOutClusters(targetZoom: 3.0));
+  
+  // 3) Warmup de avatares de participantes: pré-carregar avatares dos participantes
+  //    dos eventos visíveis para exibição instantânea no EventCard/ListCard.
+  //    Disparado imediatamente (sem delay adicional) pois é prioridade alta para UX.
+  unawaited(_mapKey.currentState?.warmupParticipantAvatars(
+    maxEvents: 15,
+    participantsPerEvent: 5,
+  ));
       });
     };
 

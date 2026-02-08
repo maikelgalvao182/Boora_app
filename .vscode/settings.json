@@ -1,6 +1,8 @@
 {
     "chat.tools.terminal.autoApprove": {
         "flutter": true,
-        "cp": true
+        "cp": true,
+        "dart": true,
+        "npx tsc": true
     }
 }

@@ -1201,6 +1201,12 @@
   "media_viewer_page_indicator": "{current} / {total}",
   "presence_update_error": "Erro ao atualizar presença",
 
+  "feed_reminder_pre_title": "Registre seu evento",
+  "feed_reminder_pre_subtitle": "Não esquece de tirar umas fotos incríveis no evento pra postar no feed depois \uD83D\uDE09",
+  "feed_reminder_post_title": "Compartilhe fotos do seu evento",
+  "feed_reminder_post_subtitle": "Espero que seu evento tenha sido incrível. Quando puder, compartilha as fotos no feed ✨",
+  "feed_reminder_open_feed": "Abrir feed",
+
   "event_photo_feed_title": "Feed",
   "event_photo_create_button": "Criar",
   "event_photo_tab_global": "Global",
@@ -1297,6 +1303,10 @@
   "update_available_message": "Uma nova versão do Boora está disponível com melhorias e correções.",
   "update_now": "Atualizar Agora",
   "update_later": "Depois",
-  "close_app": "Fechar App"
+  "close_app": "Fechar App",
+  
+  "event_creator_filters_title": "Filtrar por Criador",
+  "enable_creator_filters": "Ativar filtros",
+  "enable_creator_filters_description": "Mostrar apenas eventos de criadores com perfil específico"
 }
 

@@ -1044,6 +1044,12 @@
   "presence_updated": "¡Presencia actualizada!",
   "presence_update_error": "Error al actualizar presencia",
 
+  "feed_reminder_pre_title": "Registra tu evento",
+  "feed_reminder_pre_subtitle": "No te olvides de tomar fotos increíbles del evento para publicar en el feed después \uD83D\uDE09",
+  "feed_reminder_post_title": "Comparte fotos de tu evento",
+  "feed_reminder_post_subtitle": "Espero que tu evento haya sido increíble. Cuando puedas, comparte las fotos en el feed ✨",
+  "feed_reminder_open_feed": "Abrir feed",
+
   "event_photo_feed_title": "Feed",
   "event_photo_create_button": "Crear",
   "event_photo_tab_global": "Global",
@@ -1139,6 +1145,10 @@
   "location_picker_tab_map": "Ubicar",
   "location_picker_tab_search": "Buscar",
   "location_picker_map_hint": "Haz clic en el mapa para marcar el punto de encuentro",
-  "tap_map_to_confirm": "Arrastra el mapa o toca para confirmar"
+  "tap_map_to_confirm": "Arrastra el mapa o toca para confirmar",
+  
+  "event_creator_filters_title": "Filtrar por Creador",
+  "enable_creator_filters": "Activar filtros",
+  "enable_creator_filters_description": "Mostrar solo eventos de creadores con perfil específico"
 }
 

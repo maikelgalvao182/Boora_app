@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
+import 'package:partiu/features/home/presentation/screens/event_creator_filters_screen.dart';
 import 'package:partiu/features/home/presentation/screens/location_picker/location_picker_page_refactored.dart';
 import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 import 'package:partiu/features/home/presentation/services/onboarding_service.dart';
@@ -9,6 +10,7 @@ import 'package:partiu/features/home/presentation/widgets/category_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/create_button.dart';
 import 'package:partiu/features/home/presentation/widgets/create_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/date_filter_calendar.dart';
+import 'package:partiu/features/home/presentation/widgets/event_filter_button.dart';
 import 'package:partiu/features/home/presentation/widgets/list_button.dart';
 import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 import 'package:partiu/features/home/presentation/widgets/liquid_swipe_onboarding.dart';
@@ -21,9 +23,11 @@ import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart'
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/notifications/widgets/notification_horizontal_filters.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/event_card_presenter.dart';
+import 'package:partiu/shared/widgets/animated_visibility.dart';
+import 'package:partiu/features/event_photo_feed/presentation/services/feed_reminder_service.dart';
+import 'package:partiu/features/event_photo_feed/presentation/widgets/feed_reminder_card.dart';
 
 import 'package:partiu/features/home/presentation/coordinators/home_tab_coordinator.dart';
-import 'package:partiu/features/home/presentation/services/map_navigation_service.dart';
 
 /// Tela de descoberta (Tab 0)
 /// Exibe mapa interativo com atividades próximas
@@ -43,6 +47,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
   final GlobalKey<DiscoverScreenState> _discoverKey = GlobalKey<DiscoverScreenState>();
   late final EventCardPresenter _eventPresenter;
 
+  /// Controla a visibilidade do ListButton
+  bool _listButtonVisible = true;
+
   List<String> _lastCategoryKeys = const [];
   String? _lastLocaleTag;
   List<String> _cachedCategoryLabels = const [];
@@ -55,16 +62,23 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   bool _isShowingOnboarding = false;
 
+  // Feed reminder card state
+  FeedReminderResult? _feedReminderResult;
+  bool _feedReminderVisible = false;
+  bool _feedReminderEvaluated = false;
+
   @override
   void initState() {
     super.initState();
     _eventPresenter = EventCardPresenter(viewModel: widget.mapViewModel);
+
     // Escuta mudanças de aba para tentar consumir pendências quando esta aba virar ativa
     HomeTabCoordinator.instance.addListener(_onTabCoordinatorChanged);
     
     // Tenta consumir pendências (caso inicialização direta em aba 0)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tryConsumePending();
+      _evaluateFeedReminder();
     });
   }
   
@@ -78,6 +92,31 @@ class _DiscoverTabState extends State<DiscoverTab> {
     if (HomeTabCoordinator.instance.currentIndex == 0) {
       _tryConsumePending();
     }
+  }
+
+  /// Avalia se deve exibir o card de lembrete do feed
+  Future<void> _evaluateFeedReminder() async {
+    if (_feedReminderEvaluated) return;
+    _feedReminderEvaluated = true;
+
+    final result = await FeedReminderService.instance.evaluate();
+    if (!mounted) return;
+
+    if (result.shouldShow) {
+      await FeedReminderService.instance.markShown();
+      if (!mounted) return;
+      setState(() {
+        _feedReminderResult = result;
+        _feedReminderVisible = true;
+      });
+    }
+  }
+
+  void _dismissFeedReminder() {
+    setState(() {
+      _feedReminderVisible = false;
+      _feedReminderResult = null;
+    });
   }
 
   void _tryConsumePending() {
@@ -212,9 +251,17 @@ class _DiscoverTabState extends State<DiscoverTab> {
     return locationResult;
   }
 
-  void _showListDrawer() {
-    // Usa bottom sheet nativo
-    ListDrawer.show(context, widget.mapViewModel);
+  void _showListDrawer() async {
+    // Esconde o ListButton
+    setState(() => _listButtonVisible = false);
+    
+    // Mostra o bottom sheet e espera fechar
+    await ListDrawer.show(context, widget.mapViewModel);
+    
+    // Mostra o ListButton de volta
+    if (mounted) {
+      setState(() => _listButtonVisible = true);
+    }
   }
 
   void _centerOnUser() {
@@ -227,6 +274,14 @@ class _DiscoverTabState extends State<DiscoverTab> {
         builder: (context) => const FindPeopleScreen(),
       ),
     );
+  }
+
+  void _showEventCreatorFilters() async {
+    final result = await EventCreatorFiltersScreen.show(context);
+    if (result == true && mounted) {
+      // Filtros aplicados - recarregar eventos
+      widget.mapViewModel.reloadEvents();
+    }
   }
 
   Future<void> _showOnboarding() async {
@@ -466,6 +521,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 padding: EdgeInsets.only(bottom: 12),
                 child: WhatsAppShareButton(),
               ),
+              // Botão de filtro de eventos (por criador)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: EventFilterButton(
+                  onPressed: _showEventCreatorFilters,
+                ),
+              ),
               NavigateToUserButton(
                 onPressed: _centerOnUser,
               ),
@@ -479,8 +541,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
           right: 0,
           bottom: 24,
           child: Center(
-            child: ListButton(
-              onPressed: _showListDrawer,
+            child: AnimatedVisibility(
+              visible: _listButtonVisible,
+              child: ListButton(
+                onPressed: _showListDrawer,
+              ),
             ),
           ),
         ),
@@ -493,6 +558,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
             onPressed: _handleCreatePressed,
           ),
         ),
+
+        // Card flutuante de lembrete para postar fotos no feed
+        if (_feedReminderVisible && _feedReminderResult != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 96,
+            child: FeedReminderCard(
+              reminderType: _feedReminderResult!.type!,
+              onDismiss: _dismissFeedReminder,
+            ),
+          ),
       ],
     );
   }

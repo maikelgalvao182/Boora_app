@@ -317,10 +317,14 @@ class ChatAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    ProfileScreenRouter.navigateByUserId(
-                      context,
-                      userId: user.userId,
-                    );
+                    if (controller.isEvent) {
+                      context.push('${AppRoutes.groupInfo}/${controller.eventId}');
+                    } else {
+                      ProfileScreenRouter.navigateByUserId(
+                        context,
+                        userId: user.userId,
+                      );
+                    }
                   },
                   child: Row(
                     children: [

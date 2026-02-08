@@ -1,6 +1,5 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import {sendPush} from "../services/pushDispatcher";
 // import * as crypto from "crypto";
 // Unused for now as we rely on Bearer token
 
@@ -664,11 +663,6 @@ async function processSubscriptionEvent(event: RevenueCatEvent): Promise<void> {
     );
     // Don't fail the webhook for this
   }
-
-  // Send notification to user (optional)
-  if (shouldNotifyUser()) {
-    await sendUserNotification(userId, eventType, finalIsActive);
-  }
 }
 
 /**
@@ -709,97 +703,6 @@ function determineActiveStatus(
     console.warn(`⚠️ Unknown event type: ${eventType}`);
     // Conservative approach: check expiration
     return !expirationMs || expirationMs > now;
-  }
-}
-
-
-/**
- * Check if user should be notified about subscription events
- * @return {boolean} True if user should be notified
- */
-function shouldNotifyUser(): boolean {
-  // ❌ Push de assinatura DESATIVADO - webhook só atualiza Firestore
-  return false;
-}
-
-/**
- * Send push notification to user about subscription event
- * @param {string} userId User ID
- * @param {string} eventType Type of the event
- * @param {boolean} isActive Whether subscription is active
- * @return {Promise<void>} Promise
- */
-async function sendUserNotification(
-  userId: string,
-  eventType: string,
-  isActive: boolean
-): Promise<void> {
-  try {
-    // Only send notifications for specific events
-    const notifiableEvents = [
-      "INITIAL_PURCHASE",
-      // "RENEWAL", // DESATIVADO
-      "BILLING_ISSUE",
-      "EXPIRATION",
-      "CANCELLATION",
-    ];
-
-    if (!notifiableEvents.includes(eventType)) {
-      return;
-    }
-
-    // Template: systemAlert - mapear eventos RevenueCat para mensagens
-    const APP_NAME = "Boora";
-    let alertTitle = APP_NAME;
-    let alertBody = "Você tem uma nova atualização";
-
-    switch (eventType) {
-    case "INITIAL_PURCHASE":
-      alertTitle = "Bem-vindo ao Premium! 🎉";
-      alertBody = "Sua assinatura foi ativada com sucesso";
-      break;
-    case "RENEWAL":
-      alertTitle = "Assinatura renovada ✅";
-      alertBody = "Sua assinatura foi renovada com sucesso";
-      break;
-    case "BILLING_ISSUE":
-      alertTitle = "Problema com pagamento ⚠️";
-      alertBody = "Verifique seus dados de pagamento";
-      break;
-    case "EXPIRATION":
-      alertTitle = "Assinatura expirada";
-      alertBody = "Sua assinatura Premium expirou";
-      break;
-    case "CANCELLATION":
-      alertTitle = "Assinatura cancelada";
-      alertBody = "Sua assinatura Premium foi cancelada";
-      break;
-    }
-
-    await sendPush({
-      userId: userId,
-      event: "system_alert",
-      origin: "revenuecatWebhook",
-      notification: {
-        title: alertTitle,
-        body: alertBody,
-      },
-      data: {
-        n_type: "system_alert",
-        relatedId: eventType,
-        n_related_id: eventType,
-        event_type: eventType,
-        is_active: isActive.toString(),
-      },
-    });
-
-    console.log(
-      `✅ [RevenueCat Webhook] Push enviado via dispatcher para ${userId}`
-    );
-  } catch (error) {
-    console.error(
-      `❌ [RevenueCat Webhook] Erro ao enviar push: ${error}`
-    );
   }
 }
 

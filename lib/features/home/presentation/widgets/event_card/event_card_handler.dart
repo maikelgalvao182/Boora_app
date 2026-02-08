@@ -78,14 +78,24 @@ class EventCardHandler {
       final i18n = AppLocalizations.of(context);
       
       // 🎉 Disparar confetti E dialog SIMULTANEAMENTE para evento open
-      // Isso evita race condition - ambos aparecem instantaneamente
+      // applyToEvent() inicia em paralelo; aguardamos antes de navegar ao chat
       if (isOpenEvent && context.mounted) {
-        debugPrint('🎊 Evento OPEN: Disparando confetti + dialog instantaneamente');
+        debugPrint('🎊 Evento OPEN: Disparando confetti + dialog + apply em paralelo');
         
         // Confetti imediato
         ConfettiOverlay.show(context);
         
-        // Dialog imediato (não espera applyToEvent)
+        // 🔄 Iniciar aplicação em paralelo (enquanto o dialog fica visível)
+        final applyFuture = controller.applyToEvent().catchError((e) {
+          debugPrint('❌ Erro ao aplicar (background): $e');
+          if (context.mounted) {
+            ToastService.showError(
+              message: i18n.translate('error_applying_to_event'),
+            );
+          }
+        });
+        
+        // Dialog imediato — usuario decide enquanto applyToEvent roda
         // ignore: unawaited_futures
         GlimpseCupertinoDialog.show(
           context: context,
@@ -93,22 +103,16 @@ class EventCardHandler {
           message: i18n.translate('application_approved_redirect_to_chat'),
           confirmText: i18n.translate('go_to_chat'),
           cancelText: i18n.translate('later'),
-        ).then((confirmed) {
+        ).then((confirmed) async {
           if (confirmed == true) {
-            debugPrint('✅ Usuário confirmou, entrando no chat');
+            debugPrint('✅ Usuário confirmou, aguardando applyToEvent...');
+            // ✅ Aguardar conclusão do Firestore write antes de navegar
+            // Isso evita race condition onde chat abre sem conversa pronta
+            await applyFuture;
+            debugPrint('✅ applyToEvent concluído, entrando no chat');
             onActionSuccess();
           } else {
             debugPrint('⏸️ Usuário optou por entrar depois');
-          }
-        });
-        
-        // Aplicar em background (fire-and-forget para não bloquear UI)
-        controller.applyToEvent().catchError((e) {
-          debugPrint('❌ Erro ao aplicar (background): $e');
-          if (context.mounted) {
-            ToastService.showError(
-              message: i18n.translate('error_applying_to_event'),
-            );
           }
         });
         

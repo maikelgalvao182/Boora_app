@@ -22,7 +22,10 @@ export {
   onUserAvatarUpdated,
 } from "./events/creatorAvatarSync";
 export {onUserLocationUpdated} from "./events/usersGridSync";
-export {onEventWriteUpdateCardPreview} from "./events/eventCardPreviewSync";
+export {
+  onEventWriteUpdateCardPreview,
+  onUserProfileUpdateSyncEvents,
+} from "./events/eventCardPreviewSync";
 // export {onEventWriteUpdateGeohash} from "./events/eventGeohashSync"; // Arquivo não existe
 export {onUserWriteUpdatePreview} from "./users/usersPreviewSync";
 export {resyncUsersPreview} from "./users/resyncUsersPreview";
@@ -492,6 +495,9 @@ export * from "./debug";
 
 // ===== MIGRATIONS =====
 export * from "./migrations/backfillUserGeohash";
+export * from "./migrations/backfillEventCreatorData";
+export * from "./migrations/backfillEventPreviewsLocation";
+export * from "./migrations/backfillEventPreviewsCategory";
 
 // ===== USER MANAGEMENT =====
 // Importa e exporta as Cloud Functions de gerenciamento de usuários

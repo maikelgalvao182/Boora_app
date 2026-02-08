@@ -80,6 +80,9 @@ class UnifiedFeedItem {
 /// Extension para ordenar lista de UnifiedFeedItem por data
 extension UnifiedFeedItemListExt on List<UnifiedFeedItem> {
   /// Ordena por createdAt decrescente (mais recente primeiro)
+  /// Fotos têm prioridade sobre cards de atividade:
+  /// - Intercala fotos e activities mantendo cronologia geral
+  /// - Quando ambos estão no mesmo "bloco temporal" (6h), fotos vêm antes
   List<UnifiedFeedItem> sortedByDate() {
     final sorted = List<UnifiedFeedItem>.from(this);
     sorted.sort((a, b) {
@@ -88,7 +91,21 @@ extension UnifiedFeedItemListExt on List<UnifiedFeedItem> {
       if (aDate == null && bDate == null) return 0;
       if (aDate == null) return 1;
       if (bDate == null) return -1;
-      return bDate.compareTo(aDate); // Descending
+
+      // Se ambos são do mesmo tipo, ordena puramente por data
+      if (a.type == b.type) {
+        return bDate.compareTo(aDate);
+      }
+
+      // Se estão dentro de uma janela de 6h, fotos têm prioridade
+      final diff = aDate.difference(bDate).abs();
+      if (diff < const Duration(hours: 6)) {
+        // Foto vem primeiro (retorna -1 se a é foto, +1 se b é foto)
+        return a.type == UnifiedFeedItemType.photo ? -1 : 1;
+      }
+
+      // Fora da janela, ordena por data normalmente
+      return bDate.compareTo(aDate);
     });
     return sorted;
   }

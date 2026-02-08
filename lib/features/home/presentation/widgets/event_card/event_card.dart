@@ -38,6 +38,7 @@ class EventCard extends StatefulWidget {
     required EventCardController controller,
     required VoidCallback onActionPressed,
   }) async {
+    await controller.ensureEventDataLoaded();
     // 🎯 Aguardar participantes carregarem ANTES de abrir o modal
     // Isso evita o "pop" onde avatares aparecem depois do card abrir
     await controller.ensureParticipantsLoaded();

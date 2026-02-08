@@ -639,6 +639,12 @@ class PeopleRankingViewModel extends ChangeNotifier {
     debugPrint('   - ANTES: _isRefreshing = $_isRefreshing');
     
     _isRefreshing = true;
+    
+    // Invalida cache para garantir dados frescos do servidor
+    final cacheKey = _buildCacheKey();
+    _cache.remove(cacheKey);
+    await _persistentCache.invalidateRanking(cacheKey);
+    
     notifyListeners();
     
     try {

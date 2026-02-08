@@ -20,7 +20,10 @@ extension MapViewModelRealtime on MapViewModel {
     _radiusSubscription = null;
     _reloadSubscription?.cancel();
     _reloadSubscription = null;
+    _remoteDeletionSub?.cancel();
+    _remoteDeletionSub = null;
     _stopBoundsCategoriesListener();
+    _mapDiscoveryService.stopPeriodicTombstonePolling();
     BlockService.instance.removeListener(_onBlockedUsersChanged);
 
     // ✅ IMPORTANTE: limpar estado em memória para evitar markers “fantasmas” após logout/delete.

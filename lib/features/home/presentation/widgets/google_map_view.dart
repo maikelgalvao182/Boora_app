@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:partiu/features/home/presentation/services/event_card_action_warmup_service.dart';
+import 'package:partiu/features/home/presentation/services/participant_avatar_warmup_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/event_card_presenter.dart';
 import 'package:partiu/features/home/presentation/widgets/map_controllers/map_bounds_controller.dart';
@@ -47,6 +49,8 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
   late final MapPeopleController _peopleController;
   late final MapBoundsController _boundsController;
   late final MapCameraController _cameraController;
+  late final ParticipantAvatarWarmupService _participantWarmupService;
+  late final EventCardActionWarmupService _actionWarmupService;
   MapRenderController? _renderController;
   MapNavigationHandler? _navigationHandler;
 
@@ -56,8 +60,10 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
 
   // Debounces
   Timer? _cameraIdleDebounce;
+  Timer? _warmupDebounce;
   // Aumentado de 200ms para 600ms para evitar queries durante micro-movimentações
   static const Duration _cameraIdleDebounceDuration = Duration(milliseconds: 600);
+  static const Duration _warmupDebounceDuration = Duration(milliseconds: 800);
   
   // Streams
   StreamSubscription<String>? _removalSub;
@@ -84,6 +90,8 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
 
   void _initializeControllers() {
     _markerAssets = MapMarkerAssets();
+    _participantWarmupService = ParticipantAvatarWarmupService();
+    _actionWarmupService = EventCardActionWarmupService.instance;
     
     _eventPresenter = EventCardPresenter(
       viewModel: widget.viewModel,
@@ -111,7 +119,12 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
       onClusterTap: (pos, count) {
         _cameraController.onClusterTap(pos, count, _currentZoom);
       },
-      onFirstRenderApplied: widget.onFirstRenderApplied,
+      onFirstRenderApplied: () {
+        widget.onFirstRenderApplied?.call();
+        _scheduleWarmupForVisibleEvents(
+          delay: const Duration(milliseconds: 350),
+        );
+      },
     );
     
     _navigationHandler = MapNavigationHandler(
@@ -149,6 +162,8 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
   @override
   void dispose() {
     _cameraIdleDebounce?.cancel();
+    _warmupDebounce?.cancel();
+    _participantWarmupService.cancel();
     _renderController?.dispose();
     _boundsController.dispose();
     _navigationHandler?.unregisterMapServices();
@@ -210,6 +225,9 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
         _currentZoom, 
         onNewData: () => _renderController?.scheduleRender(),
       );
+      _scheduleWarmupForVisibleEvents(
+        delay: const Duration(milliseconds: 350),
+      );
     } catch (e) {
       debugPrint('⚠️ Erro ao obter zoom inicial: $e');
     }
@@ -217,6 +235,7 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
 
   void _onCameraMoveStarted() {
     _renderController?.setCameraMoving(true);
+    _warmupDebounce?.cancel();
     UserStore.instance.cancelAvatarPreloads();
   }
 
@@ -250,14 +269,85 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
           _currentZoom, 
           onNewData: () => _renderController?.scheduleRender(),
         );
+        _scheduleWarmupForVisibleEvents();
     } catch (e) {
         debugPrint('⚠️ Erro no idle: $e');
     }
   }
 
+  void _scheduleWarmupForVisibleEvents({Duration? delay}) {
+    if (!mounted) return;
+
+    _warmupDebounce?.cancel();
+    _warmupDebounce = Timer(delay ?? _warmupDebounceDuration, () {
+      if (!mounted) return;
+      if (_participantWarmupService.isRunning) return;
+
+      final events = widget.viewModel.events;
+      if (events.isEmpty) return;
+
+      _participantWarmupService.warmupParticipantsForEvents(events);
+      if (!_actionWarmupService.isRunning) {
+        _actionWarmupService.warmupActionStateForEvents(events);
+      }
+    });
+  }
+
   /// Método público para centralizar no usuário
   void centerOnUser() {
     _cameraController.centerOnUser();
+  }
+
+  /// Pré-carrega avatares de participantes dos eventos visíveis.
+  /// 
+  /// Chamar após `onFirstRenderApplied` para garantir que os avatares
+  /// estejam prontos quando o usuário abrir um EventCard ou ListCard.
+  /// 
+  /// [maxEvents] Máximo de eventos para processar (default: 15)
+  /// [participantsPerEvent] Máximo de participantes por evento (default: 5)
+  Future<void> warmupParticipantAvatars({
+    int? maxEvents,
+    int? participantsPerEvent,
+  }) async {
+    if (!mounted) return;
+    
+    final events = widget.viewModel.events;
+    if (events.isEmpty) {
+      debugPrint('⏳ [GoogleMapView] warmupParticipantAvatars: sem eventos disponíveis');
+      return;
+    }
+    
+    await _participantWarmupService.warmupParticipantsForEvents(
+      events,
+      maxEvents: maxEvents,
+      participantsPerEvent: participantsPerEvent,
+    );
+  }
+
+  Future<void> warmupEventCardActions({
+    int? maxEvents,
+  }) async {
+    if (!mounted) return;
+
+    final events = widget.viewModel.events;
+    if (events.isEmpty) {
+      debugPrint('[GoogleMapView] warmupEventCardActions: sem eventos disponiveis');
+      return;
+    }
+
+    await _actionWarmupService.warmupActionStateForEvents(
+      events,
+      maxEvents: maxEvents,
+    );
+  }
+
+  /// Cancela qualquer warmup de avatares em progresso
+  void cancelParticipantAvatarWarmup() {
+    _participantWarmupService.cancel();
+  }
+
+  void cancelEventCardActionWarmup() {
+    _actionWarmupService.cancel();
   }
 
   /// Prefetch best-effort baseado no viewport REAL com bounds expandido.

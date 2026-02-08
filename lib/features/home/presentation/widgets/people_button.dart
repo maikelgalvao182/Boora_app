@@ -219,6 +219,9 @@ class _PeopleNearYouButton extends StatelessWidget {
 
   /// Verifica se é VIP antes de abrir a tela
   Future<void> _handleTap(BuildContext context) async {
+    // Guarda o status VIP antes de mostrar o dialog
+    final wasVipBefore = VipAccessService.isVip;
+    
     // checkAccessOrShowDialog verifica Firestore E mostra dialog se necessário
     final hasAccess = await VipAccessService.checkAccessOrShowDialog(
       context,
@@ -226,6 +229,14 @@ class _PeopleNearYouButton extends StatelessWidget {
     );
     
     if (hasAccess) {
+      // Se o usuário acabou de virar VIP (comprou agora), limpa o cache
+      // para forçar nova busca com limite VIP (500 em vez de 17)
+      if (!wasVipBefore) {
+        debugPrint('🎉 [PeopleButton] VIP recém-ativado! Limpando cache para refresh com limite VIP...');
+        peopleCountService.clearCache();
+        // Força refresh imediato para buscar com novo limite
+        await peopleCountService.refreshCurrentBounds();
+      }
       onPressed();
     }
   }

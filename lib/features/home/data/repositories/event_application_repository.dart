@@ -138,6 +138,18 @@ class EventApplicationRepository {
     await _saveParticipantsToPersistentCache(eventId, participants);
   }
 
+  /// Invalida AMBOS os caches de participantes (memória + Hive)
+  /// 
+  /// Usado após leave/remove para forçar fetch fresco do Firestore
+  /// na próxima abertura do EventCard
+  Future<void> invalidateParticipantsCache(String eventId) async {
+    final cacheKey = 'event_participants_$eventId';
+    _cache.remove(cacheKey);
+    await _ensureParticipantsCacheInitialized();
+    await _participantsPersistentCache.delete('event_participants_$eventId');
+    debugPrint('🗑️ [EventApplicationRepo] Cache de participantes invalidado: $eventId');
+  }
+
   /// Cria uma nova aplicação para um evento
   /// 
   /// O status é determinado automaticamente baseado no privacyType do evento:

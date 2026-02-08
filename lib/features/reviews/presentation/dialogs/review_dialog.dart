@@ -441,6 +441,12 @@ class _RatingsSheetState extends State<_RatingsSheet> {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final canProceed = widget.allowProceed && _ratings.length >= MINIMUM_REQUIRED_RATINGS;
+    
+    debugPrint('🔄 [_RatingsSheetState] build() chamado');
+    debugPrint('   - _ratings.length: ${_ratings.length}');
+    debugPrint('   - MINIMUM_REQUIRED_RATINGS: $MINIMUM_REQUIRED_RATINGS');
+    debugPrint('   - widget.allowProceed: ${widget.allowProceed}');
+    debugPrint('   - canProceed: $canProceed');
 
     return _SheetScaffold(
       maxHeight: widget.maxHeight,
@@ -519,9 +525,14 @@ class _RatingsSheetState extends State<_RatingsSheet> {
             RatingCriteriaStep(
               ratings: _ratings,
               onRatingChanged: (criterion, value) {
+                debugPrint('⭐ [_RatingsSheetState] onRatingChanged chamado');
+                debugPrint('   - criterion: $criterion');
+                debugPrint('   - value: $value');
+                debugPrint('   - _ratings ANTES: $_ratings');
                 setState(() {
                   _ratings[criterion] = value;
                 });
+                debugPrint('   - _ratings DEPOIS: $_ratings');
               },
             ),
           ],

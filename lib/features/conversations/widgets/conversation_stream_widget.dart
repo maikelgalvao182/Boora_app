@@ -32,6 +32,9 @@ class ConversationStreamWidget extends StatelessWidget {
     final viewModel = context.watch<ConversationsViewModel>();
     final wsItems = viewModel.filteredWsConversations;
 
+    debugPrint('🖼️ [ConversationStreamWidget] build() - wsItems.length=${wsItems.length}');
+    debugPrint('🖼️ [ConversationStreamWidget] wsItems IDs: ${wsItems.map((i) => i.id).toList()}');
+
     // Mostra skeleton apenas se não recebeu o primeiro snapshot ainda
     if (!viewModel.hasReceivedFirstSnapshot) {
       return const ConversationListSkeleton();

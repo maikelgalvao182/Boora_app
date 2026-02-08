@@ -333,9 +333,10 @@ class ChatScreenRefactoredState extends State<ChatScreenRefactored>
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
-        setState(() {
-          _applicationId = querySnapshot.docs.first.id;
-        });
+        // ✅ Não usar setState aqui — _showRealPresenceWidget inicia false,
+        // então _applicationId não afeta a UI até o usuário tocar no header.
+        // Evita rebuild desnecessário do Scaffold inteiro após a animação.
+        _applicationId = querySnapshot.docs.first.id;
         debugPrint('✅ ApplicationId carregado: $_applicationId');
       } else {
         debugPrint('⚠️ Nenhuma application encontrada para este evento');

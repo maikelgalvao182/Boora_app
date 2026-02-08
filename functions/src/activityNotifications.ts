@@ -27,6 +27,7 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import {findUsersForEventNotification, getEventParticipants} from "./services/geoService";
+import {deleteEventNotifications} from "./events/deleteEvent";
 
 // Thresholds para "heating up" - deve estar sincronizado com Flutter
 const HEATING_UP_THRESHOLDS = [3, 5, 10];
@@ -657,6 +658,14 @@ export const onActivityCanceledNotification = functions.firestore
     console.log(`\n❌ [ActivityCanceled] Evento cancelado: ${eventId}`);
 
     try {
+      // 0. Deletar notificações existentes do evento (activity_created, heating_up, etc.)
+      // Limpa notificações stale antes de criar as de cancelamento
+      const firestore = admin.firestore();
+      const deletedCount = await deleteEventNotifications(eventId, firestore);
+      console.log(
+        `🗑️ [ActivityCanceled] ${deletedCount} notificações antigas deletadas para evento ${eventId}`
+      );
+
       // 1. Buscar participantes
       const participants = await getEventParticipants(eventId);
       const creatorId = after.createdBy;

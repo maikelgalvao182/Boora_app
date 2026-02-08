@@ -7,6 +7,7 @@ import 'package:partiu/core/services/block_service.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
+import 'package:partiu/features/home/presentation/services/event_card_action_warmup_service.dart';
 import 'package:partiu/features/home/presentation/viewmodels/map_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card.dart';
 import 'package:partiu/features/home/presentation/widgets/event_card/event_card_controller.dart';
@@ -126,10 +127,14 @@ class EventCardPresenter {
       debugPrint('⚠️ Evento não encontrado na lista, usando cópia do marker');
     }
     
+    final warmupState =
+        EventCardActionWarmupService.instance.getState(enrichedEvent.id);
+
     final controller = EventCardController(
       eventId: enrichedEvent.id,
       preloadedEvent: enrichedEvent,
       mapViewModel: viewModel, // ✅ INJETANDO VIEWMODEL
+      warmupState: warmupState,
       enableRealtime: false,
       enableOpenFetches: true, // ✅ HABILITADO para verificar VIP status
       enableReactiveCreatorName: false,

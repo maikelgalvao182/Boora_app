@@ -212,6 +212,13 @@ class ConversationPaginationService extends ChangeNotifier {
     var result =
         List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(_docs);
 
+    // 🗑️ Filter out hidden/deleted event conversations
+    result = result.where((d) {
+      final data = d.data();
+      if (data['hidden'] == true || data['eventDeleted'] == true) return false;
+      return true;
+    }).toList();
+
     // Apply blocked users filter
     if (_blockedIds.isNotEmpty) {
       result = result.where((d) {

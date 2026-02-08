@@ -235,12 +235,16 @@ class ProfileController {
     }
   }
 
-  /// Refresh manual
+  /// Refresh manual - invalida cache e busca dados frescos
   Future<void> refresh(
     String targetUserId, {
     bool useStream = true,
     bool includeReviews = true,
   }) async {
+    // Invalida cache para garantir dados frescos do servidor
+    await _profileCache.invalidate(targetUserId);
+    await _galleryCache.invalidateUserGallery(targetUserId);
+    
     await load(
       targetUserId,
       useStream: useStream,

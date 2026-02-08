@@ -12,3 +12,5 @@ export {
 export {deactivateExpiredEvents} from "./deactivateExpiredEvents";
 export {cleanupOnEventDelete} from "./cleanupOnDelete";
 export {processEventDeletions} from "./processEventDeletions";
+export {cleanupOldTombstones} from "./cleanupOldTombstones";
+export {backfillEventTombstones} from "./backfillEventTombstones";

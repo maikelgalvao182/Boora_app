@@ -509,11 +509,9 @@ class _AppSectionCardState extends State<AppSectionCard> {
       if (!_canRequestReview()) return;
       final inAppReview = InAppReview.instance;
 
-      if (await inAppReview.isAvailable()) {
-        await inAppReview.requestReview();
-      } else {
-        await inAppReview.openStoreListing(appStoreId: '6755944656');
-      }
+      // Em desenvolvimento/TestFlight, o diálogo nativo não permite enviar reviews.
+      // Sempre abrir a página da loja garante que o usuário pode avaliar de verdade.
+      await inAppReview.openStoreListing(appStoreId: '6755944656');
     } catch (e) {
       debugPrint('⭐️ [REVIEW] Error requesting review: $e');
     }
@@ -558,8 +556,8 @@ class _AppSectionCardState extends State<AppSectionCard> {
           context,
           icon: Iconsax.message,
           title: _tr(i18n, 'message_button', 'Botão de mensagem no meu perfil'),
-          value: enabled,
-          onChanged: (v) => _updateMessageButtonPreference(context, userId, v),
+          value: !enabled,
+          onChanged: (v) => _updateMessageButtonPreference(context, userId, !v),
         );
       },
     );
@@ -609,8 +607,8 @@ class _AppSectionCardState extends State<AppSectionCard> {
           context,
           icon: Iconsax.user_add,
           title: _tr(i18n, 'follow_button', 'Botão de seguir no meu perfil'),
-          value: enabled,
-          onChanged: (v) => _updateFollowButtonPreference(context, userId, v),
+          value: !enabled,
+          onChanged: (v) => _updateFollowButtonPreference(context, userId, !v),
         );
       },
     );
@@ -668,8 +666,8 @@ class _AppSectionCardState extends State<AppSectionCard> {
           context,
           icon: Iconsax.location,
           title: _tr(i18n, 'show_distance', 'Mostrar distância no meu perfil'),
-          value: enabled,
-          onChanged: (v) => _updateShowDistancePreference(context, userId, v),
+          value: !enabled,
+          onChanged: (v) => _updateShowDistancePreference(context, userId, !v),
         );
       },
     );

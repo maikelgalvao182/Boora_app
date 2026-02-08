@@ -7,6 +7,7 @@ import 'package:partiu/core/services/cache/hive_initializer.dart';
 import 'package:partiu/features/home/data/models/event_location.dart';
 import 'package:partiu/features/home/data/models/event_location_cache.dart';
 import 'package:partiu/features/home/data/models/map_bounds.dart';
+import 'package:partiu/features/home/data/services/event_tombstone_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Serviço exclusivo para descoberta de eventos por bounding box
@@ -29,9 +30,7 @@ class MapDiscoveryService {
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _eventsMapCollection = 'events_map';
-  static const String _eventsCollection = 'events';
-  static const bool _allowEventsFallback = true;
+  static const String _eventsCollection = 'events_card_preview';
   
   // ValueNotifier para eventos próximos (evita rebuilds desnecessários)
   final ValueNotifier<List<EventLocation>> nearbyEvents = ValueNotifier([]);
@@ -121,6 +120,18 @@ class MapDiscoveryService {
   // Tombstones: IDs de eventos deletados na sessão atual
   // Previne ressurreição de markers se o cache I/O for lento ou falhar
   final Set<String> _tombstones = <String>{};
+
+  // ═══════════════════════════════════════════════════════════════════
+  // � Tombstone Polling: polling delta na coleção event_tombstones
+  //    para detectar deleções/desativações de forma eficiente.
+  //    Substitui o snapshot listener contínuo por queries pontuais.
+  // ═══════════════════════════════════════════════════════════════════
+  final EventTombstoneService _tombstoneService = EventTombstoneService();
+
+  /// Stream que emite IDs de eventos deletados/desativados detectados
+  /// por polling de tombstones.
+  Stream<String> get onEventDeletionDetected =>
+      _tombstoneService.onEventDeletionDetected;
 
   // Cache persistente (Hive)
   final HiveCacheService<List<EventLocationCache>> _persistentCache =
@@ -251,6 +262,8 @@ class MapDiscoveryService {
       debugPrint(
         '✅ [MapDiscovery] queryEnd(seq=$requestId, boundsKey=$bKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=cache, latencyMs=${sw.elapsedMilliseconds})',
       );
+      // Garante polling de tombstones para esta região
+      unawaited(pollTombstones(bounds));
       return;
     }
 
@@ -292,6 +305,8 @@ class MapDiscoveryService {
       debugPrint(
         '✅ [MapDiscovery] queryEnd(seq=$requestId, boundsKey=$bKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=network, latencyMs=${sw.elapsedMilliseconds})',
       );
+      // 5️⃣ Polling de tombstones para detectar deleções recentes
+      unawaited(pollTombstones(bounds));
     } catch (error) {
       debugPrint('❌ MapDiscoveryService: Erro na query: $error');
       _eventsController.addError(error);
@@ -635,14 +650,14 @@ class MapDiscoveryService {
   /// Firestore suporta apenas 1 range query por vez,
   /// então fazemos a query por latitude e filtramos longitude em código.
   /// 
-  /// ✅ NOTA: events_map DESATIVADO (estava vazio/desatualizado)
-  /// Agora usa apenas a coleção `events` diretamente.
+  /// ✅ NOTA: Usa `events_card_preview` que contém dados desnormalizados
+  /// do criador para permitir filtros eficientes.
   Future<List<EventLocation>> _queryFirestore(MapBounds bounds) async {
     // ========================================
-    // ✅ QUERY DIRETA NA COLEÇÃO `events`
-    // events_map estava vazio, então vamos direto na fonte
+    // ✅ QUERY NA COLEÇÃO `events_card_preview`
+    // Contém dados do criador para filtragem
     // ========================================
-    debugPrint('🔍 [events] Query direta na coleção events...');
+    debugPrint('🔍 [events] Query direta na coleção events_card_preview...');
     
     final query = await _firestore
         .collection(_eventsCollection)
@@ -682,9 +697,6 @@ class MapDiscoveryService {
     }
 
     debugPrint('🧪 [events] kept=${events.length} (lngFiltered=$docsFilteredByLongitude)');
-
-    // ✅ events_map DESATIVADO - não precisa mais de fallback
-    // Agora vai direto na coleção `events`
 
     AnalyticsService.instance.logEvent('map_bounds_query', parameters: {
       'docs_returned': events.length,
@@ -756,9 +768,38 @@ class MapDiscoveryService {
     debugPrint('🧹 MapDiscoveryService: Cache limpo (memória)');
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // � Tombstone Polling — métodos
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Executa polling delta de tombstones para o viewport.
+  ///
+  /// Busca tombstones recentes na coleção `event_tombstones` e
+  /// remove os eventos correspondentes do cache e da UI.
+  /// Chamado em `onCameraIdle` e pelo timer periódico.
+  Future<void> pollTombstones(MapBounds bounds) async {
+    final deletedIds = await _tombstoneService.pollTombstones(bounds);
+    for (final eventId in deletedIds) {
+      if (!_tombstones.contains(eventId)) {
+        removeEvent(eventId);
+      }
+    }
+  }
+
+  /// Inicia o polling periódico de tombstones (enquanto o mapa está visível).
+  void startPeriodicTombstonePolling() {
+    _tombstoneService.startPeriodicPolling();
+  }
+
+  /// Para o polling periódico.
+  void stopPeriodicTombstonePolling() {
+    _tombstoneService.stopPeriodicPolling();
+  }
+
   /// Dispose
   void dispose() {
     _debounceTimer?.cancel();
+    _tombstoneService.stopPeriodicPolling();
     _eventsController.close();
   }
 }

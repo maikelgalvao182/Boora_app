@@ -49,6 +49,13 @@ class PeopleRankingCacheService {
     await _rankingCache.put(key, data, ttl: rankingTtl);
   }
 
+  /// Invalida cache de ranking para uma chave específica
+  Future<void> invalidateRanking(String key) async {
+    await initialize();
+    if (!_initialized) return;
+    await _rankingCache.delete(key);
+  }
+
   RankingFilters? getCachedFilters({String key = 'current'}) {
     if (!_initialized) return null;
     final raw = _filtersCache.get(key);

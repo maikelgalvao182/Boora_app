@@ -80,7 +80,14 @@ class ConversationsViewModel extends ChangeNotifier {
   }
   List<ConversationItem> get wsConversations => _wsConversations;
   List<ConversationItem> get filteredWsConversations {
-    _log('🔍 filteredWsConversations: _wsConversations=${_wsConversations.length}, query="$_searchQuery"');
+    _log('🔍 ============================================= ');
+    _log('🔍 filteredWsConversations GETTER chamado');
+    _log('🔍 _wsConversations.length=${_wsConversations.length}');
+    _log('🔍 _wsConversations IDs=${_wsConversations.map((c) => c.id).toList()}');
+    _log('🔍 _optimisticHiddenConversationIds=$_optimisticHiddenConversationIds');
+    _log('🔍 query="$_searchQuery"');
+    _log('🔍 ============================================= ');
+    
     final q = _searchQuery;
     if (q.isEmpty) return _wsConversations;
 
@@ -261,12 +268,25 @@ class ConversationsViewModel extends ChangeNotifier {
   /// ✅ COLD START: Carrega conversas do cache Hive imediatamente
   /// UI mostra dados cacheados no primeiro frame, stream atualiza depois
   Future<void> _loadCachedConversationsFirst(String userId) async {
+    _log('📦 ============================================= ');
+    _log('📦 _loadCachedConversationsFirst CHAMADO');
+    _log('📦 userId=$userId');
+    _log('📦 _hasReceivedFirstSnapshot=$_hasReceivedFirstSnapshot');
+    _log('📦 _optimisticHiddenConversationIds=$_optimisticHiddenConversationIds');
+    _log('📦 ============================================= ');
+    
     try {
       final cached = await _persistentCache.getCached(userId);
       
       if (cached != null && cached.isNotEmpty && !_hasReceivedFirstSnapshot) {
         _log('⚡ COLD START: ${cached.length} conversas carregadas do cache Hive');
-        _wsConversations = cached;
+        for (final c in cached) {
+          _log('⚡ [HIVE] id=${c.id}, isEventChat=${c.isEventChat}, eventId=${c.eventId}, name=${c.userFullname}');
+        }
+        // 🛡️ FILTRAR conversas que foram removidas otimisticamente
+        final filtered = cached.where((c) => !_optimisticHiddenConversationIds.contains(c.id)).toList();
+        _log('⚡ COLD START: Após filtro de remoções otimistas: ${filtered.length} conversas');
+        _wsConversations = filtered;
         _hasReceivedFirstSnapshot = true; // Mostra UI imediatamente
         _updateVisibleUnreadCount();
         notifyListeners();
@@ -309,8 +329,12 @@ class ConversationsViewModel extends ChangeNotifier {
   
   /// ✅ Processa snapshot do Firestore e atualiza a lista de conversas
   void _handleFirestoreSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    _log('📥 =============================================');
     _log('📥 [Firestore Stream] Snapshot recebido com ${snapshot.docs.length} documentos');
     _log('📥 [Firestore Stream] Metadata - hasPendingWrites: ${snapshot.metadata.hasPendingWrites}, isFromCache: ${snapshot.metadata.isFromCache}');
+    _log('📥 [Firestore Stream] Doc IDs: ${snapshot.docs.map((d) => d.id).toList()}');
+    _log('📥 [Firestore Stream] _optimisticHiddenConversationIds: $_optimisticHiddenConversationIds');
+    _log('📥 ============================================= ');
     
     // 🔥 Limpar cache para garantir dados em tempo real
     _cacheService.clearAll();
@@ -321,6 +345,18 @@ class ConversationsViewModel extends ChangeNotifier {
     for (final doc in snapshot.docs) {
       try {
         final data = doc.data();
+        
+        // 🗑️ Filtrar conversas de eventos deletados (hidden/eventDeleted pelo backend)
+        final isHidden = data['hidden'];
+        final isEventDeleted = data['eventDeleted'];
+        if (data['is_event_chat'] == true) {
+          _log('🔎 [DIAG] Event doc ${doc.id}: hidden=$isHidden (${isHidden.runtimeType}), eventDeleted=$isEventDeleted (${isEventDeleted.runtimeType})');
+        }
+        if (isHidden == true || isEventDeleted == true) {
+          _log('   🗑️ Conversa ${doc.id} ocultada (hidden=$isHidden, eventDeleted=$isEventDeleted)');
+          continue;
+        }
+        
         final otherUserId = (data[USER_ID] ?? doc.id).toString();
         final rawName = (data['activityText'] ?? data['fullName'] ?? data['other_user_name'] ?? data['otherUserName'] ?? '').toString();
         final name = _sanitizeText(rawName);
@@ -444,14 +480,21 @@ class ConversationsViewModel extends ChangeNotifier {
       }
     }
 
+    // � Filtrar conversas ocultadas de forma otimista
+    final afterOptimistic = _optimisticHiddenConversationIds.isEmpty
+        ? items
+        : items
+            .where((conv) => !_optimisticHiddenConversationIds.contains(conv.id))
+            .toList();
+
     // 🚫 Filtrar conversas de usuários bloqueados
     final currentUserId = AppState.currentUserId;
     if (currentUserId != null) {
-      _log('🔍 Filtrando ${items.length} conversas. CurrentUserId: $currentUserId');
+      _log('🔍 Filtrando ${afterOptimistic.length} conversas. CurrentUserId: $currentUserId');
       final blockedIds = BlockService().getAllBlockedIds(currentUserId);
       _log('🔍 IDs bloqueados: $blockedIds');
       
-      final filteredItems = items.where((conv) {
+      final filteredItems = afterOptimistic.where((conv) {
         final isBlocked = BlockService().isBlockedCached(currentUserId, conv.userId);
         if (isBlocked) {
           _log('🚫 Conversa com ${conv.userId} (${conv.userFullname}) BLOQUEADA');
@@ -459,17 +502,32 @@ class ConversationsViewModel extends ChangeNotifier {
         return !isBlocked;
       }).toList();
       
-      _log('✅ ${items.length - filteredItems.length} conversas filtradas');
+      _log('✅ ${afterOptimistic.length - filteredItems.length} conversas filtradas');
       _wsConversations = filteredItems;
     } else {
-      _wsConversations = items;
+      _wsConversations = afterOptimistic;
     }
     
+    _log('📦 [_handleFirestoreSnapshot] RESULTADO FINAL:');
+    _log('📦 [_handleFirestoreSnapshot] _wsConversations.length = ${_wsConversations.length}');
+    _log('📦 [_handleFirestoreSnapshot] _wsConversations IDs = ${_wsConversations.map((c) => c.id).toList()}');
+    _log('📦 [_handleFirestoreSnapshot] _optimisticHiddenConversationIds = $_optimisticHiddenConversationIds');
+    
+    // 🧊 Persistir lista para cold start
+    final authUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (authUserId != null && _wsConversations.isNotEmpty) {
+      unawaited(_persistentCache.cacheConversations(authUserId, _wsConversations));
+    }
+
     _hasReceivedFirstSnapshot = true;
     notifyListeners();
   }
 
   void _handleWsUpdated(Map<String, dynamic> data) {
+    _log('🔄 ============================================= ');
+    _log('🔄 [WebSocket] conversations:updated recebido');
+    _log('🔄 [WebSocket] _optimisticHiddenConversationIds: $_optimisticHiddenConversationIds');
+    
     final convMap = data['conversation'];
     if (convMap is! Map<String, dynamic>) return;
 
@@ -511,6 +569,12 @@ class ConversationsViewModel extends ChangeNotifier {
 
     _wsConversations = visibleList;
     _updateVisibleUnreadCount(); // Atualiza contador de não lidas visíveis
+    
+    _log('🔄 [WebSocket] APÓS UPDATE:');
+    _log('🔄 [WebSocket] _wsConversations.length = ${_wsConversations.length}');
+    _log('🔄 [WebSocket] _wsConversations IDs = ${_wsConversations.map((c) => c.id).toList()}');
+    _log('🔄 ============================================= ');
+    
     notifyListeners();
   }
 
@@ -534,6 +598,12 @@ class ConversationsViewModel extends ChangeNotifier {
   /// ✅ Pode ser chamado externamente pelo AppInitializer para pré-carregar conversas
   /// ✅ Usa GlobalCache para carregamento instantâneo
   Future<void> preloadConversations() async {
+    _log('🎁 ============================================= ');
+    _log('🎁 preloadConversations CHAMADO');
+    _log('🎁 _hasReceivedFirstSnapshot=$_hasReceivedFirstSnapshot');
+    _log('🎁 _optimisticHiddenConversationIds=$_optimisticHiddenConversationIds');
+    _log('🎁 ============================================= ');
+    
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
@@ -541,7 +611,10 @@ class ConversationsViewModel extends ChangeNotifier {
     final persisted = await _persistentCache.getCached(userId);
     if (persisted != null && persisted.isNotEmpty) {
       _log('🧊 [Conversations] Hive cache HIT - ${persisted.length} conversas');
-      _wsConversations = persisted;
+      // 🛡️ FILTRAR conversas que foram removidas otimisticamente
+      final filtered = persisted.where((c) => !_optimisticHiddenConversationIds.contains(c.id)).toList();
+      _log('🧊 [Conversations] Após filtro de remoções otimistas: ${filtered.length} conversas');
+      _wsConversations = filtered;
       _updateVisibleUnreadCount();
       _hasReceivedFirstSnapshot = true;
       notifyListeners();
@@ -681,6 +754,12 @@ class ConversationsViewModel extends ChangeNotifier {
 
   /// Atualização silenciosa em background (não mostra loading)
   Future<void> _silentRefreshConversations() async {
+    _log('🔄 ============================================= ');
+    _log('🔄 _silentRefreshConversations CHAMADO');
+    _log('🔄 _optimisticHiddenConversationIds=$_optimisticHiddenConversationIds');
+    _log('🔄 _wsConversations.length=${_wsConversations.length}');
+    _log('🔄 ============================================= ');
+    
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) return;
@@ -699,6 +778,13 @@ class ConversationsViewModel extends ChangeNotifier {
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data();
+          
+          // 🛡️ FILTRAR conversas deletadas ou escondidas
+          if (data['hidden'] == true || data['eventDeleted'] == true) {
+            _log('🔄 [SilentRefresh] Pulando conversa deletada: ${doc.id}');
+            continue;
+          }
+          
           final otherUserId = (data[USER_ID] ?? doc.id).toString();
           final rawName = (data['activityText'] ?? data['fullName'] ?? data['other_user_name'] ?? data['otherUserName'] ?? '').toString();
           final name = _sanitizeText(rawName);
@@ -747,26 +833,32 @@ class ConversationsViewModel extends ChangeNotifier {
       final filteredItems = currentUserId != null
           ? items.where((conv) => !BlockService().isBlockedCached(currentUserId, conv.userId)).toList()
           : items;
+      
+      // 🛡️ FILTRAR conversas removidas otimisticamente
+      final finalFiltered = filteredItems.where((c) => !_optimisticHiddenConversationIds.contains(c.id)).toList();
+      if (finalFiltered.length != filteredItems.length) {
+        _log('🔄 [SilentRefresh] Filtradas ${filteredItems.length - finalFiltered.length} conversas por remoção otimista');
+      }
 
       // Comparar com cache atual
-      final hasChanges = filteredItems.length != _wsConversations.length ||
-          (filteredItems.isNotEmpty && 
+      final hasChanges = finalFiltered.length != _wsConversations.length ||
+          (finalFiltered.isNotEmpty && 
            _wsConversations.isNotEmpty && 
-           (filteredItems.first.id != _wsConversations.first.id ||
-            filteredItems.first.lastMessage != _wsConversations.first.lastMessage));
+           (finalFiltered.first.id != _wsConversations.first.id ||
+            finalFiltered.first.lastMessage != _wsConversations.first.lastMessage));
 
       if (hasChanges) {
         _log('🔄 [Conversations] Mudanças detectadas - atualizando');
-        _wsConversations = filteredItems;
+        _wsConversations = finalFiltered;
         _updateVisibleUnreadCount();
         
-        // Atualizar cache
+        // Atualizar cache (usar lista filtrada!)
         _globalCache.set(
           CacheKeys.conversations,
-          filteredItems,
+          finalFiltered,
           ttl: const Duration(minutes: 3),
         );
-        unawaited(_persistentCache.cacheConversations(userId, filteredItems));
+        unawaited(_persistentCache.cacheConversations(userId, finalFiltered));
         
         notifyListeners();
       } else {
@@ -1006,19 +1098,31 @@ class ConversationsViewModel extends ChangeNotifier {
   /// Optimistically remove conversation by conversationId (e.g., event_123)
   void optimisticRemoveByConversationId(String conversationId) {
     if (conversationId.isEmpty) return;
-    if (_optimisticHiddenConversationIds.add(conversationId)) {
-      _wsConversations = _wsConversations
-          .where((conv) => conv.id != conversationId)
-          .toList(growable: false);
+    debugPrint('🗑️ [optimisticRemove] Tentando remover: $conversationId');
+    debugPrint('🗑️ [optimisticRemove] Conversas ANTES: ${_wsConversations.map((c) => c.id).toList()}');
+    debugPrint('🗑️ [optimisticRemove] _optimisticHiddenConversationIds ANTES: $_optimisticHiddenConversationIds');
+    
+    // ✅ Sempre adicionar à lista de ocultos E sempre filtrar _wsConversations
+    // Mesmo se já estava oculto, pode ter sido restaurado por um Firestore snapshot
+    _optimisticHiddenConversationIds.add(conversationId);
+    
+    final sizeBefore = _wsConversations.length;
+    _wsConversations = _wsConversations
+        .where((conv) => conv.id != conversationId)
+        .toList(growable: false);
+    final sizeAfter = _wsConversations.length;
 
-      final authUserId = FirebaseAuth.instance.currentUser?.uid;
-      if (authUserId != null && _wsConversations.isNotEmpty) {
-        unawaited(_persistentCache.cacheConversations(authUserId, _wsConversations));
-      }
+    debugPrint('🗑️ [optimisticRemove] Conversas DEPOIS: ${_wsConversations.map((c) => c.id).toList()}');
+    debugPrint('🗑️ [optimisticRemove] Removidos: ${sizeBefore - sizeAfter} itens');
 
-      _updateVisibleUnreadCount();
-      notifyListeners();
+    final authUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (authUserId != null) {
+      debugPrint('🗑️ [optimisticRemove] Salvando ${_wsConversations.length} conversas no Hive cache');
+      unawaited(_persistentCache.cacheConversations(authUserId, _wsConversations));
     }
+
+    _updateVisibleUnreadCount();
+    notifyListeners();
   }
 
   /// Optimistically mark conversation as read

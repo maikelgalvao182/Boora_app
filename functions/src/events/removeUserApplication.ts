@@ -97,29 +97,61 @@ async function executeRemovalBatch(
   } else {
     const eventChatData = eventChatDoc.data();
     const participants = eventChatData?.participants || [];
+    const participantIds = eventChatData?.participantIds || [];
     const currentCount = eventChatData?.participantCount || 0;
 
-    if (participants.includes(userId)) {
+    // Verificar se usuário está em participants OU participantIds
+    const inParticipants = participants.includes(userId);
+    const inParticipantIds = participantIds.includes(userId);
+
+    if (inParticipants || inParticipantIds) {
       const newCount = Math.max(0, currentCount - 1);
-      batch.update(eventChatRef, {
-        participants: admin.firestore.FieldValue.arrayRemove(userId),
+      const updates: Record<string, admin.firestore.FieldValue | number> = {
         participantCount: newCount,
-      });
+      };
+
+      // Remover de ambos os arrays (para consistência)
+      if (inParticipants) {
+        updates.participants = admin.firestore.FieldValue.arrayRemove(userId);
+      }
+      if (inParticipantIds) {
+        updates.participantIds = admin.firestore.FieldValue.arrayRemove(userId);
+      }
+
+      batch.update(eventChatRef, updates);
+      console.log(
+        "🔄 Removing user from EventChat arrays: " +
+        `participants=${inParticipants}, participantIds=${inParticipantIds}`
+      );
     } else {
       console.log(
-        "⚠️ User not in participants list, skipping EventChat update."
+        "⚠️ User not in participants or participantIds, " +
+        "skipping EventChat update."
       );
     }
   }
 
-  // 3. Remove conversation
+  // 3. Marcar conversation como hidden + leftEvent
+  // NÃO deletar — se deletarmos, o trigger onEventChatMessageCreated
+  // recria o doc via set({merge:true}) e o tile "ressuscita".
+  // Com hidden:true + leftEvent:true, o doc persiste mas é filtrado
+  // pelo client (conversation_pagination_service.dart) e nunca
+  // sobrescrito pelo merge do notification trigger.
   const eventUserId = `event_${eventId}`;
   const conversationRef = firestore
     .collection("Connections")
     .doc(userId)
     .collection("Conversations")
     .doc(eventUserId);
-  batch.delete(conversationRef);
+  batch.set(
+    conversationRef,
+    {
+      hidden: true,
+      leftEvent: true,
+      leftAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true}
+  );
 
   await batch.commit();
 

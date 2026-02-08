@@ -75,14 +75,17 @@ class _LoadingChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: GlimpseColors.primaryLight,
         borderRadius: BorderRadius.circular(100),
       ),
-      child: TypingIndicator(
-        color: GlimpseColors.primaryColorLight,
-        dotSize: 6,
+      child: SizedBox(
+        height: 14, // Mesma altura do Text fontSize 12
+        child: TypingIndicator(
+          color: GlimpseColors.primaryColorLight,
+          dotSize: 6,
+        ),
       ),
     );
   }

@@ -15,6 +15,7 @@ import 'package:partiu/features/notifications/widgets/notification_horizontal_fi
 import 'package:partiu/shared/widgets/glimpse_empty_state.dart';
 import 'package:partiu/features/home/presentation/widgets/list_card_shimmer.dart';
 import 'package:partiu/features/home/presentation/widgets/date_filter_calendar.dart';
+import 'package:partiu/services/events/event_creator_filters_controller.dart';
 
 /// Cache global de ListCardController para evitar recriação
 class ListCardControllerCache {
@@ -285,7 +286,11 @@ class _ListDrawerContent extends StatelessWidget {
         return ValueListenableBuilder<List<EventLocation>>(
           valueListenable: discoveryService.nearbyEvents,
           builder: (context, nearbyEventsList, _) {
-            // Filtrar eventos pela categoria E data selecionadas
+            // Filtrar eventos pela categoria, data E filtros de criador
+            final creatorFilters = EventCreatorFiltersController();
+            final hasCreatorFilters = creatorFilters.filtersEnabled && creatorFilters.hasActiveFilters;
+            final filters = hasCreatorFilters ? creatorFilters.currentFilters : null;
+
             final filteredNearbyEvents = nearbyEventsList.where((event) {
               // Filtro de categoria
               if (selectedCategory != null && selectedCategory.trim().isNotEmpty) {
@@ -301,6 +306,43 @@ class _ListDrawerContent extends StatelessWidget {
                     eventDate.month != selectedDate.month ||
                     eventDate.day != selectedDate.day) {
                   return false;
+                }
+              }
+
+              // Filtros de criador
+              if (filters != null) {
+                // Gênero
+                if (filters.creatorGender != null) {
+                  final g = (event.creatorGender?.trim().isNotEmpty == true)
+                      ? event.creatorGender!.trim().toLowerCase()
+                      : null;
+                  if (g == null) return false;
+                  if (g != filters.creatorGender!.trim().toLowerCase()) return false;
+                }
+                // Orientação sexual
+                if (filters.creatorSexualOrientation != null) {
+                  final o = (event.creatorSexualOrientation?.trim().isNotEmpty == true)
+                      ? event.creatorSexualOrientation!.trim().toLowerCase()
+                      : null;
+                  if (o == null) return false;
+                  if (o != filters.creatorSexualOrientation!.trim().toLowerCase()) return false;
+                }
+                // Idade
+                if (filters.creatorMinAge != null || filters.creatorMaxAge != null) {
+                  final age = event.creatorAge;
+                  if (age == null) return false;
+                  if (filters.creatorMinAge != null && age < filters.creatorMinAge!) return false;
+                  if (filters.creatorMaxAge != null && age > filters.creatorMaxAge!) return false;
+                }
+                // Verificado
+                if (filters.creatorVerified == true) {
+                  if (!event.creatorVerified) return false;
+                }
+                // Interesses
+                if (filters.creatorInterests != null && filters.creatorInterests!.isNotEmpty) {
+                  final ei = event.creatorInterests;
+                  if (ei.isEmpty) return false;
+                  if (!filters.creatorInterests!.any((i) => ei.contains(i))) return false;
                 }
               }
               
@@ -457,8 +499,15 @@ class _EventCardWrapperState extends State<_EventCardWrapper> {
     super.initState();
     // Usa cache - nunca recria o controller
     _controller = ListCardControllerCache.get(widget.eventId);
-    // Dispara load apenas se ainda não carregou
-    _controller.load();
+    // Dispara load + preload de avatares
+    _loadWithAvatarPreload();
+  }
+  
+  /// Carrega dados e força download de avatares antes de exibir
+  Future<void> _loadWithAvatarPreload() async {
+    await _controller.load();
+    // Força download real dos avatares (não apenas enfileirar)
+    await _controller.preloadAvatarsAsync();
   }
 
   @override

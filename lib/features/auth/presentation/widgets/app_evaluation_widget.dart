@@ -81,11 +81,9 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
       if (!_canRequestReview()) return;
       final inAppReview = InAppReview.instance;
       
-      if (await inAppReview.isAvailable()) {
-        await inAppReview.requestReview();
-      } else {
-        await inAppReview.openStoreListing(appStoreId: '6755944656');
-      }
+      // Em desenvolvimento/TestFlight, o diálogo nativo não permite enviar reviews.
+      // Sempre abrir a página da loja garante que o usuário pode avaliar de verdade.
+      await inAppReview.openStoreListing(appStoreId: '6755944656');
     } catch (e) {
       AppLogger.error('Error requesting review: $e', tag: 'AppEvaluationWidget');
     }

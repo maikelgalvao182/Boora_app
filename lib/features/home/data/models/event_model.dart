@@ -28,6 +28,13 @@ class EventModel {
   final int? minAge; // Idade mínima do evento
   final int? maxAge; // Idade máxima do evento
 
+  // Dados desnormalizados do criador (para filtros)
+  final String? creatorGender;
+  final int? creatorAge;
+  final bool creatorVerified;
+  final List<String> creatorInterests;
+  final String? creatorSexualOrientation;
+
   EventModel({
     required this.id,
     required this.emoji,
@@ -52,6 +59,11 @@ class EventModel {
     this.isAgeRestricted = false,
     this.minAge,
     this.maxAge,
+    this.creatorGender,
+    this.creatorAge,
+    this.creatorVerified = false,
+    this.creatorInterests = const [],
+    this.creatorSexualOrientation,
   });
 
   /// Factory para criar EventModel a partir de um Map
@@ -184,6 +196,11 @@ class EventModel {
     bool? isAgeRestricted,
     int? minAge,
     int? maxAge,
+    String? creatorGender,
+    int? creatorAge,
+    bool? creatorVerified,
+    List<String>? creatorInterests,
+    String? creatorSexualOrientation,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -209,6 +226,11 @@ class EventModel {
       isAgeRestricted: isAgeRestricted ?? this.isAgeRestricted,
       minAge: minAge ?? this.minAge,
       maxAge: maxAge ?? this.maxAge,
+      creatorGender: creatorGender ?? this.creatorGender,
+      creatorAge: creatorAge ?? this.creatorAge,
+      creatorVerified: creatorVerified ?? this.creatorVerified,
+      creatorInterests: creatorInterests ?? this.creatorInterests,
+      creatorSexualOrientation: creatorSexualOrientation ?? this.creatorSexualOrientation,
     );
   }
 }
