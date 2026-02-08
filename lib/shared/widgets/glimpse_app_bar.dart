@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -31,7 +32,7 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: 20.w),
         child: AppBar(
           automaticallyImplyLeading: false,
           centerTitle: true,
@@ -40,19 +41,19 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
             title,
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 18,
+              fontSize: 18.sp,
               fontWeight: FontWeight.w700,
               color: GlimpseColors.primaryColorLight,
             ),
           ),
           leading: SizedBox(
-            width: 28,
+            width: 28.w,
             child: IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               icon: Icon(
                 IconsaxPlusLinear.arrow_left,
-                size: 24,
+                size: 24.sp,
                 color: isBackEnabled
                     ? Colors.black
                     : Colors.black.withValues(alpha: 0.6),
@@ -69,18 +70,18 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
               },
             ),
           ),
-          leadingWidth: 28,
+          leadingWidth: 28.w,
           actions: [
             if (actionWidget != null)
               actionWidget!
             else if (onAction != null)
               isActionLoading
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        padding: EdgeInsets.symmetric(horizontal: 20.w),
                         child: TypingIndicator(
                           color: GlimpseColors.primary,
-                          dotSize: 6.0,
+                          dotSize: 6.0.r,
                         ),
                       ),
                     )
@@ -95,7 +96,7 @@ class GlimpseAppBar extends StatelessWidget implements PreferredSizeWidget {
                         actionText ?? 'Save',
                         style: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 15,
+                          fontSize: 15.sp,
                           fontWeight: FontWeight.w600,
                           color: GlimpseColors.primary,
                         ),

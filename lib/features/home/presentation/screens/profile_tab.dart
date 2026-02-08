@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,7 @@ import 'package:partiu/features/profile/presentation/widgets/app_section_card.da
 import 'package:partiu/features/profile/presentation/screens/profile_screen_router.dart';
 import 'package:partiu/features/profile/presentation/screens/profile_screen_optimized.dart';
 import 'package:partiu/core/services/distance_unit_service.dart';
+import 'package:partiu/core/services/feature_flags_service.dart';
 
 // ==================== PERFORMANCE OPTIMIZATIONS ====================
 // Seguindo BOAS_PRATICAS2.MD:
@@ -86,7 +88,7 @@ class _ProfileTabState extends State<ProfileTab> {
     // Cache de TextStyle - recriado apenas quando tema muda
     _nameTextStyle = GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
       color: Theme.of(context).textTheme.bodyLarge?.color,
-      fontSize: 18,
+      fontSize: 18.sp,
       fontWeight: FontWeight.w700,
     );
   }
@@ -385,22 +387,29 @@ class _ProfileHeaderContent extends StatelessWidget {
           const ProfileInfoChips(),
           const SizedBox(height: 16),
           
-          // Verification Card (só exibe se NÃO estiver verificado)
-          ValueListenableBuilder<User?>(
-            valueListenable: AppState.currentUser,
-            builder: (context, user, _) {
-              if (user == null) return const SizedBox.shrink();
+          // Verification Card (só exibe se flag ativa E NÃO estiver verificado)
+          ValueListenableBuilder<bool>(
+            valueListenable: FeatureFlagsService().showVerificationCardNotifier,
+            builder: (context, showCard, _) {
+              if (!showCard) return const SizedBox.shrink();
               
-              return ValueListenableBuilder<bool>(
-                valueListenable: UserStore.instance.getVerifiedNotifier(user.userId),
-                builder: (context, isVerified, _) {
-                  if (isVerified) {
-                    return const SizedBox.shrink();
-                  }
+              return ValueListenableBuilder<User?>(
+                valueListenable: AppState.currentUser,
+                builder: (context, user, _) {
+                  if (user == null) return const SizedBox.shrink();
                   
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: GlimpseStyles.horizontalMargin),
-                    child: VerificationCard(),
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: UserStore.instance.getVerifiedNotifier(user.userId),
+                    builder: (context, isVerified, _) {
+                      if (isVerified) {
+                        return const SizedBox.shrink();
+                      }
+                      
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: GlimpseStyles.horizontalMargin),
+                        child: VerificationCard(),
+                      );
+                    },
                   );
                 },
               );
@@ -445,7 +454,7 @@ class _LocationText extends StatelessWidget {
           style: GoogleFonts.getFont(
             FONT_PLUS_JAKARTA_SANS,
             color: GlimpseColors.textSubTitle,
-            fontSize: 14,
+            fontSize: 14.sp,
             fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,

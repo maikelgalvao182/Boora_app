@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Horizontal, scrollable filter chips used to select a notification category
@@ -8,15 +9,15 @@ import 'package:google_fonts/google_fonts.dart';
 /// Unselected: light background, black text
 /// Selected: primary background, white text
 class NotificationFilter extends StatelessWidget {
-  const NotificationFilter({
+  NotificationFilter({
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
     super.key,
-    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    EdgeInsetsGeometry? padding,
     this.selectedBackgroundColor = GlimpseColors.primary,
     this.unselectedBackgroundColor = GlimpseColors.lightTextField,
-  });
+  }) : padding = padding ?? EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h);
   
   final List<String> items;
   final int selectedIndex;
@@ -70,13 +71,13 @@ class _NotificationChipButton extends StatelessWidget {
     final fg = selected ? Colors.white : Colors.black;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: EdgeInsets.symmetric(horizontal: 5.w),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(50),
+            borderRadius: BorderRadius.circular(50.r),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
@@ -86,7 +87,7 @@ class _NotificationChipButton extends StatelessWidget {
                 title,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                   color: fg,
                 ),

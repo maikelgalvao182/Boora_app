@@ -1,5 +1,6 @@
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
 /// Shows a custom-styled confirmation dialog consistent with Glimpse UI.
@@ -55,10 +56,10 @@ class _GlimpseConfirmPanel extends StatelessWidget {
           children: [
             // Icon at top (fixed red trash icon from Iconsax)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: EdgeInsets.only(top: 8.h),
               child: Container(
-                height: 56,
-                width: 56,
+                height: 56.h,
+                width: 56.w,
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   shape: BoxShape.circle,
@@ -67,7 +68,7 @@ class _GlimpseConfirmPanel extends StatelessWidget {
                   child: Icon(
                     IconsaxPlusLinear.trash,
                     color: Colors.red,
-                    size: 28,
+                    size: 28.sp,
                   ),
                 ),
               ),
@@ -77,7 +78,7 @@ class _GlimpseConfirmPanel extends StatelessWidget {
             if (icon != null) ...[
               DialogStyles.buildIconContainer(
                 icon: isDestructive
-                    ? DialogStyles.buildDeleteIcon(icon: icon!, iconSize: 24)
+                    ? DialogStyles.buildDeleteIcon(icon: icon!, iconSize: 24.sp)
                     : DialogStyles.buildInfoIcon(icon: icon!, iconSize: 24),
               ),
               const SizedBox(height: DialogStyles.spacingAfterIcon),

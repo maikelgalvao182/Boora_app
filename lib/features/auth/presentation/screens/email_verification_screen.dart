@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -216,12 +217,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         Text(
           'Confirmar e-mail',
           style: TextStyles.headerTitle,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         Text(
           _i18n.translate('email_verification_sent') != ''
               ? _i18n.translate('email_verification_sent')
@@ -234,7 +235,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 16),
+        SizedBox(height: 16.h),
 
         GlimpseTextField(
           controller: _emailController,
@@ -245,7 +246,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           onTap: () {},
         ),
 
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
 
         // Ações abaixo do input (padrão do fluxo de auth)
         Row(
@@ -254,7 +255,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             TextButton(
               onPressed: _canResend ? _resendVerificationEmail : null,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: 4.w),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -272,7 +273,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             TextButton(
               onPressed: _backToSignIn,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: 4.w),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

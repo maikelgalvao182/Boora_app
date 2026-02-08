@@ -3,6 +3,7 @@ import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_date_picker_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de data de nascimento com cálculo de idade
 /// Extraído de TelaDataNascimento para reutilização no wizard
@@ -42,7 +43,7 @@ class BirthDateWidget extends StatelessWidget {
       children: [
         // Label com idade na mesma row
         Padding(
-          padding: const EdgeInsets.only(bottom: 0),
+          padding: EdgeInsets.only(bottom: 0.h),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -56,7 +57,7 @@ class BirthDateWidget extends StatelessWidget {
                 Text(
                   i18n.translate('age_years').replaceAll('{age}', age.toString()),
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     color: GlimpseColors.primary,
                     fontWeight: FontWeight.w600,
                   ),

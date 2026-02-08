@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de username do Instagram
 /// Extraído para reutilização no wizard
@@ -94,16 +95,16 @@ class _InstagramWidgetState extends State<InstagramWidget> {
           },
         ),
         
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         
         // Helper text
         Padding(
-          padding: const EdgeInsets.only(left: 4),
+          padding: EdgeInsets.only(left: 4.w),
           child: Text(
             i18n.translate('instagram_helper'),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 12,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w400,
               color: GlimpseColors.textSubTitle,
             ),

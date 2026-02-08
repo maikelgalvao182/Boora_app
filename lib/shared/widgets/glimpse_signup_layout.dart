@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Layout base para as telas de cadastro estilo Glimpse
 class GlimpseSignupLayout extends StatelessWidget {
@@ -10,14 +11,14 @@ class GlimpseSignupLayout extends StatelessWidget {
     required this.content,
     super.key,
     this.bottomButton,
-    this.padding = const EdgeInsets.only(left: GlimpseStyles.horizontalMargin, top: 30, right: GlimpseStyles.horizontalMargin),
+    this.padding,
     this.backgroundColor,
   });
   
   final Widget header;
   final Widget content;
   final Widget? bottomButton;
-  final EdgeInsets padding;
+  final EdgeInsets? padding;
   final Color? backgroundColor;
 
   @override
@@ -37,7 +38,7 @@ class GlimpseSignupLayout extends StatelessWidget {
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           child: Padding(
-            padding: padding,
+            padding: padding ?? EdgeInsets.only(left: GlimpseStyles.horizontalMargin, top: 30.h, right: GlimpseStyles.horizontalMargin),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -48,7 +49,7 @@ class GlimpseSignupLayout extends StatelessWidget {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.only(
-                      bottom: bottomButton != null ? 100 : 20,
+                      bottom: bottomButton != null ? 100.h : 20.h,
                     ),
                     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     physics: const BouncingScrollPhysics(),
@@ -59,7 +60,7 @@ class GlimpseSignupLayout extends StatelessWidget {
                 // Botão fixo na parte inferior
                 if (bottomButton != null)
                   Container(
-                    padding: const EdgeInsets.only(bottom: 20),
+                    padding: EdgeInsets.only(bottom: 20.h),
                     child: bottomButton,
                   ),
               ],

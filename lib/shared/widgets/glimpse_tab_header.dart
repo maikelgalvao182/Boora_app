@@ -2,6 +2,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -103,8 +104,8 @@ class GlimpseTabHeader extends StatelessWidget {
   Widget _buildSimpleHeader() {
     return Padding(
       padding: hasTabs 
-          ? const EdgeInsets.fromLTRB(18, 8, 18, 0)
-          : const EdgeInsets.fromLTRB(18, 30, 18, 0),
+          ? EdgeInsets.fromLTRB(18.w, 8.h, 18.w, 0)
+          : EdgeInsets.fromLTRB(18.w, 30.h, 18.w, 0),
       child: Row(
         children: [
           Expanded(
@@ -114,13 +115,13 @@ class GlimpseTabHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: 28,
+            width: 28.w,
             child: IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
-              icon: const Icon(
+              icon: Icon(
                 Iconsax.search_normal_1,
-                size: 22,
+                size: 22.sp,
                 color: GlimpseColors.textSubTitle,
               ),
               onPressed: onSearchTap,
@@ -137,14 +138,14 @@ class GlimpseTabHeader extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(50),
+          borderRadius: BorderRadius.circular(50.r),
           color: GlimpseColors.lightTextField,
         ),
-        height: 56,
-        padding: const EdgeInsets.all(4),
+        height: 56.h,
+        padding: EdgeInsets.all(4.w),
         child: Stack(
           children: [
             // Sliding Indicator
@@ -160,13 +161,13 @@ class GlimpseTabHeader extends StatelessWidget {
                 heightFactor: 1.0,
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(40),
+                    borderRadius: BorderRadius.circular(40.r),
                     color: Colors.black,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
+                        blurRadius: 4.r,
+                        offset: Offset(0, 2.h),
                       ),
                     ],
                   ),
@@ -189,7 +190,7 @@ class GlimpseTabHeader extends StatelessWidget {
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut,
                         style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                          fontSize: 16,
+                          fontSize: 16.sp,
                           fontWeight: FontWeight.w700,
                           color: selectedTabIndex == index ? Colors.white : Colors.grey[600],
                         ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/presentation/viewmodels/people_ranking_viewmodel.dart';
 import 'package:partiu/features/home/presentation/widgets/people_ranking_card.dart';
@@ -115,7 +116,7 @@ class _RankingTabState extends State<RankingTab> {
                   ? i18n.translate('ranking_title')
                   : 'Ranking',
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
 
             // Importante: UI de tabs (incluindo "Lugares" e a Glimpse tab header)
             // foi removida. Esta página agora mostra apenas o conteúdo de "Pessoas".
@@ -133,12 +134,12 @@ class _RankingTabState extends State<RankingTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Container fixo para o shimmer do filtro
-          const SizedBox(
-            height: 56, // Altura fixa para manter espaço consistente
+          SizedBox(
+            height: 56.h, // Altura fixa para manter espaço consistente
             child: NotificationFilterShimmer(),
           ),
           
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           
           // Lista de shimmer cards
           Expanded(
@@ -192,17 +193,17 @@ class _RankingTabState extends State<RankingTab> {
             // Filtro de Estado (padrão)
             if (states.isNotEmpty)
               SizedBox(
-                height: 48,
+                height: 48.h,
                 child: _buildStateFilter(states),
               ),
             
             if (states.isNotEmpty && cities.isNotEmpty)
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
             
             // Filtro de Cidade (outline)
             if (cities.isNotEmpty)
               SizedBox(
-                height: 38,
+                height: 38.h,
                 child: _buildCityFilter(cities),
               ),
           ],
@@ -268,7 +269,7 @@ class _RankingTabState extends State<RankingTab> {
                 totalComments: ranking.totalComments,
               );
             },
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
           ),
         ),
       ],

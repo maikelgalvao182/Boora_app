@@ -3,6 +3,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class OnboardingListWidget extends StatelessWidget {
   final bool isBride;
@@ -37,7 +38,7 @@ class OnboardingListWidget extends StatelessWidget {
     ];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -46,33 +47,33 @@ class OnboardingListWidget extends StatelessWidget {
             i18n.translate(titleKey),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               color: GlimpseColors.textSubTitle,
-              fontSize: 56,
+              fontSize: 56.sp,
               fontWeight: FontWeight.w800,
               letterSpacing: -2,
               height: 1.1,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           // Subtítulo
           Text(
             i18n.translate(subtitleKey),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               color: GlimpseColors.textSubTitle.withValues(alpha: 0.7),
-              fontSize: 16,
+              fontSize: 16.sp,
               fontWeight: FontWeight.w400,
               letterSpacing: -0.3,
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 32.h),
           // Grid de cards 2x2
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: 12.w,
+              mainAxisSpacing: 12.h,
               childAspectRatio: 1,
             ),
             itemCount: cardsData.length,
@@ -83,7 +84,7 @@ class OnboardingListWidget extends StatelessWidget {
               
               return Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16.r),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -92,12 +93,12 @@ class OnboardingListWidget extends StatelessWidget {
                   boxShadow: [
                     BoxShadow(
                       color: colors[0].withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      blurRadius: 12.r,
+                      offset: Offset(0, 4.h),
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16.w),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -106,7 +107,7 @@ class OnboardingListWidget extends StatelessWidget {
                       number,
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                         color: Colors.black.withValues(alpha: 0.9),
-                        fontSize: 18,
+                        fontSize: 18.sp,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
                       ),
@@ -117,7 +118,7 @@ class OnboardingListWidget extends StatelessWidget {
                       text,
                       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                         color: Colors.black.withValues(alpha: 0.95),
-                        fontSize: 14,
+                        fontSize: 14.sp,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
                         height: 1.3,

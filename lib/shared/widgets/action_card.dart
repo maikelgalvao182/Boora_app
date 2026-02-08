@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -122,13 +123,13 @@ class _ActionCardState extends State<ActionCard> {
         // Callback vazio - a remoção real acontece via Stream
       },
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12.w),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
             color: GlimpseColors.borderColorLight,
-            width: 1,
+            width: 1.w,
           ),
         ),
         child: Row(
@@ -145,14 +146,14 @@ class _ActionCardState extends State<ActionCard> {
                 return StableAvatar(
                   userId: widget.userId,
                   photoUrl: widget.userPhotoUrl,
-                  size: 48,
-                  borderRadius: BorderRadius.circular(8),
+                  size: 48.w,
+                  borderRadius: BorderRadius.circular(8.r),
                   enableNavigation: true,
                 );
               },
             ),
 
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
 
             // Informações e Botões
             Expanded(
@@ -184,7 +185,7 @@ class _ActionCardState extends State<ActionCard> {
                         text: TextSpan(
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 15,
+                            fontSize: 15.sp,
                             fontWeight: FontWeight.w500,
                             color: GlimpseColors.primaryColorLight,
                           ),
@@ -194,20 +195,20 @@ class _ActionCardState extends State<ActionCard> {
                     },
                   ),
 
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4.h),
 
                   // Tempo relativo
                   Text(
                     widget.timeAgo,
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 13,
+                      fontSize: 13.sp,
                       fontWeight: FontWeight.w500,
                       color: GlimpseColors.textSubTitle,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
 
                   // Botões de ação
                   Row(
@@ -216,21 +217,21 @@ class _ActionCardState extends State<ActionCard> {
                         child: GlimpseButton(
                           text: widget.primaryButtonText,
                           backgroundColor: widget.primaryButtonColor,
-                          height: 38,
-                          fontSize: 14,
+                          height: 38.h,
+                          fontSize: 14.sp,
                           noPadding: true,
                           isProcessing: _isProcessing,
                           hideProcessingText: true,
                           onPressed: _handlePrimaryAction,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8.w),
                       Expanded(
                         child: GlimpseButton(
                           text: widget.secondaryButtonText,
                           backgroundColor: widget.secondaryButtonColor,
-                          height: 38,
-                          fontSize: 14,
+                          height: 38.h,
+                          fontSize: 14.sp,
                           noPadding: true,
                           isProcessing: _isProcessing,
                           hideProcessingText: true,

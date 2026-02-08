@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/image_source_bottom_sheet.dart';
 import 'package:flutter/material.dart';
@@ -57,21 +58,21 @@ class _GlimpsePhotoUploaderState extends State<GlimpsePhotoUploader> {
             if (widget.imageFile != null)
               Positioned(
                 bottom: 0,
-                right: 20,
+                right: 20.w,
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
                     color: GlimpseColors.primary,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Colors.white,
-                      width: 2,
+                      width: 2.w,
                     ),
                   ),
                   child: Icon(
                     IconsaxPlusBold.edit_2,
                     color: Colors.white,
-                    size: 20,
+                    size: 20.sp,
                   ),
                 ),
               ),
@@ -89,8 +90,8 @@ class _GlimpsePhotoUploaderState extends State<GlimpsePhotoUploader> {
       await showModalBottomSheet<void>(
         context: context,
         backgroundColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
         ),
         builder: (BuildContext context) {
           return ImageSourceBottomSheet(

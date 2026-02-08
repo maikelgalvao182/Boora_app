@@ -2,6 +2,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 
@@ -119,7 +120,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
         // Exibe o label se fornecido
         if (widget.labelText != null) ...[  
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
               widget.labelText!,
               style: widget.labelStyle ?? GlimpseStyles.fieldLabelStyle(
@@ -137,15 +138,15 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
               Container(
                 height: _currentHeight,
                 constraints: BoxConstraints(
-                  minHeight: _currentHeight ?? (isTextArea ? 120 : 56),
-                  maxHeight: _currentHeight ?? (isTextArea ? double.infinity : 56),
+                  minHeight: _currentHeight ?? (isTextArea ? 120.h : 56.h),
+                  maxHeight: _currentHeight ?? (isTextArea ? double.infinity : 56.h),
                 ),
                 decoration: BoxDecoration(
                   color: GlimpseColors.lightTextField,
                   borderRadius: BorderRadius.circular(borderRadius),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
                   child: widget.resizable
                       ? ClipRect(
                           child: Align(
@@ -177,7 +178,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                               style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                                 color: GlimpseColors.primaryColorLight,
                                 fontWeight: FontWeight.w400,
-                                fontSize: 16,
+                                fontSize: 16.sp,
                                 height: 1.4,
                               ),
                               decoration: InputDecoration(
@@ -185,7 +186,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                                 hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                                   color: GlimpseColors.textSubTitle,
                                   fontWeight: FontWeight.w500,
-                                  fontSize: 14,
+                                  fontSize: 14.sp,
                                   height: 1.4,
                                 ),
                                 border: InputBorder.none,
@@ -199,7 +200,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                                 errorStyle: const TextStyle(height: 0, fontSize: 0),
                                 errorMaxLines: 1,
                                 isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: 16.h),
                               ),
                             ),
                           ),
@@ -230,7 +231,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                             color: GlimpseColors.primaryColorLight,
                             fontWeight: FontWeight.w400,
-                            fontSize: 14,
+                            fontSize: 14.sp,
                             height: 1.4,
                           ),
                           decoration: InputDecoration(
@@ -238,7 +239,7 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                             hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                               color: GlimpseColors.textSubTitle,
                               fontWeight: FontWeight.w400,
-                              fontSize: 14,
+                              fontSize: 14.sp,
                               height: 1.4,
                             ),
                             border: InputBorder.none,
@@ -252,15 +253,15 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                             errorStyle: const TextStyle(height: 0, fontSize: 0),
                             errorMaxLines: 1,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: 16.h),
                           ),
                         ),
                 ),
               ),
               if (widget.resizable)
                 Positioned(
-                  bottom: 4,
-                  right: 4,
+                  bottom: 4.h,
+                  right: 4.w,
                   child: GestureDetector(
                     onPanUpdate: (details) {
                       setState(() {
@@ -277,8 +278,8 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
                     child: MouseRegion(
                       cursor: SystemMouseCursors.resizeUpDown,
                       child: Container(
-                        width: 24,
-                        height: 24,
+                        width: 24.w,
+                        height: 24.h,
                         color: Colors.transparent,
                         child: CustomPaint(
                           painter: _ResizeHandlePainter(),
@@ -294,12 +295,12 @@ class _GlimpseTextFieldState extends State<GlimpseTextField> {
         // [OK] Mensagem de erro FORA do input com padding top 6px e fonte 12px
         if (_errorText != null && _errorText!.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.only(top: 6, left: 4),
+            padding: EdgeInsets.only(top: 6.h, left: 4.w),
             child: Text(
               _errorText!,
               style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                 color: Colors.red,
-                fontSize: 12,
+                fontSize: 12.sp,
                 fontWeight: FontWeight.w400,
                 height: 1.2,
               ),
@@ -318,7 +319,7 @@ class _ResizeHandlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.grey.shade400
-      ..strokeWidth = 2
+      ..strokeWidth = 2.w
       ..strokeCap = StrokeCap.round;
 
     // Draw diagonal lines

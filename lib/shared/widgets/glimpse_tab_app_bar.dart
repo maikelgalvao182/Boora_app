@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 
@@ -24,9 +25,9 @@ class GlimpseTabAppBar extends StatelessWidget {
     if (centerTitle) {
       // Usa Stack para centralizar o título ignorando leading/actions
       return Padding(
-        padding: const EdgeInsets.only(left: 20, right: 20, top: 8),
+        padding: EdgeInsets.only(left: 20.w, right: 20.w, top: 8.h),
         child: SizedBox(
-          height: 40,
+          height: 40.h,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -64,12 +65,12 @@ class GlimpseTabAppBar extends StatelessWidget {
 
     // Layout padrão com título à esquerda
     return Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 8),
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, top: 8.h),
       child: Row(
         children: [
           if (leading != null) ...[
             leading!,
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
           ],
           Expanded(
             child: Text(
@@ -104,14 +105,14 @@ class GlimpseTabActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: 28.w,
+      height: 28.h,
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
         icon: Icon(
           icon,
-          size: 24,
+          size: 24.sp,
           color: GlimpseColors.primaryColorLight,
         ),
         tooltip: tooltip,

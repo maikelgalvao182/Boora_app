@@ -9,6 +9,7 @@ import 'package:partiu/features/notifications/models/notification_cache_item.dar
 import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -137,7 +138,7 @@ class NotificationItemWidget extends StatelessWidget {
           },
           child: Container(
             color: isUnread ? GlimpseColors.primaryLight : Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -169,7 +170,7 @@ class NotificationItemWidget extends StatelessWidget {
                       StableAvatar(
                         userId: isSystemMessage ? '' : senderId,
                         size: 52,
-                        borderRadius: BorderRadius.circular(999), // Redondo
+                        borderRadius: BorderRadius.circular(999.r), // Redondo
                         enableNavigation: false,
                       ),
                     // Badge de não lido (dot vermelho)

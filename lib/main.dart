@@ -22,6 +22,7 @@ import 'package:partiu/core/services/cache/cache_manager.dart';
 import 'package:partiu/core/services/google_maps_initializer.dart';
 import 'package:partiu/core/services/analytics_service.dart';
 import 'package:partiu/core/services/force_update_service.dart';
+import 'package:partiu/core/services/feature_flags_service.dart';
 import 'package:partiu/core/router/app_router.dart';
 import 'package:partiu/core/router/analytics_route_tracker.dart';
 import 'package:partiu/core/services/auth_sync_service.dart';
@@ -256,6 +257,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
         widget.serviceLocator.init(),
         widget.localeController.load(),
         ForceUpdateService.instance.initialize(),
+        FeatureFlagsService().initialize(),
       ]);
 
       final currentUser = FirebaseAuth.instance.currentUser;

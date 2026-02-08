@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/svg_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 
@@ -77,7 +78,7 @@ class NoData extends StatelessWidget {
           if (localIcon != null) localIcon,
           const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
             child: Text(
               text,
               style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 

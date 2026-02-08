@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
 import 'package:partiu/features/home/presentation/screens/event_creator_filters_screen.dart';
@@ -447,7 +448,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
                   }
                 },
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
                 unselectedBackgroundColor: Colors.white,
               );
             },
@@ -494,9 +495,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
                   if (isLoading && isZoomOut) {
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      width: 56,
-                      height: 56,
+                      margin: EdgeInsets.only(bottom: 12.h),
+                      width: 56.w,
+                      height: 56.h,
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
                         shape: BoxShape.circle,
@@ -517,13 +518,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 },
               ),
               // Botão de compartilhar app (mesmo tamanho do NavigateToUserButton - 56x56)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
+              Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
                 child: WhatsAppShareButton(),
               ),
               // Botão de filtro de eventos (por criador)
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.only(bottom: 12.h),
                 child: EventFilterButton(
                   onPressed: _showEventCreatorFilters,
                 ),

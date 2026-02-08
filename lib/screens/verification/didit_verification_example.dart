@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:partiu/core/services/face_verification_service.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -150,7 +151,7 @@ class _DiditVerificationExampleState extends State<DiditVerificationExample> {
                       icon: const Icon(Icons.verified_user),
                       label: Text(i18n.translate('verify_identity_button')),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(16.w),
                         textStyle: const TextStyle(fontSize: 18),
                       ),
                     ),
@@ -177,7 +178,7 @@ class _DiditVerificationExampleState extends State<DiditVerificationExample> {
 
   Widget _buildBenefit(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: 8.h),
       child: Row(
         children: [
           const Icon(Icons.check_circle, color: Colors.green),

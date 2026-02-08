@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Widget que desenha um anel de progresso quadrado ao redor do avatar
@@ -90,7 +91,7 @@ class ProfileCompletenessRing extends StatelessWidget {
             Positioned(
               bottom: -5,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 4.h),
                 decoration: BoxDecoration(
                   color: ringColor,
                   borderRadius: BorderRadius.circular(12),
@@ -105,9 +106,9 @@ class ProfileCompletenessRing extends StatelessWidget {
                 ),
                 child: Text(
                   i18n.translate('percentage_value').replaceAll('{value}', percentage.toString()),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 10.sp,
                     fontWeight: FontWeight.bold,
                     height: 1.0,
                   ),

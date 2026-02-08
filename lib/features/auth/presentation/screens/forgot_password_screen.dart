@@ -1,4 +1,5 @@
 import 'package:partiu/core/utils/app_logger.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/text_styles.dart';
 import 'package:partiu/core/constants/toast_messages.dart';
@@ -177,14 +178,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         Text(
           _i18n.translate('forgot_password') != '' 
               ? _i18n.translate('forgot_password')
               : 'Forgot Password?',
           style: TextStyles.headerTitle,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         Text(
           _i18n.translate('forgot_password_description') != '' 
               ? _i18n.translate('forgot_password_description')
@@ -200,7 +201,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // Campo de Email
           GlimpseTextField(
@@ -211,7 +212,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             textInputAction: TextInputAction.done,
             validator: _validateEmail,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
 
           // Link para voltar ao login
           Row(

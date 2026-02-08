@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/features/reviews/domain/constants/review_badges.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -53,7 +54,7 @@ class BadgeSelectionStep extends StatelessWidget {
           },
         ),
         
-        const SizedBox(height: 16),
+        SizedBox(height: 16.h),
         
         // Contador de badges selecionados
         if (selectedBadges.isNotEmpty)
@@ -62,13 +63,13 @@ class BadgeSelectionStep extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: GlimpseColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20.r),
               ),
               child: Text(
                 _badgesSelectedLabel(i18n, selectedBadges.length),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primary,
                 ),
@@ -97,13 +98,13 @@ class _BadgeItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16.r),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected ? GlimpseColors.primaryLight : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           border: Border.all(
             color: isSelected 
                 ? GlimpseColors.primary
@@ -119,7 +120,7 @@ class _BadgeItem extends StatelessWidget {
               badge.emoji,
               style: const TextStyle(fontSize: 28),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6.h),
             
             // Título
             Text(

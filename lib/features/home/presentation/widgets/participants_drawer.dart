@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -273,11 +274,11 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -292,26 +293,26 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
             children: [
               // Handle e header
               Padding(
-                padding: const EdgeInsets.only(
-                  top: 12,
-                  left: 20,
-                  right: 20,
+                padding: EdgeInsets.only(
+                  top: 12.h,
+                  left: 20.w,
+                  right: 20.w,
                 ),
                 child: Column(
                   children: [
                     // Handle
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 40.w,
+                        height: 4.h,
                         decoration: BoxDecoration(
                           color: GlimpseColors.borderColorLight,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(2.r),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
 
                     // Header: Título + Close
                     Row(
@@ -322,7 +323,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                           AppLocalizations.of(context).translate('participants_title'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 20,
+                            fontSize: 20.sp,
                             fontWeight: FontWeight.w800,
                             color: GlimpseColors.primaryColorLight,
                           ),
@@ -370,7 +371,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                           genderPicker: AnimatedExpandable(
                             isExpanded: _controller.selectedPrivacyType == PrivacyType.specificGender,
                             child: Padding(
-                              padding: const EdgeInsets.only(top: 16, bottom: 4),
+                              padding: EdgeInsets.only(top: 16.h, bottom: 4.h),
                               child: GenderPickerWidget(
                                 selectedGender: _controller.selectedGender,
                                 onGenderChanged: (gender) => _controller.setGender(gender),
@@ -395,7 +396,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
               ),
 
               // Padding bottom para safe area
-              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16.h),
             ],
           ),
         ),

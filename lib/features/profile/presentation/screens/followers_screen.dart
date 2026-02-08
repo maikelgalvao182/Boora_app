@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -77,7 +78,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
         appBar: AppBar(
           leading: GlimpseBackButton.iconButton(
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: BoxConstraints(minWidth: 28.w, minHeight: 28.h),
             onPressed: () => Navigator.of(context).pop(),
             color: GlimpseColors.primaryColorLight,
           ),
@@ -85,7 +86,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
             _tr(i18n, 'followers', 'Seguidores'),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 20,
+              fontSize: 20.sp,
               fontWeight: FontWeight.w700,
               color: GlimpseColors.primaryColorLight,
             ),
@@ -96,7 +97,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
             _tr(i18n, 'user_not_authenticated', 'Usuário não autenticado'),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 14,
+              fontSize: 14.sp,
               color: GlimpseColors.textSubTitle,
             ),
           ),
@@ -112,7 +113,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
         centerTitle: true,
         leading: GlimpseBackButton.iconButton(
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          constraints: BoxConstraints(minWidth: 28.w, minHeight: 28.h),
           onPressed: () => Navigator.of(context).pop(),
           color: GlimpseColors.primaryColorLight,
         ),
@@ -120,7 +121,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
           _tr(i18n, 'followers', 'Seguidores'),
           style: GoogleFonts.getFont(
             FONT_PLUS_JAKARTA_SANS,
-            fontSize: 20,
+            fontSize: 20.sp,
             fontWeight: FontWeight.w700,
             color: GlimpseColors.primaryColorLight,
           ),
@@ -229,7 +230,7 @@ class _FollowersListTabState extends State<_FollowersListTab> {
                             _tr(i18n, 'try_again', 'Tentar novamente'),
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 14,
+                              fontSize: 14.sp,
                               fontWeight: FontWeight.w600,
                               color: GlimpseColors.primary,
                             ),
@@ -504,7 +505,7 @@ class _FollowActionButtonState extends State<_FollowActionButton> {
                   label,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
+                    fontSize: 12.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
                   ),

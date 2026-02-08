@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -128,24 +129,24 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
       child: SafeArea(
         top: false,
         child: Container(
-          margin: const EdgeInsets.all(16),
+          margin: EdgeInsets.all(16.w),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24.w),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
               _buildTextField(),
               if (_errorMessage != null) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 _buildErrorText(),
               ],
-              const SizedBox(height: 20),
+              SizedBox(height: 20.h),
               _buildButtons(),
             ],
           ),
@@ -177,7 +178,7 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
 
   Widget _buildDescription() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: EdgeInsets.symmetric(horizontal: 8.w),
       child: Text(
         _i18n!.translate('report_details_description'),
         textAlign: TextAlign.center,
@@ -200,7 +201,7 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
 
   Widget _buildErrorText() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: EdgeInsets.symmetric(horizontal: 4.w),
       child: Text(
         _errorMessage!,
         style: const TextStyle(
@@ -235,7 +236,7 @@ class _ReportDetailsDialogState extends State<ReportDetailsDialog> {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12.w),
         Expanded(
           child: ElevatedButton(
             onPressed: _isLoading ? null : _submitReport,

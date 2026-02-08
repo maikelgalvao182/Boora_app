@@ -5,6 +5,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de interesses organizados por categoria
 /// Permite selecionar até 6 interesses
@@ -68,11 +69,11 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
       children: [
         // Título da categoria
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          padding: EdgeInsets.symmetric(vertical: 12.h),
           child: Text(
             i18n.translate('category_$category'),
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: 16.sp,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
@@ -81,8 +82,8 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
         
         // Tags da categoria
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 8.w,
+          runSpacing: 8.h,
           children: categoryTags.map((tag) {
             final isSelected = _selectedInterests.contains(tag.id);
             final isDisabled = !isSelected && _selectedInterests.length >= maxInterests;
@@ -100,7 +101,7 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
           }).toList(),
         ),
         
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
       ],
     );
   }
@@ -114,13 +115,13 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
       children: [
         // Contador de selecionados
         Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(bottom: 16),
+          padding: EdgeInsets.all(12.w),
+          margin: EdgeInsets.only(bottom: 16.h),
           decoration: BoxDecoration(
             color: _selectedInterests.isEmpty 
                 ? GlimpseColors.lightTextField 
                 : GlimpseColors.primaryLight.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
               color: _selectedInterests.isEmpty 
                   ? Colors.transparent 
@@ -138,7 +139,7 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
                           : 'Máximo de $maxInterests interesses selecionados',
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                     color: GlimpseColors.primaryColorLight,
                   ),
@@ -166,7 +167,7 @@ class _SpecialtySelectorWidgetState extends State<SpecialtySelectorWidget> {
                 _buildCategorySection(context, InterestCategory.wellness),
                 _buildCategorySection(context, InterestCategory.values),
                 
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
               ],
             ),
           ),

@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de origem (onde conheceu o app)
 /// Extraído de TelaOrigem para reutilização no wizard
@@ -71,7 +72,7 @@ class _OriginSelectorWidgetState extends State<OriginSelectorWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         ...List.generate(_options.length, (index) {
           final option = _options[index];
           final label = localizedOptions[index];
@@ -79,7 +80,7 @@ class _OriginSelectorWidgetState extends State<OriginSelectorWidget> {
           final iconName = _mapOriginOptionToIcon(option.toLowerCase());
           
           return Padding(
-            padding: EdgeInsets.only(bottom: index < _options.length - 1 ? 14 : 0),
+            padding: EdgeInsets.only(bottom: index < _options.length - 1 ? 14.h : 0),
             child: _OriginOptionTile(
               text: label,
               selected: selected,
@@ -136,16 +137,16 @@ class _OriginOptionTile extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        height: 54,
+        height: 54.h,
         decoration: BoxDecoration(
           // Apenas o selecionado fica branco; outros usam lightTextField
           color: selected ? Colors.white : GlimpseColors.lightTextField,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           border: Border.all(
             color: selected ? GlimpseColors.primary : GlimpseColors.lightTextField,
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: 20.w),
         child: Row(
           children: [
             // Ícone da opção
@@ -153,23 +154,23 @@ class _OriginOptionTile extends StatelessWidget {
               if (iconName!.startsWith('iconsax:'))
                 Icon(
                   _getIconsaxIcon(iconName!),
-                  size: 20,
+                  size: 20.sp,
                   color: Colors.black,
                 )
               else if (iconName == 'appstore')
                 Image.asset(
                   'assets/images/appstore.png',
-                  width: 22,
-                  height: 22,
+                  width: 22.w,
+                  height: 22.h,
                   fit: BoxFit.contain,
                 )
               else
                 SvgPicture.asset(
                   'assets/svg/$iconName.svg',
-                  width: 20,
-                  height: 20,
+                  width: 20.w,
+                  height: 20.h,
                 ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
             ],
             
             // Texto da opção
@@ -177,7 +178,7 @@ class _OriginOptionTile extends StatelessWidget {
               child: Text(
                 text,
                 style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontSize: 15,
+                  fontSize: 15.sp,
                   fontWeight: FontWeight.w600,
                   color: Colors.black,
                 ),

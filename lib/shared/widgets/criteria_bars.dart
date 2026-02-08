@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -69,7 +70,7 @@ class CriteriaBars extends StatelessWidget {
           Container(
             height: 1,
             color: GlimpseColors.borderColorLight,
-            margin: const EdgeInsets.only(bottom: 8),
+            margin: EdgeInsets.only(bottom: 8.h),
           ),
         
         // Barras de critério
@@ -156,14 +157,14 @@ class CriteriaBars extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 16)),
+            Text(emoji, style: TextStyle(fontSize: 16.sp)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 label,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.textSecondary,
                 ),
@@ -173,7 +174,7 @@ class CriteriaBars extends StatelessWidget {
               rating.toStringAsFixed(1),
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 14,
+                fontSize: 14.sp,
                 fontWeight: FontWeight.w700,
                 color: barColor ?? GlimpseColors.primary,
               ),

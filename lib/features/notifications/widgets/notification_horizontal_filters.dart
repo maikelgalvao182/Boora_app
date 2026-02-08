@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/features/notifications/widgets/notification_filter.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
-import 'package:flutter/material.dart';
 
 /// Horizontal list of notification categories with i18n support
 /// 
@@ -12,17 +13,17 @@ import 'package:flutter/material.dart';
 /// - Social: Profile views, connections
 /// - System: Alerts and system notifications
 class NotificationHorizontalFilters extends StatelessWidget {
-  const NotificationHorizontalFilters({
+  NotificationHorizontalFilters({
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
     super.key,
-    this.padding = const EdgeInsets.symmetric(horizontal: 20),
+    EdgeInsetsGeometry? padding,
     this.spacingAbove = 0,
     this.icons,
     this.selectedBackgroundColor,
     this.unselectedBackgroundColor,
-  });
+  }) : padding = padding ?? EdgeInsets.symmetric(horizontal: 20.w);
   
   /// List of translated filter labels
   final List<String> items;
@@ -34,7 +35,7 @@ class NotificationHorizontalFilters extends StatelessWidget {
   final ValueChanged<int> onSelected;
   
   /// Padding around the filter list
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
   
   /// Spacing above the filter list
   final double spacingAbove;
@@ -53,7 +54,7 @@ class NotificationHorizontalFilters extends StatelessWidget {
       onSelected: (i) {
         onSelected(i);
       },
-      padding: padding.copyWith(
+      padding: (padding as EdgeInsets).copyWith(
         top: 4,
         bottom: 4,
       ),

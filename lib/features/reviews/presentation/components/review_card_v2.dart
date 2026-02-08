@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -215,7 +216,7 @@ class _ReviewCardV2State extends State<ReviewCardV2> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(8.r),
             border: Border.all(color: Colors.grey.shade200),
           ),
           child: Row(
@@ -260,7 +261,7 @@ class _ReviewCardV2State extends State<ReviewCardV2> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: GlimpseColors.primary.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           child: Text(
             comment,

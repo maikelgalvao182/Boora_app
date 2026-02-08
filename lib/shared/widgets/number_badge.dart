@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Badge genérico para exibir números com sufixo opcional
@@ -24,18 +25,18 @@ import 'package:partiu/core/utils/app_localizations.dart';
 /// )
 /// ```
 class NumberBadge extends StatelessWidget {
-  const NumberBadge({
+  NumberBadge({
     required this.value,
     this.suffix = '',
     this.backgroundColor = const Color(0xFFE53935),
     this.textColor = Colors.white,
     this.fontSize = 10,
     this.fontWeight = FontWeight.w700,
-    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    EdgeInsets? padding,
     this.borderColor = Colors.white,
     this.borderWidth = 2,
     super.key,
-  });
+  }) : padding = padding ?? EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h);
 
   final int value;
   final String suffix;
@@ -59,7 +60,7 @@ class NumberBadge extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(100),
+        borderRadius: BorderRadius.circular(100.r),
         border: Border.all(
           color: borderColor,
           width: borderWidth,

@@ -4,6 +4,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de país usando flutter_country_selector
 class CountrySelectorWidget extends StatefulWidget {
@@ -60,8 +61,8 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: GlimpseColors.bgColorLight,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       clipBehavior: Clip.antiAlias,
       constraints: BoxConstraints(
@@ -79,13 +80,13 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                 top: false,
                 child: CountrySelector.sheet(
                   showDialCode: false,
-                  flagSize: 24,
+                  flagSize: 24.sp,
                   searchBoxIconColor: GlimpseColors.textSubTitle,
                   searchBoxTextStyle: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
                     color: GlimpseColors.primaryColorLight,
                     fontWeight: FontWeight.w400,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     height: 1.4,
                   ),
                   searchBoxDecoration: InputDecoration(
@@ -94,39 +95,39 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                       FONT_PLUS_JAKARTA_SANS,
                       color: GlimpseColors.textSubTitle,
                       fontWeight: FontWeight.w400,
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       height: 1.4,
                     ),
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.search,
-                      size: 20,
+                      size: 20.sp,
                       color: GlimpseColors.textSubTitle,
                     ),
                     filled: true,
                     fillColor: GlimpseColors.lightTextField,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 16.h,
                     ),
                     border: OutlineInputBorder(
                       borderSide: BorderSide.none,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide.none,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide: BorderSide.none,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                   ),
                   titleStyle: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
                     color: GlimpseColors.primaryColorLight,
                     fontWeight: FontWeight.w400,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     height: 1.4,
                   ),
                   onCountrySelected: (code) {
@@ -173,26 +174,26 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
     return GestureDetector(
       onTap: _showCountryPicker,
       child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        height: 56.h,
+        padding: EdgeInsets.symmetric(horizontal: 16.w),
         decoration: BoxDecoration(
           color: GlimpseColors.lightTextField,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
         ),
         child: Row(
           children: [
             if (_selectedCountryCode != null) ...[
               Text(
                 _flagEmojiFromIso(_selectedCountryCode!),
-                style: const TextStyle(fontSize: 20),
+                style: TextStyle(fontSize: 20.sp),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Text(
                   _countryName(_selectedCountryCode!),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w400,
                     color: GlimpseColors.primaryColorLight,
                     height: 1.4,
@@ -205,7 +206,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
                   i18n.translate('select_country'),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w400,
                     color: GlimpseColors.textSubTitle,
                     height: 1.4,
@@ -214,7 +215,7 @@ class _CountrySelectorWidgetState extends State<CountrySelectorWidget> {
               ),
             Icon(
               Icons.arrow_forward_ios,
-              size: 16,
+              size: 16.sp,
               color: GlimpseColors.textSubTitle,
             ),
           ],

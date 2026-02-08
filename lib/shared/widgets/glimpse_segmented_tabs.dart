@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -30,8 +31,8 @@ class GlimpseSegmentedTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: margin ?? const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: padding ?? const EdgeInsets.all(4),
+      margin: margin ?? EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 4.h),
+      padding: padding ?? EdgeInsets.all(4.w),
       decoration: BoxDecoration(
         color: backgroundColor ?? GlimpseColors.lightTextField,
         borderRadius: BorderRadius.circular(999),
@@ -76,7 +77,7 @@ class _SegmentedTabItem extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: 8.h),
           decoration: BoxDecoration(
             color: isActive ? (selectedTabColor ?? Colors.white) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
@@ -86,7 +87,7 @@ class _SegmentedTabItem extends StatelessWidget {
               label,
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 13,
+                fontSize: 13.sp,
                 fontWeight: FontWeight.w700,
                 color: isActive
                     ? (selectedTextColor ?? GlimpseColors.primaryColorLight)

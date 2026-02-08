@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -191,14 +192,14 @@ class _UserCardState extends State<UserCard> {
 
   Widget _buildErrorCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      height: 80,
+      padding: EdgeInsets.all(16.w),
+      height: 80.h,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
           color: GlimpseColors.borderColorLight,
-          width: 0,
+          width: 0.w,
         ),
       ),
       child: Center(
@@ -206,7 +207,7 @@ class _UserCardState extends State<UserCard> {
           _controller?.error ?? 'Erro',
           style: GoogleFonts.getFont(
             FONT_PLUS_JAKARTA_SANS,
-            fontSize: 13,
+            fontSize: 13.sp,
             color: Colors.red,
           ),
         ),
@@ -259,10 +260,10 @@ class _UserCardState extends State<UserCard> {
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12.h),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -274,8 +275,8 @@ class _UserCardState extends State<UserCard> {
                 StableAvatar(
                   userId: widget.userId,
                   photoUrl: photoUrl ?? _controller?.photoUrl,
-                  size: 48,
-                  borderRadius: BorderRadius.circular(8),
+                  size: 48.w,
+                  borderRadius: BorderRadius.circular(8.r),
                   enableNavigation: true,
                 ),
                 
@@ -299,7 +300,7 @@ class _UserCardState extends State<UserCard> {
               ],
             ),
             
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             
             // Informações
             Expanded(
@@ -315,26 +316,26 @@ class _UserCardState extends State<UserCard> {
                           userId: widget.userId,
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 15,
+                            fontSize: 15.sp,
                             fontWeight: FontWeight.w700,
                             color: GlimpseColors.primaryColorLight,
                           ),
                         ),
                       ),
                       if (widget.showTimeAgo && visitedAt != null) ...[
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8.w),
                         Text(
                           TimeAgoHelper.format(context, timestamp: visitedAt),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 12,
+                            fontSize: 13.sp,
                             fontWeight: FontWeight.w500,
                             color: GlimpseColors.textSubTitle,
                           ),
                         ),
                       ],
                       if (widget.showRating && overallRating != null && overallRating > 0) ...[
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8.w),
                         StarBadge(rating: overallRating),
                       ],
                     ],
@@ -368,7 +369,7 @@ class _UserCardState extends State<UserCard> {
 
                               return Column(
                                 children: [
-                                  const SizedBox(height: 2),
+                                  SizedBox(height: 2.h),
                                   Row(
                                     children: [
                                       if (resolvedLocationText != null && resolvedLocationText.isNotEmpty)
@@ -377,7 +378,7 @@ class _UserCardState extends State<UserCard> {
                                             resolvedLocationText,
                                             style: GoogleFonts.getFont(
                                               FONT_PLUS_JAKARTA_SANS,
-                                              fontSize: 13,
+                                              fontSize: 13.sp,
                                               fontWeight: FontWeight.w600,
                                               color: GlimpseColors.textSubTitle,
                                             ),
@@ -393,7 +394,7 @@ class _UserCardState extends State<UserCard> {
                                           effectiveDistanceText,
                                           style: GoogleFonts.getFont(
                                             FONT_PLUS_JAKARTA_SANS,
-                                            fontSize: 13,
+                                            fontSize: 13.sp,
                                             fontWeight: FontWeight.w500,
                                             color: GlimpseColors.textSubTitle,
                                           ),

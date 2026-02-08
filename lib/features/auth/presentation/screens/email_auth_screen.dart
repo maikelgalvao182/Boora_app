@@ -1,3 +1,4 @@
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/text_styles.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
@@ -217,14 +218,14 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
           final header = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               Text(
                 viewModel.isLogin 
                     ? _i18n.translate('sign_in_title')
                     : _i18n.translate('create_account'),
                 style: TextStyles.headerTitle,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               Text(
                 viewModel.isLogin
                     ? _i18n.translate('enter_your_credentials_to_continue')
@@ -240,7 +241,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
 
                 // Campo de Email
                 GlimpseTextField(
@@ -254,7 +255,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     translate: _i18n.translate,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
 
                 // Campo de Senha
                 GlimpseTextField(
@@ -276,7 +277,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     onPressed: viewModel.togglePasswordVisibility,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12.h),
 
                 // Links na mesma linha: "Criar conta" e "Esqueceu senha?" (apenas no modo login)
                 if (viewModel.isLogin)
@@ -290,7 +291,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                           _formKey.currentState?.reset();
                         },
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: EdgeInsets.symmetric(horizontal: 4.w),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -307,7 +308,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                           context.push(AppRoutes.forgotPassword);
                         },
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: EdgeInsets.symmetric(horizontal: 4.w),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -343,7 +344,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     ],
                   ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
               ],
             ),
           );
@@ -362,7 +363,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
               ),
               if (!viewModel.isLogin)
                 Padding(
-                  padding: const EdgeInsets.only(top: 10),
+                  padding: EdgeInsets.only(top: 10.h),
                   child: TermsAndPrivacyLinks(
                     prefixText: _i18n
                         .translate('agree_terms_and_privacy_prefix'),

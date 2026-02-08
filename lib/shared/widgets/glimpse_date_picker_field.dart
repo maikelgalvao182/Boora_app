@@ -3,6 +3,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/core/utils/date_formatter_helper.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -85,9 +86,9 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 10, 2, 10),
+      padding: EdgeInsets.fromLTRB(2.w, 10.h, 2.w, 10.h),
       child: SizedBox(
-        height: 60,
+        height: 60.h,
         width: double.infinity,
         child: TextField(
           controller: _controller,
@@ -95,31 +96,31 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
             color: GlimpseColors.textSubTitle,
             fontWeight: FontWeight.w500,
-            fontSize: 16,
+            fontSize: 16.sp,
           ),
           onTap: () {
             HapticFeedback.lightImpact();
             showModalBottomSheet(
               backgroundColor: Colors.white,
-              shape: const OutlineInputBorder(
+              shape: OutlineInputBorder(
                 borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(15),
-                  topLeft: Radius.circular(15),
+                  topRight: Radius.circular(15.r),
+                  topLeft: Radius.circular(15.r),
                 ),
                 borderSide: BorderSide.none,
               ),
               context: context,
               builder: (BuildContext context) {
                 return Container(
-                  height: 220,
-                  decoration: const BoxDecoration(
+                  height: 220.h,
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(15),
-                      topRight: Radius.circular(15),
+                      topLeft: Radius.circular(15.r),
+                      topRight: Radius.circular(15.r),
                     ),
                   ),
-                  padding: const EdgeInsets.all(0),
-                  margin: const EdgeInsets.all(0),
+                  padding: EdgeInsets.all(0),
+                  margin: EdgeInsets.all(0),
                   width: double.maxFinite,
                   child: CupertinoTheme(
                     data: const CupertinoThemeData(
@@ -137,7 +138,7 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
                     child: CupertinoDatePicker(
                       backgroundColor: Colors.white,
                       mode: CupertinoDatePickerMode.date,
-                      itemExtent: 35,
+                        itemExtent: 35.h,
                       // American order: Month - Day - Year
                       dateOrder: DatePickerDateOrder.mdy,
                       initialDateTime: _selectedDate,
@@ -159,29 +160,29 @@ class _GlimpseDatePickerFieldState extends State<GlimpseDatePickerField> {
           decoration: InputDecoration(
             filled: true,
             fillColor: GlimpseColors.lightTextField,
-            contentPadding: const EdgeInsetsDirectional.symmetric(
-              horizontal: 16,
-              vertical: 20,
+            contentPadding: EdgeInsetsDirectional.symmetric(
+              horizontal: 16.w,
+              vertical: 20.h,
             ),
             enabledBorder: OutlineInputBorder(
               borderSide: BorderSide.none,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12.r),
             ),
             hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               color: GlimpseColors.textSubTitle,
               fontWeight: FontWeight.w400,
-              fontSize: 16,
+              fontSize: 16.sp,
             ),
             hintText: widget.hintText ?? _getLocalizedHintText(),
             focusedBorder: OutlineInputBorder(
               borderSide: BorderSide.none,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12.r),
             ),
-            suffixIcon: const Padding(
+            suffixIcon: Padding(
               padding: EdgeInsets.only(right: 0),
               child: Icon(
                 IconsaxPlusLinear.calendar,
-                size: 24,
+                size: 24.sp,
                 color: GlimpseColors.primaryColorLight,
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/home/data/models/pending_application_model.dart';
 import 'package:partiu/features/home/data/repositories/pending_applications_repository.dart';
@@ -55,7 +56,7 @@ class _ActionsTabState extends State<ActionsTab> {
                   ? GlimpseBackButton(onTap: () => Navigator.of(context).pop())
                   : null,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             Expanded(
               child: StreamBuilder<List<PendingApplicationModel>>(
                 stream: _applicationsRepo.getPendingApplicationsStream(),
@@ -84,9 +85,9 @@ class _ActionsTabState extends State<ActionsTab> {
                       if (isReallyLoading) {
                         debugPrint('   ⏳ Aguardando primeira emissão dos streams...');
                         return ListView.separated(
-                          padding: const EdgeInsets.all(16),
+                          padding: EdgeInsets.all(16.w),
                           itemCount: 3,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, __) => SizedBox(height: 12.h),
                           itemBuilder: (_, __) => const ActionCardShimmer(),
                         );
                       }
@@ -108,9 +109,9 @@ class _ActionsTabState extends State<ActionsTab> {
                       // List combinada
                       debugPrint('   📋 Renderizando ${applications.length} applications + ${reviews.length} reviews');
                       return ListView.separated(
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(16.w),
                         itemCount: totalItems,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
                         itemBuilder: (context, index) {
                           // Primeiro mostra reviews, depois applications
                           if (index < reviews.length) {

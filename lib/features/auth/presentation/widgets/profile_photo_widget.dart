@@ -7,6 +7,7 @@ import 'package:partiu/shared/widgets/svg_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de foto de perfil
 /// Extraído de TelaFotoPerfil para reutilização no wizard
@@ -26,29 +27,29 @@ class ProfilePhotoWidget extends StatelessWidget {
     
     return Column(
       children: [
-        const SizedBox(height: 15),
+        SizedBox(height: 15.h),
         
         // Seletor de foto
         Center(
           child: GlimpsePhotoUploader(
             imageFile: imageFile,
             onImageSelected: onImageSelected,
-            size: 180,
+            size: 180.w,
             placeholder: i18n.translate('add_photo'),
-            customIcon: const SvgIcon(
+            customIcon: SvgIcon(
               'assets/svg/camera.svg',
-              width: 45,
-              height: 45,
+              width: 45.w,
+              height: 45.h,
               color: GlimpseColors.textSubTitle,
             ),
           ),
         ),
         
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
         Text(
           i18n.translate('tap_to_select_photo'),
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-            fontSize: 16,
+            fontSize: 16.sp,
             color: GlimpseColors.textSubTitle,
           ),
           textAlign: TextAlign.center,

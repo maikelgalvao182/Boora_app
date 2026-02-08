@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -67,7 +68,7 @@ class VerificationCard extends StatelessWidget {
             minHeight: MediaQuery.of(context).size.height * 0.12,
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.r),
             color: GlimpseColors.primaryColorLight,
           ),
           child: Stack(
@@ -75,8 +76,8 @@ class VerificationCard extends StatelessWidget {
               // Ícone decorativo atrás (ordem anterior para ficar no fundo)
               const _BackgroundIcon(),
               // Conteúdo principal acima do ícone
-              const Padding(
-                padding: EdgeInsets.all(16),
+              Padding(
+                padding: EdgeInsets.all(16.w),
                 child: _CardContent(),
               ),
             ],
@@ -108,20 +109,20 @@ class _CardContent extends StatelessWidget {
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
                   fontWeight: FontWeight.w800,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   height: 1.2,
                   color: Colors.white,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4.h),
               Text(
                 i18n.translate('verification_card_subtitle'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
                   fontWeight: FontWeight.w500,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   height: 1.3,
                   color: Colors.white.withValues(alpha: 0.8),
                 ),
@@ -132,7 +133,7 @@ class _CardContent extends StatelessWidget {
           ),
         ),
         // Espaço reservado para o ícone
-        const SizedBox(width: 96), // 80 (width do SVG) + 16 (padding right)
+        SizedBox(width: 96.w), // 80 (width do SVG) + 16 (padding right)
       ],
     );
   }
@@ -152,8 +153,8 @@ class _BackgroundIcon extends StatelessWidget {
       bottom: 16,
       child: SvgPicture.asset(
         'assets/svg/face.svg',
-        width: 70,
-        height: 70,
+        width: 70.w,
+        height: 70.h,
         fit: BoxFit.contain,
         colorFilter: const ColorFilter.mode(
           Colors.white,

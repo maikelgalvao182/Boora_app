@@ -1301,5 +1301,11 @@
   
   "event_creator_filters_title": "Filter by Creator",
   "enable_creator_filters": "Enable filters",
-  "enable_creator_filters_description": "Show only events from creators with specific profile"
+  "enable_creator_filters_description": "Show only events from creators with specific profile",
+
+  "tab_discover": "Discover",
+  "tab_feed": "Feed",
+  "tab_ranking": "Ranking",
+  "tab_conversations": "Chats",
+  "tab_profile": "Profile"
 }

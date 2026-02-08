@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -79,13 +80,13 @@ class _HomeAppBarState extends State<HomeAppBar> {
                 valueListenable: NotificationsCounterService.instance.pendingActionsCount,
                 builder: (context, count, _) {
                   final iconWidget = SizedBox(
-                    width: 28,
+                    width: 28.w,
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      icon: const Icon(
+                      icon: Icon(
                         IconsaxPlusLinear.flash_1,
-                        size: 24,
+                        size: 24.sp,
                         color: GlimpseColors.textSubTitle,
                       ),
                       onPressed: () {
@@ -100,21 +101,21 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   return AutoUpdatingBadge(
                     count: count,
                     badgeColor: GlimpseColors.actionColor,
-                    top: 6,
-                    right: -2,
+                    top: 6.h,
+                    right: -2.w,
                     child: iconWidget,
                   );
                 },
               ),
               const SizedBox(width: 12),
               SizedBox(
-                width: 28,
+                width: 28.w,
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: const Icon(
+                  icon: Icon(
                     IconsaxPlusLinear.profile_2user,
-                    size: 24,
+                    size: 24.sp,
                     color: GlimpseColors.textSubTitle,
                   ),
                   onPressed: () {
@@ -130,18 +131,18 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   debugPrint('🏠 [HomeAppBar] Builder reconstruído');
                   debugPrint('🏠 [HomeAppBar] AppState.unreadNotifications.value: ${AppState.unreadNotifications.value}');
                   return AutoUpdatingBadge(
-                fontSize: 9,
-                minBadgeSize: 14.0,
-                badgePadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                fontSize: 9.sp,
+                minBadgeSize: 14.0.w,
+                badgePadding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.h),
                 badgeColor: GlimpseColors.actionColor,
                 child: SizedBox(
-                  width: 28,
+                  width: 28.w,
                   child: IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    icon: const Icon(
+                    icon: Icon(
                       IconsaxPlusLinear.notification,
-                      size: 24,
+                      size: 24.sp,
                       color: GlimpseColors.textSubTitle,
                     ),
                     onPressed: () {
@@ -175,14 +176,14 @@ class _UserAppBarContent extends StatelessWidget {
       children: [
         // Avatar do usuário com anel de completude
         ReactiveProfileCompletenessRing(
-          size: 44,
+          size: 44.w,
           strokeWidth: 2.5,
           showBadge: false,
           child: StableAvatar(
             userId: user.userId,
-            size: 38,
+            size: 38.w,
             photoUrl: user.photoUrl,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(6.r),
           ),
         ),
         const SizedBox(width: 12),
@@ -196,19 +197,19 @@ class _UserAppBarContent extends StatelessWidget {
                 userId: user.userId,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w700,
                   color: GlimpseColors.primaryColorLight,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2.h),
               // ✅ Localização reativa - atualiza instantaneamente quando muda no Firestore
               ReactiveUserLocation(
                 userId: user.userId,
                 fallbackText: i18n.translate('location_not_defined'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.textSubTitle,
                 ),
@@ -232,15 +233,15 @@ class _GuestAppBarContent extends StatelessWidget {
       children: [
         // Avatar estático de visitante
         Container(
-          width: 38,
-          height: 38,
+          width: 38.w,
+          height: 38.h,
           decoration: BoxDecoration(
             color: GlimpseColors.lightTextField,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(6.r),
           ),
-          child: const Icon(Icons.person, color: Colors.grey, size: 24),
+          child: Icon(Icons.person, color: Colors.grey, size: 24.sp),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12.w),
         // Nome e localização estáticos
         Expanded(
           child: Column(
@@ -251,19 +252,19 @@ class _GuestAppBarContent extends StatelessWidget {
                 i18n.translate('home_greeting_guest'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w700,
                   color: GlimpseColors.textSubTitle,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2.h),
               Text(
                 i18n.translate('location_not_defined'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.textSubTitle,
                 ),

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 
 /// Representa um item de mídia (apenas imagens)
@@ -93,7 +94,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                         borderRadius: BorderRadius.circular(20),
                         child: InkWell(
                           onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(20.r),
                           child: const Padding(
                             padding: EdgeInsets.all(8),
                             child: Icon(
@@ -119,7 +120,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(12.r),
                       ),
                       child: Text(
                         _buildPageIndicatorText(context),

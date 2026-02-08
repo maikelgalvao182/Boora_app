@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -492,7 +493,7 @@ class _RatingsSheetState extends State<_RatingsSheet> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: GlimpseColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
                     color: GlimpseColors.error.withValues(alpha: 0.3),
                     width: 1,
@@ -769,7 +770,7 @@ class _CommentSheetState extends State<_CommentSheet> {
                             widget.revieweeName.isNotEmpty ? widget.revieweeName[0].toUpperCase() : '?',
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 20,
+                              fontSize: 20.sp,
                               fontWeight: FontWeight.w700,
                               color: GlimpseColors.primary,
                             ),
@@ -913,11 +914,11 @@ class _SheetScaffold extends StatelessWidget {
     
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -967,7 +968,7 @@ class _SheetHeader extends StatelessWidget {
               height: 4,
               decoration: BoxDecoration(
                 color: GlimpseColors.borderColorLight,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(2.r),
               ),
             ),
           ),
@@ -983,7 +984,7 @@ class _SheetHeader extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 18,
+                        fontSize: 18.sp,
                         fontWeight: FontWeight.w800,
                         color: GlimpseColors.primaryColorLight,
                       ),

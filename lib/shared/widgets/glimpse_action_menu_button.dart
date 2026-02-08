@@ -1,5 +1,6 @@
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -88,12 +89,12 @@ class _MenuPanel extends StatelessWidget {
   const _MenuPanel({required this.items});
   final List<GlimpseActionMenuItem> items;
 
-  static const _panelRadius = BorderRadius.all(Radius.circular(20));
+  static final _panelRadius = BorderRadius.all(Radius.circular(20.r));
   static const _dividerColorAlpha = 0.6;
-  static const _panelShadow = BoxShadow(
+  static final _panelShadow = BoxShadow(
     color: Color(0x26000000), // 15% alpha black
-    blurRadius: 20,
-    offset: Offset(0, 8),
+    blurRadius: 20.r,
+    offset: Offset(0, 8.h),
   );
 
   @override
@@ -102,14 +103,14 @@ class _MenuPanel extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 300,
-          constraints: const BoxConstraints(maxWidth: 340),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          width: 300.w,
+          constraints: BoxConstraints(maxWidth: 340.w),
+          padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: _panelRadius,
             border: Border.all(color: GlimpseColors.borderColorLight),
-            boxShadow: const [_panelShadow],
+            boxShadow: [_panelShadow],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -118,8 +119,8 @@ class _MenuPanel extends StatelessWidget {
                 _MenuItemWidget(item: items[i]),
                 if (i < items.length - 1)
                   Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    height: 1,
+                    margin: EdgeInsets.symmetric(vertical: 4.h),
+                    height: 1.h,
                     color: GlimpseColors.borderColorLight.withValues(alpha: _dividerColorAlpha),
                   ),
               ],
@@ -134,8 +135,8 @@ class _MenuPanel extends StatelessWidget {
 class _MenuItemWidget extends StatelessWidget {
   const _MenuItemWidget({required this.item});
   final GlimpseActionMenuItem item;
-  static const _itemRadiusMedium = BorderRadius.all(Radius.circular(12));
-  static const _iconRadiusSmall = BorderRadius.all(Radius.circular(10));
+  static final _itemRadiusMedium = BorderRadius.all(Radius.circular(12.r));
+  static final _iconRadiusSmall = BorderRadius.all(Radius.circular(10.r));
   @override
   Widget build(BuildContext context) {
     final color = item.isDestructive
@@ -151,24 +152,24 @@ class _MenuItemWidget extends StatelessWidget {
         item.onTap(); 
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 10.h),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 36.w,
+              height: 36.h,
               decoration: BoxDecoration(
                 color: (item.isDisabled ? effectiveColor.withValues(alpha: 0.05) : effectiveColor.withValues(alpha: 0.08)),
                 borderRadius: _iconRadiusSmall,
               ),
-              child: Icon(item.icon, size: 20, color: effectiveColor),
+              child: Icon(item.icon, size: 20.sp, color: effectiveColor),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: Text(
                 item.label,
                 style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   fontWeight: FontWeight.w600,
                   color: effectiveColor,
                 ),

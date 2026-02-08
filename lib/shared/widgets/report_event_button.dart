@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/common/state/app_state.dart';
@@ -62,7 +63,7 @@ class ReportEventButton extends StatelessWidget {
                     constraints: const BoxConstraints(maxWidth: 500),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(20.r),
                     ),
                     child: _ReportDialogContent(eventId: eventId),
                   ),
@@ -84,7 +85,7 @@ class ReportEventButton extends StatelessWidget {
         height: 32,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(8.r),
         ),
         child: IconButton(
           padding: EdgeInsets.zero,
@@ -312,7 +313,7 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
                 _getReasonText(reason, i18n),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 15,
+                  fontSize: 15.sp,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: isSelected
                       ? GlimpseColors.primaryColorLight
@@ -345,7 +346,7 @@ class _ReportDialogContentState extends State<_ReportDialogContent> {
                   i18n.translate('report_event'),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 17,
+                    fontSize: 17.sp,
                     fontWeight: FontWeight.w800,
                     color: GlimpseColors.primaryColorLight,
                   ),

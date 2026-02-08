@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/text_styles.dart';
 import 'package:partiu/core/constants/toast_messages.dart';
@@ -118,31 +119,31 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                     children: [
                     // Logo
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
+                      padding: EdgeInsets.only(bottom: 24.h),
                       child: Image.asset(
                         'assets/images/logo_branca.png',
-                        height: 32,
+                        height: 32.h,
                         fit: BoxFit.contain,
                       ),
                     ),
                     // Title and subtitle
                     Padding(
-                      padding: const EdgeInsets.only(left: 25, right: 25, bottom: 12),
+                      padding: EdgeInsets.only(left: 25.w, right: 25.w, bottom: 12.h),
                       child: Text(
                         _i18n.translate('auth_title').isNotEmpty 
                           ? _i18n.translate('auth_title')
                           : 'Where Wedding Dreams\nMeet Reality',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
                           color: Colors.white,
-                          fontSize: 22,
+                          fontSize: 22.sp,
                           fontWeight: FontWeight.w700,
                           height: 1.1,
                           letterSpacing: 0.0,
                           shadows: [
                             Shadow(
-                              offset: Offset(0, 2),
-                              blurRadius: 4,
+                              offset: Offset(0, 2.h),
+                              blurRadius: 4.r,
                               color: Colors.black45,
                             ),
                           ],
@@ -151,7 +152,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(left: 20, right: 20, top: 5, bottom: 30),
+                      padding: EdgeInsets.only(left: 20.w, right: 20.w, top: 5.h, bottom: 30.h),
                       child: Text(
                         _i18n.translate('auth_subtitle').isNotEmpty
                           ? _i18n.translate('auth_subtitle')
@@ -159,11 +160,11 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                         style: TextStyles.authSubtitle.copyWith(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
                           color: Colors.white,
-                          fontSize: 15,
+                          fontSize: 15.sp,
                           shadows: [
-                            const Shadow(
-                              offset: Offset(0, 1),
-                              blurRadius: 3,
+                            Shadow(
+                              offset: Offset(0, 1.h),
+                              blurRadius: 3.r,
                               color: Colors.black45,
                             ),
                           ],
@@ -176,7 +177,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                     /// Sign in with Apple (iOS only)
                     if (Platform.isIOS) ...[
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(15, 5, 15, 5),
+                        padding: EdgeInsets.fromLTRB(15.w, 5.h, 15.w, 5.h),
                         child: GestureDetector(
                           onTap: () async {
                             // Prevenir cliques duplicados
@@ -230,39 +231,39 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                           },
                           child: Container(
                             width: double.maxFinite,
-                            height: 52,
+                            height: 52.h,
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(12.r),
                             ),
                             child: Center(
                               child: _isAppleSignInProcessing
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CupertinoActivityIndicator(
+                                ? SizedBox(
+                                    width: 24.w,
+                                    height: 24.h,
+                                    child: const CupertinoActivityIndicator(
                                       color: Colors.black,
                                     ),
                                   )
                                 : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const CachedSvgIcon(
+                                  CachedSvgIcon(
                                     'assets/icons/apple_icon.svg',
-                                    width: 18,
-                                    height: 18,
+                                    width: 18.w,
+                                    height: 18.h,
                                     color: Colors.black,
                                   ),
-                                  const SizedBox(width: 8),
+                                  SizedBox(width: 8.w),
                                   Text(
                                     _i18n.translate('sign_in_with_apple').isNotEmpty
                                         ? _i18n.translate('sign_in_with_apple')
                                         : 'Continue with Apple',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: FONT_PLUS_JAKARTA_SANS,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.black,
-                                      fontSize: 14,
+                                      fontSize: 14.sp,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -275,10 +276,10 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                     ],
                     /// Sign in with Facebook (hidden)
                     const SizedBox.shrink(),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     /// Sign in with Google
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(15, 5, 15, 5),
+                      padding: EdgeInsets.fromLTRB(15.w, 5.h, 15.w, 5.h),
                       child: GestureDetector(
                         onTap: () async {
                           // Prevenir cliques duplicados
@@ -326,39 +327,39 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                         },
                         child: Container(
                           width: double.maxFinite,
-                          height: 52,
+                          height: 52.h,
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12.r),
                           ),
                           child: Center(
                             child: _isGoogleSignInProcessing
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CupertinoActivityIndicator(
+                              ? SizedBox(
+                                  width: 24.w,
+                                  height: 24.h,
+                                  child: const CupertinoActivityIndicator(
                                     color: Colors.black,
                                   ),
                                 )
                               : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const CachedSvgIcon(
+                                CachedSvgIcon(
                                   'assets/icons/google_icon.svg',
-                                  width: 18,
-                                  height: 18,
+                                  width: 18.w,
+                                  height: 18.h,
                                   color: Colors.black,
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8.w),
                                 Text(
                                   _i18n.translate('sign_in_with_google').isNotEmpty
                                       ? _i18n.translate('sign_in_with_google')
                                       : 'Continue with Google',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontFamily: FONT_PLUS_JAKARTA_SANS,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.black,
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -370,10 +371,10 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                     ),
                     /// Sign in with Email (outline)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(15, 8, 15, 5),
+                      padding: EdgeInsets.fromLTRB(15.w, 8.h, 15.w, 5.h),
                       child: SizedBox(
                         width: double.maxFinite,
-                        height: 52,
+                        height: 52.h,
                         child: OutlinedButton(
                           onPressed: _viewModel.isLoading
                               ? null
@@ -381,26 +382,26 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                                   context.push(AppRoutes.emailAuth);
                                 },
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.white.withOpacity(0.4), width: 1.5),
+                            side: BorderSide(color: Colors.white.withOpacity(0.4), width: 1.5.w),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(12.r),
                             ),
                             foregroundColor: Colors.white,
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.email_outlined, size: 18, color: Colors.white),
-                              const SizedBox(width: 8),
+                              Icon(Icons.email_outlined, size: 18.sp, color: Colors.white),
+                              SizedBox(width: 8.w),
                               Text(
                                 _i18n.translate('sign_in_with_email').isNotEmpty
                                     ? _i18n.translate('sign_in_with_email')
                                     : 'Continue with Email',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: FONT_PLUS_JAKARTA_SANS,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
-                                  fontSize: 14,
+                                  fontSize: 14.sp,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -411,7 +412,7 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                     ),
 
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                      padding: EdgeInsets.fromLTRB(20.w, 6.h, 20.w, 0),
                       child: TermsAndPrivacyLinks(
                         prefixText:
                             _i18n.translate('agree_terms_and_privacy_prefix'),
@@ -419,14 +420,14 @@ class SignInScreenRefactoredState extends State<SignInScreenRefactored> {
                             _i18n.translate('agree_terms_and_privacy_suffix'),
                         termsTextKey: 'terms_of_service',
                         privacyTextKey: 'privacy_policy',
-                        baseStyle: const TextStyle(
+                        baseStyle: TextStyle(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           color: Colors.white70,
                         ),
-                        linkStyle: const TextStyle(
+                        linkStyle: TextStyle(
                           fontFamily: FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           decoration: TextDecoration.underline,

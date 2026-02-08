@@ -1,6 +1,7 @@
 import 'package:partiu/shared/widgets/no_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget compartilhado para empty states em toda a aplicação
 /// Encapsula as configurações padrão de svgName, fontSize e svgSize
@@ -10,8 +11,8 @@ class GlimpseEmptyState extends StatefulWidget {
   const GlimpseEmptyState({
     required this.text, super.key,
     this.svgName = 'empty',
-    this.fontSize = 14,
-    this.svgSize = 120,
+    this.fontSize,
+    this.svgSize,
   });
 
   /// Factory para empty state padrão (mais comum) - usa 'empty' icon
@@ -45,7 +46,6 @@ class GlimpseEmptyState extends StatefulWidget {
     );
   }
 
-  /// Factory para empty state com tamanho de SVG maior
   factory GlimpseEmptyState.large({
     required String text,
   }) {
@@ -56,8 +56,8 @@ class GlimpseEmptyState extends StatefulWidget {
   }
   final String text;
   final String svgName;
-  final double fontSize;
-  final double svgSize;
+  final double? fontSize;
+  final double? svgSize;
 
   @override
   State<GlimpseEmptyState> createState() => _GlimpseEmptyStateState();
@@ -98,8 +98,8 @@ class _GlimpseEmptyStateState extends State<GlimpseEmptyState> {
         return NoData(
           svgName: widget.svgName,
           text: widget.text,
-          fontSize: widget.fontSize,
-          svgSize: widget.svgSize,
+          fontSize: widget.fontSize ?? 14.sp,
+          svgSize: widget.svgSize ?? 120.w,
         );
       },
     );

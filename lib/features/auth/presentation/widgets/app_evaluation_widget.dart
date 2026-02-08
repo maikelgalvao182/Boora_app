@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:in_app_review/in_app_review.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de avaliação do app (review)
 /// Reutilizável para Bride e Vendor com diferentes depoimentos
@@ -158,9 +159,9 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         const _RatingSummary(rating: 4.5, reviewsCount: 63),
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
         Center(
           child: Text(
             _i18n.translate('partiu_was_created_for_people_like_you'),
@@ -168,9 +169,9 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
             style: TextStyles.evaluationTitle,
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
         _AvatarStack(avatarPaths: _avatarPaths),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         Center(
           child: Text(
             _i18n.translate('over_50k_people_discovering_new_activities'),
@@ -185,11 +186,11 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
           final testimonial = entry.value;
           final avatar = _avatarPaths[index % _avatarPaths.length];
           return Padding(
-            padding: EdgeInsets.only(bottom: index < _getTestimonials().length - 1 ? 12 : 0),
+            padding: EdgeInsets.only(bottom: index < _getTestimonials().length - 1 ? 12.h : 0),
             child: _TestimonialCard(testimonial: testimonial, avatarPath: avatar),
           );
         }),
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
       ],
     );
   }
@@ -211,23 +212,23 @@ class _RatingSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: EdgeInsets.symmetric(vertical: 20.h),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            blurRadius: 8.r,
+            offset: Offset(0, 4.h),
           ),
         ],
       ),
       child: Row(
         children: [
           const _Laurel(side: 'left'),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -239,15 +240,15 @@ class _RatingSummary extends StatelessWidget {
                       rating.toStringAsFixed(1),
                       style: TextStyles.ratingTitle,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8.w),
                     for (int i = 0; i < 5; i++)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: SvgPicture.string(_starSvg, width: 20, height: 20),
+                        padding: EdgeInsets.symmetric(horizontal: 2.w),
+                        child: SvgPicture.string(_starSvg, width: 20.w, height: 20.h),
                       ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6.h),
                 Text(
                   AppLocalizations.of(context).translate('over_x_app_reviews').replaceAll('{count}', (reviewsCount / 1000).floor().toString()),
                   textAlign: TextAlign.center,
@@ -256,7 +257,7 @@ class _RatingSummary extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           const _Laurel(side: 'right'),
         ],
       ),
@@ -272,7 +273,7 @@ class _Laurel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = 'assets/images/${side == 'right' ? 'direito.png' : 'esquerdo.png'}';
-    return Image.asset(path, width: 72, height: 72, fit: BoxFit.contain);
+    return Image.asset(path, width: 72.w, height: 72.h, fit: BoxFit.contain);
   }
 }
 
@@ -288,14 +289,14 @@ class _AvatarStack extends StatelessWidget {
     final totalWidth = size + (avatarPaths.length - 1) * (size - overlap);
     return Center(
       child: SizedBox(
-        width: totalWidth,
-        height: size,
+        width: totalWidth.w,
+        height: size.h,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             for (int i = 0; i < avatarPaths.length; i++)
               Positioned(
-                left: i * (size - overlap),
+                left: (i * (size - overlap)).w,
                 child: _CircularAvatar(path: avatarPaths[i], size: size),
               ),
           ],
@@ -314,26 +315,26 @@ class _CircularAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
+      width: size.w,
+      height: size.h,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
+        border: Border.all(color: Colors.white, width: 3.w),
         color: Colors.grey.shade200,
       ),
       child: ClipOval(
         child: Image.asset(
           path,
-          width: size,
-          height: size,
+          width: size.w,
+          height: size.h,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stack) {
             return Image.asset(
               'assets/images/avatar/bride.png',
-              width: size,
-              height: size,
+              width: size.w,
+              height: size.h,
               fit: BoxFit.cover,
-              errorBuilder: (c, e, s) => Icon(Icons.person, size: size * 0.5, color: Colors.grey.shade500),
+              errorBuilder: (c, e, s) => Icon(Icons.person, size: (size * 0.5).sp, color: Colors.grey.shade500),
             );
           },
         ),
@@ -356,10 +357,10 @@ class _TestimonialCard extends StatelessWidget {
     final category = parts.length > 1 ? parts[1] : null;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F8FA),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18.r),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,8 +368,8 @@ class _TestimonialCard extends StatelessWidget {
           Row(
             children: [
               SizedBox(
-                width: 40,
-                height: 40,
+                width: 40.w,
+                height: 40.h,
                 child: ClipOval(
                   child: Image.asset(
                     avatarPath,
@@ -381,7 +382,7 @@ class _TestimonialCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +392,7 @@ class _TestimonialCard extends StatelessWidget {
                       style: TextStyles.testimonialName,
                     ),
                     if (category != null) ...[
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2.h),
                       Text(
                         category,
                         style: TextStyles.testimonialCategory,
@@ -404,14 +405,14 @@ class _TestimonialCard extends StatelessWidget {
                 children: [
                   for (int i = 0; i < 5; i++)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                      child: SvgPicture.string(_starSvg, width: 16, height: 16),
+                      padding: EdgeInsets.symmetric(horizontal: 1.5.w),
+                      child: SvgPicture.string(_starSvg, width: 16.w, height: 16.h),
                     ),
                 ],
               )
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           Text(
             testimonial.text,
             style: TextStyles.testimonialText,

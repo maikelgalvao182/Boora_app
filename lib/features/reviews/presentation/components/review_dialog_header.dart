@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -72,7 +73,7 @@ class ReviewDialogHeader extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 18,
+                        fontSize: 18.sp,
                         fontWeight: FontWeight.w800,
                         color: GlimpseColors.primaryColorLight,
                       ),

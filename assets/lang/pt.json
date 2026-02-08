@@ -1307,6 +1307,12 @@
   
   "event_creator_filters_title": "Filtrar por Criador",
   "enable_creator_filters": "Ativar filtros",
-  "enable_creator_filters_description": "Mostrar apenas eventos de criadores com perfil específico"
+  "enable_creator_filters_description": "Mostrar apenas eventos de criadores com perfil específico",
+
+  "tab_discover": "Descobrir",
+  "tab_feed": "Feed",
+  "tab_ranking": "Ranking",
+  "tab_conversations": "Conversas",
+  "tab_profile": "Perfil"
 }
 

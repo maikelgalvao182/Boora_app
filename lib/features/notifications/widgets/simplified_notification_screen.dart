@@ -1,3 +1,4 @@
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -226,7 +227,7 @@ class _NotificationFilterPageState extends State<_NotificationFilterPage>
           key: PageStorageKey('notif_${widget.filterIndex}'),
           controller: widget.controller.getScrollController(widget.filterIndex),
           itemCount: notifications.length,
-          padding: const EdgeInsets.only(top: 16),
+          padding: EdgeInsets.only(top: 16.h),
           itemBuilder: (context, index) {
             final doc = notifications[index];
             
@@ -277,7 +278,7 @@ class _ErrorState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.red),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           ElevatedButton(
             onPressed: onRetry,
             child: Text(tryAgainText),

@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/text_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de tela de sucesso do cadastro
 /// Mostra ícone de check verde e mensagem de boas-vindas
@@ -21,21 +22,21 @@ class SignupSuccessWidget extends StatelessWidget {
           // Ícone de sucesso
           Center(
             child: Container(
-              width: 72,
-              height: 72,
+              width: 72.w,
+              height: 72.h,
               decoration: const BoxDecoration(
                 color: Colors.green,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.check,
                 color: Colors.white,
-                size: 42,
+                size: 42.sp,
               ),
             ),
           ),
           
-          const SizedBox(height: 40),
+          SizedBox(height: 40.h),
           
           // Título
           Text(
@@ -44,7 +45,7 @@ class SignupSuccessWidget extends StatelessWidget {
             style: TextStyles.successTitle,
           ),
           
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           
           // Subtítulo
           Text(

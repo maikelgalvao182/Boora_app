@@ -2,6 +2,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -16,14 +17,14 @@ class GlimpseButton extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.width,
-  this.height = 52,
-    this.fontSize = 16,
+  this.height,
+    this.fontSize,
     this.fontWeight = FontWeight.w700,
     this.outline = false,
     this.isProcessing = false,
     this.noPadding = false,
     this.icon,
-    this.iconSize = 16,
+    this.iconSize,
     this.hideProcessingText = false,
   });
   final String text;
@@ -32,14 +33,14 @@ class GlimpseButton extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final double? width;
-  final double height;
-  final double fontSize;
+  final double? height;
+  final double? fontSize;
   final FontWeight fontWeight;
   final bool outline;
   final bool isProcessing;
   final bool noPadding;
   final IconData? icon;
-  final double iconSize;
+  final double? iconSize;
   final bool hideProcessingText;
 
   @override
@@ -64,7 +65,7 @@ class GlimpseButton extends StatelessWidget {
     : (textColor ?? Colors.white);
     
     return Padding(
-      padding: noPadding ? EdgeInsets.zero : const EdgeInsets.symmetric(vertical: 10),
+      padding: noPadding ? EdgeInsets.zero : EdgeInsets.symmetric(vertical: 10.h),
       child: GestureDetector(
         onTap: isEnabled ? () {
           HapticFeedback.lightImpact();
@@ -72,16 +73,16 @@ class GlimpseButton extends StatelessWidget {
         } : null,
         child: Container(
           width: width ?? double.maxFinite,
-          height: height,
+          height: height ?? 52.h,
           decoration: BoxDecoration(
             color: effectiveBg,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
             border: outline 
         ? Border.all(
           color: isEnabled
             ? baseBgColor
             : GlimpseColors.disabledButtonColorLight,
-          width: 1.5,
+          width: 1.5.w,
           )
                 : null,
           ),
@@ -94,13 +95,13 @@ class GlimpseButton extends StatelessWidget {
                         color: effectiveTextColor,
                       ),
                       if (!hideProcessingText) ...[
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12.w),
                         Text(
                           i18n.translate('processing'),
                           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                             fontWeight: fontWeight,
                             color: effectiveTextColor,
-                            fontSize: fontSize,
+                            fontSize: fontSize ?? 16.sp,
                           ),
                         ),
                       ],
@@ -113,10 +114,10 @@ class GlimpseButton extends StatelessWidget {
                       if (icon != null) ...[
                         Icon(
                           icon,
-                          size: iconSize,
+                          size: iconSize ?? 16.sp,
                           color: effectiveTextColor,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8.w),
                       ],
                       Flexible(
                         child: Text(
@@ -124,7 +125,7 @@ class GlimpseButton extends StatelessWidget {
                           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                             fontWeight: fontWeight,
                             color: effectiveTextColor,
-                            fontSize: fontSize,
+                            fontSize: fontSize ?? 16.sp,
                           ),
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,

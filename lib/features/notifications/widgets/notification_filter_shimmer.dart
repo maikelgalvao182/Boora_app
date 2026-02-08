@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -6,11 +7,11 @@ import 'package:shimmer/shimmer.dart';
 /// 
 /// Exibe chips de loading com altura fixa de 48px
 class NotificationFilterShimmer extends StatelessWidget {
-  const NotificationFilterShimmer({
+  NotificationFilterShimmer({
     super.key,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    EdgeInsetsGeometry? padding,
     this.itemCount = 4,
-  });
+  }) : padding = padding ?? EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h);
   
   final EdgeInsetsGeometry padding;
   final int itemCount;

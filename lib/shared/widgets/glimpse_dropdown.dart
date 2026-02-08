@@ -2,6 +2,7 @@ import 'package:animated_custom_dropdown/custom_dropdown.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -82,14 +83,14 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
       children: [
         if (widget.labelText.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
               widget.labelText,
               style: widget.labelStyle ?? GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
                 color: GlimpseColors.primaryColorLight,
                 fontWeight: FontWeight.w800,
-                fontSize: 14,
+                fontSize: 14.sp,
               ),
             ),
           ),
@@ -99,7 +100,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
             opacity: widget.enabled ? 1.0 : 0.6,
             child: widget.searchEnabled 
             ? CustomDropdown<String>.searchRequest(
-                itemsListPadding: const EdgeInsets.only(top: 10),
+                itemsListPadding: EdgeInsets.only(top: 10.h),
                 decoration: _buildDecoration(
                   backgroundColor, textColor, descriptionTextColor, borderColor
                 ),
@@ -112,7 +113,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
                           widget.itemBuilder!(item),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             color: isSelected 
                                 ? GlimpseColors.primaryColorLight
                                 : GlimpseColors.textSubTitle,
@@ -125,7 +126,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
                         widget.itemBuilder!(selectedItem),
                         style: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 16,
+                          fontSize: 16.sp,
                         ),
                       )
                     : null,
@@ -152,7 +153,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
                           widget.itemBuilder!(item),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             color: isSelected 
                                 ? GlimpseColors.primaryColorLight
                                 : GlimpseColors.textSubTitle,
@@ -165,7 +166,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
                         widget.itemBuilder!(selectedItem),
                         style: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 16,
+                          fontSize: 16.sp,
                         ),
                       )
                     : null,
@@ -192,7 +193,7 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
     return CustomDropdownDecoration(
       hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         color: descriptionTextColor,
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w400,
         height: 1,
       ),
@@ -212,22 +213,22 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
         Icons.keyboard_arrow_up,
         color: textColor,
       ),
-      expandedBorderRadius: BorderRadius.circular(12),
+      expandedBorderRadius: BorderRadius.circular(12.r),
       expandedFillColor: backgroundColor,
       closedFillColor: backgroundColor,
-      closedBorderRadius: BorderRadius.circular(12),
+      closedBorderRadius: BorderRadius.circular(12.r),
       listItemDecoration: ListItemDecoration(
         selectedColor: backgroundColor,
       ),
       headerStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         color: textColor,
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w400,
         height: 1,
       ),
       listItemStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
         color: textColor,
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w400,
         height: 1,
       ),
@@ -241,20 +242,20 @@ class _GlimpseDropdownState extends State<GlimpseDropdown> {
         },
         hintStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
           color: descriptionTextColor,
-          fontSize: 16,
+          fontSize: 16.sp,
           fontWeight: FontWeight.w400,
           height: 1,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+        contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: 12.h),
         textStyle: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
           color: textColor,
-          fontSize: 16,
+          fontSize: 16.sp,
           fontWeight: FontWeight.w400,
           height: 1,
         ),
         fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           borderSide: BorderSide(
             color: borderColor,
           ),

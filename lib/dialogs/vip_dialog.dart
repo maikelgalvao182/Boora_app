@@ -16,6 +16,7 @@ import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/features/subscription/services/vip_access_service.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 /// Dialog de assinatura VIP - Versão Modularizada
@@ -212,12 +213,12 @@ class _VipBottomSheetState extends State<VipBottomSheet> {
         children: [
           Center(
             child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
+              margin: EdgeInsets.symmetric(vertical: 12.h),
               width: 40,
               height: 4,
               decoration: BoxDecoration(
                 color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(2.r),
               ),
             ),
           ),
@@ -269,7 +270,7 @@ class _VipBottomSheetState extends State<VipBottomSheet> {
       listenable: _controller,
       builder: (context, _) {
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
           child: Row(
             children: [
               // Card plano semanal (se disponível)

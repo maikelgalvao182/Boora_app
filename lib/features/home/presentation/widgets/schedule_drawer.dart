@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -97,11 +98,11 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+          topLeft: Radius.circular(24.r),
+          topRight: Radius.circular(24.r),
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -116,26 +117,26 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
             children: [
               // Handle e header
               Padding(
-                padding: const EdgeInsets.only(
-                  top: 12,
-                  left: 20,
-                  right: 20,
+                padding: EdgeInsets.only(
+                  top: 12.h,
+                  left: 20.w,
+                  right: 20.w,
                 ),
                 child: Column(
                   children: [
                     // Handle
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 40.w,
+                        height: 4.h,
                         decoration: BoxDecoration(
                           color: GlimpseColors.borderColorLight,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(2.r),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
 
                     // Header: Título + Close
                     Row(
@@ -146,15 +147,15 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                           AppLocalizations.of(context).translate('when_activity_title'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 20,
+                            fontSize: 20.sp,
                             fontWeight: FontWeight.w800,
                             color: GlimpseColors.primaryColorLight,
                           ),
                         ),
 
                         // Botão fechar
-                        const GlimpseCloseButton(
-                          size: 32,
+                        GlimpseCloseButton(
+                          size: 32.w,
                         ),
                       ],
                     ),
@@ -162,7 +163,7 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+            SizedBox(height: 24.h),
 
               // Calendário horizontal (7 dias)
               HorizontalWeekCalendar(
@@ -172,11 +173,11 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                 },
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Cards de seleção de horário
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: TimeTypeSelector(
                   selectedType: _controller.selectedTimeType,
                   onTypeSelected: (type) {
@@ -191,9 +192,9 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      padding: EdgeInsets.symmetric(horizontal: 24.w),
                       child: TimePickerWidget(
                         selectedTime: _controller.selectedTime,
                         onTimeChanged: (DateTime newTime) {
@@ -205,7 +206,7 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Botões de navegação
               NavigationButtons(
@@ -215,7 +216,7 @@ class _ScheduleDrawerState extends State<ScheduleDrawer> {
               ),
 
               // Padding bottom para safe area
-              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16.h),
             ],
           ),
         ),

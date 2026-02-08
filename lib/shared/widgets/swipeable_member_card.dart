@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -77,7 +78,7 @@ class SwipeableMemberCard extends StatelessWidget {
             child: GestureDetector(
               onTap: _handleDelete,
               child: Container(
-                margin: const EdgeInsets.only(left: 16),
+                margin: EdgeInsets.only(left: 16.w),
                 decoration: const BoxDecoration(
                   color: Colors.red,
                 ),
@@ -93,9 +94,9 @@ class SwipeableMemberCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         deleteLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

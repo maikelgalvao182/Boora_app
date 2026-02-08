@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 
 class NotificationListSkeleton extends StatelessWidget {
@@ -34,20 +35,20 @@ class _NotificationSkeletonTile extends StatelessWidget {
     return SizedBox(
       height: 80,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
         child: Row(
           children: [
             // Avatar
             _Box.square(44, radius: 12),
             const SizedBox(width: 12),
             // Título + Subtítulo
-            const Expanded(
+            Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _Bar(160, 14, radius: 6),
-                  SizedBox(height: 8),
+                  SizedBox(height: 8.h),
                   _Bar(120, 12, radius: 6),
                 ],
               ),

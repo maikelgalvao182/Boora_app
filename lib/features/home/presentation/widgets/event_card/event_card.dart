@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -96,11 +97,11 @@ class _EventCardState extends State<EventCard> {
     final i18n = AppLocalizations.of(context);
     
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
         ),
       ),
       child: SafeArea(
@@ -110,24 +111,24 @@ class _EventCardState extends State<EventCard> {
           children: [
             // Handle
             Padding(
-              padding: const EdgeInsets.only(top: 12, left: 20, right: 20),
+              padding: EdgeInsets.only(top: 12.h, left: 20.w, right: 20.w),
               child: Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 40.w,
+                  height: 4.h,
                   decoration: BoxDecoration(
                     color: GlimpseColors.borderColorLight,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
 
             // Header: Nome do criador centralizado + Report Button
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: SizedBox(
                 width: double.infinity,
                 child: Stack(
@@ -139,8 +140,8 @@ class _EventCardState extends State<EventCard> {
                       children: [
                         // Stack de Emoji + Avatar
                         SizedBox(
-                          height: 64, // Reduzido de 80 para 64
-                          width: 105, // Largura ajustada para o overlap
+                          height: 64.h, // Reduzido de 80 para 64
+                          width: 105.w, // Largura ajustada para o overlap
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -148,22 +149,22 @@ class _EventCardState extends State<EventCard> {
                               Positioned(
                                 left: 0,
                                 child: Container(
-                                  width: 64,
-                                  height: 64,
+                                  width: 64.w,
+                                  height: 64.h,
                                   decoration: BoxDecoration(
                                     color: CardColorHelper.getColor(_controller.eventId.hashCode),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white,
-                                      width: 3,
+                                      width: 3.w,
                                     ),
                                   ),
                                   child: ClipOval(
                                     child: ListEmojiAvatar(
                                       emoji: _controller.emoji ?? ListEmojiAvatar.defaultEmoji,
                                       eventId: _controller.eventId,
-                                      size: 64,
-                                      emojiSize: 32,
+                                      size: 64.w,
+                                      emojiSize: 32.sp,
                                     ),
                                   ),
                                 ),
@@ -174,19 +175,19 @@ class _EventCardState extends State<EventCard> {
                                 Positioned(
                                   right: 0,
                                   child: Container(
-                                    width: 64,
-                                    height: 64,
+                                    width: 64.w,
+                                    height: 64.h,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: Colors.white,
-                                        width: 3,
+                                        width: 3.w,
                                       ),
                                     ),
                                     child: StableAvatar(
                                       userId: _controller.creatorId!,
-                                      size: 64,
-                                      borderRadius: BorderRadius.circular(999),
+                                      size: 64.w,
+                                      borderRadius: BorderRadius.circular(999.r),
                                     ),
                                   ),
                                 ),
@@ -200,11 +201,11 @@ class _EventCardState extends State<EventCard> {
                             userId: _controller.creatorId!,
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 15,
+                              fontSize: 15.sp,
                               fontWeight: FontWeight.w700,
                               color: GlimpseColors.primaryColorLight,
                             ),
-                            iconSize: 14, // Badge ajustado proporcionalmente
+                            iconSize: 14.w, // Badge ajustado proporcionalmente
                             textAlign: TextAlign.center,
                           )
                         else
@@ -212,7 +213,7 @@ class _EventCardState extends State<EventCard> {
                             _controller.creatorFullName ?? '',
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 15,
+                              fontSize: 15.sp,
                               fontWeight: FontWeight.w700,
                               color: GlimpseColors.primaryColorLight,
                             ),
@@ -239,7 +240,7 @@ class _EventCardState extends State<EventCard> {
 
             // Conteúdo principal
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: _buildContent(i18n),
             ),
           ],
@@ -252,7 +253,7 @@ class _EventCardState extends State<EventCard> {
     // Error state
     if (_controller.error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 20.h),
         child: Center(
           child: Text(
             _controller.error!,

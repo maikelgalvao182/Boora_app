@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/text_styles.dart';
@@ -55,7 +56,7 @@ class GlimpseProgressHeader extends StatelessWidget {
         : TextStyles.headerSubtitle.copyWith(color: GlimpseColors.textSubTitle);
     
     final continueButtonStyle = GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-      fontSize: 14,
+      fontSize: 14.sp,
       fontWeight: FontWeight.w600,
       color: isContinueEnabled ? GlimpseColors.primary : GlimpseColors.disabledButtonColorLight,
     );
@@ -74,11 +75,11 @@ class GlimpseProgressHeader extends StatelessWidget {
                 if (showLogo) ...[
                   Image.asset(
                     'assets/images/logo.png',
-                    width: 65,
-                    height: 65,
+                    width: 65.w,
+                    height: 65.h,
                     fit: BoxFit.contain,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                 ],
                 // Botão Voltar (condicional)
                 if (showBackButton)
@@ -99,10 +100,10 @@ class GlimpseProgressHeader extends StatelessWidget {
                   : null,
               behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(vertical: 8.h),
                 child: isProcessing
                     ? SizedBox(
-                        height: 20,
+                        height: 20.h,
                         child: TypingIndicator(
                           color: textColor,
                           dotSize: 6,
@@ -116,7 +117,7 @@ class GlimpseProgressHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
         
         // Título
         if (title.isNotEmpty)
@@ -127,7 +128,7 @@ class GlimpseProgressHeader extends StatelessWidget {
         
         // Subtítulo (opcional)
         if (subtitle != null) ...[
-          const SizedBox(height: 6),
+          SizedBox(height: 6.h),
           Text(
             subtitle!,
             style: subtitleStyle,
@@ -159,13 +160,13 @@ class GlimpseScreenHeader extends StatelessWidget {
         // Botão de voltar
         GestureDetector(
           onTap: onBackTap,
-          child: const Icon(
+          child: Icon(
             IconsaxPlusLinear.arrow_left,
-            size: 24,
+            size: 24.w,
             color: GlimpseColors.primaryColorLight,
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24.h),
         
                 // Título
         Text(
@@ -175,13 +176,13 @@ class GlimpseScreenHeader extends StatelessWidget {
         
         // Subtítulo (opcional)
         if (subtitle != null) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           Text(
             subtitle!,
             style: TextStyles.headerSubtitle,
           ),
         ],
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
       ],
     );
   }

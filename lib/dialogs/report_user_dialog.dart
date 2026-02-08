@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/shared/widgets/glimpse_close_button.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:partiu/shared/widgets/stable_avatar.dart';
@@ -108,12 +109,12 @@ class _ReportDialogContent extends StatelessWidget {
     final state = context.findAncestorStateOfType<_ReportDialogState>()!;
     
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: EdgeInsets.all(16.w),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24.w),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -121,13 +122,13 @@ class _ReportDialogContent extends StatelessWidget {
             title: state._i18n!.translate('create_report'),
             onClose: state._close,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           _Avatar(userId: state.widget.userId),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
           _Title(text: state._i18n!.translate('help_us_keep_community_safe')),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           _Description(text: state._i18n!.translate('report_dialog_description')),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
           _ActionButtons(
             blockText: state._blockText!,
             reportText: state._reportText!,
@@ -232,7 +233,7 @@ class _Description extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: EdgeInsets.symmetric(horizontal: 8.w),
       child: Text(
         text,
         textAlign: TextAlign.center,

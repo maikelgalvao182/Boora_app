@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:image_picker/image_picker.dart';
@@ -97,7 +98,7 @@ class _ImageSourceBottomSheetState extends State<ImageSourceBottomSheet> {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20.w),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -105,7 +106,7 @@ class _ImageSourceBottomSheetState extends State<ImageSourceBottomSheet> {
                 i18n.translate('select_photo'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 18,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primaryColorLight,
                 ),
@@ -177,12 +178,12 @@ class _ImageSourceBottomSheetState extends State<ImageSourceBottomSheet> {
               size: 30,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             label,
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 16,
+              fontSize: 16.sp,
               fontWeight: FontWeight.w400,
               color: GlimpseColors.textSubTitle,
             ),

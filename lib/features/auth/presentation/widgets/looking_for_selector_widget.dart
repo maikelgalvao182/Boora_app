@@ -1,10 +1,10 @@
-import 'package:partiu/core/constants/glimpse_variables.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/tag_vendor.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Opções do que o usuário está procurando
 class LookingForOption {
@@ -88,13 +88,13 @@ class _LookingForSelectorWidgetState extends State<LookingForSelectorWidget> {
       children: [
         // Contador de selecionados
         Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(bottom: 16),
+          padding: EdgeInsets.all(12.w),
+          margin: EdgeInsets.only(bottom: 16.h),
           decoration: BoxDecoration(
             color: _selectedOptions.isEmpty 
                 ? GlimpseColors.lightTextField 
                 : GlimpseColors.primaryLight.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
               color: _selectedOptions.isEmpty 
                   ? Colors.transparent 
@@ -112,7 +112,7 @@ class _LookingForSelectorWidgetState extends State<LookingForSelectorWidget> {
                           : i18n.translate('max_options_selected').replaceAll('{max}', maxOptions.toString()),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                     color: GlimpseColors.primaryColorLight,
                   ),
@@ -124,8 +124,8 @@ class _LookingForSelectorWidgetState extends State<LookingForSelectorWidget> {
         
         // Tags das opções
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 10.w,
+          runSpacing: 10.h,
           children: lookingForOptions.map((option) {
             final isSelected = _selectedOptions.contains(option.id);
             final isDisabled = !isSelected && _selectedOptions.length >= maxOptions;

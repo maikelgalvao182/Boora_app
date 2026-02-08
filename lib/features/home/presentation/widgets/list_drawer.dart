@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -78,11 +79,11 @@ class ListDrawer extends StatelessWidget {
     
     return Container(
       height: screenHeight * 0.9,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
         ),
       ),
       child: Column(
@@ -100,15 +101,15 @@ class ListDrawer extends StatelessWidget {
                 // Handle
                 Center(
                   child: Container(
-                    width: 40,
-                    height: 4,
+                    width: 40.w,
+                    height: 4.h,
                     decoration: BoxDecoration(
                       color: GlimpseColors.borderColorLight,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(2.r),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
                 
                 // Título centralizado
                 Text(
@@ -116,7 +117,7 @@ class ListDrawer extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 18,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.w800,
                     color: GlimpseColors.primaryColorLight,
                   ),
@@ -125,17 +126,17 @@ class ListDrawer extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // Filtro de data (calendário)
           _DateFilterRow(mapViewModel: mapViewModel),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
 
           // Filtro horizontal por categoria
           _CategoryFilterBar(mapViewModel: mapViewModel),
 
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
 
           // Lista de atividades
           Expanded(
@@ -233,7 +234,7 @@ class _CategoryFilterBar extends StatelessWidget {
               mapViewModel.setCategoryFilter(categories[index - 1]);
             }
           },
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16.w),
           unselectedBackgroundColor: GlimpseColors.lightTextField,
         );
       },
@@ -358,9 +359,9 @@ class _ListDrawerContent extends StatelessWidget {
             // Loading state inicial
             if (isLoading && controller.myEvents.value.isEmpty) {
               return ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: const [
-                  SizedBox(height: 20),
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                children: [
+                  SizedBox(height: 20.h),
                   ListCardShimmer(),
                   ListCardShimmer(),
                   ListCardShimmer(),
@@ -385,12 +386,12 @@ class _ListDrawerContent extends StatelessWidget {
                 // Content with data
                 // Usa uma ListView única (scrollável) para evitar overflow e nested scroll.
                 return ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
                   children: [
                     // SEÇÃO: Atividades próximas (do mapa)
                     if (hasNearbyEvents) ...[
                       Padding(
-                        padding: const EdgeInsets.only(top: 24, bottom: 16),
+                        padding: EdgeInsets.only(top: 24.h, bottom: 16.h),
                         child: _buildSectionLabel(i18n.translate('nearby_activities')),
                       ),
                       ...List<Widget>.generate(
@@ -410,7 +411,7 @@ class _ListDrawerContent extends StatelessWidget {
                     // SEÇÃO: Minhas atividades
                     if (hasMyEvents) ...[
                       Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 16),
+                        padding: EdgeInsets.only(top: 16.h, bottom: 16.h),
                         child: _buildSectionLabel(i18n.translate('my_activities')),
                       ),
                       ...List<Widget>.generate(
@@ -428,12 +429,12 @@ class _ListDrawerContent extends StatelessWidget {
                     ],
 
                     // Espaço para o home indicator / safe area
-                    const SafeArea(
+                    SafeArea(
                       top: false,
                       left: false,
                       right: false,
                       bottom: true,
-                      minimum: EdgeInsets.only(bottom: 16),
+                      minimum: EdgeInsets.only(bottom: 16.h),
                       child: SizedBox.shrink(),
                     ),
                   ],
@@ -454,7 +455,7 @@ class _ListDrawerContent extends StatelessWidget {
       text,
       style: GoogleFonts.getFont(
         FONT_PLUS_JAKARTA_SANS,
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w600,
         color: GlimpseColors.textSubTitle,
       ),

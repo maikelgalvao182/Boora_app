@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/config/dependency_provider.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -430,9 +431,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
           right: 0,
           child: Container(
             padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: MediaQuery.of(context).padding.top + 16,
+              left: 20.w,
+              right: 20.w,
+              top: MediaQuery.of(context).padding.top + 16.h,
             ),
             child: GlimpseProgressHeader(
               title: '',
@@ -468,7 +469,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: ProfilePhotoWidget(
               imageFile: vm.imageFile as File?,
               onImageSelected: (file) => vm.setImageFile(file),
@@ -480,14 +481,14 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: Column(
               children: [
                 PersonalInfoWidget(
                   initialName: vm.fullName,
                   onNameChanged: vm.setFullName,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
                 BirthDateWidget(
                   initialDate: vm.birthDate,
                   onDateChanged: (DateTime? date) {
@@ -503,7 +504,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: GenderSelectorWidget(
               initialGender: vm.selectedGender,
               onGenderChanged: (value) {
@@ -518,7 +519,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: LookingForSelectorWidget(
               initialSelection: vm.lookingFor,
               onSelectionChanged: (value) {
@@ -533,7 +534,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: BioWidget(
               initialBio: vm.bio,
               onBioChanged: vm.setBio,
@@ -545,7 +546,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: SpecialtySelectorWidget(
               initialSpecialty: vm.interests,
               onSpecialtyChanged: (value) => vm.setInterests(value ?? ''),
@@ -557,7 +558,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: InstagramWidget(
               initialInstagram: vm.instagram,
               onInstagramChanged: (value) {
@@ -572,7 +573,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: CountrySelectorWidget(
               initialCountry: vm.country,
               onCountryChanged: (countryData) {
@@ -593,7 +594,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: OriginSelectorWidget(
               initialOrigin: vm.originSource,
               onOriginChanged: (value) {
@@ -607,9 +608,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       case SignupWizardStep.evaluation:
         return Container(
           color: Colors.white,
-          child: const SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: AppEvaluationWidget(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+            child: const AppEvaluationWidget(
               isBride: false, // Vendor flow
               shouldAutoRequestReview: true,
             ),
@@ -630,7 +631,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         children: [
           // Header com botões de navegação
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: GlimpseProgressHeader(
               title: _getStepTitle(),
               subtitle: _getStepSubtitle(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -36,7 +37,7 @@ class InterestsFilterWidget extends StatelessWidget {
             color: GlimpseColors.primaryColorLight,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         if (showCount) ...[
           Text(
             selectedInterests.isEmpty
@@ -49,7 +50,7 @@ class InterestsFilterWidget extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4.h),
         ],
         InterestTagsSelector(
           userInterests: availableInterests,

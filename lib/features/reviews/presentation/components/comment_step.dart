@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 import 'package:partiu/shared/widgets/pending_participants_stack.dart';
@@ -34,7 +35,7 @@ class CommentStep extends StatelessWidget {
         ),
         
         if (remainingParticipants.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           PendingParticipantsStack(
             participants: remainingParticipants,
           ),
