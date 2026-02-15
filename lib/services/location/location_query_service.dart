@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide GeoPoint;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -310,7 +310,7 @@ class LocationQueryService {
         );
         // Refresh em background – não bloqueia o retorno
         unawaited(_backgroundRefresh(
-          userLocation: userLocation,
+          userLocation: GeoPoint(latitude: userLocation.latitude, longitude: userLocation.longitude),
           radiusKm: radiusKm,
           activeFilters: activeFilters,
           hiveCacheKey: hiveCacheKey,
@@ -560,9 +560,9 @@ class LocationQueryService {
     debugPrint('🔍 LocationQueryService: Documento encontrado, verificando campos...');
     debugPrint('🔍 LocationQueryService: Campos disponíveis: ${data.keys.toList()}');
     
-    // Tenta latitude/longitude primeiro (legado), depois displayLatitude/displayLongitude
-    final latitude = (data['latitude'] as double?) ?? (data['displayLatitude'] as double?);
-    final longitude = (data['longitude'] as double?) ?? (data['displayLongitude'] as double?);
+    // displayLatitude/displayLongitude (público, atual), fallback p/ latitude/longitude legados
+    final latitude = (data['displayLatitude'] as double?) ?? (data['latitude'] as double?);
+    final longitude = (data['displayLongitude'] as double?) ?? (data['longitude'] as double?);
     
     debugPrint('🔍 LocationQueryService: latitude = $latitude');
     debugPrint('🔍 LocationQueryService: longitude = $longitude');
@@ -716,9 +716,17 @@ class LocationQueryService {
     if (userId == null) return;
 
     try {
-      await FirebaseFirestore.instance.collection('Users').doc(userId).set({
+      final userRef = FirebaseFirestore.instance.collection('Users').doc(userId);
+      
+      // 🔒 SEGURANÇA: Localização real vai para subcoleção privada
+      await userRef.collection('private').doc('location').set({
         'latitude': latitude,
         'longitude': longitude,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      // Dados públicos (apenas raio, sem coordenadas reais)
+      await userRef.set({
         'radiusKm': radiusKm ?? 25.0,
         'radiusUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

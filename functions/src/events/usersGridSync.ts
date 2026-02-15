@@ -26,6 +26,12 @@ function resolveLatLng(
       typeof data.location.longitude === "number") {
     return {lat: data.location.latitude, lng: data.location.longitude};
   }
+  // displayLatitude/displayLongitude (atual, público com offset)
+  if (typeof data.displayLatitude === "number" &&
+      typeof data.displayLongitude === "number") {
+    return {lat: data.displayLatitude, lng: data.displayLongitude};
+  }
+  // Fallback: latitude/longitude legado (dados antigos)
   if (typeof data.latitude === "number" && typeof data.longitude === "number") {
     return {lat: data.latitude, lng: data.longitude};
   }
@@ -98,6 +104,13 @@ export const onUserLocationUpdated = functions.firestore
       interestBuckets,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+
+    // Escrever latitude/longitude (do display) no users_preview
+    // para manter compatibilidade com queries do getPeople
+    if (afterCoords) {
+      updatePayload.latitude = afterCoords.lat;
+      updatePayload.longitude = afterCoords.lng;
+    }
 
     if (gridId) {
       updatePayload.gridId = gridId;

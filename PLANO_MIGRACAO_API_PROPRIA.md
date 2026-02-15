@@ -1,25 +1,25 @@
 # Plano de Migração para API Própria — Partiu
 
 > **Data:** 15/02/2026 (revisado)  
-> **Estratégia:** Migração Agressiva — Firebase (Auth + Chat APENAS) + API REST + PostgreSQL  
+> **Estratégia:** Migração Agressiva — Firebase (Auth + Chat + Push) + API REST + PostgreSQL  
 > **Status:** Planejamento  
-> **Revisão:** v2 — Escopo expandido. Somente Auth e Chat permanecem no Firebase.
+> **Revisão:** v3 — Auth, Chat e Push permanecem no Firebase. Todo o resto migra.
 
 ---
 
 ## Sumário Executivo
 
-A aplicação Partiu hoje é **100% Firebase-dependente**: 63 Cloud Functions, 30+ coleções Firestore acessadas diretamente pelo client, 50 real-time streams, 9 cron jobs e 1 serviço Cloud Run (WebSocket/NestJS).
+A aplicação Partiu hoje é **100% Firebase-dependente**: 55 Cloud Functions, 30+ coleções Firestore acessadas diretamente pelo client, 50 real-time streams, 9 cron jobs e 1 serviço Cloud Run (WebSocket/NestJS).
 
-**Decisão estratégica:** manter no Firebase **apenas Auth e Chat**. Todo o resto migra para **API NestJS + PostgreSQL (PostGIS)**. Isso elimina ~85-90% do custo Firestore e remove toda a complexidade de denormalização.
+**Decisão estratégica:** manter no Firebase **Auth, Chat e Push Notifications**. Todo o resto migra para **API NestJS + PostgreSQL (PostGIS)**. Isso elimina ~85-90% do custo Firestore e remove toda a complexidade de denormalização.
 
 ### Comparação v1 → v2
 
 | Aspecto | v1 (Híbrido) | v2 (Agressivo) |
 |---------|-------------|----------------|
 | Streams Firestore | 50 (todos ficam) | **~7** (só chat) |
-| Cloud Functions mantidas | 17 triggers | **~3** (só chat) |
-| Coleções Firestore ativas | 30+ | **~5** (auth + chat) |
+| Cloud Functions mantidas | 17 triggers | **~8** (chat + push) |
+| Coleções Firestore ativas | 30+ | **~6** (auth + chat + notifications) |
 | Denormalização (preview, tombstones) | Necessária | **Eliminada** (PostgreSQL faz JOINs) |
 | Redução de custo Firestore | ~40-50% | **~85-90%** |
 | Complexidade de migração | Média | Alta |
@@ -79,30 +79,49 @@ A aplicação Partiu hoje é **100% Firebase-dependente**: 63 Cloud Functions, 3
 - JWT validado na API via Firebase Admin SDK `verifyIdToken()`
 - Sem mudança alguma para o usuário
 
-#### Firestore — SOMENTE Chat
+#### Firestore — Chat + Notifications
 | Coleção | Uso | Streams | Motivo |
 |---------|-----|---------|--------|
 | `Connections/{uid}/Conversations` | Lista de conversas | 4 streams | Real-time obrigatório (lista, unread badge) |
 | `EventChats/{eventId}/Messages` | Chat de grupo | 2 streams | Mensagens em tempo real |
 | `Messages/{ownerId}/{partnerId}` | Chat direto (DM) | 1 stream | Mensagens em tempo real |
+| `Notifications` | Notificações in-app | 3 streams | Trigger para push dispatch |
 
-**Total: 3 coleções, ~7 streams**
+**Total: 4 coleções, ~10 streams**
 
-#### Cloud Functions — SOMENTE Chat triggers (3)
+#### Cloud Functions — Chat triggers + Push triggers (~8)
 | Função | Motivo |
 |--------|--------|
 | `onEventChatMessageCreated` | Atualiza Conversations + unread_count + push notification |
 | `onPrivateMessageCreated` | Push notification de DM |
 | `deleteChatMessage` | Soft-delete com validação de ownership |
+| `onActivityNotificationCreated` | Push dispatch para notificações de atividades |
+| `onActivityCreatedNotification` | Push para usuários próximos quando evento é criado |
+| `onActivityHeatingUp` | Push quando evento atinge threshold de participantes |
+| `onJoinRequestNotification` | Push para criador quando alguém pede para entrar |
+| `onJoinDecisionNotification` | Push para usuário sobre aprovação/rejeição |
+| `onActivityCanceledNotification` | Push para participantes quando evento é cancelado |
+
+#### Firestore — Chat + Notifications
+| Coleção | Uso | Streams | Motivo |
+|---------|-----|---------|--------|
+| `Connections/{uid}/Conversations` | Lista de conversas | 4 streams | Real-time obrigatório |
+| `EventChats/{eventId}/Messages` | Chat de grupo | 2 streams | Mensagens em tempo real |
+| `Messages/{ownerId}/{partnerId}` | Chat direto (DM) | 1 stream | Mensagens em tempo real |
+| `Notifications` | Notificações in-app | 3 streams | Trigger para push dispatch |
+
+**Total: 4 coleções, ~10 streams**
 
 #### Cloud Storage — Mantém (não é Firestore)
 - Upload/download de fotos (barato, paga por GB armazenado)
 - Security Rules baseadas em Firebase Auth
 - **Custo irrelevante** comparado ao Firestore
 
-#### FCM — Token registration (via Firebase SDK no client)
+#### FCM — Push completo via Firebase
 - `messaging.getToken()` continua no client
-- Push dispatch muda para API (FCM HTTP v1)
+- Push dispatch continua nas Cloud Functions (já funciona, infra pronta)
+- `pushDispatcher.ts` usa Firebase Admin SDK (`admin.messaging().sendEachForMulticast()`)
+- **Motivo:** não justifica migrar — push é event-driven, Cloud Functions é ideal para isso
 
 ---
 
@@ -119,7 +138,7 @@ A aplicação Partiu hoje é **100% Firebase-dependente**: 63 Cloud Functions, 3
 | `event_tombstones` | **Eliminada** | — | `WHERE deleted_at IS NOT NULL` (soft delete nativo) |
 | `EventApplications` | `event_applications` | 4 streams | API GET + WebSocket events |
 | `EventPhotos` + sublikes/comments | `event_photos`, `photo_likes`, `photo_comments` | 2 streams | API GET + WebSocket |
-| `Notifications` | `notifications` | 3 streams | API GET + WebSocket push |
+| ~~`Notifications`~~ | **Permanece no Firebase** | 3 streams | Trigger para push dispatch (mantido) |
 | `PendingReviews` | `pending_reviews` | 3 streams | API GET + polling |
 | `Reviews` | `reviews` | 3 streams | API GET |
 | `blockedUsers` | `blocked_users` | 3 streams | API GET + cache local |
@@ -172,12 +191,12 @@ A aplicação Partiu hoje é **100% Firebase-dependente**: 63 Cloud Functions, 3
 | `deleteUserAccount` | `DELETE /api/v1/account` | CASCADE deletes |
 | `checkDeviceBlacklist` | `POST /api/v1/devices/check` | SELECT |
 | `registerDevice` | `POST /api/v1/devices/register` | UPSERT |
-| `onActivityCreatedNotification` | Dentro de `POST /api/v1/events` | PostGIS radius query |
-| `onActivityHeatingUp` | Dentro do endpoint de apply | COUNT + threshold check |
-| `onJoinRequestNotification` | Dentro de `POST /api/v1/events/:id/apply` | INSERT notification |
-| `onJoinDecisionNotification` | Dentro do endpoint de approve/reject | INSERT notification |
-| `onActivityCanceledNotification` | Dentro do endpoint de cancel | INSERT notifications |
-| `onActivityNotificationCreated` | Push service interno da API | FCM HTTP v1 |
+| ~~`onActivityCreatedNotification`~~ | **Permanece no Firebase** | Push trigger — mantido |
+| ~~`onActivityHeatingUp`~~ | **Permanece no Firebase** | Push trigger — mantido |
+| ~~`onJoinRequestNotification`~~ | **Permanece no Firebase** | Push trigger — mantido |
+| ~~`onJoinDecisionNotification`~~ | **Permanece no Firebase** | Push trigger — mantido |
+| ~~`onActivityCanceledNotification`~~ | **Permanece no Firebase** | Push trigger — mantido |
+| ~~`onActivityNotificationCreated`~~ | **Permanece no Firebase** | Push dispatch — mantido |
 | `updateUserRanking` | **View SQL** | `SELECT COUNT(*) FROM events WHERE creator_id = ?` |
 | `updateLocationRanking` | **View SQL** | Aggregation query |
 | `syncRankingFilters` | **Eliminada** | `SELECT DISTINCT` na query |
@@ -199,7 +218,7 @@ A aplicação Partiu hoje é **100% Firebase-dependente**: 63 Cloud Functions, 3
 | `migrateUserLocationToPrivate` | **Eliminada** | Coluna na tabela users |
 | `debugCreateNotification` | **Eliminada** | Seed/test no NestJS |
 
-**Total eliminado: ~60 Cloud Functions → sobram ~3 (chat triggers)**
+**Total eliminado: ~54 Cloud Functions → sobram ~8 (chat + push triggers)**
 
 ---
 
@@ -248,7 +267,7 @@ chat:{conversationId} → já existe (mantém no Firestore por enquanto)
 │                       FLUTTER APP                            │
 ├──────────────┬────────────────┬──────────────────────────────┤
 │  Firebase SDK │   Dio (REST)   │  Socket.IO Client            │
-│  (Auth only) │   (API calls)  │  (Real-time events)          │
+│  (Auth+Push) │   (API calls)  │  (Real-time events)          │
 └──────┬───────┴──────┬─────────┴──────────┬───────────────────┘
        │              │                    │
        ▼              ▼                    ▼
@@ -267,8 +286,8 @@ chat:{conversationId} → já existe (mantém no Firestore por enquanto)
 │ • Storage    │ │  │ /jobs       │  │                       │ │
 │   (fotos)    │ │  └──────┬──────┘  └───────────┬───────────┘ │
 │              │ │         │                     │             │
-│ • FCM token  │ │         ▼                     │             │
-│              │ │  ┌──────────────┐              │             │
+│ • FCM push   │ │         ▼                     │             │
+│   dispatch   │ │  ┌──────────────┐              │             │
 │              │ │  │ PostgreSQL   │◄─────────────┘             │
 │              │ │  │ (Cloud SQL)  │                            │
 │              │ │  │              │  ┌─────────────────┐       │
@@ -276,10 +295,15 @@ chat:{conversationId} → já existe (mantém no Firestore por enquanto)
 │              │ │  │ + pgcron     │  │ Cache + sessions │       │
 │              │ │  └──────────────┘  └─────────────────┘       │
 │              │ │                                              │
-│  3 triggers: │ │  Push: FCM HTTP v1 API                       │
-│  onChatMsg   │ │  Cron: Cloud Scheduler → /api/v1/jobs/*     │
-│  onDMMsg     │ │  Webhooks: Didit, RevenueCat                │
-│  deleteMsg   │ └──────────────────────────────────────────────┘
+│  ~8 triggers:│ │  Cron: Cloud Scheduler → /api/v1/jobs/*     │
+│  Chat (3):   │ │  Webhooks: Didit, RevenueCat                │
+│  onChatMsg   │ │                                              │
+│  onDMMsg     │ │  Obs: Push dispatch fica nas Cloud Functions │
+│  deleteMsg   │ │  (pushDispatcher.ts → admin.messaging())     │
+│  Push (5):   │ │                                              │
+│  activity*   │ │                                              │
+│  join*       │ │                                              │
+│  canceled    │ └──────────────────────────────────────────────┘
 └──────────────┘
 ```
 
@@ -288,7 +312,7 @@ chat:{conversationId} → já existe (mantém no Firestore por enquanto)
 2. **Chat real-time**: Client ↔ Firestore streams (Messages, EventChats, Conversations)
 3. **Todas as queries**: Client → API REST → PostgreSQL → Response
 4. **Real-time (não-chat)**: API escreve no PostgreSQL → emite WebSocket event → Client atualiza
-5. **Push**: API → FCM HTTP v1 → Device
+5. **Push**: Cloud Functions (triggers) → `pushDispatcher.ts` → FCM Admin SDK → Device
 6. **Webhooks**: External → API → PostgreSQL
 7. **Cron**: Cloud Scheduler → API endpoints autenticados
 8. **Fotos**: Client → Cloud Storage (upload) + API → PostgreSQL (metadata)

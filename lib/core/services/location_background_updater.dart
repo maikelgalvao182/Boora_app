@@ -8,6 +8,7 @@ import 'package:partiu/core/services/location_service.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
 import 'package:partiu/core/services/location_analytics_service.dart';
 import 'package:partiu/core/services/state_abbreviation_service.dart';
+import 'package:partiu/core/services/users_preview_sync_service.dart';
 import 'package:partiu/core/utils/location_offset_helper.dart';
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:partiu/core/services/smart_geocoding_service.dart';
@@ -26,25 +27,25 @@ class LocationConfig {
   final int cacheMaxAgeMinutes;
   
   const LocationConfig({
-    this.updateInterval = const Duration(minutes: 10),
-    this.minimumDistanceMeters = 100.0,
+    this.updateInterval = const Duration(minutes: 15),
+    this.minimumDistanceMeters = 1500.0,
     this.cacheMaxAgeMinutes = 15,
   });
   
-  /// Configuração padrão recomendada (Uber/Tinder)
+  /// Configuração padrão recomendada (otimizada para custo)
   static const LocationConfig standard = LocationConfig();
   
   /// Configuração agressiva (mais atualizações, maior precisão)
   static const LocationConfig aggressive = LocationConfig(
     updateInterval: Duration(minutes: 5),
-    minimumDistanceMeters: 50.0,
+    minimumDistanceMeters: 500.0,
     cacheMaxAgeMinutes: 10,
   );
   
   /// Configuração econômica (menos atualizações, economia de bateria)
   static const LocationConfig economy = LocationConfig(
     updateInterval: Duration(minutes: 30),
-    minimumDistanceMeters: 500.0,
+    minimumDistanceMeters: 3000.0,
     cacheMaxAgeMinutes: 30,
   );
 }
@@ -258,10 +259,17 @@ class LocationSyncScheduler {
         debugPrint('⚠️ Geocoding falhou (apenas coordenadas serão atualizadas): $geoError');
       }
       
-      // Montar dados para update
-      final updateData = <String, dynamic>{
+      final userRef = FirebaseFirestore.instance.collection('Users').doc(userId);
+      
+      // 🔒 SEGURANÇA: Localização real vai para subcoleção privada
+      await userRef.collection('private').doc('location').set({
         'latitude': latitude,
         'longitude': longitude,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      // Dados públicos (display tem offset de ~1-3km para privacidade)
+      final updateData = <String, dynamic>{
         'displayLatitude': displayLatitude,
         'displayLongitude': displayLongitude,
         'locationUpdatedAt': FieldValue.serverTimestamp(),
@@ -275,10 +283,13 @@ class LocationSyncScheduler {
         updateData['state'] = state;
       }
       
-      await FirebaseFirestore.instance
-          .collection('Users')
-          .doc(userId)
-          .update(updateData);
+      await userRef.update(updateData);
+      
+      // 📡 Sync gridId + geohash em users_preview (usa display, não real)
+      unawaited(UsersPreviewSyncService.syncLocation(
+        lat: displayLatitude,
+        lng: displayLongitude,
+      ));
       
       // ✅ ATUALIZAÇÃO OTIMISTA: Atualizar UserStore imediatamente
       // Isso garante que a UI (HomeAppBar) atualize instantaneamente

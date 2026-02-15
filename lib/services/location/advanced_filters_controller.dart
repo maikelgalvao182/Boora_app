@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/services/users_preview_sync_service.dart';
 
 /// Controller dos filtros avançados.
 /// Agora SEM sobrescrever radiusKm, SEM race condition e SEM perder dados.
@@ -133,6 +136,9 @@ class AdvancedFiltersController extends ChangeNotifier {
       
       await userRef.update(updateData);
       
+      // 📡 Sync interestBuckets em users_preview (substitui Cloud Function)
+      unawaited(UsersPreviewSyncService.syncInterests(_interests));
+      
       debugPrint('✅ AdvancedFiltersController.saveToFirestore: update() concluído');
       if (kDebugMode) {
         // Verificar o que foi realmente salvo (apenas debug)
@@ -176,6 +182,8 @@ class AdvancedFiltersController extends ChangeNotifier {
         });
         
         debugPrint('✅ Interest "$interest" adicionado ao Firestore');
+        // 📡 Sync interestBuckets em users_preview
+        unawaited(UsersPreviewSyncService.syncInterests(_interests));
       } catch (e) {
         debugPrint('❌ Erro ao adicionar interest: $e');
       }
@@ -201,6 +209,8 @@ class AdvancedFiltersController extends ChangeNotifier {
         });
         
         debugPrint('✅ Interest "$interest" removido do Firestore');
+        // 📡 Sync interestBuckets em users_preview
+        unawaited(UsersPreviewSyncService.syncInterests(_interests));
       } catch (e) {
         debugPrint('❌ Erro ao remover interest: $e');
       }
@@ -242,6 +252,8 @@ class AdvancedFiltersController extends ChangeNotifier {
       });
 
       debugPrint('✅ Todos os filtros foram removidos do Firestore');
+      // 📡 Sync interestBuckets vazio em users_preview
+      unawaited(UsersPreviewSyncService.syncInterests([]));
     } catch (e) {
       debugPrint('❌ Erro ao limpar filtros: $e');
     }

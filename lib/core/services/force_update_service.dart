@@ -87,7 +87,7 @@ class ForceUpdateService {
       // Valores padrão (usados se não conseguir buscar)
       await _remoteConfig.setDefaults({
         _keyEnabled: true,
-        _keyMinVersion: '1.0.45',
+        _keyMinVersion: '1.0.46',
         _keyRecommendedVersion: '',
         _keyMessage: 'A new version is available. Please update to continue.',
         _keyMessagePt: 'Uma nova versão está disponível. Por favor, atualize para continuar.',

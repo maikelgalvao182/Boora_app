@@ -43,11 +43,11 @@ class GeoService {
       final data = doc.data();
       if (data == null) return null;
 
-      // Tenta latitude/longitude primeiro, depois displayLatitude/displayLongitude
-      final lat = (data['latitude'] as num?)?.toDouble() ?? 
-                  (data['displayLatitude'] as num?)?.toDouble();
-      final lng = (data['longitude'] as num?)?.toDouble() ?? 
-                  (data['displayLongitude'] as num?)?.toDouble();
+      // displayLatitude/displayLongitude (público, atual), fallback p/ latitude/longitude legados
+      final lat = (data['displayLatitude'] as num?)?.toDouble() ?? 
+                  (data['latitude'] as num?)?.toDouble();
+      final lng = (data['displayLongitude'] as num?)?.toDouble() ?? 
+                  (data['longitude'] as num?)?.toDouble();
 
       if (lat != null && lng != null) {
         return (lat: lat, lng: lng);

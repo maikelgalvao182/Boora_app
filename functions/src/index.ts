@@ -12,9 +12,6 @@ import * as admin from "firebase-admin";
 import {sendPush} from "./services/pushDispatcher";
 
 export {deleteChatMessage} from "./chatMessageDeletion";
-// ❌ REMOVIDO: patchAddCountryFlag e patchRemoveFormattedAddress (one-time patches já executados)
-// export {patchAddCountryFlag} from "./patchAddCountryFlag";
-// export {patchRemoveFormattedAddress} from "./patchRemoveFormattedAddress";
 export {onReportCreated} from "./reportModeration";
 export {onUserCreatedReferral} from "./referrals";
 export {followUser, unfollowUser} from "./users/followSystem";
@@ -30,19 +27,13 @@ export {
 } from "./events/eventCardPreviewSync";
 // export {onEventWriteUpdateGeohash} from "./events/eventGeohashSync"; // Arquivo não existe
 export {onUserWriteUpdatePreview} from "./users/usersPreviewSync";
-export {onUserWriteSyncSatellites} from "./users/usersSatellitesSync";
-export {
-  onUsersPublicWriteUpdatePreview,
-  onUsersGeoWriteUpdatePreview,
-} from "./users/satellitesPreviewSync";
-export {runUsersPreviewParityAudit} from "./users/previewParityAudit";
-// ❌ REMOVIDO: resyncUsersPreview (one-time backfill já executado)
-// export {resyncUsersPreview} from "./users/resyncUsersPreview";
-// export {backfillEventGeohash} from "./migrations/backfillEventGeohash"; // Arquivo não existe
-// ❌ REMOVIDO: migrateUserLocationToPrivate (migração legacy já concluída)
+// ❌ REMOVIDO: arquivos não existem no repo (planejados para fase futura)
+// export {onUserWriteSyncSatellites} from "./users/usersSatellitesSync";
 // export {
-//   migrateUserLocationToPrivate,
-// } from "./users/migrateLocationToPrivate";
+//   onUsersPublicWriteUpdatePreview,
+//   onUsersGeoWriteUpdatePreview,
+// } from "./users/satellitesPreviewSync";
+// export {runUsersPreviewParityAudit} from "./users/previewParityAudit";
 export {syncRankingFilters} from "./ranking/rankingFiltersSync";
 export {
   checkDeviceBlacklist,
@@ -503,13 +494,6 @@ export * from "./updateUserRating";
 // ===== DEBUG FUNCTIONS =====
 // ❌ REMOVIDO: debug functions (não devem estar em produção)
 // export * from "./debug";
-
-// ===== MIGRATIONS =====
-// ❌ REMOVIDO: migrations one-time já executadas (reduz cold starts)
-// export * from "./migrations/backfillUserGeohash";
-// export * from "./migrations/backfillEventCreatorData";
-// export * from "./migrations/backfillEventPreviewsLocation";
-// export * from "./migrations/backfillEventPreviewsCategory";
 
 // ===== USER MANAGEMENT =====
 // Importa e exporta as Cloud Functions de gerenciamento de usuários

@@ -159,8 +159,8 @@ class EventCardPresenter {
       builder: (sheetContext) => EventCard(
         controller: controller,
         onActionPressed: () async {
-          final navigator = Navigator.of(sheetContext);
-          navigator.pop();
+          if (!sheetContext.mounted) return;
+          Navigator.of(sheetContext).pop();
 
           if (controller.isCreator || controller.isApproved) {
             _navigateToChat(context, event);

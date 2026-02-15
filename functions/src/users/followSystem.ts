@@ -157,45 +157,45 @@ export const followUser = functions.https.onCall(async (data, context) => {
       return {status: "followed"};
     });
 
-    // Se seguiu com sucesso, criar notificação e enviar push
+    // Se seguiu com sucesso, disparar notificação/push em background
+    // (não bloqueia o retorno ao client)
     if (result.status === "followed") {
-      // Buscar dados do usuário que seguiu (follower)
-      const followerDoc = await userRef.get();
-      const followerData = followerDoc.data();
+      setImmediate(async () => {
+        try {
+          const followerDoc = await userRef.get();
+          const followerData = followerDoc.data();
 
-      // ✅ Campo correto no Firestore: fullName (camelCase)
-      const followerName =
-        followerData?.fullName ||
-        followerData?.userFullname ||
-        followerData?.user_fullname ||
-        "Alguém";
+          const followerName =
+            followerData?.fullName ||
+            followerData?.userFullname ||
+            followerData?.user_fullname ||
+            "Alguém";
 
-      // ✅ Campo correto no Firestore: profilePicture
-      const followerPhotoUrl =
-        followerData?.profilePicture ||
-        followerData?.userPhotoUrl ||
-        followerData?.user_photo_url;
+          const followerPhotoUrl =
+            followerData?.profilePicture ||
+            followerData?.userPhotoUrl ||
+            followerData?.user_photo_url;
 
-      console.log(
-        `📤 [Follow] Criando notificação - followerName: ${followerName}`
-      );
+          console.log(
+            `📤 [Follow] Criando notificação - followerName: ${followerName}`
+          );
 
-      // Criar notificação in-app
-      await createNewFollowerNotification({
-        receiverId: targetUid,
-        followerId: uid,
-        followerName,
-        followerPhotoUrl,
+          await createNewFollowerNotification({
+            receiverId: targetUid,
+            followerId: uid,
+            followerName,
+            followerPhotoUrl,
+          });
+
+          await sendNewFollowerPush({
+            receiverId: targetUid,
+            followerId: uid,
+            followerName,
+          });
+        } catch (err) {
+          console.error("Erro ao criar notificação/push de follow:", err);
+        }
       });
-
-      // Enviar push notification (async, não bloqueia resposta)
-      sendNewFollowerPush({
-        receiverId: targetUid,
-        followerId: uid,
-        followerName,
-      }).catch((err) =>
-        console.error("Erro ao enviar push de novo seguidor:", err)
-      );
     }
 
     return result;

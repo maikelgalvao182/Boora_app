@@ -94,6 +94,19 @@ Future<void> main() async {
         return;
       }
 
+      // Suprimir erro inofensivo do google_maps_flutter (race condition interna
+      // quando markers são atualizados enquanto o mapa nativo ainda tem referência antiga)
+      final message = exception.toString();
+      if (message.contains('Unknown marker ID') ||
+          message.contains('Unknown polygon ID') ||
+          message.contains('Unknown polyline ID')) {
+        AppLogger.warning(
+          'Suprimindo erro interno google_maps: $message',
+          tag: 'MAP',
+        );
+        return;
+      }
+
       // Registra no Crashlytics (usando recordFlutterError para não marcar tudo como fatal)
       FirebaseCrashlytics.instance.recordFlutterError(details);
 
@@ -129,9 +142,14 @@ Future<void> main() async {
     };
   
     // Travar orientação em portrait
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    // try-catch: falha em dispositivos Android com multi-window/PiP mode
+    try {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+    } catch (e) {
+      debugPrint('⚠️ setPreferredOrientations falhou (multi-window?): $e');
+    }
     
     // Configurar locales para timeago
     timeago.setLocaleMessages('pt', timeago.PtBrMessages());

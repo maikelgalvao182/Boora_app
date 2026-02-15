@@ -8,14 +8,20 @@ class FollowRemoteDataSource {
 
   Future<void> followUser(String targetUid) async {
     debugPrint('📡 [FollowDataSource] followUser($targetUid) - Chamando Cloud Function...');
-    final callable = _functions.httpsCallable('followUser');
+    final callable = _functions.httpsCallable(
+      'followUser',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+    );
     final result = await callable.call({'targetUid': targetUid});
     debugPrint('📡 [FollowDataSource] followUser resultado: ${result.data}');
   }
 
   Future<void> unfollowUser(String targetUid) async {
     debugPrint('📡 [FollowDataSource] unfollowUser($targetUid) - Chamando Cloud Function...');
-    final callable = _functions.httpsCallable('unfollowUser');
+    final callable = _functions.httpsCallable(
+      'unfollowUser',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+    );
     final result = await callable.call({'targetUid': targetUid});
     debugPrint('📡 [FollowDataSource] unfollowUser resultado: ${result.data}');
   }

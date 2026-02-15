@@ -458,8 +458,8 @@ export const getPeople = functions.https.onCall(async (data, context) => {
         const fallbackQuery = admin.firestore()
           .collection("Users")
           .where("status", "==", "active")
-          .where("latitude", ">=", boundingBox.minLat)
-          .where("latitude", "<=", boundingBox.maxLat)
+          .where("displayLatitude", ">=", boundingBox.minLat)
+          .where("displayLatitude", "<=", boundingBox.maxLat)
           .limit(fetchLimit);
         usersSnap = await fallbackQuery.get();
       }
@@ -485,8 +485,11 @@ export const getPeople = functions.https.onCall(async (data, context) => {
           continue;
         }
 
-        const lat = d.latitude;
-        const lng = d.longitude;
+        // Preferir displayLatitude (público, atual), fallback p/ latitude (legado/preview)
+        const lat = (typeof d.displayLatitude === "number") ?
+          d.displayLatitude : d.latitude;
+        const lng = (typeof d.displayLongitude === "number") ?
+          d.displayLongitude : d.longitude;
         const hasCoord = typeof lat === "number" && typeof lng === "number";
 
         if (

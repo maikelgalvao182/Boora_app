@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:partiu/core/utils/app_logger.dart';
 import 'package:partiu/core/services/location_permission_flow.dart';
+import 'package:partiu/core/services/users_preview_sync_service.dart';
 import 'package:partiu/features/location/domain/repositories/location_repository_interface.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -140,6 +141,12 @@ class LocationRepository implements LocationRepositoryInterface {
       
       AppLogger.success('✅ Location updated (real → private, display → public)', tag: 'LocationRepository');
       AppLogger.success('updateUserLocation() SUCCESS', tag: 'LocationRepository');
+      
+      // 📡 Sync gridId + geohash em users_preview (usa display, não real)
+      unawaited(UsersPreviewSyncService.syncLocation(
+        lat: displayLatitude,
+        lng: displayLongitude,
+      ));
       
     } catch (e) {
       AppLogger.error('❌ ERROR: $e', tag: 'LocationRepository');

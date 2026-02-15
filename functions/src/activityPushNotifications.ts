@@ -28,7 +28,6 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import {createHash} from "crypto";
 import {
   sendPush,
@@ -110,7 +109,7 @@ export const onActivityNotificationCreated = functions.firestore
       executionId: context.eventId,
     });
     const notificationData = snap.data();
-    let dispatchMetrics: PushDispatchMetrics | null = null;
+    const dispatch: { metrics: PushDispatchMetrics | null } = {metrics: null};
 
     if (!notificationData) {
       console.error(
@@ -368,7 +367,7 @@ export const onActivityNotificationCreated = functions.firestore
           groupId: activityId,
         },
         onDispatchMetrics: (payload) => {
-          dispatchMetrics = payload;
+          dispatch.metrics = payload;
         },
       });
 
@@ -385,12 +384,12 @@ export const onActivityNotificationCreated = functions.firestore
         nType,
         relatedId: String(relatedId),
         dedupeKey,
-        pushSent: dispatchMetrics?.pushSent ?? true,
-        tokensFound: dispatchMetrics?.tokensFound ?? 0,
-        tokensDeleted: dispatchMetrics?.tokensDeleted ?? 0,
-        pushSuccessCount: dispatchMetrics?.successCount ?? 0,
-        pushFailureCount: dispatchMetrics?.failureCount ?? 0,
-        pushSkippedReason: dispatchMetrics?.skippedReason,
+        pushSent: dispatch.metrics?.pushSent ?? true,
+        tokensFound: dispatch.metrics?.tokensFound ?? 0,
+        tokensDeleted: dispatch.metrics?.tokensDeleted ?? 0,
+        pushSuccessCount: dispatch.metrics?.successCount ?? 0,
+        pushFailureCount: dispatch.metrics?.failureCount ?? 0,
+        pushSkippedReason: dispatch.metrics?.skippedReason,
       });
     } catch (error) {
       console.error(
@@ -400,10 +399,10 @@ export const onActivityNotificationCreated = functions.firestore
       console.error(`   Notification ID: ${notificationId}`);
       metrics.fail(error, {
         notificationId,
-        tokensFound: dispatchMetrics?.tokensFound ?? 0,
-        tokensDeleted: dispatchMetrics?.tokensDeleted ?? 0,
-        pushSent: dispatchMetrics?.pushSent ?? false,
-        pushSkippedReason: dispatchMetrics?.skippedReason,
+        tokensFound: dispatch.metrics?.tokensFound ?? 0,
+        tokensDeleted: dispatch.metrics?.tokensDeleted ?? 0,
+        pushSent: dispatch.metrics?.pushSent ?? false,
+        pushSkippedReason: dispatch.metrics?.skippedReason,
       });
     }
   });

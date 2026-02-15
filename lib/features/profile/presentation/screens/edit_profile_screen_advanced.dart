@@ -374,7 +374,7 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
     
     // 1. Valida Form localmente
     debugPrint('🔵 [EditProfileScreen] Validando form...');
-    if (!_formKey.currentState!.validate()) {
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
       debugPrint('❌ [EditProfileScreen] Validação do form falhou');
       final i18n = AppLocalizations.of(context);
       final translated = i18n.translate('please_fill_required_fields');
