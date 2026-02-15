@@ -4,6 +4,7 @@ import 'package:partiu/features/profile/presentation/models/social_field_type.da
 import 'package:partiu/features/profile/presentation/models/midia_field_type.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 
 /// Widget que exibe um card de preview de campo no formato Instagram/TikTok
@@ -123,6 +124,7 @@ class FieldPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     // Desativar da UI os campos: Nascimento, Localização e Origem
     if (fieldType is PersonalFieldType) {
       if (fieldType == PersonalFieldType.birthDate ||
@@ -149,7 +151,7 @@ class FieldPreviewCard extends StatelessWidget {
         onTap();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: EdgeInsets.symmetric(vertical: 16.h),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -163,15 +165,15 @@ class FieldPreviewCard extends StatelessWidget {
           children: [
             // Label à esquerda com largura fixa
             SizedBox(
-              width: _getLabelColumnWidth(),
+              width: _getLabelColumnWidth().w,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
                     child: Text(
                       label,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: (isCompactScreen ? 13 : 14).sp,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF666666),
                       ),
@@ -179,12 +181,12 @@ class FieldPreviewCard extends StatelessWidget {
                     ),
                   ),
                   if (_getIsRequired()) ...[
-                    const SizedBox(width: 2),
+                    SizedBox(width: 2.w),
                     Text(
                       i18n.translate('required_field_marker'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.red,
-                        fontSize: 14,
+                        fontSize: (isCompactScreen ? 13 : 14).sp,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -193,7 +195,7 @@ class FieldPreviewCard extends StatelessWidget {
               ),
             ),
             
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             
             // Preview à direita com expansão
             Expanded(
@@ -205,7 +207,7 @@ class FieldPreviewCard extends StatelessWidget {
                     child: Text(
                       formattedPreview.isEmpty ? _getAddText(context) : formattedPreview,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: (isCompactScreen ? 13 : 14).sp,
                         color: effectivelyDisabled
                           ? const Color(0xFF999999)
                           : (formattedPreview.isEmpty 
@@ -217,14 +219,14 @@ class FieldPreviewCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8.w),
                   if (!effectivelyDisabled)
                     Padding(
-                      padding: const EdgeInsets.only(top: 2),
+                      padding: EdgeInsets.only(top: 2.h),
                       child: Icon(
                         Iconsax.arrow_right_3,
                         color: const Color(0xFFCCCCCC),
-                        size: 18,
+                        size: 18.sp,
                       ),
                     ),
                 ],

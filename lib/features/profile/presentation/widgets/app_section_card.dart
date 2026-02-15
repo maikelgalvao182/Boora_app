@@ -11,6 +11,7 @@ import 'package:partiu/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -311,12 +312,12 @@ class _AppSectionCardState extends State<AppSectionCard> {
                   _tr(i18n, 'language', 'Idioma'),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12.h),
                 Row(
                   children: [
                     Expanded(
@@ -330,7 +331,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.w),
                     Expanded(
                       child: _LanguageCard(
                         assetPath: 'assets/svg/US.svg',
@@ -342,7 +343,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.w),
                     Expanded(
                       child: _LanguageCard(
                         assetPath: 'assets/svg/ES.svg',
@@ -713,13 +714,14 @@ class _AppSectionCardState extends State<AppSectionCard> {
   }
   
   Widget _buildSectionHeader(BuildContext context, String title) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Padding(
-      padding: const EdgeInsets.only(left: 16, bottom: 8, top: 0),
+      padding: EdgeInsets.only(left: 16.w, bottom: 8.h, top: 0),
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.getFont(
           FONT_PLUS_JAKARTA_SANS,
-          fontSize: 12,
+          fontSize: (isCompactScreen ? 11 : 12).sp,
           fontWeight: FontWeight.w700,
           color: Colors.black.withValues(alpha: 0.40),
           letterSpacing: 0.5,
@@ -734,30 +736,31 @@ class _AppSectionCardState extends State<AppSectionCard> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 15.w, vertical: 10.h),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(8.w),
                 decoration: BoxDecoration(
                   color: GlimpseColors.lightTextField,
-                  borderRadius: BorderRadius.circular(100),
+                  borderRadius: BorderRadius.circular(100.r),
                 ),
                 child: Icon(
                   icon,
-                  size: 20,
+                  size: 20.sp,
                   color: Colors.black,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Text(
                 title,
                 style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 15,
+                  fontSize: (isCompactScreen ? 14 : 15).sp,
                   fontWeight: FontWeight.w500,
                   color: Colors.black,
                 ),
@@ -784,6 +787,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
     Color? iconColor,
     Color? textColor,
   }) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return InkWell(
       onTap: onTap != null
           ? () {
@@ -792,36 +796,36 @@ class _AppSectionCardState extends State<AppSectionCard> {
             }
           : null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 15.w, vertical: 10.h),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
                     color: GlimpseColors.lightTextField,
-                    borderRadius: BorderRadius.circular(100),
+                    borderRadius: BorderRadius.circular(100.r),
                   ),
                   child: Icon(
                     icon,
-                    size: 20,
+                    size: 20.sp,
                     color: iconColor ?? Colors.black,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12.w),
                 Text(
                   title,
                   style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                    fontSize: 15,
+                    fontSize: (isCompactScreen ? 14 : 15).sp,
                     fontWeight: FontWeight.w500,
                     color: textColor ?? Colors.black,
                   ),
                 ),
               ],
             ),
-            Icon(Iconsax.arrow_right_3, size: 20, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
+            Icon(Iconsax.arrow_right_3, size: 20.sp, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
           ],
         ),
       ),
@@ -834,6 +838,7 @@ class _AppSectionCardState extends State<AppSectionCard> {
     required VoidCallback? onTap,
     Color? textColor,
   }) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     final isSvg = imagePath.endsWith('.svg');
     
     return InkWell(
@@ -844,44 +849,44 @@ class _AppSectionCardState extends State<AppSectionCard> {
             }
           : null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 15.w, vertical: 10.h),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
                     color: GlimpseColors.lightTextField,
-                    borderRadius: BorderRadius.circular(100),
+                    borderRadius: BorderRadius.circular(100.r),
                   ),
                   child: isSvg
                       ? SvgPicture.asset(
                           imagePath,
-                          width: 20,
-                          height: 20,
+                          width: 20.w,
+                          height: 20.h,
                           fit: BoxFit.contain,
                         )
                       : Image.asset(
                           imagePath,
-                          width: 20,
-                          height: 20,
+                          width: 20.w,
+                          height: 20.h,
                           fit: BoxFit.contain,
                         ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12.w),
                 Text(
                   title,
                   style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                    fontSize: 15,
+                    fontSize: (isCompactScreen ? 14 : 15).sp,
                     fontWeight: FontWeight.w500,
                     color: textColor ?? Colors.black,
                   ),
                 ),
               ],
             ),
-            Icon(Iconsax.arrow_right_3, size: 20, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
+            Icon(Iconsax.arrow_right_3, size: 20.sp, color: Theme.of(context).iconTheme.color!.withValues(alpha: 0.50)),
           ],
         ),
       ),
@@ -904,17 +909,18 @@ class _LanguageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     final borderColor = isSelected ? GlimpseColors.primary : Colors.black.withValues(alpha: 0.10);
     final bgColor = isSelected ? GlimpseColors.primaryLight.withValues(alpha: 0.35) : Colors.white;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(12.r),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           border: Border.all(color: borderColor, width: 1.5),
         ),
         child: Column(
@@ -922,16 +928,16 @@ class _LanguageCard extends StatelessWidget {
           children: [
             SvgPicture.asset(
               assetPath,
-              width: 36,
-              height: 36,
+              width: 36.w,
+              height: 36.h,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
             Text(
               label,
               textAlign: TextAlign.center,
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 13,
+                fontSize: (isCompactScreen ? 12 : 13).sp,
                 fontWeight: FontWeight.w700,
                 color: Colors.black,
               ),

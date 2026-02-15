@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -24,17 +25,17 @@ class SettingTileWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      margin: EdgeInsets.symmetric(vertical: 4.h),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 48.w,
+            height: 48.w,
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
@@ -42,16 +43,16 @@ class SettingTileWidget extends StatelessWidget {
             child: Icon(
               icon,
               color: iconColor,
-              size: 24,
+              size: 24.sp,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16.w),
           Expanded(
             child: Text(
               title,
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 16,
+                fontSize: 16.sp,
                 fontWeight: FontWeight.w600,
                 color: GlimpseColors.primaryColorLight,
               ),
@@ -82,28 +83,28 @@ class PrivacySwitchWidget extends StatelessWidget {
     final i18n = AppLocalizations.of(context);
     
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      margin: EdgeInsets.symmetric(vertical: 4.h),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
       decoration: BoxDecoration(
         color: GlimpseColors.bgColorLight,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 48.w,
+            height: 48.w,
             decoration: const BoxDecoration(
               color: GlimpseColors.primaryLight,
               shape: BoxShape.circle,
             ),
             child: Icon(
               isPrivate ? IconsaxPlusBold.lock : IconsaxPlusBold.global,
-              size: 20,
+              size: 20.sp,
               color: GlimpseColors.primary,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16.w),
           Expanded(
             child: Text(
               isPrivate 
@@ -111,7 +112,7 @@ class PrivacySwitchWidget extends StatelessWidget {
                   : i18n.translate('open_event'),
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 16,
+                fontSize: 16.sp,
                 fontWeight: FontWeight.w600,
                 color: GlimpseColors.primaryColorLight,
               ),

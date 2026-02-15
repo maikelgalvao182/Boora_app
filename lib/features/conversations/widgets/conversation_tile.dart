@@ -13,6 +13,7 @@ import 'package:partiu/shared/widgets/reactive/reactive_user_name_with_badge.dar
 import 'package:partiu/shared/stores/user_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -313,7 +314,7 @@ class ConversationTile extends StatelessWidget {
     }
 
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16.w),
       visualDensity: VisualDensity.standard,
       dense: false,
       tileColor: hasUnread 
@@ -341,7 +342,7 @@ class ConversationTile extends StatelessWidget {
                     name: isPlaceholderName(displayName) ? '' : truncateName(displayName),
                   ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
           if (timeAgo.isNotEmpty)
             Text(
               timeAgo,
@@ -350,7 +351,7 @@ class ConversationTile extends StatelessWidget {
         ],
       ),
       subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2.0),
+        padding: EdgeInsets.only(top: 2.h),
         child: MarkdownBody(
           data: lastMessage,
           styleSheet: MarkdownStyleSheet(
@@ -373,10 +374,10 @@ class ConversationTile extends StatelessWidget {
         ),
       ),
       trailing: showUpdatingIndicator
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CupertinoActivityIndicator(radius: 8),
+          ? SizedBox(
+              width: 18.w,
+              height: 18.h,
+              child: CupertinoActivityIndicator(radius: 8.r),
             )
           : null,
       onTap: () {
@@ -396,8 +397,8 @@ class ConversationTile extends StatelessWidget {
               tile,
               if (showAvatarLoadingOverlay)
                 Positioned(
-                  left: 16,
-                  top: 8,
+                  left: 16.w,
+                  top: 8.h,
                   child: IgnorePointer(
                     child: Container(
                       width: ConversationStyles.avatarSize,
@@ -407,8 +408,8 @@ class ConversationTile extends StatelessWidget {
                         color: Color(0x59000000),
                       ),
                       alignment: Alignment.center,
-                      child: const CupertinoActivityIndicator(
-                        radius: 10,
+                      child: CupertinoActivityIndicator(
+                        radius: 10.r,
                         color: Colors.white,
                       ),
                     ),
@@ -417,8 +418,8 @@ class ConversationTile extends StatelessWidget {
               // Badge posicionado absolutamente sobre o avatar
               if (hasUnread)
                 Positioned(
-                  left: 16 + ConversationStyles.avatarSize - 16,
-                  top: 8,
+                  left: 16.w + ConversationStyles.avatarSize - 16.w,
+                  top: 8.h,
                   child: _UnreadBadge(),
                 ),
             ],
@@ -441,14 +442,14 @@ class _UnreadBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 12,
-      height: 12,
+      width: 12.w,
+      height: 12.h,
       decoration: BoxDecoration(
         color: GlimpseColors.actionColor,
         shape: BoxShape.circle,
         border: Border.all(
           color: Colors.white,
-          width: 2,
+          width: 2.w,
         ),
       ),
     );

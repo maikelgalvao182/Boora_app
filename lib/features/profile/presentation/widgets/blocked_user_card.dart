@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -33,12 +34,13 @@ class BlockedUserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final unblockLabel = i18n.translate('unblock');
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: EdgeInsets.symmetric(vertical: 12.h),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -47,12 +49,12 @@ class BlockedUserCard extends StatelessWidget {
           StableAvatar(
             userId: userId,
             photoUrl: photoUrl,
-            size: 58,
-            borderRadius: BorderRadius.circular(8),
+            size: 58.w,
+            borderRadius: BorderRadius.circular(8.r),
             enableNavigation: false, // Desabilitado para usuários bloqueados
           ),
           
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           
           // Informações
           Expanded(
@@ -65,7 +67,7 @@ class BlockedUserCard extends StatelessWidget {
                   userId: userId,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 15,
+                    fontSize: (isCompactScreen ? 14 : 15).sp,
                     fontWeight: FontWeight.w700,
                     color: GlimpseColors.primaryColorLight,
                   ),
@@ -73,12 +75,12 @@ class BlockedUserCard extends StatelessWidget {
                 
                 // Localização
                 if (from != null && from!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4.h),
                   Text(
                     from!,
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 13,
+                      fontSize: (isCompactScreen ? 12 : 13).sp,
                       fontWeight: FontWeight.w500,
                       color: GlimpseColors.textSubTitle,
                     ),
@@ -90,16 +92,16 @@ class BlockedUserCard extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           
           // Botão Desbloquear
           TextButton(
             onPressed: onUnblock,
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               backgroundColor: const Color(0xFFFFEBEE), // Vermelho clarinho
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8.r),
               ),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -108,7 +110,7 @@ class BlockedUserCard extends StatelessWidget {
               unblockLabel.isNotEmpty ? unblockLabel : 'Desbloquear',
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 13,
+                fontSize: (isCompactScreen ? 12 : 13).sp,
                 fontWeight: FontWeight.w600,
                 color: GlimpseColors.dangerRed,
               ),

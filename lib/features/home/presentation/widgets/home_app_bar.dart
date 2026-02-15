@@ -171,6 +171,7 @@ class _UserAppBarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
 
     return Row(
       children: [
@@ -195,9 +196,11 @@ class _UserAppBarContent extends StatelessWidget {
             children: [
               ReactiveUserNameWithBadge(
                 userId: user.userId,
+                iconSize: (isCompactScreen ? 11 : 13).sp,
+                spacing: 3.w,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16.sp,
+                  fontSize: (isCompactScreen ? 14 : 16).sp,
                   fontWeight: FontWeight.w700,
                   color: GlimpseColors.primaryColorLight,
                 ),
@@ -209,7 +212,7 @@ class _UserAppBarContent extends StatelessWidget {
                 fallbackText: i18n.translate('location_not_defined'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13.sp,
+                  fontSize: (isCompactScreen ? 12 : 13).sp,
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.textSubTitle,
                 ),
@@ -229,6 +232,7 @@ class _GuestAppBarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Row(
       children: [
         // Avatar estático de visitante
@@ -252,7 +256,7 @@ class _GuestAppBarContent extends StatelessWidget {
                 i18n.translate('home_greeting_guest'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16.sp,
+                  fontSize: (isCompactScreen ? 14 : 16).sp,
                   fontWeight: FontWeight.w700,
                   color: GlimpseColors.textSubTitle,
                 ),
@@ -264,7 +268,7 @@ class _GuestAppBarContent extends StatelessWidget {
                 i18n.translate('location_not_defined'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13.sp,
+                  fontSize: (isCompactScreen ? 12 : 13).sp,
                   fontWeight: FontWeight.w500,
                   color: GlimpseColors.textSubTitle,
                 ),

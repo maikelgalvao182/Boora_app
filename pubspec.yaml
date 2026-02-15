@@ -69,6 +69,7 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
   google_maps_flutter: ^2.10.0
+  apple_maps_flutter: ^1.4.0
   markers_cluster_google_maps_flutter: ^0.1.0+2
   
   # Reviews
@@ -133,6 +134,7 @@ dependencies:
   fluster: ^1.2.0
   firebase_analytics: ^12.1.1
   firebase_crashlytics: ^5.0.7
+  appsflyer_sdk: ^6.17.8
 
 dev_dependencies:
   freezed: ^2.5.7

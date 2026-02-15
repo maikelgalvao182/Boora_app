@@ -13,10 +13,28 @@ plugins {
 import java.util.Properties
 import java.io.FileInputStream
 
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties().apply {
+    if (localPropertiesFile.exists()) {
+        load(FileInputStream(localPropertiesFile))
+    }
+}
+
+val tikTokAppId = (localProperties.getProperty("tiktok.app.id")
+    ?: System.getenv("TIKTOK_APP_ID")
+    ?: "").trim()
+val tikTokAppSecret = (localProperties.getProperty("tiktok.app.secret")
+    ?: System.getenv("TIKTOK_APP_SECRET")
+    ?: "").trim()
+
 android {
     namespace = "com.maikelgalvao.partiu"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -38,6 +56,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        buildConfigField("String", "TIKTOK_APP_ID", "\"$tikTokAppId\"")
+        buildConfigField("String", "TIKTOK_APP_SECRET", "\"$tikTokAppSecret\"")
     }
 
     // Configuração de assinatura
@@ -93,4 +113,7 @@ dependencies {
     
     // Google Play Install Referrer (melhora precisão de atribuição do AppsFlyer)
     implementation("com.android.installreferrer:installreferrer:2.2")
+
+    implementation("com.github.tiktok:tiktok-business-android-sdk:1.5.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 }

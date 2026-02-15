@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 
 /// Botão flutuante para criar novas atividades
@@ -19,30 +20,34 @@ class CreateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: FloatingActionButton(
-        heroTag: heroTag ?? UniqueKey(),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          onPressed();
-        },
-        backgroundColor: GlimpseColors.primary,
-        elevation: 0, // Elevation handled by Container shadow
+    return Hero(
+      tag: heroTag ?? UniqueKey(),
+      child: Material(
+        elevation: 8.r,
+        shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: const CircleBorder(),
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 28,
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onPressed();
+          },
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 56.w,
+            height: 56.h,
+            decoration: const BoxDecoration(
+              color: GlimpseColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 28.sp,
+              ),
+            ),
+          ),
         ),
       ),
     );

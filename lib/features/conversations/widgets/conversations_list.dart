@@ -1,6 +1,7 @@
 import 'package:partiu/features/conversations/utils/conversation_styles.dart';
 // REMOVIDO: import 'package:partiu/widgets/platform_pull_to_refresh.dart'; - pull-to-refresh removido
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ConversationsList extends StatefulWidget {
 
@@ -46,17 +47,17 @@ class _ConversationsListState extends State<ConversationsList> {
       itemCount: widget.itemCount + (widget.isLoadingMore ? 1 : 0),
       physics: const AlwaysScrollableScrollPhysics(),
       controller: widget.controller,
-      padding: const EdgeInsets.only(top: 16),
+      padding: EdgeInsets.only(top: 16.h),
       itemBuilder: (context, index) {
         // Footer loader
         if (widget.isLoadingMore && index == widget.itemCount) {
-          return const Padding(
+          return Padding(
             padding: ConversationStyles.footerLoaderPadding,
             child: Center(
               child: SizedBox(
                 width: ConversationStyles.loaderSize,
                 height: ConversationStyles.loaderSize,
-                child: _FooterLoader(),
+                child: const _FooterLoader(),
               ),
             ),
           );
@@ -89,7 +90,7 @@ class _FooterLoader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CupertinoActivityIndicator(
+    return CupertinoActivityIndicator(
       radius: ConversationStyles.footerLoaderRadius,
     );
   }

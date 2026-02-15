@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Diálogo de confirmação para exclusão de conta
 class DeleteAccountConfirmDialog {
@@ -16,23 +17,24 @@ class DeleteAccountConfirmDialog {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
+        final isCompactScreen = MediaQuery.sizeOf(dialogContext).width <= 360;
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
           ),
           title: Row(
             children: [
               Icon(
                 iconData,
                 color: Colors.red,
-                size: 28,
+                size: 28.sp,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 20,
+                  style: TextStyle(
+                    fontSize: (isCompactScreen ? 18 : 20).sp,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -41,8 +43,8 @@ class DeleteAccountConfirmDialog {
           ),
           content: Text(
             message,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: (isCompactScreen ? 15 : 16).sp,
               color: Color(0xFF6F6E6E),
             ),
           ),
@@ -51,13 +53,13 @@ class DeleteAccountConfirmDialog {
               onPressed: negativeAction,
               style: TextButton.styleFrom(
                 foregroundColor: Color(0xFF6F6E6E),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
               ),
               child: Text(
                 negativeText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: (isCompactScreen ? 13 : 14).sp,
                 ),
               ),
             ),
@@ -65,13 +67,13 @@ class DeleteAccountConfirmDialog {
               onPressed: positiveAction,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
               ),
               child: Text(
                 positiveText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: (isCompactScreen ? 13 : 14).sp,
                 ),
               ),
             ),

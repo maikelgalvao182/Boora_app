@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -165,11 +166,11 @@ class _CreateDrawerState extends State<CreateDrawer> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -190,33 +191,33 @@ class _CreateDrawerState extends State<CreateDrawer> {
         children: [
           // Handle
           Padding(
-            padding: const EdgeInsets.only(
-              top: 12,
-              left: 20,
-              right: 20,
+            padding: EdgeInsets.only(
+              top: 12.h,
+              left: 20.w,
+              right: 20.w,
             ),
             child: Center(
               child: Container(
-                width: 40,
-                height: 4,
+                width: 40.w,
+                height: 4.h,
                 decoration: BoxDecoration(
                   color: GlimpseColors.borderColorLight,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
 
           // Container com emoji
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12.r),
               child: Container(
                 width: double.infinity,
-                height: 120,
+                height: 120.h,
                 color: _containerColor,
                     child: Stack(
                       children: [
@@ -234,7 +235,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                         Center(
                           child: Text(
                             _controller.currentEmoji,
-                            style: const TextStyle(fontSize: 48),
+                            style: TextStyle(fontSize: 48.sp),
                           ),
                         ),
                       ],
@@ -243,11 +244,11 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Título
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -255,7 +256,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                       AppLocalizations.of(context).translate('create_activity_title'),
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 20,
+                        fontSize: 20.sp,
                         fontWeight: FontWeight.w700,
                         color: GlimpseColors.primaryColorLight,
                       ),
@@ -266,13 +267,13 @@ class _CreateDrawerState extends State<CreateDrawer> {
                           ? Icon(
                               Icons.close,
                               color: GlimpseColors.primary,
-                              size: 24,
+                              size: 24.w,
                             )
                           : Text(
                               AppLocalizations.of(context).translate('see_suggestions'),
                               style: GoogleFonts.getFont(
                                 FONT_PLUS_JAKARTA_SANS,
-                                fontSize: 14,
+                                fontSize: 14.sp,
                                 fontWeight: FontWeight.w600,
                                 color: GlimpseColors.primary,
                               ),
@@ -282,16 +283,16 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
 
               // Text Field (apenas visível se não estiver em modo sugestão)
               if (!_controller.isSuggestionMode)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: 24.w),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: TextField(
                       controller: _controller.textController,
@@ -314,7 +315,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                         hintText: AppLocalizations.of(context).translate('activity_placeholder'),
                         hintStyle: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 16,
+                          fontSize: 16.sp,
                           fontWeight: FontWeight.w500,
                           color: GlimpseColors.textHint,
                         ),
@@ -326,20 +327,20 @@ class _CreateDrawerState extends State<CreateDrawer> {
                                 icon: Icon(
                                   Icons.close,
                                   color: Colors.black,
-                                  size: 20,
+                                  size: 20.w,
                                 ),
                               )
                             : null,
-                        suffixIconConstraints: const BoxConstraints(
-                          minHeight: 40,
-                          minWidth: 40,
+                        suffixIconConstraints: BoxConstraints(
+                          minHeight: 40.h,
+                          minWidth: 40.w,
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                        contentPadding: EdgeInsets.symmetric(vertical: 16.h),
                       ),
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 16,
+                        fontSize: 16.sp,
                         fontWeight: FontWeight.w400,
                         color: GlimpseColors.textSubTitle,
                       ),
@@ -348,7 +349,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                 ),
 
               if (!_controller.isSuggestionMode)
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
 
               // Área de sugestões expandível
               if (_controller.isSuggestionMode)
@@ -356,7 +357,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom + 24,
+                      bottom: MediaQuery.of(context).padding.bottom + 24.h,
                     ),
                     child: SuggestionTagsView(
                       onSuggestionSelected: _onSuggestionSelected,
@@ -374,7 +375,7 @@ class _CreateDrawerState extends State<CreateDrawer> {
 
               // Padding bottom para safe area (apenas se não estiver em modo sugestão)
               if (!_controller.isSuggestionMode)
-                SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 16.h),
             ],
           ),
         );

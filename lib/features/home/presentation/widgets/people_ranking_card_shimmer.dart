@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -10,17 +11,17 @@ class PeopleRankingCardShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12.h),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
           color: GlimpseColors.lightTextField,
-          width: 1,
+          width: 1.w,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.r),
         child: Shimmer.fromColors(
           baseColor: GlimpseColors.lightTextField,
           highlightColor: Colors.white,
@@ -29,15 +30,15 @@ class PeopleRankingCardShimmer extends StatelessWidget {
             children: [
               // Avatar
               Container(
-                width: 58,
-                height: 58,
+                width: 58.w,
+                height: 58.h,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                 ),
               ),
               
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               
               // Informações
               Expanded(
@@ -47,34 +48,34 @@ class PeopleRankingCardShimmer extends StatelessWidget {
                     // Nome
                     Container(
                       width: double.infinity,
-                      height: 18,
+                      height: 18.h,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(4.r),
                       ),
                     ),
                     
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     
                     // Localização
                     Container(
-                      width: 140,
-                      height: 14,
+                      width: 140.w,
+                      height: 14.h,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(4.r),
                       ),
                     ),
                     
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     
                     // Rating summary
                     Container(
-                      width: 200,
-                      height: 14,
+                      width: 200.w,
+                      height: 14.h,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(4.r),
                       ),
                     ),
                   ],
@@ -83,11 +84,11 @@ class PeopleRankingCardShimmer extends StatelessWidget {
               
               // Posição
               Container(
-                width: 28,
-                height: 28,
+                width: 28.w,
+                height: 28.h,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(6.r),
                 ),
               ),
             ],

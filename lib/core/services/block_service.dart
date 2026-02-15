@@ -66,6 +66,7 @@ class BlockService extends ChangeNotifier {
     _subscriptions['blockedByMe'] = _db
         .collection(_collection)
         .where('blockerId', isEqualTo: userId)
+        .limit(500) // Limite para reduzir leituras Firestore
         .snapshots()
       .listen((snapshot) {
       final blockedIds = snapshot.docs
@@ -91,6 +92,7 @@ class BlockService extends ChangeNotifier {
     _subscriptions['blockedMe'] = _db
         .collection(_collection)
         .where('targetId', isEqualTo: userId)
+        .limit(500) // Limite para reduzir leituras Firestore
         .snapshots()
       .listen((snapshot) {
       final blockerIds = snapshot.docs

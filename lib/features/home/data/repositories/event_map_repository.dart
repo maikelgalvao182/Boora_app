@@ -19,7 +19,7 @@ class EventMapRepository {
         .collection('events')
         .where('isActive', isEqualTo: true)
         .where('status', isEqualTo: 'active')
-        .snapshots(includeMetadataChanges: true) // ⬅️ Incluir mudanças de metadata para detectar sync
+        .snapshots() // Removido includeMetadataChanges: true — dobrava snapshots sem necessidade
         .map((snapshot) {
       debugPrint('🔄 [EventMapRepository] Snapshot source: ${snapshot.metadata.isFromCache ? "CACHE" : "SERVER"}');
       debugPrint('🔄 [EventMapRepository] Snapshot changes: ${snapshot.docChanges.length}');

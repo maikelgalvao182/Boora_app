@@ -5,3 +5,8 @@
 -keep class com.yalantis.ucrop.UCropActivity { *; }
 -keep class com.yalantis.ucrop.** { *; }
 -dontwarn com.yalantis.ucrop.**
+
+-keep class com.tiktok.** { *; }
+-dontwarn com.tiktok.**
+-keep class androidx.lifecycle.** { *; }
+-dontwarn androidx.lifecycle.**

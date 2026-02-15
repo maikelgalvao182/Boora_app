@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -114,20 +115,20 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     final i18n = AppLocalizations.of(context);
     
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           Container(
-            width: 40,
-            height: 4,
+            width: 40.w,
+            height: 4.h,
             decoration: BoxDecoration(
               color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(2.r),
             ),
           ),
           _buildHeader(i18n),
@@ -142,7 +143,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
 
   Widget _buildHeader(AppLocalizations i18n) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -152,7 +153,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
               FONT_PLUS_JAKARTA_SANS,
               fontWeight: FontWeight.w700,
               color: GlimpseColors.primaryColorLight,
-              fontSize: 18,
+              fontSize: 18.sp,
             ),
           ),
         ],
@@ -169,30 +170,30 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     }
     
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           RadiusFilterWidget(controller: _radiusController),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
           
           AgeRangeFilterWidget(
             ageRange: _ageRange,
             onChanged: (values) => setState(() => _ageRange = values),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
           
           GenderFilterWidget(
             selectedGender: _selectedGender ?? 'all',
             onChanged: (value) => setState(() => _selectedGender = value),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           SexualOrientationFilterWidget(
             selectedOrientation: _selectedSexualOrientation,
             onChanged: (value) => setState(() => _selectedSexualOrientation = value),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
           
           InterestsFilterWidget(
             selectedInterests: _selectedInterests,
@@ -218,13 +219,13 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
             availableInterests: _userInterests,
             showCount: false,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
           
           VerifiedFilterWidget(
             isVerified: _isVerified,
             onChanged: (value) => setState(() => _isVerified = value),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
         ],
       ),
     );
@@ -232,7 +233,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
 
   Widget _buildApplyButton(AppLocalizations i18n) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.h),
       color: Colors.white,
       child: SafeArea(
         child: Row(
@@ -246,7 +247,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
                 onTap: _clearFilters,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             // Botão Aplicar Filtros
             Expanded(
               child: GlimpseButton(

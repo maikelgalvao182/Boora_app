@@ -14,6 +14,7 @@ import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/features/auth/presentation/widgets/specialty_selector_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 // ==================== MVVM + COMMAND PATTERN IMPLEMENTATION ====================
@@ -619,28 +620,29 @@ class _EditProfileScreenState extends State<_EditProfileScreenContent> {
   /// Constrói tela de erro
   Widget _buildError(String message) {
     final i18n = AppLocalizations.of(context);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.error_outline,
-            size: 64,
+            size: 64.sp,
             color: Colors.red,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           Text(
             i18n.translate('error_loading_profile'),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: (isCompactScreen ? 17 : 18).sp, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.grey, fontSize: (isCompactScreen ? 13 : 14).sp),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
           ElevatedButton(
             onPressed: () {
               context.read<vm.EditProfileViewModelRefactored>().loadProfileData();

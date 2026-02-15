@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/text_styles.dart';
 
@@ -20,11 +21,14 @@ class OutlineHorizontalFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     if (values.isEmpty) return const SizedBox.shrink();
 
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
+    final fontSize = (isCompactScreen ? 12 : 13).sp;
+
     return ListView.separated(
       scrollDirection: Axis.horizontal,
       padding: padding,
       itemCount: values.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 4),
+      separatorBuilder: (_, __) => SizedBox(width: 4.w),
       itemBuilder: (_, i) {
         final item = values[i];
         final isSelected = item == selected;
@@ -32,21 +36,29 @@ class OutlineHorizontalFilter extends StatelessWidget {
         return GestureDetector(
           onTap: () => onSelected(isSelected ? null : item),
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            margin: EdgeInsets.symmetric(horizontal: 4.w),
+            padding: EdgeInsets.symmetric(horizontal: 18.w),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: BorderRadius.circular(100.r),
               border: Border.all(
                 color: isSelected ? GlimpseColors.primaryColorLight : GlimpseColors.borderColorLight,
-                width: 1.5,
+                width: 1.5.w,
               ),
               color: isSelected ? GlimpseColors.lightTextField : Colors.transparent,
             ),
             child: Text(
               item,
               style: isSelected 
-                  ? TextStyles.filterSelected.copyWith(color: GlimpseColors.primaryColorLight)
-                  : TextStyles.filterDefault,
+                  ? TextStyles.filterSelected.copyWith(
+                      color: GlimpseColors.primaryColorLight,
+                      fontSize: fontSize,
+                      height: 1.2,
+                    )
+                  : TextStyles.filterDefault.copyWith(
+                      fontSize: fontSize,
+                      height: 1.2,
+                    ),
             ),
           ),
         );

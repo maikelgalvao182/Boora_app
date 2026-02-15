@@ -55,8 +55,8 @@ class NotificationHorizontalFilters extends StatelessWidget {
         onSelected(i);
       },
       padding: (padding as EdgeInsets).copyWith(
-        top: 4,
-        bottom: 4,
+        top: 0,
+        bottom: 0,
       ),
       selectedBackgroundColor: selectedBackgroundColor ?? GlimpseColors.primary,
       unselectedBackgroundColor: unselectedBackgroundColor ?? GlimpseColors.lightTextField,

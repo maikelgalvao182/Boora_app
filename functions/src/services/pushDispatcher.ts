@@ -91,6 +91,16 @@ export interface SendPushParams {
   context?: {
     groupId?: string;
   };
+  onDispatchMetrics?: (metrics: PushDispatchMetrics) => void;
+}
+
+export interface PushDispatchMetrics {
+  tokensFound: number;
+  tokensDeleted: number;
+  pushSent: boolean;
+  successCount: number;
+  failureCount: number;
+  skippedReason?: string;
 }
 
 /**
@@ -247,7 +257,35 @@ export async function sendPush({
   dataOnly = false,
   origin = "pushDispatcher",
   context,
+  onDispatchMetrics,
 }: SendPushParams): Promise<void> {
+  let tokensFound = 0;
+  let tokensDeleted = 0;
+  let pushSent = false;
+  let successCount = 0;
+  let failureCount = 0;
+  let skippedReason: string | undefined;
+
+  const emitDispatchMetrics = (overrides: Partial<PushDispatchMetrics> = {}) => {
+    if (!onDispatchMetrics) {
+      return;
+    }
+
+    try {
+      onDispatchMetrics({
+        tokensFound,
+        tokensDeleted,
+        pushSent,
+        successCount,
+        failureCount,
+        skippedReason,
+        ...overrides,
+      });
+    } catch (metricsError) {
+      console.warn("⚠️ [PushDispatcher] Falha ao emitir métricas", metricsError);
+    }
+  };
+
   try {
     // Determinar preferenceType automaticamente baseado no event
     const preferenceType = getPreferenceTypeForEvent(event);
@@ -269,6 +307,8 @@ export async function sendPush({
     // ETAPA 1: Validar entrada
     if (!userId || !event || !data) {
       console.error("❌ [PushDispatcher] Parâmetros inválidos");
+      skippedReason = "invalid_params";
+      emitDispatchMetrics();
       return;
     }
 
@@ -281,6 +321,8 @@ export async function sendPush({
 
     if (!userDoc.exists) {
       console.warn(`⚠️ [PushDispatcher] Usuário não encontrado: ${userId}`);
+      skippedReason = "user_not_found";
+      emitDispatchMetrics();
       return;
     }
 
@@ -297,6 +339,8 @@ export async function sendPush({
         "🔕 [PushDispatcher] Push bloqueado por preferência GLOBAL. " +
         `UserId: ${userId}`
       );
+      skippedReason = "blocked_global_preference";
+      emitDispatchMetrics();
       return;
     }
 
@@ -309,6 +353,8 @@ export async function sendPush({
         `do usuário. Type: ${preferenceType}, ` +
         `Event: ${event}, UserId: ${userId}`
       );
+      skippedReason = "blocked_category_preference";
+      emitDispatchMetrics();
       return;
     }
 
@@ -323,6 +369,8 @@ export async function sendPush({
           "🔕 [PushDispatcher] Push bloqueado por grupo mutado: " +
           `${groupId}, UserId: ${userId}`
         );
+        skippedReason = "blocked_group_muted";
+        emitDispatchMetrics();
         return;
       }
 
@@ -332,6 +380,8 @@ export async function sendPush({
           "🔕 [PushDispatcher] Push de chat bloqueado no grupo: " +
           `${groupId}, UserId: ${userId}`
         );
+        skippedReason = "blocked_group_chat_preference";
+        emitDispatchMetrics();
         return;
       }
 
@@ -343,6 +393,8 @@ export async function sendPush({
           "🔕 [PushDispatcher] Push de atividade bloqueado no grupo: " +
           `${groupId}, UserId: ${userId}`
         );
+        skippedReason = "blocked_group_activity_preference";
+        emitDispatchMetrics();
         return;
       }
     }
@@ -369,6 +421,7 @@ export async function sendPush({
       .collection("DeviceTokens")
       .where("userId", "==", userId)
       .get();
+    tokensFound = tokensSnapshot.size;
 
     if (isDev) {
       console.log(
@@ -379,6 +432,8 @@ export async function sendPush({
 
     if (tokensSnapshot.empty) {
       console.log(`ℹ️ [PushDispatcher] Usuário sem tokens FCM: ${userId}`);
+      skippedReason = "no_tokens";
+      emitDispatchMetrics();
       return;
     }
 
@@ -421,6 +476,8 @@ export async function sendPush({
 
     if (entries.length === 0) {
       console.log(`ℹ️ [PushDispatcher] Usuário sem tokens válidos: ${userId}`);
+      skippedReason = "no_valid_tokens";
+      emitDispatchMetrics();
       return;
     }
 
@@ -458,6 +515,8 @@ export async function sendPush({
 
     if (fcmTokens.length === 0) {
       console.log(`ℹ️ [PushDispatcher] Usuário sem tokens válidos: ${userId}`);
+      skippedReason = "no_deduped_tokens";
+      emitDispatchMetrics();
       return;
     }
 
@@ -578,6 +637,8 @@ export async function sendPush({
         "Ignorando envio. " +
         `idempotencyKey=${idempotencyKey}`
       );
+      skippedReason = "idempotency_skip";
+      emitDispatchMetrics();
       return;
     }
 
@@ -703,6 +764,9 @@ export async function sendPush({
       android: payload.android,
       apns: payload.apns,
     });
+    successCount = response.successCount;
+    failureCount = response.failureCount;
+    pushSent = response.successCount > 0;
 
     const firstSuccess = response.responses.find((r) => r.success);
     const firstFailure = response.responses.find((r) => !r.success);
@@ -782,6 +846,7 @@ export async function sendPush({
           "tokens inválidos"
         );
         await batch.commit();
+        tokensDeleted = deletedCount;
       }
     }
 
@@ -790,11 +855,14 @@ export async function sendPush({
       `Event: ${event}, User: ${userId}, ` +
       `Tokens: ${response.successCount}/${fcmTokens.length}`
     );
+    emitDispatchMetrics();
   } catch (error) {
     console.error("❌ [PushDispatcher] Erro fatal:", error);
     console.error(`   - Event: ${event}`);
     console.error(`   - UserId: ${userId}`);
     console.error("   - Data:", JSON.stringify(data, null, 2));
+    skippedReason = "fatal_error";
+    emitDispatchMetrics();
   }
 }
 

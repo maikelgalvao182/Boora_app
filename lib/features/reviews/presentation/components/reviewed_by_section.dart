@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -75,14 +76,13 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
     }
 
     final i18n = AppLocalizations.of(context);
-    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
-    final topSpacing = isAndroid ? 16.0 : 0.0;
+    final topSpacing = (12.h).clamp(10.0, 16.0).toDouble();
 
     return Container(
       padding: EdgeInsets.only(
         top: topSpacing,
-        left: 20,
-        right: 20,
+        left: 20.w,
+        right: 20.w,
       ),
       width: double.infinity,
       child: Column(
@@ -93,11 +93,11 @@ class _ReviewedBySectionState extends State<ReviewedBySection> {
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
               fontWeight: FontWeight.w700,
-              fontSize: 15,
+              fontSize: 15.sp,
               color: GlimpseColors.primaryColorLight,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           _buildReviewersGrid(),
         ],
       ),
@@ -135,7 +135,7 @@ class _ReviewerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return StableAvatar(
       userId: reviewer.userId,
-      size: 26,
+      size: 26.w,
       photoUrl: reviewer.photoUrl,
       enableNavigation: true,
     );

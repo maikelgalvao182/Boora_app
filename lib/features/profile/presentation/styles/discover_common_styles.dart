@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -23,7 +24,7 @@ class DiscoverCommonStyles {
   // ESTILOS DE TEXTO
   static final TextStyle pageTitleStyle = GoogleFonts.getFont(
     FONT_PLUS_JAKARTA_SANS,
-    fontSize: 28,
+    fontSize: 28.sp,
     fontWeight: FontWeight.w900,
     color: textColor,
     height: 1.2,
@@ -32,23 +33,23 @@ class DiscoverCommonStyles {
 
   static final TextStyle filterChipTextStyle = GoogleFonts.getFont(
     FONT_PLUS_JAKARTA_SANS,
-    fontSize: 13,
+    fontSize: 13.sp,
     fontWeight: FontWeight.w700,
     color: Colors.black,
   );
 
   static final TextStyle filterChipSelectedTextStyle = GoogleFonts.getFont(
     FONT_PLUS_JAKARTA_SANS,
-    fontSize: 13,
+    fontSize: 13.sp,
     fontWeight: FontWeight.w700,
     color: primary,
   );
 
   // DIMENSÕES
-  static const double filterChipHeight = 40;
-  static const double filterChipBorderRadius = 12;
-  static const EdgeInsets filterChipPadding = EdgeInsets.fromLTRB(18, 10, 18, 10);
-  static const EdgeInsets filterChipMargin = EdgeInsets.symmetric(horizontal: 5);
+  static double get filterChipHeight => 40.h;
+  static double get filterChipBorderRadius => 12.r;
+  static EdgeInsets get filterChipPadding => EdgeInsets.fromLTRB(18.w, 10.h, 18.w, 10.h);
+  static EdgeInsets get filterChipMargin => EdgeInsets.symmetric(horizontal: 5.w);
 
   // DECORAÇÕES
   static BoxDecoration filterChipDecoration() {

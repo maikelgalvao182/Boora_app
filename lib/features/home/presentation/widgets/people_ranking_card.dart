@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
@@ -44,16 +45,18 @@ class PeopleRankingCard extends StatefulWidget {
 class _PeopleRankingCardState extends State<PeopleRankingCard> {
   bool _isExpanded = false;
 
+  bool get _isCompactScreen => MediaQuery.sizeOf(context).width <= 360;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12.h),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
           color: Colors.grey.shade300,
-          width: 1,
+          width: 1.w,
         ),
       ),
       child: Column(
@@ -61,7 +64,7 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.r),
             child: _buildHeader(),
           ),
           
@@ -69,19 +72,19 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
           AnimatedExpandable(
             isExpanded: _isExpanded,
             child: Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+              padding: EdgeInsets.only(left: 16.w, right: 16.w, bottom: 16.h),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Badges (se existirem)
                   if (widget.badgesCount.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     _buildBadges(context),
                   ],
                   
                   // Breakdown de critérios (se existirem)
                   if (widget.criteriaRatings.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12.h),
                     _buildCriteriaBreakdown(),
                   ],
                 ],
@@ -104,15 +107,15 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
               onTap: () {
                 context.push('/profile/${widget.ranking.userId}');
               },
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(8.r),
               child: StableAvatar(
                 userId: widget.ranking.userId,
-                size: 58,
-                borderRadius: BorderRadius.circular(8),
+                size: 58.w,
+                borderRadius: BorderRadius.circular(8.r),
               ),
             ),
             
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             
             // Informações
             Expanded(
@@ -121,28 +124,32 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
                 children: [
                   // Nome
                   Padding(
-                    padding: const EdgeInsets.only(right: 48),
+                    padding: EdgeInsets.only(right: 48.w),
                     child: ReactiveUserNameWithBadge(
                       userId: widget.ranking.userId,
+                      iconSize: (_isCompactScreen ? 11 : 13).sp,
+                      spacing: (_isCompactScreen ? 3 : 4).w,
                       style: GoogleFonts.getFont(
                         FONT_PLUS_JAKARTA_SANS,
-                        fontSize: 15,
+                        fontSize: (_isCompactScreen ? 14 : 15).sp,
                         fontWeight: FontWeight.w700,
                         color: GlimpseColors.primaryColorLight,
+                        height: 1.1,
                       ),
                     ),
                   ),
                   
-                  const SizedBox(height: 4),
+                  SizedBox(height: (_isCompactScreen ? 2 : 4).h),
                   
                   // Localização
                   Text(
                     _getLocationText(),
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 12,
+                      fontSize: (_isCompactScreen ? 11 : 12).sp,
                       fontWeight: FontWeight.w500,
                       color: GlimpseColors.textSubTitle,
+                      height: 1.1,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -168,18 +175,18 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
 
   Widget _buildPosition() {
     return Container(
-      width: 28,
-      height: 28,
+      width: 28.w,
+      height: 28.h,
       decoration: BoxDecoration(
         color: _getPositionBackgroundColor(),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(6.r),
       ),
       alignment: Alignment.center,
       child: Text(
         widget.position.toString(),
         style: GoogleFonts.getFont(
           FONT_PLUS_JAKARTA_SANS,
-          fontSize: 12,
+          fontSize: 12.sp,
           fontWeight: FontWeight.w700,
           color: GlimpseColors.primaryColorLight,
         ),
@@ -228,31 +235,32 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
                 widget.ranking.overallRating.toStringAsFixed(1),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 12,
+                  fontSize: (_isCompactScreen ? 11 : 12).sp,
                   fontWeight: FontWeight.w700,
                   color: GlimpseColors.primaryColorLight,
+                  height: 1.1,
                 ),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4.w),
               Icon(
                 Iconsax.star1,
-                size: 18,
+                size: (_isCompactScreen ? 16 : 18).w,
                 color: const Color(0xFFFFB800),
               ),
               
-              const SizedBox(width: 4),
+              SizedBox(width: 4.w),
               
               // Separador
               Container(
-                width: 3,
-                height: 3,
+                width: 3.w,
+                height: 3.h,
                 decoration: BoxDecoration(
                   color: GlimpseColors.textSubTitle.withValues(alpha: 0.4),
                   shape: BoxShape.circle,
                 ),
               ),
               
-              const SizedBox(width: 4),
+              SizedBox(width: 4.w),
               
               // Total de reviews
               Flexible(
@@ -260,9 +268,10 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
                   reviewsText,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
+                    fontSize: (_isCompactScreen ? 11 : 12).sp,
                     fontWeight: FontWeight.w500,
                     color: GlimpseColors.textSubTitle,
+                    height: 1.1,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -270,24 +279,25 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
               
               // Comentários (se houver)
               if (totalComments > 0) ...[
-                const SizedBox(width: 4),
+                SizedBox(width: 4.w),
                 Container(
-                  width: 3,
-                  height: 3,
+                  width: 3.w,
+                  height: 3.h,
                   decoration: BoxDecoration(
                     color: GlimpseColors.textSubTitle.withValues(alpha: 0.4),
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4.w),
                 Flexible(
                   child: Text(
                     commentsText,
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 12,
+                      fontSize: (_isCompactScreen ? 11 : 12).sp,
                       fontWeight: FontWeight.w500,
                       color: GlimpseColors.textSubTitle,
+                      height: 1.1,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -299,25 +309,25 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
         
         // Chevron expansível (se houver conteúdo expansivel)
         if (widget.badgesCount.isNotEmpty || widget.criteriaRatings.isNotEmpty) ...[
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
           InkWell(
             onTap: () {
               setState(() {
                 _isExpanded = !_isExpanded;
               });
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
             child: Padding(
-              padding: const EdgeInsets.all(4),
+              padding: EdgeInsets.all(4.r),
               child: SizedBox(
-                width: 20,
-                height: 20,
+                width: 20.w,
+                height: 20.h,
                 child: AnimatedRotation(
                   turns: _isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 300),
                   child: Icon(
                     Iconsax.arrow_down_1,
-                    size: 16,
+                    size: 16.w,
                     color: GlimpseColors.textSubTitle,
                   ),
                 ),
@@ -341,22 +351,22 @@ class _PeopleRankingCardState extends State<PeopleRankingCard> {
       children: [
         // Divider
         Container(
-          height: 1,
+          height: 1.h,
           color: GlimpseColors.borderColorLight,
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: EdgeInsets.only(bottom: 12.h),
         ),
         
         // Badges com scroll horizontal
         SizedBox(
-          height: 120,
+          height: 120.h,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: sortedBadges.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 8),
+            separatorBuilder: (context, index) => SizedBox(width: 8.w),
             itemBuilder: (context, index) {
               final entry = sortedBadges[index];
               return SizedBox(
-                width: 115,
+                width: 115.w,
                 child: BadgeCard(
                   badgeKey: entry.key,
                   count: entry.value,

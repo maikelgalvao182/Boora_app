@@ -34,8 +34,6 @@ class SignupWizardViewModel extends ChangeNotifier {
     SignupWizardStep.personalInfo,
     SignupWizardStep.gender,
     SignupWizardStep.lookingFor,
-    SignupWizardStep.bio,
-    SignupWizardStep.instagram,
     SignupWizardStep.interests,
     SignupWizardStep.country,
     SignupWizardStep.origin,
@@ -58,7 +56,7 @@ class SignupWizardViewModel extends ChangeNotifier {
     if (_currentStepIndex < _steps.length - 1) {
       _currentStepIndex++;
       AppLogger.info(
-        'Moving to step ${_currentStepIndex + 1}/$_steps.length}: ${currentStep.name}',
+        'Moving to step ${_currentStepIndex + 1}/${_steps.length}: ${currentStep.name}',
         tag: _tag,
       );
       notifyListeners();

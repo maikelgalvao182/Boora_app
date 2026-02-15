@@ -30,7 +30,24 @@ import {findUsersForEventNotification, getEventParticipants} from "./services/ge
 import {deleteEventNotifications} from "./events/deleteEvent";
 
 // Thresholds para "heating up" - deve estar sincronizado com Flutter
-const HEATING_UP_THRESHOLDS = [3, 5, 10];
+const HEATING_UP_THRESHOLDS = [5];
+const NOTIFICATION_BATCH_DELAY_MS = 250;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function commitBatchesWithThrottle(
+  batches: admin.firestore.WriteBatch[],
+  delayMs = NOTIFICATION_BATCH_DELAY_MS
+): Promise<void> {
+  for (let index = 0; index < batches.length; index++) {
+    await batches[index].commit();
+    if (index < batches.length - 1) {
+      await sleep(delayMs);
+    }
+  }
+}
 
 /**
  * Cria notificação in-app para um usuário
@@ -146,7 +163,7 @@ export const onActivityCreatedNotification = functions.firestore
         eventLatitude: latitude,
         eventLongitude: longitude,
         excludeUserIds: [creatorId],
-        limit: 500,
+        limit: 50, // Reduzido de 100 para controlar fan-out e custos
       });
 
       if (usersInRadius.length === 0) {
@@ -214,8 +231,8 @@ export const onActivityCreatedNotification = functions.firestore
         batches.push(currentBatch);
       }
 
-      // Commit all batches
-      await Promise.all(batches.map((batch) => batch.commit()));
+      // Commit sequencial com throttle para reduzir burst de writes/triggers
+      await commitBatchesWithThrottle(batches);
 
       console.log(
         `✅ [ActivityNotif] ${usersInRadius.length} notificações criadas`
@@ -321,8 +338,7 @@ export const onActivityHeatingUp = functions.firestore
         eventLatitude: latitude,
         eventLongitude: longitude,
         excludeUserIds: excludeIds,
-        limit: 500,
-
+        limit: 50, // Reduzido de 100 para controlar fan-out e custos
       });
 
       if (usersInRadius.length === 0) {
@@ -392,7 +408,7 @@ export const onActivityHeatingUp = functions.firestore
         batches.push(currentBatch);
       }
 
-      await Promise.all(batches.map((batch) => batch.commit()));
+      await commitBatchesWithThrottle(batches);
 
       const total = usersInRadius.length;
       console.log(

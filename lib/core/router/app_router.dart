@@ -164,6 +164,13 @@ GoRouter createAppRouter(BuildContext context) {
         
         // Se não está logado e tenta acessar rota protegida
         if (!isLoggedIn && !isPublicRoute) {
+          // Pode existir sessão Firebase válida enquanto o SessionManager ainda sincroniza.
+          // Nessa janela, evitar redirecionar para login para não simular logout indevido.
+          if (authSync.firebaseUser != null) {
+            debugPrint('⏳ [GoRouter] Sessão Firebase ativa aguardando sincronização local, mantendo rota atual');
+            return null;
+          }
+
           debugPrint('🔒 [GoRouter] Usuário não logado, redirecionando para login');
           return AppRoutes.signIn;
         }

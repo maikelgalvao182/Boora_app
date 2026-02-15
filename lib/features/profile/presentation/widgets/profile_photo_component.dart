@@ -41,7 +41,7 @@ class ProfilePhotoComponent extends StatelessWidget {
                     key: ValueKey('profile-$userId-${photoUrl ?? ""}'),
                     userId: userId,
                     size: EditProfileStyles.profilePhotoSize,
-                    borderRadius: const BorderRadius.all(
+                    borderRadius: BorderRadius.all(
                       Radius.circular(EditProfileStyles.profilePhotoBorderRadius),
                     ),
                   ),
@@ -71,7 +71,7 @@ class ProfilePhotoComponent extends StatelessWidget {
                       width: EditProfileStyles.cameraButtonSize,
                       height: EditProfileStyles.cameraButtonSize,
                       decoration: EditProfileStyles.cameraButtonDecoration,
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Iconsax.edit_2,
                           color: Colors.white,

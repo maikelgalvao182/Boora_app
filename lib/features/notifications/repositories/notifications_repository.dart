@@ -67,14 +67,14 @@ class NotificationsRepository implements INotificationsRepository {
       }
 
       // Try with orderBy, fallback without if index not ready
-      return query.orderBy(_fieldTimestamp, descending: true).snapshots().handleError((error) {
+      return query.orderBy(_fieldTimestamp, descending: true).limit(50).snapshots().handleError((error) {
         if (error is FirebaseException &&
             (error.code == 'failed-precondition' || (error.message?.contains('index') == true))) {
           AppLogger.warning(
             'Fallback sem orderBy (índice em construção): ${error.message}',
             tag: 'NOTIFICATIONS',
           );
-          return query.snapshots();
+          return query.limit(50).snapshots();
         } else {
           AppLogger.warning(
             'Fallback genérico no stream: $error',

@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import {createExecutionMetrics} from "../utils/executionMetrics";
 
 const BLACKLIST_COLLECTION = "BlacklistDevices";
 
@@ -136,6 +137,9 @@ export const onUserStatusChange = functions.firestore
   .document("Users/{userId}")
   .onWrite(async (change, context) => {
     const userId = context.params.userId;
+    const metrics = createExecutionMetrics({
+      executionId: context.eventId,
+    });
     console.log(`🔍 [onUserStatusChange] Triggered for user ${userId}`);
 
     const before = change.before.exists ? change.before.data() : null;
@@ -143,6 +147,7 @@ export const onUserStatusChange = functions.firestore
 
     if (!after) {
       console.log("ℹ️ [onUserStatusChange] Document deleted, skipping");
+      metrics.done({userId, skipped: true, reason: "document_deleted"});
       return;
     }
 
@@ -153,11 +158,13 @@ export const onUserStatusChange = functions.firestore
 
     if (beforeStatus === afterStatus) {
       console.log("ℹ️ [onUserStatusChange] Status unchanged, skipping");
+      metrics.done({userId, skipped: true, reason: "status_unchanged"});
       return;
     }
 
     if (afterStatus !== "inactive") {
       console.log("ℹ️ [onUserStatusChange] Status is not \"inactive\", skipping");
+      metrics.done({userId, skipped: true, reason: "status_not_inactive"});
       return;
     }
 
@@ -170,6 +177,7 @@ export const onUserStatusChange = functions.firestore
         .doc(userId)
         .collection("clients")
         .get();
+      metrics.addReads(clientsSnapshot.size);
 
       console.log(`📱 [onUserStatusChange] Found ${clientsSnapshot.size} clients for user ${userId}`);
 
@@ -177,6 +185,12 @@ export const onUserStatusChange = functions.firestore
         console.log(
           `⚠️ [onUserStatusChange] No clients for user ${userId} - nothing to blacklist`
         );
+        metrics.done({
+          userId,
+          beforeStatus,
+          afterStatus,
+          blacklistedCount: 0,
+        });
         return;
       }
 
@@ -223,11 +237,23 @@ export const onUserStatusChange = functions.firestore
       });
 
       await batch.commit();
+      metrics.addWrites(blacklistedCount);
 
       console.log(
         `✅ [onUserStatusChange] Blacklist updated for user ${userId} - ${blacklistedCount} devices blacklisted`
       );
+      metrics.done({
+        userId,
+        beforeStatus,
+        afterStatus,
+        blacklistedCount,
+      });
     } catch (error) {
       console.error("❌ onUserStatusChange error", error);
+      metrics.fail(error, {
+        userId,
+        beforeStatus,
+        afterStatus,
+      });
     }
   });

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:flutter/foundation.dart';
 import 'package:partiu/core/services/analytics_service.dart';
 import 'package:partiu/core/services/cache/hive_cache_service.dart';
@@ -30,6 +31,7 @@ class MapDiscoveryService {
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final fire_auth.FirebaseAuth _auth = fire_auth.FirebaseAuth.instance;
   static const String _eventsCollection = 'events_card_preview';
   
   // ValueNotifier para eventos próximos (evita rebuilds desnecessários)
@@ -216,6 +218,15 @@ class MapDiscoveryService {
     double? zoom,
   }) async {
     final sw = Stopwatch()..start();
+
+    // ✅ Guard: durante/apos logout não devemos consultar Firestore.
+    if (_auth.currentUser == null) {
+      _isLoading = false;
+      nearbyEvents.value = const [];
+      _eventsController.add(const []);
+      debugPrint('🚫 [MapDiscovery] Query abortada: usuário não autenticado');
+      return;
+    }
     String boundsKey(MapBounds b) {
       return '${b.minLat.toStringAsFixed(3)}_'
           '${b.minLng.toStringAsFixed(3)}_'
@@ -308,6 +319,14 @@ class MapDiscoveryService {
       // 5️⃣ Polling de tombstones para detectar deleções recentes
       unawaited(pollTombstones(bounds));
     } catch (error) {
+      if (error is FirebaseException &&
+          error.code == 'permission-denied' &&
+          _auth.currentUser == null) {
+        debugPrint('ℹ️ [MapDiscovery] permission-denied após logout (ignorado)');
+        nearbyEvents.value = const [];
+        _eventsController.add(const []);
+        return;
+      }
       debugPrint('❌ MapDiscoveryService: Erro na query: $error');
       _eventsController.addError(error);
     } finally {
@@ -373,7 +392,7 @@ class MapDiscoveryService {
       }
 
       debugPrint(
-        '✅ [MapDiscovery] queryEnd(seq=${_requestSeq}, boundsKey=$boundsKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=hive, latencyMs=0)',
+        '✅ [MapDiscovery] queryEnd(seq=$_requestSeq, boundsKey=$boundsKey, count=${filtered.length}, wasEmpty=${filtered.isEmpty}, source=hive, latencyMs=0)',
       );
       return true;
     }
@@ -653,6 +672,10 @@ class MapDiscoveryService {
   /// ✅ NOTA: Usa `events_card_preview` que contém dados desnormalizados
   /// do criador para permitir filtros eficientes.
   Future<List<EventLocation>> _queryFirestore(MapBounds bounds) async {
+    if (_auth.currentUser == null) {
+      return const [];
+    }
+
     // ========================================
     // ✅ QUERY NA COLEÇÃO `events_card_preview`
     // Contém dados do criador para filtragem

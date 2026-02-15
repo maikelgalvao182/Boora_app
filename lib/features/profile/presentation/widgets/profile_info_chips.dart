@@ -1,4 +1,3 @@
-import 'package:partiu/features/profile/presentation/widgets/profile_location_chip.dart';
 import 'package:partiu/features/profile/presentation/widgets/profile_visits_chip.dart';
 import 'package:flutter/material.dart';
 

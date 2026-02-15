@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -107,14 +108,14 @@ class _SwipeableConversationTileState extends State<SwipeableConversationTile> {
                     Icon(
                       actionIcon,
                       color: Colors.white,
-                      size: 24,
+                      size: 24.w,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     Text(
                       actionLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 12.sp,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

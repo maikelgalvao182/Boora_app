@@ -1,8 +1,10 @@
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/shared/models/user_model.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fire_auth;
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de informações pessoais (nome completo)
 /// Extraído de TelaInformacoesPessoais para reutilização no wizard
@@ -113,6 +115,9 @@ class _PersonalInfoWidgetState extends State<PersonalInfoWidget> {
           controller: _nameController,
           textCapitalization: TextCapitalization.words,
           onChanged: _onNameChanged,
+          labelStyle: GlimpseStyles.fieldLabelStyle(
+            color: Theme.of(context).textTheme.titleMedium?.color,
+          ).copyWith(fontSize: 14.sp),
         ),
       ],
     );

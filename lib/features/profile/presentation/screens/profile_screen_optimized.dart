@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/models/user.dart';
@@ -197,28 +198,29 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   }
 
   Widget _buildBlockedState() {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Iconsax.slash, size: 64, color: Colors.grey),
-          const SizedBox(height: 24),
+          Icon(Iconsax.slash, size: 64.sp, color: Colors.grey),
+          SizedBox(height: 24.h),
           Text(
             _i18n.translate('profile_unavailable') ?? 'Perfil não disponível',
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-              fontSize: 18,
+              fontSize: (isCompactScreen ? 17 : 18).sp,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
+            padding: EdgeInsets.symmetric(horizontal: 40.w),
             child: Text(
               _i18n.translate('blocked_user_profile_message') ?? 
               'Você não pode visualizar este perfil',
               style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                fontSize: 14,
+                fontSize: (isCompactScreen ? 13 : 14).sp,
                 color: Colors.grey,
               ),
               textAlign: TextAlign.center,
@@ -230,23 +232,24 @@ class _ProfileScreenOptimizedState extends State<ProfileScreenOptimized>
   }
 
   Widget _buildErrorState(String errorMessage) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
-          const SizedBox(height: 16),
+          Icon(Icons.error_outline, size: 48.sp, color: Colors.red),
+          SizedBox(height: 16.h),
           Text(
             _i18n.translate('error_load_profile'),
-            style: const TextStyle(fontSize: 16, color: Colors.black87),
+            style: TextStyle(fontSize: (isCompactScreen ? 15 : 16).sp, color: Colors.black87),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             errorMessage,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: (isCompactScreen ? 11 : 12).sp, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
           ElevatedButton.icon(
             onPressed: () => _controller.refresh(
               widget.user.userId,

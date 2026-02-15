@@ -77,8 +77,8 @@ class ReactiveUserNameWithBadge extends StatelessWidget {
                 ),
                 if (isVerified) ...[
                   SizedBox(width: spacing),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 3),
+                  Align(
+                    alignment: Alignment.center,
                     child: Icon(
                       Icons.verified,
                       size: iconSize,

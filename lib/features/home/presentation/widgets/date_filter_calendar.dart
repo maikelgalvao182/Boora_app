@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -14,6 +16,7 @@ class DateFilterCalendar extends StatefulWidget {
     this.showShadow = true,
     this.unselectedColor = Colors.white,
     this.expandWidth = false,
+    this.availableWidth,
     super.key,
   });
 
@@ -22,6 +25,7 @@ class DateFilterCalendar extends StatefulWidget {
   final bool showShadow;
   final Color unselectedColor;
   final bool expandWidth;
+  final double? availableWidth;
 
   @override
   State<DateFilterCalendar> createState() => _DateFilterCalendarState();
@@ -64,8 +68,12 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
         date.year == widget.selectedDate!.year);
     
     if (selectedIndex >= 0 && _scrollController.hasClients) {
-      // Cada card tem 56 de largura + 8 de padding
-      final targetOffset = (selectedIndex * 64.0).clamp(
+      // Cada card tem 56 de largura + espaçamento horizontal responsivo
+      final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+      final cardSize = isLargeScreen ? math.min(56.0, 56.w) : 56.w;
+      final cardSpacing = isLargeScreen ? math.min(8.0, 8.w) : math.min(4.0, 4.w);
+      final itemExtent = cardSize + cardSpacing;
+      final targetOffset = (selectedIndex * itemExtent).clamp(
         0.0,
         _scrollController.position.maxScrollExtent,
       );
@@ -85,27 +93,41 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
 
   @override
   Widget build(BuildContext context) {
-    // Responsivo: telas pequenas mostram 2 círculos, telas maiores mostram 3
-    final screenWidth = MediaQuery.of(context).size.width;
-    final calendarWidth = widget.expandWidth ? double.infinity : (screenWidth < 380 ? 128.0 : 192.0);
+    // Responsivo: usa largura disponível no contexto do overlay (não largura do device)
+    final availableWidth = widget.availableWidth ?? MediaQuery.of(context).size.width;
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+    final cardSize = isLargeScreen ? math.min(56.0, 56.w) : 56.w;
+    final cardSpacing = isLargeScreen ? math.min(8.0, 8.w) : math.min(4.0, 4.w);
+    final calendarHeight = isLargeScreen ? math.min(56.0, 56.h) : 56.h;
+    final verticalInset = math.min(8.0, 8.h);
+    final outerHorizontalPadding = math.min(16.0, 16.w);
+    final compactThreshold = 230.w;
+    final visibleDays = availableWidth <= compactThreshold ? 2 : 3;
+    final isCompactScreen = visibleDays == 2;
+
+    final compactWidth = cardSize * 2;
+    final regularWidth = cardSize * 3;
+    final calendarWidth = widget.expandWidth
+        ? double.infinity
+      : (visibleDays == 2 ? compactWidth : regularWidth).clamp(96.w, availableWidth);
     
     return SizedBox(
-      height: 56, // Altura visual do calendário
+      height: calendarHeight, // Altura visual do calendário
       width: calendarWidth,
       child: Stack(
         clipBehavior: Clip.none, // Permite overflow vertical para sombra
         children: [
           Positioned.fill(
-            top: -8,
-            bottom: -8,
+            top: -verticalInset,
+            bottom: -verticalInset,
             child: ClipRRect(
-              borderRadius: widget.expandWidth ? BorderRadius.zero : BorderRadius.circular(100),
+              borderRadius: widget.expandWidth ? BorderRadius.zero : BorderRadius.circular(100.r),
               child: ListView.builder(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 padding: widget.expandWidth 
-                    ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
-                    : const EdgeInsets.fromLTRB(0, 8, 8, 8),
+                    ? EdgeInsets.fromLTRB(outerHorizontalPadding, verticalInset, outerHorizontalPadding, verticalInset)
+                  : EdgeInsets.fromLTRB(0, verticalInset, 0, verticalInset),
                 physics: const BouncingScrollPhysics(),
                 itemCount: _weekDays.length,
                 itemBuilder: (context, index) {
@@ -117,12 +139,13 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
                   final isLast = index == _weekDays.length - 1;
 
                   return Padding(
-                    padding: EdgeInsets.only(right: isLast ? 0 : 8),
+                    padding: EdgeInsets.only(right: isLast ? 0 : cardSpacing),
                     child: _CompactDayCard(
                       date: date,
                       isSelected: isSelected,
                       showShadow: widget.showShadow,
                       unselectedColor: widget.unselectedColor,
+                      cardSize: cardSize,
                       onTap: () {
                         // Toggle: se já está selecionado, deseleciona (mostra todos)
                         if (isSelected) {
@@ -132,6 +155,7 @@ class _DateFilterCalendarState extends State<DateFilterCalendar> {
                         }
                       },
                       locale: AppLocalizations.of(context).locale,
+                      isCompactScreen: isCompactScreen,
                     ),
                   );
                 },
@@ -151,6 +175,8 @@ class _CompactDayCard extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.locale,
+    required this.isCompactScreen,
+    required this.cardSize,
     this.showShadow = true,
     this.unselectedColor = Colors.white,
   });
@@ -159,6 +185,8 @@ class _CompactDayCard extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final Locale locale;
+  final bool isCompactScreen;
+  final double cardSize;
   final bool showShadow;
   final Color unselectedColor;
 
@@ -175,8 +203,8 @@ class _CompactDayCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 56,
-        height: 56,
+        width: cardSize,
+        height: cardSize,
         decoration: BoxDecoration(
           color: isSelected
               ? GlimpseColors.primary
@@ -186,8 +214,8 @@ class _CompactDayCard extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    blurRadius: 8.r,
+                    offset: Offset(0, 4.h),
                   ),
                 ]
               : null,
@@ -200,7 +228,7 @@ class _CompactDayCard extends StatelessWidget {
               weekDayCapitalized,
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 9,
+                fontSize: (isCompactScreen ? 8 : 9).sp,
                 fontWeight: FontWeight.w600,
                 color: isSelected
                     ? Colors.white
@@ -213,7 +241,7 @@ class _CompactDayCard extends StatelessWidget {
               DateFormat('d', localeString).format(date),
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 14,
+                fontSize: (isCompactScreen ? 13 : 14).sp,
                 fontWeight: FontWeight.w700,
                 color: isSelected
                     ? Colors.white

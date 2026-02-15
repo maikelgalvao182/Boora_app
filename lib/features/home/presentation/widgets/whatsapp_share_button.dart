@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -34,26 +35,26 @@ class WhatsAppShareButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      elevation: 8,
+      elevation: 8.r,
       shadowColor: Colors.black.withValues(alpha: 0.3),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: () => _shareApp(context),
         customBorder: const CircleBorder(),
         child: Container(
-          width: 56,
-          height: 56,
+          width: 56.w,
+          height: 56.h,
           decoration: const BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.only(bottom: 4.h),
               child: SvgPicture.asset(
                 'assets/svg/forward.svg',
-                width: 28,
-                height: 28,
+                width: 28.w,
+                height: 28.h,
                 colorFilter: const ColorFilter.mode(
                   GlimpseColors.primary,
                   BlendMode.srcIn,

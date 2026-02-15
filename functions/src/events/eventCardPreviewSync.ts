@@ -152,7 +152,7 @@ export const onEventWriteUpdateCardPreview = functions.firestore
       (data.participantsCount as number | undefined) ??
       (approvedList != null ? approvedList.length : undefined);
 
-    // 🆕 Buscar dados do criador para desnormalização
+    //  Buscar dados do criador para desnormalização
     const creatorId = (data.createdBy as string) ?? null;
     const creatorData = await getCreatorFilterData(creatorId);
 

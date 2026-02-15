@@ -21,6 +21,7 @@ import 'package:partiu/core/managers/session_manager.dart';
 import 'package:partiu/core/services/cache/cache_manager.dart';
 import 'package:partiu/core/services/google_maps_initializer.dart';
 import 'package:partiu/core/services/analytics_service.dart';
+import 'package:partiu/core/services/appsflyer_service.dart';
 import 'package:partiu/core/services/force_update_service.dart';
 import 'package:partiu/core/services/feature_flags_service.dart';
 import 'package:partiu/core/router/app_router.dart';
@@ -251,6 +252,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
     try {
       await Future.wait([
         AnalyticsService.instance.initialize(),
+        AppsflyerService.instance.initialize(
+          devKey: APPSFLYER_DEV_KEY,
+          appId: APPSFLYER_APP_ID,
+        ),
         PushNotificationManager.instance.initialize(),
         GoogleMapsInitializer.initialize(),
         SessionManager.instance.initialize(),
@@ -263,6 +268,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
         await AnalyticsService.instance.setUserId(currentUser.uid);
+        await AppsflyerService.instance.setCustomerUserId(currentUser.uid);
         debugPrint('📊 Analytics userId setado: ${currentUser.uid}');
       }
 

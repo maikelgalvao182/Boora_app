@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -406,7 +407,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                   _formatFollowersCount(count),
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 13,
+                    fontSize: 13.sp,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -561,7 +562,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                   displayName,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 18,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -628,7 +629,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
             parts.join(', '),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 16,
+              fontSize: 16.sp,
               fontWeight: FontWeight.w400,
               color: Colors.white.withValues(alpha: 0.8),
             ),
@@ -684,7 +685,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
               '${distanceKm.toStringAsFixed(1)} km',
               style: GoogleFonts.getFont(
                 FONT_PLUS_JAKARTA_SANS,
-                fontSize: 16,
+                fontSize: 16.sp,
                 fontWeight: FontWeight.w400,
                 color: Colors.white.withValues(alpha: 0.8),
               ),
@@ -715,7 +716,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
           origin,
           style: GoogleFonts.getFont(
             FONT_PLUS_JAKARTA_SANS,
-            fontSize: 16,
+            fontSize: 16.sp,
             fontWeight: FontWeight.w400,
             color: Colors.white.withValues(alpha: 0.8),
           ),
@@ -778,7 +779,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
               Text(
                 instagram,
                 style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w400,
                   color: Colors.white.withValues(alpha: 0.8),
                   decoration: TextDecoration.underline,
@@ -814,7 +815,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
         return Text(
           '${_formatFollowersCount(followersCount)} $label',
           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS,
-            fontSize: 16,
+            fontSize: 16.sp,
             fontWeight: FontWeight.w400,
             color: Colors.white.withValues(alpha: 0.8),
           ),

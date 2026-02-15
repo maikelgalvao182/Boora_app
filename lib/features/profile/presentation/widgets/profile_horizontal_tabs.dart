@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/common/utils/app_logger.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/profile/presentation/styles/discover_common_styles.dart';
@@ -42,14 +43,14 @@ class ProfileHorizontalTabs extends StatelessWidget {
     _phtLog('build() tabs=${tabLabels.length} selectedIndex=$selectedIndex selectedLabel=${selectedIndex >= 0 && selectedIndex < tabLabels.length ? tabLabels[selectedIndex] : 'OUT_OF_RANGE'}');
 
     return Padding(
-      padding: EdgeInsets.only(top: spacingAbove),
+      padding: EdgeInsets.only(top: spacingAbove.h),
       child: Row(
         children: [
           for (int i = 0; i < tabLabels.length; i++)
             Flexible(
               flex: 27,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: 4.w),
                 child: _TabChip(
                   key: ValueKey('tab_$i'),
                   title: tabLabels[i],
@@ -92,7 +93,7 @@ class _TabChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(DiscoverCommonStyles.filterChipBorderRadius)),
           child: Ink(
             decoration: decoration,
             child: Padding(

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -290,10 +291,10 @@ class _UserImagesGridState extends State<UserImagesGrid> {
       physics: const ScrollPhysics(),
       itemCount: 9,
       shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        crossAxisSpacing: 10.w,
+        mainAxisSpacing: 10.h,
         childAspectRatio: 4 / 5,
       ),
       itemBuilder: (context, index) {
@@ -392,7 +393,7 @@ class _UserImageCell extends StatelessWidget {
               : null,
           borderRadius: _cellRadius,
           child: Ink(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: GlimpseColors.lightTextField,
               borderRadius: _cellRadius,
             ),
@@ -408,21 +409,21 @@ class _UserImageCell extends StatelessWidget {
                               Icon(
                                 Icons.image_outlined,
                                 color: GlimpseColors.textSubTitle,
-                                size: 38,
+                                size: 38.sp,
                               ),
                               Positioned(
-                                right: -6,
-                                bottom: -6,
+                                right: -6.w,
+                                bottom: -6.h,
                                 child: Container(
                                   decoration: const BoxDecoration(
                                     color: Colors.white,
                                     shape: BoxShape.circle,
                                   ),
-                                  padding: const EdgeInsets.all(1.5),
+                                  padding: EdgeInsets.all(1.5.w),
                                   child: Icon(
                                     Icons.add_circle,
                                     color: GlimpseColors.primary,
-                                    size: 22,
+                                    size: 22.sp,
                                   ),
                                 ),
                               ),
@@ -452,10 +453,10 @@ class _UserImageCell extends StatelessWidget {
                         color: Colors.black.withValues(alpha: 0.45),
                         borderRadius: _cellRadius,
                       ),
-                      child: const Center(
+                      child: Center(
                         child: SizedBox(
-                          width: 28,
-                          height: 28,
+                          width: 28.w,
+                          height: 28.h,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
                             color: Colors.white,
@@ -477,4 +478,4 @@ class _UserImageCell extends StatelessWidget {
   }
 }
 
-const BorderRadius _cellRadius = BorderRadius.all(Radius.circular(8));
+BorderRadius get _cellRadius => BorderRadius.all(Radius.circular(8.r));

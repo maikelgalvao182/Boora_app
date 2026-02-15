@@ -149,8 +149,8 @@ class NotificationItemWidget extends StatelessWidget {
                     // Avatar - para mensagens de sistema, mostrar emoji se disponível
                     if (isSystemMessage && emoji != null && emoji.isNotEmpty)
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 52.w,
+                        height: 52.h,
                         decoration: BoxDecoration(
                           color: GlimpseColors.primaryLight,
                           shape: BoxShape.circle,
@@ -158,7 +158,7 @@ class NotificationItemWidget extends StatelessWidget {
                         child: Center(
                           child: Text(
                             emoji,
-                            style: const TextStyle(fontSize: 24),
+                            style: TextStyle(fontSize: 24.sp),
                           ),
                         ),
                       )
@@ -169,7 +169,7 @@ class NotificationItemWidget extends StatelessWidget {
                       // 🔒 DEFENSIVO: Passa '' se isSystemMessage para evitar lookup inválido
                       StableAvatar(
                         userId: isSystemMessage ? '' : senderId,
-                        size: 52,
+                        size: 52.w,
                         borderRadius: BorderRadius.circular(999.r), // Redondo
                         enableNavigation: false,
                       ),
@@ -179,21 +179,21 @@ class NotificationItemWidget extends StatelessWidget {
                         right: 2,
                         top: 0,
                         child: Container(
-                          width: 12,
-                          height: 12,
+                          width: 12.w,
+                          height: 12.h,
                           decoration: BoxDecoration(
                             color: GlimpseColors.actionColor,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.white,
-                              width: 2,
+                              width: 2.w,
                             ),
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: 14.w),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +207,7 @@ class NotificationItemWidget extends StatelessWidget {
                                 displayTitle,
                                 style: GoogleFonts.getFont(
                                   FONT_PLUS_JAKARTA_SANS,
-                                  fontSize: 15,
+                                  fontSize: 15.sp,
                                   fontWeight: FontWeight.w700,
                                 ),
                                 maxLines: 1,
@@ -215,12 +215,12 @@ class NotificationItemWidget extends StatelessWidget {
                               ),
                             ),
                             if (timeAgo.isNotEmpty) ...[
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8.w),
                               Text(
                                 timeAgo,
                                 style: GoogleFonts.getFont(
                                   FONT_PLUS_JAKARTA_SANS,
-                                  fontSize: 12,
+                                  fontSize: 12.sp,
                                   fontWeight: FontWeight.w400,
                                   color: GlimpseColors.textSubTitle,
                                 ),
@@ -236,16 +236,16 @@ class NotificationItemWidget extends StatelessWidget {
                             userId: senderId,
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 15,
+                              fontSize: 15.sp,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: 3.h),
                       Text(
                         NotificationTextSanitizer.clean(cleanedMessage),
                         style: GoogleFonts.getFont(
                           FONT_PLUS_JAKARTA_SANS,
-                          fontSize: 14,
+                          fontSize: 14.sp,
                           letterSpacing: -0.2,
                           fontWeight: FontWeight.w600,
                           color: GlimpseColors.textSubTitle,
@@ -260,9 +260,9 @@ class NotificationItemWidget extends StatelessWidget {
             ),
           ),
         ),
-        const Divider(
-          height: 1,
-          thickness: 1,
+        Divider(
+          height: 1.h,
+          thickness: 1.h,
           color: GlimpseColors.lightTextField,
         ),
       ],

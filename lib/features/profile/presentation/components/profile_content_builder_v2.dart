@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/profile/presentation/controllers/profile_controller.dart';
@@ -297,6 +298,7 @@ class _ProfileReviewsSection extends StatelessWidget {
 
         final stats = snapshot.data!.stats;
         final reviews = snapshot.data!.reviews;
+        final sectionGap = (12.h).clamp(10.0, 16.0).toDouble();
         debugPrint('  ✅ Renderizando ReviewStatsSection e ReviewBadgesSection');
 
         return RepaintBoundary(
@@ -306,12 +308,16 @@ class _ProfileReviewsSection extends StatelessWidget {
               // Estatísticas agregadas
               ReviewStatsSection(stats: stats),
               
-              if (stats.badgesCount.isNotEmpty)
+              if (stats.badgesCount.isNotEmpty) ...[
                 ReviewBadgesSection(badgesCount: stats.badgesCount),
+                SizedBox(height: sectionGap),
+              ],
               
               // Seção "Avaliado por" com avatares dos reviewers
-              if (reviews.isNotEmpty)
+              if (reviews.isNotEmpty) ...[
                 ReviewedBySection(reviews: reviews),
+                SizedBox(height: sectionGap),
+              ],
               
               // Comentários das reviews
               if (reviews.isNotEmpty)

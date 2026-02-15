@@ -330,8 +330,8 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                         ),
 
                         // Botão fechar
-                        const GlimpseCloseButton(
-                          size: 32,
+                        GlimpseCloseButton(
+                          size: 32.w,
                         ),
                       ],
                     ),
@@ -339,7 +339,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Conteúdo Scrollável (Filtro IDADE + Privacidade/Gênero)
               Flexible(
@@ -348,7 +348,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                     children: [
                       // Filtro de idade
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: EdgeInsets.symmetric(horizontal: 24.w),
                         child: AgeRangeFilter(
                           minAge: _controller.minAge,
                           maxAge: _controller.maxAge,
@@ -358,11 +358,11 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                         ),
                       ),
         
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24.h),
         
                       // Cards de seleção de privacidade e gênero
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: EdgeInsets.symmetric(horizontal: 24.w),
                         child: PrivacyTypeSelector(
                           selectedType: _controller.selectedPrivacyType,
                           onTypeSelected: (type) {
@@ -381,7 +381,7 @@ class _ParticipantsDrawerState extends State<ParticipantsDrawer> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24.h),
                     ],
                   ),
                 ),

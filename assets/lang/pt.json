@@ -279,8 +279,8 @@
   "app_review_dialog_body": "Se estiver curtindo, avalie o app. Isso ajuda muito a gente a crescer.",
   "app_review_dialog_rate_now": "Avaliar agora",
   "app_review_dialog_later": "Agora não",
-  "over_50k_people_discovering_new_activities": "Mais de 5 mil pessoas descobrindo novas atividades",
-  "over_x_app_reviews": "Mais de {count} avaliações no app",
+  "over_50k_people_discovering_new_activities": "Mais de 21 mil pessoas descobrindo novas atividades",
+  "over_x_app_reviews": "Mais de {count} avaliações no app.",
   "partiu_was_created_for_people_like_you": "Boora foi criado para pessoas como você",
   "testimonial_user_1_name": "Ana Silva",
   "testimonial_user_1_text": "Conheci pessoas incríveis e saí da rotina!",
@@ -437,6 +437,7 @@
   "open_settings": "Abrir configurações",
   "GET_LOCATION": "Confirmar Localização",
   "connect_with_nearby_travelers": "Conecte com pessoas próximas",
+  "enable_location_to_discover": "Habilite a localização para descobrir atividades próximas e permitir que outras pessoas vejam que você está na área",
   "discover_nearby_activities": "Descobrir atividades próximas",
   "find_and_join_spontaneous_meetups": "Encontre e participe de encontros e atividades espontâneas acontecendo perto de você",
   "appear_to_nearby_travelers": "Aparecer para pessoas próximas",
@@ -1203,7 +1204,7 @@
 
   "feed_reminder_pre_title": "Registre seu evento",
   "feed_reminder_pre_subtitle": "Não esquece de tirar umas fotos incríveis no evento pra postar no feed depois \uD83D\uDE09",
-  "feed_reminder_post_title": "Compartilhe fotos do seu evento",
+  "feed_reminder_post_title": "Compartilhe suas fotos!",
   "feed_reminder_post_subtitle": "Espero que seu evento tenha sido incrível. Quando puder, compartilha as fotos no feed ✨",
   "feed_reminder_open_feed": "Abrir feed",
 

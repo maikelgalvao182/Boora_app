@@ -28,7 +28,14 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import {sendPush, PushEvent} from "./services/pushDispatcher";
+import * as admin from "firebase-admin";
+import {createHash} from "crypto";
+import {
+  sendPush,
+  PushEvent,
+  PushDispatchMetrics,
+} from "./services/pushDispatcher";
+import {createExecutionMetrics} from "./utils/executionMetrics";
 
 /**
  * 🎯 EVENTOS DE ATIVIDADES
@@ -60,17 +67,61 @@ function isActivityEvent(event: string): event is PushEvent {
   return ACTIVITY_EVENTS.includes(event as PushEvent);
 }
 
+const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
+const DEDUPE_CACHE_MAX_ENTRIES = 2000;
+
+// In-memory dedupe cache (evita 2 Firestore ops por invocação)
+// Trade-off: perde dedupe em cold start, mas push_sent guard no doc já protege
+const dedupeMemoryCache = new Map<string, number>();
+
+function buildPushDedupeKey(
+  receiverId: string,
+  nType: string,
+  relatedId: string
+): string {
+  const bucket = Math.floor(Date.now() / DEDUPE_WINDOW_MS);
+  const raw = `${receiverId}|${nType}|${relatedId}|${bucket}`;
+  return createHash("sha1").update(raw).digest("hex");
+}
+
+function isDedupeHitInMemory(key: string): boolean {
+  const expiresAt = dedupeMemoryCache.get(key);
+  if (expiresAt && Date.now() < expiresAt) {
+    return true;
+  }
+  dedupeMemoryCache.delete(key);
+  return false;
+}
+
+function setDedupeInMemory(key: string): void {
+  dedupeMemoryCache.set(key, Date.now() + DEDUPE_WINDOW_MS);
+  // Evict oldest entries if cache is too large
+  if (dedupeMemoryCache.size > DEDUPE_CACHE_MAX_ENTRIES) {
+    const firstKey = dedupeMemoryCache.keys().next().value;
+    if (firstKey) dedupeMemoryCache.delete(firstKey);
+  }
+}
+
 export const onActivityNotificationCreated = functions.firestore
   .document("Notifications/{notificationId}")
   .onCreate(async (snap, context) => {
     const notificationId = context.params.notificationId;
+    const metrics = createExecutionMetrics({
+      executionId: context.eventId,
+    });
     const notificationData = snap.data();
+    let dispatchMetrics: PushDispatchMetrics | null = null;
 
     if (!notificationData) {
       console.error(
         "❌ [ActivityPush] Notificação sem dados:",
         notificationId
       );
+      metrics.done({
+        notificationId,
+        skipped: true,
+        reason: "missing_notification_data",
+      });
       return;
     }
 
@@ -81,6 +132,11 @@ export const onActivityNotificationCreated = functions.firestore
         console.log(
           `⏭️ [ActivityPush] Push já enviado para ${notificationId}, ignorando`
         );
+        metrics.done({
+          notificationId,
+          skipped: true,
+          reason: "push_already_sent",
+        });
         return;
       }
 
@@ -91,12 +147,22 @@ export const onActivityNotificationCreated = functions.firestore
           "⏭️ [ActivityPush] Notificação de origem " +
           `${origin}, ignorando para evitar loop`
         );
+        metrics.done({
+          notificationId,
+          skipped: true,
+          reason: "origin_loop_prevention",
+          origin,
+        });
         return;
       }
 
       const nType = notificationData.n_type || "";
       const receiverId =
         notificationData.n_receiver_id || notificationData.userId;
+      const relatedId =
+        notificationData.n_related_id ||
+        notificationData.n_params?.activityId ||
+        "";
       const params = notificationData.n_params || {};
       const senderName = notificationData.n_sender_fullname;
 
@@ -105,8 +171,42 @@ export const onActivityNotificationCreated = functions.firestore
         console.log(
           `⏭️ [ActivityPush] Tipo ${nType} não é de atividade, ignorando`
         );
+        metrics.done({
+          notificationId,
+          skipped: true,
+          reason: "event_not_activity",
+          nType,
+        });
         return;
       }
+
+      if (!receiverId) {
+        metrics.done({
+          notificationId,
+          skipped: true,
+          reason: "missing_receiver_id",
+          nType,
+        });
+        return;
+      }
+
+      const dedupeKey = buildPushDedupeKey(receiverId, nType, String(relatedId));
+
+      // In-memory dedupe (economia de 2 Firestore ops: 1 read + 1 write)
+      // push_sent guard no doc original protege contra duplicação em cold start
+      if (isDedupeHitInMemory(dedupeKey)) {
+        metrics.done({
+          notificationId,
+          receiverId,
+          nType,
+          skipped: true,
+          reason: "dedupe_window_memory",
+          dedupeKey,
+        });
+        return;
+      }
+
+      setDedupeInMemory(dedupeKey);
 
       console.log(`📬 [ActivityPush] Nova notificação: ${nType}`);
       console.log(`   Receiver: ${receiverId}`);
@@ -267,20 +367,44 @@ export const onActivityNotificationCreated = functions.firestore
         context: {
           groupId: activityId,
         },
+        onDispatchMetrics: (payload) => {
+          dispatchMetrics = payload;
+        },
       });
 
       // 🔒 MARCAR COMO ENVIADO para evitar duplicação em retry
       await snap.ref.update({push_sent: true});
+      metrics.addWrites(1);
 
       console.log(
         `✅ [ActivityPush] Push disparado: ${nType} → ${receiverId}`
       );
+      metrics.done({
+        notificationId,
+        receiverId,
+        nType,
+        relatedId: String(relatedId),
+        dedupeKey,
+        pushSent: dispatchMetrics?.pushSent ?? true,
+        tokensFound: dispatchMetrics?.tokensFound ?? 0,
+        tokensDeleted: dispatchMetrics?.tokensDeleted ?? 0,
+        pushSuccessCount: dispatchMetrics?.successCount ?? 0,
+        pushFailureCount: dispatchMetrics?.failureCount ?? 0,
+        pushSkippedReason: dispatchMetrics?.skippedReason,
+      });
     } catch (error) {
       console.error(
         "❌ [ActivityPush] Erro ao processar notificação:",
         error
       );
       console.error(`   Notification ID: ${notificationId}`);
+      metrics.fail(error, {
+        notificationId,
+        tokensFound: dispatchMetrics?.tokensFound ?? 0,
+        tokensDeleted: dispatchMetrics?.tokensDeleted ?? 0,
+        pushSent: dispatchMetrics?.pushSent ?? false,
+        pushSkippedReason: dispatchMetrics?.skippedReason,
+      });
     }
   });
 

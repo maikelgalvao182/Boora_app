@@ -305,6 +305,8 @@
   "we_would_love_to_know": "Nos encantaría saber cómo llegaste aquí",
   "what_people_are_saying": "Lo que la gente dice",
   "see_what_our_community_thinks": "Mira lo que nuestra comunidad piensa sobre Boora",
+  "over_50k_people_discovering_new_activities": "Más de 21 mil personas descubriendo nuevas actividades",
+  "over_x_app_reviews": "Más de {count} reseñas en la app.",
   "search_country": "Buscar país...",
   "placeholder_full_name": "Ingresa tu nombre completo",
   "placeholder_bio": "Cuéntanos sobre ti...",
@@ -1046,7 +1048,7 @@
 
   "feed_reminder_pre_title": "Registra tu evento",
   "feed_reminder_pre_subtitle": "No te olvides de tomar fotos increíbles del evento para publicar en el feed después \uD83D\uDE09",
-  "feed_reminder_post_title": "Comparte fotos de tu evento",
+  "feed_reminder_post_title": "Comparte fotos!",
   "feed_reminder_post_subtitle": "Espero que tu evento haya sido increíble. Cuando puedas, comparte las fotos en el feed ✨",
   "feed_reminder_open_feed": "Abrir feed",
 

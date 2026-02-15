@@ -74,6 +74,7 @@ class ListDrawerController {
         .collection('events')
         .where('createdBy', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
+        .limit(20) // Limite para reduzir leituras Firestore
         .snapshots()
         .listen(
           _onMyEventsChanged,

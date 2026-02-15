@@ -1,6 +1,8 @@
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de bio/descrição pessoal
 /// Extraído para reutilização no wizard
@@ -45,6 +47,9 @@ class _BioWidgetState extends State<BioWidget> {
       onChanged: widget.onBioChanged,
       maxLines: 5,
       maxLength: 500,
+      labelStyle: GlimpseStyles.fieldLabelStyle(
+        color: Theme.of(context).textTheme.titleMedium?.color,
+      ).copyWith(fontSize: 14.sp),
     );
   }
 }

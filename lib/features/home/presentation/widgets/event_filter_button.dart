@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/services/events/event_creator_filters_controller.dart';
@@ -48,16 +49,16 @@ class _EventFilterButtonState extends State<EventFilterButton> {
     return GestureDetector(
       onTap: widget.onPressed,
       child: Container(
-        width: 56,
-        height: 56,
+        width: 56.w,
+        height: 56.h,
         decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8.r,
+              offset: Offset(0, 2.h),
             ),
           ],
         ),
@@ -67,20 +68,20 @@ class _EventFilterButtonState extends State<EventFilterButton> {
             Icon(
               Iconsax.search_normal,
               color: Colors.black,
-              size: 28,
+              size: 28.sp,
             ),
             // Badge indicador de filtros ativos
             if (hasActiveFilters)
               Positioned(
-                top: 14,
-                right: 17,
+                top: 14.h,
+                right: 17.w,
                 child: Container(
-                  width: 12,
-                  height: 12,
+                  width: 12.w,
+                  height: 12.h,
                   decoration: BoxDecoration(
                     color: GlimpseColors.primary,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: Colors.white, width: 2.w),
                   ),
                 ),
               ),

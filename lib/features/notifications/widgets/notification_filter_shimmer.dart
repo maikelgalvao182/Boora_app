@@ -19,7 +19,7 @@ class NotificationFilterShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48, // Altura fixa para manter espaço consistente
+      height: 48.h, // Altura fixa para manter espaço consistente
       padding: padding,
       child: Shimmer.fromColors(
         baseColor: GlimpseColors.lightTextField,
@@ -28,14 +28,14 @@ class NotificationFilterShimmer extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: itemCount,
-          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          separatorBuilder: (_, __) => SizedBox(width: 10.w),
           itemBuilder: (context, index) {
             return Container(
-              width: 80 + (index * 10.0), // Larguras variadas
-              height: 40,
+              width: 80.w + (index * 10.w), // Larguras variadas
+              height: 40.h,
               decoration: BoxDecoration(
                 color: GlimpseColors.lightTextField,
-                borderRadius: BorderRadius.circular(50),
+                borderRadius: BorderRadius.circular(50.r),
               ),
             );
           },

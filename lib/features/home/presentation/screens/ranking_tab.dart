@@ -144,7 +144,7 @@ class _RankingTabState extends State<RankingTab> {
           // Lista de shimmer cards
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
               itemCount: 5,
               itemBuilder: (context, index) => const PeopleRankingCardShimmer(),
             ),
@@ -203,13 +203,13 @@ class _RankingTabState extends State<RankingTab> {
             // Filtro de Cidade (outline)
             if (cities.isNotEmpty)
               SizedBox(
-                height: 38.h,
+                height: 44.h,
                 child: _buildCityFilter(cities),
               ),
           ],
         ),
         
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         
         // Lista de pessoas - 🚀 Sempre mantém Scrollable (com empty state dentro se necessário)
         Expanded(
@@ -299,7 +299,7 @@ class _RankingTabState extends State<RankingTab> {
           _peopleState.setStateFilter(states[index - 1]);
         }
       },
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
     );
   }
 
@@ -326,7 +326,7 @@ class _RankingTabState extends State<RankingTab> {
           _peopleState.setCityFilter(value);
         }
       },
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
     );
   }
 }

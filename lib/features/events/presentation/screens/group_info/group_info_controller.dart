@@ -62,6 +62,78 @@ class GroupInfoController extends ChangeNotifier {
   List<Map<String, dynamic>> _participants = [];
   bool _isMuted = false;
   
+  Map<String, dynamic>? get _eventMapLocation {
+    final raw = _eventData?['mapLocation'];
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) {
+      return raw.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get _eventLocation {
+    final raw = _eventData?['location'];
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) {
+      return raw.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  String? _toNonEmptyString(dynamic value) {
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  String? _pickFirstString(List<dynamic> values) {
+    for (final value in values) {
+      final normalized = _toNonEmptyString(value);
+      if (normalized != null) return normalized;
+    }
+    return null;
+  }
+
+  double? _extractLatitude() {
+    final mapLocation = _eventMapLocation;
+    final location = _eventLocation;
+    final locationGeoPoint = _eventData?['locationGeoPoint'];
+
+    return _toDouble(mapLocation?['latitude']) ??
+        _toDouble(mapLocation?['lat']) ??
+        _toDouble(location?['latitude']) ??
+        _toDouble(location?['lat']) ??
+        (location?['geoPoint'] is GeoPoint ? (location?['geoPoint'] as GeoPoint).latitude : null) ??
+        (locationGeoPoint is GeoPoint ? locationGeoPoint.latitude : null) ??
+        _toDouble(_eventData?['latitude']) ??
+        _toDouble(_eventData?['lat']);
+  }
+
+  double? _extractLongitude() {
+    final mapLocation = _eventMapLocation;
+    final location = _eventLocation;
+    final locationGeoPoint = _eventData?['locationGeoPoint'];
+
+    return _toDouble(mapLocation?['longitude']) ??
+        _toDouble(mapLocation?['lng']) ??
+        _toDouble(location?['longitude']) ??
+        _toDouble(location?['lng']) ??
+        (location?['geoPoint'] is GeoPoint ? (location?['geoPoint'] as GeoPoint).longitude : null) ??
+        (locationGeoPoint is GeoPoint ? locationGeoPoint.longitude : null) ??
+        _toDouble(_eventData?['longitude']) ??
+        _toDouble(_eventData?['lng']);
+  }
+
   /// Notifier exclusivo para a lista de participantes (evita rebuilds desnecessários)
   final ValueNotifier<List<String>> participantsNotifier = ValueNotifier([]);
 
@@ -70,7 +142,53 @@ class GroupInfoController extends ChangeNotifier {
   String? get error => _error;
   String get eventName => _eventData?['activityText'] as String? ?? 'Event';
   String get eventEmoji => _eventData?['emoji'] as String? ?? '🎉';
-  String? get eventLocation => _eventData?['locationText'] as String?;
+  String? get eventLocation {
+    final mapLocation = _eventMapLocation;
+    final location = _eventLocation;
+    return _pickFirstString([
+      mapLocation?['locationName'],
+      mapLocation?['name'],
+      mapLocation?['formattedAddress'],
+      mapLocation?['address'],
+      location?['locationName'],
+      location?['name'],
+      location?['formattedAddress'],
+      location?['address'],
+      _eventData?['mapLocation.locationName'],
+      _eventData?['mapLocation.formattedAddress'],
+      _eventData?['locationName'],
+      _eventData?['formattedAddress'],
+      _eventData?['locationText'],
+    ]);
+  }
+
+  String? get eventLocationName {
+    final mapLocation = _eventMapLocation;
+    final location = _eventLocation;
+    return _pickFirstString([
+      mapLocation?['locationName'],
+      mapLocation?['name'],
+      location?['locationName'],
+      location?['name'],
+      _eventData?['mapLocation.locationName'],
+      _eventData?['locationName'],
+      _eventData?['locationText'],
+    ]);
+  }
+
+  String? get eventFormattedAddress {
+    final mapLocation = _eventMapLocation;
+    final location = _eventLocation;
+    return _pickFirstString([
+      mapLocation?['formattedAddress'],
+      mapLocation?['address'],
+      location?['formattedAddress'],
+      location?['address'],
+      _eventData?['mapLocation.formattedAddress'],
+      _eventData?['formattedAddress'],
+      _eventData?['locationText'],
+    ]);
+  }
   String? get eventDescription => _eventData?['description'] as String?;
   
   // Categoria do evento
@@ -83,8 +201,9 @@ class GroupInfoController extends ChangeNotifier {
   String? get eventPrivacyType => _eventData?['privacyType'] as String?;
   
   // Localização
-  double? get eventLatitude => _eventData?['latitude'] as double?;
-  double? get eventLongitude => _eventData?['longitude'] as double?;
+  double? get eventLatitude => _extractLatitude();
+
+  double? get eventLongitude => _extractLongitude();
   
   DateTime? get eventDate {
     final schedule = _eventData?['schedule'];
@@ -186,8 +305,8 @@ class GroupInfoController extends ChangeNotifier {
   Future<void> openInMaps() async {
     if (eventLocation == null) return;
 
-    final lat = _eventData?['latitude'] as double?;
-    final lng = _eventData?['longitude'] as double?;
+    final lat = eventLatitude;
+    final lng = eventLongitude;
 
     if (lat == null || lng == null) return;
 
@@ -239,14 +358,16 @@ class GroupInfoController extends ChangeNotifier {
 
   Future<void> _loadEventData() async {
     try {
+      var loadedFromCache = false;
+
       // Tenta carregar do cache primeiro
       final cacheKey = 'event_data_$eventId';
       final cachedData = GlobalCacheService.instance.get<Map<String, dynamic>>(cacheKey);
       
       if (cachedData != null) {
         _eventData = cachedData;
+        loadedFromCache = true;
         debugPrint('✅ Event data loaded from cache for $eventId');
-        return;
       }
 
       final doc = await FirebaseFirestore.instance
@@ -260,6 +381,9 @@ class GroupInfoController extends ChangeNotifier {
       }
 
       _eventData = doc.data();
+      if (loadedFromCache) {
+        debugPrint('🔄 Event data refreshed from Firestore for $eventId');
+      }
       
       // Salva no cache (TTL 5 min)
       if (_eventData != null) {
@@ -732,10 +856,14 @@ class GroupInfoController extends ChangeNotifier {
       final updates = <String, dynamic>{
         'latitude': lat,
         'longitude': lng,
+        'mapLocation.latitude': lat,
+        'mapLocation.longitude': lng,
       };
       
       if (locationText != null) {
         updates['locationText'] = locationText;
+        updates['mapLocation.locationName'] = locationText;
+        updates['mapLocation.formattedAddress'] = locationText;
       }
 
       await FirebaseFirestore.instance
@@ -745,9 +873,15 @@ class GroupInfoController extends ChangeNotifier {
 
       _eventData?['latitude'] = lat;
       _eventData?['longitude'] = lng;
+      final currentMapLocation = (_eventData?['mapLocation'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      currentMapLocation['latitude'] = lat;
+      currentMapLocation['longitude'] = lng;
       if (locationText != null) {
         _eventData?['locationText'] = locationText;
+        currentMapLocation['locationName'] = locationText;
+        currentMapLocation['formattedAddress'] = locationText;
       }
+      _eventData?['mapLocation'] = currentMapLocation;
       notifyListeners();
 
       await progressDialog.hide();

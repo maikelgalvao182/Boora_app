@@ -91,10 +91,10 @@ class ListDrawer extends StatelessWidget {
         children: [
           // Handle e header
           Padding(
-            padding: const EdgeInsets.only(
-              top: 12,
-              left: 20,
-              right: 20,
+            padding: EdgeInsets.only(
+              top: 12.h,
+              left: 20.w,
+              right: 20.w,
             ),
             child: Column(
               children: [

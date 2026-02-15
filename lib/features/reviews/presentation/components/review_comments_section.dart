@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -25,8 +26,7 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
-    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
-    final topSpacing = isAndroid ? 16.0 : 0.0;
+    final topSpacing = (12.h).clamp(10.0, 16.0).toDouble();
 
     // Filtrar apenas reviews que têm comentário
     final reviewsWithComments = widget.reviews.where((review) => 
@@ -44,9 +44,9 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
     return Container(
       padding: EdgeInsets.only(
         top: topSpacing,
-        left: GlimpseStyles.horizontalMargin,
-        right: GlimpseStyles.horizontalMargin,
-        bottom: GlimpseStyles.profileSectionBottomSpacing,
+        left: GlimpseStyles.horizontalMargin.w,
+        right: GlimpseStyles.horizontalMargin.w,
+        bottom: GlimpseStyles.profileSectionBottomSpacing.h,
       ),
       width: double.infinity,
       child: Column(
@@ -57,18 +57,18 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
               fontWeight: FontWeight.w700,
-              fontSize: 15,
+              fontSize: 15.sp,
               color: GlimpseColors.primaryColorLight,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           
           ...displayedReviews.map((review) => CommentCard(review: review)),
           
           // Botão Ver mais / Ver menos
           if (hasMoreReviews)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: EdgeInsets.only(top: 8.h),
               child: Center(
                 child: TextButton(
                   onPressed: () {
@@ -78,8 +78,8 @@ class _ReviewCommentsSectionState extends State<ReviewCommentsSection> {
                   },
                   child: Text(
                     _isExpanded ? i18n.translate('see_less') : i18n.translate('see_more'),
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

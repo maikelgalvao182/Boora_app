@@ -15,6 +15,7 @@ import 'package:partiu/core/services/device_identity_service.dart';
 import 'package:partiu/core/services/toast_service.dart';
 import 'package:partiu/core/services/location_background_updater.dart';
 import 'package:partiu/core/services/location_service.dart';
+import 'package:partiu/core/services/appsflyer_service.dart';
 import 'package:get_it/get_it.dart';
 
 /// Serviço de orquestração de autenticação que trabalha COM SessionManager.
@@ -165,6 +166,7 @@ class AuthSyncService extends ChangeNotifier {
         }
 
         await SessionManager.instance.logout();
+        AppsflyerService.instance.clearPendingCustomerUserId();
         
         // Resetar contadores de notificações e badge do ícone
         await NotificationsCounterService.instance.reset();
@@ -340,6 +342,7 @@ class AuthSyncService extends ChangeNotifier {
           
           // CHAVE: Salvar no SessionManager - ele sincroniza automaticamente com AppState
           await SessionManager.instance.login(user);
+          await AppsflyerService.instance.setCustomerUserId(user.userId);
 
           // 🔐 REVENUECAT LOGIN (Agora seguro, pois sabemos que o usuário existe no Firestore)
           try {
@@ -379,7 +382,7 @@ class AuthSyncService extends ChangeNotifier {
                 final locationService = GetIt.instance.get<LocationService>();
                 LocationSyncScheduler.start(
                   locationService,
-                  config: LocationConfig.standard,
+                  config: LocationConfig.economy,
                 );
                 _locationSyncSchedulerInitialized = true;
                 _log('✅ [INIT] Etapa 4/4: LocationSyncScheduler iniciado');

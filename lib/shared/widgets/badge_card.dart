@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -23,13 +24,13 @@ class BadgeCard extends StatelessWidget {
     if (badge == null) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
       decoration: BoxDecoration(
         color: badge.color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.r),
         border: Border.all(
           color: badge.color.withValues(alpha: 0.3),
-          width: 1,
+          width: 1.w,
         ),
       ),
       child: Column(
@@ -42,13 +43,13 @@ class BadgeCard extends StatelessWidget {
             children: [
               Text(
                 badge.emoji,
-                style: const TextStyle(fontSize: 32),
+                style: TextStyle(fontSize: 30.sp),
               ),
               Positioned(
-                bottom: -4,
-                right: -4,
+                bottom: -3.h,
+                right: -3.w,
                 child: Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(5.r),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
@@ -57,7 +58,7 @@ class BadgeCard extends StatelessWidget {
                     '$count',
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 12,
+                      fontSize: 11.sp,
                       fontWeight: FontWeight.w700,
                       color: GlimpseColors.primaryColorLight,
                     ),
@@ -67,18 +68,18 @@ class BadgeCard extends StatelessWidget {
             ],
           ),
           
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           
           // Título
           SizedBox(
-            height: 32,
+            height: 34.h,
             child: Align(
               alignment: Alignment.center,
               child: Text(
                 badge.localizedTitle(i18n),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 12.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primaryColorLight,
                   height: 1.2,

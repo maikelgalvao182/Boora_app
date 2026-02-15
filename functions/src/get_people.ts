@@ -14,8 +14,8 @@ type PeopleCacheEntry = {
   expiresAt: number;
 };
 
-const PEOPLE_CACHE_TTL_MS = 90 * 1000; // 90s
-const PEOPLE_CACHE_MAX_ENTRIES = 120;
+const PEOPLE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+const PEOPLE_CACHE_MAX_ENTRIES = 200;
 const peopleCache = new Map<string, PeopleCacheEntry>();
 
 // Inicializa o admin SDK se ainda não foi inicializado

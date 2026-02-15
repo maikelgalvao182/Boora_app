@@ -50,6 +50,7 @@ ios/build/
 ios/Pods/
 ios/.symlinks/
 ios/DerivedData/
+ios/Flutter/Secrets.xcconfig
 
 # Firestore Rules (gerado automaticamente via build-rules.sh)
 firestore.rules

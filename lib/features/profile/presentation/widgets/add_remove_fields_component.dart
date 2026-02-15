@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 
 /// Componente para adicionar/remover campos de texto com validação de máximo
@@ -172,16 +173,17 @@ class _FieldItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // Para maxLines > 1, usa altura dinâmica, senão 56px fixo
     final isMultiline = maxLines != null && maxLines! > 1;
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     return Container(
-      height: isMultiline ? null : 56, // Altura padrão 56px para linha única
-      constraints: isMultiline ? const BoxConstraints(minHeight: 56) : null,
+      height: isMultiline ? null : 56.h, // Altura padrão 56px para linha única
+      constraints: isMultiline ? BoxConstraints(minHeight: 56.h) : null,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.r),
         border: Border.all(color: GlimpseColors.borderColorLight.withValues(alpha: 0.3)),
       ),
-      padding: const EdgeInsets.only(left: 16, right: 12),
+      padding: EdgeInsets.only(left: 16.w, right: 12.w),
       child: Row(
         children: [
           // Campo de texto
@@ -194,10 +196,10 @@ class _FieldItem extends StatelessWidget {
               textAlignVertical: isMultiline ? TextAlignVertical.top : TextAlignVertical.center,
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   color: GlimpseColors.textSubTitle,
                   fontWeight: FontWeight.w400,
-                  fontSize: 16,
+                  fontSize: (isCompactScreen ? 15 : 16).sp,
                 ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -206,30 +208,33 @@ class _FieldItem extends StatelessWidget {
                 focusedErrorBorder: InputBorder.none,
                 isDense: true,
                 contentPadding: isMultiline 
-                    ? const EdgeInsets.symmetric(vertical: 16)
+                    ? EdgeInsets.symmetric(vertical: 16.h)
                     : EdgeInsets.zero,
                 counterText: '', // Remove o contador visual
+              ),
+              style: TextStyle(
+                fontSize: (isCompactScreen ? 15 : 16).sp,
               ),
             ),
           ),
 
-          const SizedBox(width: 6),
+          SizedBox(width: 6.w),
 
           // Botão de remover
           GestureDetector(
             onTap: onRemove,
             child: Container(
-              width: 32,
-              height: 32,
+              width: 32.w,
+              height: 32.h,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8.r),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(
                   Iconsax.close_circle,
                   color: Colors.red,
-                  size: 16,
+                  size: 16.sp,
                 ),
               ),
             ),

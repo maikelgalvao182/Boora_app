@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
@@ -57,7 +58,7 @@ class EventActionButtons extends StatelessWidget {
         children: [
           Expanded(
             child: SizedBox(
-              height: 48,
+              height: 48.h,
               child: ElevatedButton.icon(
                 onPressed: () {
                   debugPrint('🔘 Chat button pressed (creator)');
@@ -67,23 +68,23 @@ class EventActionButtons extends StatelessWidget {
                   backgroundColor: GlimpseColors.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 12.w),
                   elevation: 0,
                 ),
-                icon: const Icon(Iconsax.message, size: 20),
+                icon: Icon(Iconsax.message, size: 20.w),
                 label: Text(
                   chatButtonText,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Expanded(
             child: GlimpseButton(
               text: deleteButtonText,
@@ -95,8 +96,8 @@ class EventActionButtons extends StatelessWidget {
                 onDeletePressed();
               },
               noPadding: true,
-              height: 48,
-              fontSize: 14,
+              height: 48.h,
+              fontSize: 14.sp,
               isProcessing: isDeleting,
             ),
           ),
@@ -110,7 +111,7 @@ class EventActionButtons extends StatelessWidget {
         children: [
           Expanded(
             child: SizedBox(
-              height: 48,
+              height: 48.h,
               child: ElevatedButton.icon(
                 onPressed: () {
                   debugPrint('🔘 Chat button pressed (participant)');
@@ -120,28 +121,28 @@ class EventActionButtons extends StatelessWidget {
                   backgroundColor: GlimpseColors.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 12.w),
                   elevation: 0,
                 ),
-                icon: const Icon(Iconsax.message, size: 20),
+                icon: Icon(Iconsax.message, size: 20.w),
                 label: Text(
                   chatButtonText,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Expanded(
             child: GlimpseButton(
               text: leaveButtonText,
               icon: Iconsax.logout_1,
-              iconSize: 18,
+              iconSize: 18.w,
               backgroundColor: Colors.red,
               textColor: Colors.white,
               onPressed: () {
@@ -149,8 +150,8 @@ class EventActionButtons extends StatelessWidget {
                 onLeavePressed();
               },
               noPadding: true,
-              height: 48,
-              fontSize: 14,
+              height: 48.h,
+              fontSize: 14.sp,
               isProcessing: isLeaving,
               hideProcessingText: true,
             ),

@@ -2,6 +2,8 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import {buildInterestBuckets} from "../utils/interestBuckets";
 import {encodeGeohash} from "../utils/geohash";
+import {createExecutionMetrics} from "../utils/executionMetrics";
+import {getBooleanFeatureFlag} from "../utils/featureFlags";
 
 const GRID_BUCKET_SIZE_DEG = 0.05;
 
@@ -33,8 +35,29 @@ function resolveLatLng(
 export const onUserLocationUpdated = functions.firestore
   .document("Users/{userId}")
   .onWrite(async (change, context) => {
+    const userId = context.params.userId as string;
+    const metrics = createExecutionMetrics({
+      executionId: context.eventId,
+    });
+
+    const disableLegacySync =
+      await getBooleanFeatureFlag("disableLegacyUsersLocationSync", false) ||
+      await getBooleanFeatureFlag("disableLegacyUsersPreviewTriggers", false);
+
+    if (disableLegacySync) {
+      metrics.done({
+        userId,
+        skipped: true,
+        reason: "legacy_location_sync_disabled_by_flag",
+      });
+      return;
+    }
+
     const after = change.after.exists ? change.after.data() : null;
-    if (!after) return;
+    if (!after) {
+      metrics.done({userId, skipped: true, reason: "document_deleted"});
+      return;
+    }
 
     const before = change.before.exists ? change.before.data() : null;
     const beforeCoords = resolveLatLng(before);
@@ -67,10 +90,10 @@ export const onUserLocationUpdated = functions.firestore
     const shouldUpdateGeohash = Boolean(geohash) && geohash != previousGeohash;
 
     if (!interestsChanged && !shouldUpdateGridId && !shouldUpdateGeohash) {
+      metrics.done({userId, skipped: true, reason: "no_relevant_changes"});
       return;
     }
 
-    const userId = context.params.userId as string;
     const updatePayload: Record<string, unknown> = {
       interestBuckets,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -84,8 +107,20 @@ export const onUserLocationUpdated = functions.firestore
       updatePayload.geohash = geohash;
     }
 
-    await admin.firestore()
-      .collection("users_preview")
-      .doc(userId)
-      .set(updatePayload, {merge: true});
+    try {
+      await admin.firestore()
+        .collection("users_preview")
+        .doc(userId)
+        .set(updatePayload, {merge: true});
+      metrics.addWrites(1);
+      metrics.done({
+        userId,
+        interestsChanged,
+        gridUpdated: Boolean(gridId),
+        geohashUpdated: Boolean(geohash),
+      });
+    } catch (error) {
+      metrics.fail(error, {userId, stage: "update_users_preview"});
+      throw error;
+    }
   });

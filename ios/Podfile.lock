@@ -1198,6 +1198,16 @@ PODS:
     - GoogleUtilities/Environment (~> 8.0)
     - GoogleUtilities/UserDefaults (~> 8.0)
     - PromisesObjC (~> 2.4)
+  - apple_maps_flutter (0.0.1):
+    - Flutter
+  - appsflyer_sdk (6.17.8):
+    - appsflyer_sdk/Core (= 6.17.8)
+  - appsflyer_sdk/Core (6.17.8):
+    - AppsFlyerFramework (= 6.17.8)
+    - Flutter
+  - AppsFlyerFramework (6.17.8):
+    - AppsFlyerFramework/Main (= 6.17.8)
+  - AppsFlyerFramework/Main (6.17.8)
   - BoringSSL-GRPC (0.0.37):
     - BoringSSL-GRPC/Implementation (= 0.0.37)
     - BoringSSL-GRPC/Interface (= 0.0.37)
@@ -1648,6 +1658,7 @@ PODS:
   - sqflite_darwin (0.0.4):
     - Flutter
     - FlutterMacOS
+  - TikTokBusinessSDK (1.6.0)
   - TOCropViewController (2.8.0)
   - url_launcher_ios (0.0.1):
     - Flutter
@@ -1656,6 +1667,8 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - apple_maps_flutter (from `.symlinks/plugins/apple_maps_flutter/ios`)
+  - appsflyer_sdk (from `.symlinks/plugins/appsflyer_sdk/ios`)
   - client_information (from `.symlinks/plugins/client_information/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - cloud_functions (from `.symlinks/plugins/cloud_functions/ios`)
@@ -1690,6 +1703,7 @@ DEPENDENCIES:
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sign_in_with_apple (from `.symlinks/plugins/sign_in_with_apple/ios`)
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+  - TikTokBusinessSDK
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
 
@@ -1698,6 +1712,7 @@ SPEC REPOS:
     - abseil
     - AppAuth
     - AppCheckCore
+    - AppsFlyerFramework
     - BoringSSL-GRPC
     - Firebase
     - FirebaseABTesting
@@ -1744,9 +1759,14 @@ SPEC REPOS:
     - SDWebImage
     - SDWebImageWebPCoder
     - Sentry
+    - TikTokBusinessSDK
     - TOCropViewController
 
 EXTERNAL SOURCES:
+  apple_maps_flutter:
+    :path: ".symlinks/plugins/apple_maps_flutter/ios"
+  appsflyer_sdk:
+    :path: ".symlinks/plugins/appsflyer_sdk/ios"
   client_information:
     :path: ".symlinks/plugins/client_information/ios"
   cloud_firestore:
@@ -1824,6 +1844,9 @@ SPEC CHECKSUMS:
   abseil: a05cc83bf02079535e17169a73c5be5ba47f714b
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
+  apple_maps_flutter: 2237d66a8e242082a2d88134af372f7b3375d7a6
+  appsflyer_sdk: 219a6c5cb0343de60c7f259ecdb202084274359e
+  AppsFlyerFramework: 63577b60d6b9fcdab60135289979e7d1c9ec79b9
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
   client_information: dc34b4d464e909eec01badb96a8b6b005e654cb5
   cloud_firestore: 284664fc11ca15df78d81628f394b5b8fbd06bfe
@@ -1904,10 +1927,11 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sign_in_with_apple: c5dcc141574c8c54d5ac99dd2163c0c72ad22418
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
+  TikTokBusinessSDK: 6fe49b5b06a24cfe6bf42da789e2f3c6ba39c0e3
   TOCropViewController: 797deaf39c90e6e9ddd848d88817f6b9a8a09888
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: caff213b0e9416be8d9bdb8ac7f3e4327ad5b87e
+PODFILE CHECKSUM: b14a4c534d6a4d562dbb38731789701ab1c12cde
 
 COCOAPODS: 1.16.2

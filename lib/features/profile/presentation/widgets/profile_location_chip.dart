@@ -3,6 +3,7 @@ import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/models/user.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -42,50 +43,51 @@ class ProfileLocationChip extends StatelessWidget {
           print('   Final text: "$locationText"');
         }
         
-        return _buildChip(locationText);
+        return _buildChip(context, locationText);
       },
     );
   }
 
   Widget _buildSkeletonChip() {
     return Container(
-      width: 120,
-      height: 28,
+      width: 120.w,
+      height: 28.h,
       decoration: BoxDecoration(
         color: GlimpseColors.lightTextField,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
       ),
     );
   }
 
-  Widget _buildChip(String locationText) {
+  Widget _buildChip(BuildContext context, String locationText) {
     if (locationText.isEmpty) {
       return const SizedBox.shrink(); // Não mostra chip se não tem localização
     }
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     return Container(
-      height: 31,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
+      height: 31.h,
+      padding: EdgeInsets.symmetric(horizontal: 15.w),
       decoration: BoxDecoration(
         color: GlimpseColors.locationChipBackground,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(30.r),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Iconsax.location,
-            size: 16,
+            size: 16.sp,
             color: Colors.black,
           ),
-          const SizedBox(width: 5),
+          SizedBox(width: 5.w),
           Text(
             locationText,
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               color: Colors.black,
               fontWeight: FontWeight.w700,
-              fontSize: 12,
+              fontSize: (isCompactScreen ? 11 : 12).sp,
             ),
           ),
         ],

@@ -2,6 +2,7 @@ import 'package:partiu/common/state/app_state.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -19,6 +20,7 @@ class ProfileVisitsChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final userId = AppState.currentUserId ?? '';
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     if (kDebugMode) {
       debugPrint('🎨 [ProfileVisitsChip] build chamado com userId: $userId');
@@ -40,30 +42,30 @@ class ProfileVisitsChip extends StatelessWidget {
     return GestureDetector(
       onTap: () => GoRouter.of(context).push(AppRoutes.profileVisits),
       child: Container(
-        height: 31,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 31.h,
+        padding: EdgeInsets.symmetric(horizontal: 12.w),
         decoration: BoxDecoration(
           color: GlimpseColors.visitsChipBackground,
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(30.r),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Iconsax.eye,
-              size: 16,
+              size: 16.sp,
               color: Colors.black,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6.w),
             Text(
               i18n.translate('profile_visits'),
               style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
                 color: Colors.black,
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
+                fontSize: (isCompactScreen ? 11 : 12).sp,
               ),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: 4.w),
             StreamBuilder<int>(
               stream: visitsService.watchUserVisitsCount(userId),
               initialData: visitsService.cachedVisitsCount,
@@ -89,10 +91,10 @@ class ProfileVisitsChip extends StatelessWidget {
                     (visitsService.cachedVisitsCount == null || !visitsService.hasLoadedOnce);
 
                 if (isLoading) {
-                  return const Padding(
-                    padding: EdgeInsets.only(left: 2, right: 2),
+                  return Padding(
+                    padding: EdgeInsets.only(left: 2.w, right: 2.w),
                     child: TypingIndicator(
-                      dotSize: 4,
+                      dotSize: 4.w,
                       color: Colors.black,
                     ),
                   );
@@ -104,7 +106,7 @@ class ProfileVisitsChip extends StatelessWidget {
                     FONT_PLUS_JAKARTA_SANS,
                     color: Colors.black,
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: (isCompactScreen ? 11 : 12).sp,
                   ),
                 );
               },
@@ -117,11 +119,11 @@ class ProfileVisitsChip extends StatelessWidget {
   
   Widget _buildSkeletonChip() {
     return Container(
-      width: 80,
-      height: 31,
+      width: 80.w,
+      height: 31.h,
       decoration: BoxDecoration(
         color: GlimpseColors.lightTextField,
-        borderRadius: BorderRadius.circular(15.5),
+        borderRadius: BorderRadius.circular(15.5.r),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
@@ -24,7 +25,6 @@ class ConversationsTab extends StatelessWidget {
     return Consumer<ConversationsViewModel>(
       builder: (context, viewModel, _) {
         final i18n = AppLocalizations.of(context);
-        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final isGuest = AuthStateService.instance.isGuest;
 
         return Scaffold(
@@ -40,15 +40,15 @@ class ConversationsTab extends StatelessWidget {
                       message: i18n.translate('safety_tips_title'),
                       color: Colors.red,
                       duration: const Duration(seconds: 3),
-                      child: const SafetyTipsButton(
+                      child: SafetyTipsButton(
                         icon: IconsaxPlusLinear.danger,
                         iconColor: GlimpseColors.primaryColorLight,
-                        iconSize: 24,
+                        iconSize: 24.w,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 Expanded(
                   child: isGuest
                       // Guest: show Conversations UI empty state

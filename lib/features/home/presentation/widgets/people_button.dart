@@ -2,8 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
+import 'dart:math' as math;
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/models/user.dart' as app_user;
@@ -116,14 +118,14 @@ class _PeopleButtonState extends State<PeopleButton> {
 
     final titleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 13,
+      fontSize: 13.sp,
       fontWeight: FontWeight.w600,
       color: GlimpseColors.primaryColorLight,
     );
 
     final subtitleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 13,
+      fontSize: 13.sp,
       fontWeight: FontWeight.w600,
       color: GlimpseColors.primary,
     );
@@ -177,14 +179,16 @@ class _ZoomInToSeePeopleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+    final compactButtonSize = isLargeScreen ? math.min(56.0, 56.w) : 56.h;
 
     return Material(
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(100),
       child: Container(
-        width: 56,
-        height: 56,
+        width: compactButtonSize,
+        height: compactButtonSize,
         decoration: BoxDecoration(
           color: GlimpseColors.lightTextField,
           borderRadius: BorderRadius.circular(100),
@@ -192,7 +196,7 @@ class _ZoomInToSeePeopleButton extends StatelessWidget {
         alignment: Alignment.center,
         child: Icon(
           Iconsax.eye_slash,
-          size: 24,
+          size: 24.sp,
           color: GlimpseColors.primary,
         ),
       ),
@@ -243,6 +247,9 @@ class _PeopleNearYouButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+    final compactButtonSize = isLargeScreen ? math.min(56.0, 56.w) : 56.h;
+    final avatarSize = isLargeScreen ? math.min(40.0, 40.w) : 32.w;
     return ValueListenableBuilder<int>(
       valueListenable: peopleCountService.nearbyPeopleCount,
       builder: (context, boundsCount, _) {
@@ -278,8 +285,8 @@ class _PeopleNearYouButton extends StatelessWidget {
                         onTap: () => _handleTap(context),
                         borderRadius: BorderRadius.circular(100),
                         child: Container(
-                          height: 56,
-                          padding: const EdgeInsets.only(left: 8, right: 8),
+                          height: compactButtonSize,
+                          padding: EdgeInsets.only(left: 6.w, right: 8.w),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(100),
@@ -288,25 +295,29 @@ class _PeopleNearYouButton extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (effectiveUser != null)
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: StableAvatar(
-                                    userId: effectiveUser.userId,
-                                    photoUrl: effectiveUser.photoUrl,
-                                    size: 40,
-                                    enableNavigation: false,
-                                  ),
+                                Builder(
+                                  builder: (context) {
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: StableAvatar(
+                                        userId: effectiveUser.userId,
+                                        photoUrl: effectiveUser.photoUrl,
+                                        size: avatarSize,
+                                        enableNavigation: false,
+                                      ),
+                                    );
+                                  },
                                 )
                               else if (isLoading)
                                 Container(
-                                  width: 40,
-                                  height: 40,
+                                  width: avatarSize,
+                                  height: avatarSize,
                                   decoration: BoxDecoration(
                                     color: Colors.grey[200],
                                     shape: BoxShape.circle,
@@ -317,8 +328,11 @@ class _PeopleNearYouButton extends StatelessWidget {
                                   ),
                                 )
                               else
-                                const SizedBox(width: 40, height: 40),
-                              const SizedBox(width: 8),
+                                SizedBox(
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                ),
+                              SizedBox(width: 8.w),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -333,7 +347,7 @@ class _PeopleNearYouButton extends StatelessWidget {
                                       child: TypingIndicator(
                                         color: subtitleStyle.color ??
                                             GlimpseColors.primary,
-                                        dotSize: 5,
+                                        dotSize: 5.w,
                                       ),
                                     )
                                   else
@@ -354,7 +368,7 @@ class _PeopleNearYouButton extends StatelessWidget {
                               const SizedBox(width: 4),
                               Icon(
                                 Icons.chevron_right,
-                                size: 20,
+                                size: 20.sp,
                                 color: GlimpseColors.primaryColorLight,
                               ),
                             ],

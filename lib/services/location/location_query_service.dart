@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:partiu/core/services/cache/hive_cache_service.dart';
+import 'package:partiu/core/services/cache/hive_initializer.dart';
 import 'package:partiu/services/location/geo_utils.dart';
 import 'package:partiu/services/location/distance_isolate.dart';
 import 'package:partiu/services/location/location_stream_controller.dart';
@@ -40,10 +43,22 @@ class LocationQueryService {
   factory LocationQueryService() => _instance;
   LocationQueryService._internal() {
     _initializeListeners();
+    unawaited(_initHiveCache());
   }
 
   /// Serviço de Cloud Function
   final _cloudService = PeopleCloudService();
+
+  /// Cache persistente (Hive) – sobrevive a cold starts do app
+  final HiveCacheService<String> _hivePeopleCache =
+      HiveCacheService<String>('people_radius_cache');
+  bool _hiveCacheReady = false;
+
+  /// TTL do cache persistente (6 horas)
+  static const Duration hiveCacheTTL = Duration(hours: 6);
+
+  /// Flag para evitar refresh em background duplicado
+  bool _backgroundRefreshInProgress = false;
 
   /// Cache de localização do usuário
   UserLocationCache? _userLocationCache;
@@ -64,12 +79,136 @@ class LocationQueryService {
   /// Timer para debounce de reloads
   Timer? _reloadDebounceTimer;
 
-  /// TTL do cache (30 segundos)
-  static const Duration cacheTTL = Duration(seconds: 30);
+  /// TTL do cache (2 minutos – reduz invocações de getPeople)
+  static const Duration cacheTTL = Duration(seconds: 120);
 
   /// Stream de usuários
   Stream<List<UserWithDistance>> get usersStream =>
       _usersStreamController.stream;
+
+  /// Inicializa cache Hive
+  Future<void> _initHiveCache() async {
+    try {
+      await HiveInitializer.initialize();
+      await _hivePeopleCache.initialize();
+      _hiveCacheReady = true;
+      debugPrint('📦 [LocationQueryService] Hive cache inicializado');
+    } catch (e) {
+      debugPrint('⚠️ [LocationQueryService] Hive init falhou: $e');
+      _hiveCacheReady = false;
+    }
+  }
+
+  /// Constrói chave do cache Hive baseada no raio e filtros
+  String _buildHiveCacheKey(double radiusKm) {
+    final filters = _currentFilters;
+    final interests = (filters.interests ?? const <String>[]).toList()..sort();
+    return 'r${radiusKm.toStringAsFixed(0)}|'
+        '${filters.gender ?? ""}|'
+        '${filters.minAge ?? ""}|'
+        '${filters.maxAge ?? ""}|'
+        '${filters.isVerified ?? ""}|'
+        '${filters.sexualOrientation ?? ""}|'
+        '${interests.join(",")}';
+  }
+
+  /// Salva resultado no Hive (serializado como JSON string)
+  Future<void> _saveToHive(String cacheKey, List<UserWithDistance> users) async {
+    if (!_hiveCacheReady) return;
+    try {
+      final jsonList = users.map((u) => u.toJson()).toList();
+      final encoded = jsonEncode(jsonList);
+      await _hivePeopleCache.put(cacheKey, encoded, ttl: hiveCacheTTL);
+      debugPrint(
+          '📦 [LocationQueryService] Hive SAVE: ${users.length} users (key=$cacheKey)');
+    } catch (e) {
+      debugPrint('⚠️ [LocationQueryService] Hive save falhou: $e');
+    }
+  }
+
+  /// Recupera resultado do Hive (desserializa JSON)
+  List<UserWithDistance>? _loadFromHive(String cacheKey) {
+    if (!_hiveCacheReady) return null;
+    try {
+      final encoded = _hivePeopleCache.get(cacheKey);
+      if (encoded == null) return null;
+      final jsonList = jsonDecode(encoded) as List<dynamic>;
+      final users = jsonList
+          .map((e) =>
+              UserWithDistance.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      debugPrint(
+          '📦 [LocationQueryService] Hive HIT: ${users.length} users (key=$cacheKey)');
+      return users;
+    } catch (e) {
+      debugPrint('⚠️ [LocationQueryService] Hive read falhou: $e');
+      return null;
+    }
+  }
+
+  /// Refresh em background – chama Cloud Function, atualiza memória + Hive,
+  /// e emite nos streams sem bloquear o caller.
+  Future<void> _backgroundRefresh({
+    required GeoPoint userLocation,
+    required double radiusKm,
+    required UserFilterOptions activeFilters,
+    required String hiveCacheKey,
+  }) async {
+    if (_backgroundRefreshInProgress) {
+      debugPrint(
+          '🔄 [LocationQueryService] Background refresh já em andamento, skip');
+      return;
+    }
+    _backgroundRefreshInProgress = true;
+    try {
+      debugPrint(
+          '🔄 [LocationQueryService] Background refresh iniciado (key=$hiveCacheKey)');
+
+      final boundingBox = GeoUtils.calculateBoundingBox(
+        centerLat: userLocation.latitude,
+        centerLng: userLocation.longitude,
+        radiusKm: radiusKm,
+      );
+
+      final result = await _cloudService.getPeopleNearby(
+        userLatitude: userLocation.latitude,
+        userLongitude: userLocation.longitude,
+        radiusKm: radiusKm,
+        boundingBox: boundingBox,
+        filters: UserCloudFilters(
+          gender: activeFilters.gender,
+          minAge: activeFilters.minAge,
+          maxAge: activeFilters.maxAge,
+          isVerified: activeFilters.isVerified,
+          interests: activeFilters.interests,
+          sexualOrientation: activeFilters.sexualOrientation,
+        ),
+      );
+
+      final freshUsers = result.users
+        ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+      // Atualizar caches
+      _usersCache = UsersCache(
+        users: freshUsers,
+        radiusKm: radiusKm,
+        timestamp: DateTime.now(),
+      );
+      await _saveToHive(hiveCacheKey, freshUsers);
+
+      // Emitir atualização silenciosa para o stream
+      if (!_usersStreamController.isClosed) {
+        _usersStreamController.add(freshUsers);
+      }
+
+      debugPrint(
+          '✅ [LocationQueryService] Background refresh concluído: ${freshUsers.length} users');
+    } catch (e) {
+      debugPrint('⚠️ [LocationQueryService] Background refresh falhou: $e');
+    } finally {
+      _backgroundRefreshInProgress = false;
+    }
+  }
 
   /// Inicializa listeners para mudanças de raio/localização
   void _initializeListeners() {
@@ -155,8 +294,30 @@ class LocationQueryService {
       if (_usersCache != null &&
           !_usersCache!.isExpired &&
           _usersCache!.radiusKm == radiusKm) {
-        debugPrint('✅ LocationQueryService: Usando cache de usuários');
+        debugPrint('✅ LocationQueryService: Usando cache de usuários (memória)');
         return _usersCache!.users;
+      }
+
+      // 3.5 Verificar cache persistente Hive (TTL 1h)
+      final hiveCacheKey = _buildHiveCacheKey(radiusKm);
+      final hiveUsers = _loadFromHive(hiveCacheKey);
+      if (hiveUsers != null && hiveUsers.isNotEmpty) {
+        // Servir dados do Hive imediatamente
+        _usersCache = UsersCache(
+          users: hiveUsers,
+          radiusKm: radiusKm,
+          timestamp: DateTime.now(),
+        );
+        // Refresh em background – não bloqueia o retorno
+        unawaited(_backgroundRefresh(
+          userLocation: userLocation,
+          radiusKm: radiusKm,
+          activeFilters: activeFilters,
+          hiveCacheKey: hiveCacheKey,
+        ));
+        debugPrint(
+            '📦 LocationQueryService: Servindo ${hiveUsers.length} users do Hive, refresh em background');
+        return hiveUsers;
       }
 
       // 4. Calcular bounding box
@@ -211,12 +372,13 @@ class LocationQueryService {
       // O limite é aplicado no servidor, então não limitamos aqui
       // Isso garante que apenas o servidor controla o acesso
 
-      // 9. Atualizar cache
+      // 9. Atualizar cache (memória + Hive persistente)
       _usersCache = UsersCache(
         users: finalUsers,
         radiusKm: radiusKm,
         timestamp: DateTime.now(),
       );
+      unawaited(_saveToHive(hiveCacheKey, finalUsers));
 
       debugPrint(
           '✅ LocationQueryService: ${finalUsers.length} usuários retornados após todos os filtros');
@@ -305,8 +467,8 @@ class LocationQueryService {
       );
       yield users;
 
-      // Aguardar próxima atualização
-      await Future.delayed(const Duration(seconds: 5));
+      // Aguardar próxima atualização (60s reduz ~12x invocações do stream)
+      await Future.delayed(const Duration(seconds: 60));
     }
   }
 

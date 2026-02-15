@@ -505,6 +505,7 @@ class EventCardController extends ChangeNotifier {
         .collection('EventApplications')
         .where('eventId', isEqualTo: eventId)
         .where('status', whereIn: ['approved', 'autoApproved'])
+        .limit(50) // Limite para reduzir leituras Firestore
         .snapshots())
       .map((snapshot) => snapshot.docs.length);
   List<Map<String, dynamic>> get visibleParticipants => _approvedParticipants.take(5).toList();
@@ -763,6 +764,7 @@ class EventCardController extends ChangeNotifier {
         .collection('EventApplications')
         .where('eventId', isEqualTo: eventId)
         .where('status', whereIn: ['approved', 'autoApproved'])
+    .limit(50) // Limite para reduzir leituras Firestore
     .snapshots();
 
   // Primeiro evento do stream: não buscar do Firestore se já temos dados

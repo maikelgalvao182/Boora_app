@@ -261,8 +261,8 @@
   "app_review_dialog_body": "If you're enjoying it, please rate the app. It really helps us grow.",
   "app_review_dialog_rate_now": "Rate now",
   "app_review_dialog_later": "Not now",
-  "over_50k_people_discovering_new_activities": "Over 5k people discovering new activities",
-  "over_x_app_reviews": "Over {count} app reviews",
+  "over_50k_people_discovering_new_activities": "Over 21k people discovering new activities",
+  "over_x_app_reviews": "Over {count} app reviews.",
   "partiu_was_created_for_people_like_you": "Boora was created for people like you",
   "testimonial_user_1_name": "Sarah Johnson",
   "testimonial_user_1_text": "Met amazing people and broke out of my routine!",
@@ -1197,7 +1197,7 @@
 
   "feed_reminder_pre_title": "Capture your event",
   "feed_reminder_pre_subtitle": "Don't forget to take some amazing photos at the event to post on the feed later \uD83D\uDE09",
-  "feed_reminder_post_title": "Share photos from your event",
+  "feed_reminder_post_title": "Share photos!",
   "feed_reminder_post_subtitle": "Hope your event was amazing. When you can, share the photos on the feed ✨",
   "feed_reminder_open_feed": "Open feed",
 

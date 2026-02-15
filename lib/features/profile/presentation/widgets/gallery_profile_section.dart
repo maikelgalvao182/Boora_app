@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -40,6 +41,7 @@ class GalleryProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final effectiveTitleColor = titleColor ?? GlimpseColors.primaryColorLight;
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     // ✅ AUTO-OCULTA: não renderiza seção vazia
     if (galleryMap == null || galleryMap!.isEmpty) {
@@ -64,12 +66,12 @@ class GalleryProfileSection extends StatelessWidget {
             title ?? i18n.translate('gallery_section_title'),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: (isCompactScreen ? 17 : 18).sp,
               color: effectiveTitleColor,
             ),
             textAlign: TextAlign.left,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           
           // Grid
           GridView.builder(
@@ -78,8 +80,8 @@ class GalleryProfileSection extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
+              mainAxisSpacing: 8.h,
+              crossAxisSpacing: 8.w,
               childAspectRatio: aspectRatio,
             ),
             itemCount: limited.length,
@@ -184,7 +186,7 @@ class _ImageThumb extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           child: CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.cover,
@@ -201,11 +203,11 @@ class _ImageThumb extends StatelessWidget {
             ),
             errorWidget: (context, url, error) => Container(
               color: GlimpseColors.lightTextField,
-              child: const Center(
+              child: Center(
                 child: Icon(
                   Icons.photo_outlined,
                   color: Colors.white70,
-                  size: 28,
+                  size: 28.sp,
                 ),
               ),
             ),

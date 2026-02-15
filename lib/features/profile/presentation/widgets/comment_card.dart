@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -36,22 +37,23 @@ class _CommentCardState extends State<CommentCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     final reviewDate = DateHelper.formatRelativeDate(
       widget.review.createdAt,
       context: context,
     );
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: 8.h),
       decoration: BoxDecoration(
         color: GlimpseColors.lightTextField,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.r),
       ),
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.r),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16.w),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,9 +64,9 @@ class _CommentCardState extends State<CommentCard> {
                   // Avatar
                   StableAvatar(
                     userId: widget.review.reviewerId,
-                    size: 40,
+                    size: 40.w,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   // Nome e Job Title
                   Expanded(
                     child: Column(
@@ -73,14 +75,14 @@ class _CommentCardState extends State<CommentCard> {
                         ReactiveUserNameWithBadge(
                           userId: widget.review.reviewerId,
                           style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                            fontSize: 15,
+                            fontSize: (isCompactScreen ? 14 : 15).sp,
                             fontWeight: FontWeight.w700,
                             color: GlimpseColors.primaryColorLight,
                           ),
-                          iconSize: 14,
-                          spacing: 4,
+                          iconSize: 14.sp,
+                          spacing: 4.w,
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4.h),
                         ValueListenableBuilder<String?>(
                           valueListenable: UserStore.instance.getCityNotifier(widget.review.reviewerId),
                           builder: (context, city, _) {
@@ -96,7 +98,7 @@ class _CommentCardState extends State<CommentCard> {
                                 return Text(
                                   parts.join(', '),
                                   style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                                    fontSize: 13,
+                                    fontSize: (isCompactScreen ? 12 : 13).sp,
                                     fontWeight: FontWeight.w600,
                                     color: GlimpseColors.textSubTitle,
                                   ),
@@ -115,11 +117,11 @@ class _CommentCardState extends State<CommentCard> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _buildStars(widget.review.overallRating),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                       Text(
                         reviewDate,
                         style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                          fontSize: 12,
+                          fontSize: (isCompactScreen ? 11 : 12).sp,
                           fontWeight: FontWeight.w400,
                           color: GlimpseColors.textSubTitle,
                         ),
@@ -132,7 +134,7 @@ class _CommentCardState extends State<CommentCard> {
               // Comentário (se existir)
               if (widget.review.comment != null &&
                   widget.review.comment!.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10.h),
                 _buildComment(),
               ],
             ],
@@ -147,22 +149,22 @@ class _CommentCardState extends State<CommentCard> {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (index) {
         if (index < rating.floor()) {
-          return const Icon(
+          return Icon(
             Iconsax.star1,
             color: Colors.amber,
-            size: 18,
+            size: 18.sp,
           );
         } else if (index < rating) {
-          return const Icon(
+          return Icon(
             Iconsax.star1,
             color: Colors.amber,
-            size: 18,
+            size: 18.sp,
           );
         } else {
           return Icon(
             Iconsax.star,
             color: Colors.grey.shade300,
-            size: 18,
+            size: 18.sp,
           );
         }
       }),
@@ -170,13 +172,14 @@ class _CommentCardState extends State<CommentCard> {
   }
 
   Widget _buildComment() {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     final comment = widget.review.comment!;
     final maxLines = _showFullComment ? null : 3;
 
     final commentText = Text(
       comment,
       style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-        fontSize: 14,
+        fontSize: (isCompactScreen ? 13 : 14).sp,
         fontWeight: FontWeight.w500,
         color: Colors.black,
         height: 1.5,
@@ -199,11 +202,11 @@ class _CommentCardState extends State<CommentCard> {
               });
             },
             child: Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: EdgeInsets.only(top: 6.h),
               child: Text(
                 _showFullComment ? 'Mostrar menos' : 'Ver mais',
                 style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-                  fontSize: 14,
+                  fontSize: (isCompactScreen ? 13 : 14).sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primaryColorLight,
                 ),

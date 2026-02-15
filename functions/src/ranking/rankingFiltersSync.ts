@@ -23,7 +23,7 @@ const BATCH_SIZE = 500;
 export const syncRankingFilters = functions
   .region("us-central1")
   .runWith({timeoutSeconds: 540, memory: "512MB"})
-  .pubsub.schedule("every 30 minutes")
+  .pubsub.schedule("every day 03:00") // Reduzido de "every 30 minutes" — dados de ranking mudam pouco
   .timeZone("America/Sao_Paulo")
   .onRun(async () => {
     const startMs = Date.now();

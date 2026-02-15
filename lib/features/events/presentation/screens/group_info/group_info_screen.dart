@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
@@ -14,6 +15,7 @@ import 'package:partiu/features/events/presentation/screens/group_info/widgets/m
 import 'package:partiu/features/events/presentation/screens/group_info/widgets/settings_widgets.dart';
 import 'package:partiu/features/home/presentation/widgets/user_card.dart';
 import 'package:partiu/core/services/toast_service.dart';
+import 'package:partiu/shared/widgets/event_location_map_card.dart';
 import 'package:partiu/shared/widgets/dialogs/cupertino_dialog.dart';
 import 'package:partiu/shared/widgets/glimpse_app_bar.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -135,14 +137,19 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   participantsLabel: _buildParticipantsLabel(i18n),
                   locationLabel: _controller.eventLocation,
                 ),
+                const SizedBox(height: 24),
+                if (_controller.eventLatitude != null && _controller.eventLongitude != null)
+                  EventLocationMapCard(
+                    latitude: _controller.eventLatitude!,
+                    longitude: _controller.eventLongitude!,
+                    locationName: _controller.eventLocationName,
+                    formattedAddress: _controller.eventFormattedAddress ?? _controller.eventLocation,
+                    onOpenMaps: _controller.openInMaps,
+                    openMapsLabel: i18n.translate('open_in_maps'),
+                    height: 200.h,
+                  ),
                 const SizedBox(height: 32),
                 _buildSettings(i18n),
-                const SizedBox(height: 24),
-                if (_controller.eventLocation != null)
-                  EventMapWidget(
-                    locationText: _controller.eventLocation!,
-                    onOpenMaps: _controller.openInMaps,
-                  ),
                 const SizedBox(height: 24),
                 _buildMembersList(i18n),
                 const SizedBox(height: 16),
@@ -200,7 +207,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 '${i18n.translate('members')} (${participantUserIds.length})',
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.textSubTitle,
                 ),
@@ -213,7 +220,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     i18n.translate('no_members_yet'),
                     style: GoogleFonts.getFont(
                       FONT_PLUS_JAKARTA_SANS,
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       color: GlimpseColors.textSubTitle,
                     ),
                   ),
@@ -302,7 +309,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           await _controller.deleteEvent(context);
         }
       },
-      height: 55,
+      height: 55.h,
     );
   }
 
@@ -313,7 +320,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       textColor: Colors.white,
       onTap: () => _controller.showLeaveEventDialog(context),
       isProcessing: _controller.isLeaving,
-      height: 55,
+      height: 55.h,
     );
   }
 }

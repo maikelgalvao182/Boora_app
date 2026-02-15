@@ -1,7 +1,9 @@
 import 'package:partiu/core/constants/constants.dart';
+import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_dropdown.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de seleção de gênero
 /// Extraído para reutilização no wizard
@@ -41,6 +43,9 @@ class GenderSelectorWidget extends StatelessWidget {
       items: genderOptions,
       selectedValue: initialGender.isNotEmpty ? initialGender : null,
       onChanged: onGenderChanged,
+      labelStyle: GlimpseStyles.fieldLabelStyle(
+        color: Theme.of(context).textTheme.titleMedium?.color,
+      ).copyWith(fontSize: 14.sp),
       // Usar itemBuilder para exibir traduzido
       itemBuilder: (item) => genderTranslationMap[item] ?? item,
     );

@@ -63,6 +63,12 @@
 	<string>Precisamos da sua localização para encontrar atividades perto de você.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>$(PRODUCT_NAME) usa fotos</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Usamos identificadores do dispositivo para medir instalações e performance de campanhas.</string>
+	<key>TikTokAppID</key>
+	<string>$(TIKTOK_APP_ID)</string>
+	<key>TikTokAppSecret</key>
+	<string>$(TIKTOK_APP_SECRET)</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

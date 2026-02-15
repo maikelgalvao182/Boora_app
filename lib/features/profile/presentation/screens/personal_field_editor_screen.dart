@@ -12,6 +12,7 @@ import 'package:partiu/features/profile/presentation/editors/looking_for_editor.
 import 'package:partiu/features/profile/presentation/editors/marital_status_editor.dart';
 import 'package:partiu/features/profile/presentation/models/personal_field_type.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Tela genérica de edição de campo pessoal no formato Instagram/TikTok
 /// Header com botões "Cancelar" e "Salvar", corpo com o editor específico
@@ -218,7 +219,7 @@ class _PersonalFieldEditorScreenState extends State<PersonalFieldEditorScreen> {
           isSaving: false,
         ),
         body: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20.w),
           child: _buildEditor(context),
         ),
       ),

@@ -11,6 +11,7 @@ import 'package:partiu/shared/widgets/glimpse_button.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/dialogs/dialog_styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -143,7 +144,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           location: _viewModel.savedLocation,
           onConfirm: () {
             if (widget.isSignUpProcess) {
-              context.go(AppRoutes.home);
+              context.go('${AppRoutes.home}?tab=0');
             } else {
               // Se veio do edit profile, volta para a tela anterior
               Navigator.of(context).pop(true);
@@ -171,7 +172,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DialogStyles.buildWarningIcon(icon: Iconsax.close_circle, iconSize: 40),
+              DialogStyles.buildWarningIcon(icon: Iconsax.close_circle, iconSize: 40.w),
               const SizedBox(height: DialogStyles.spacingAfterIcon),
               DialogStyles.buildTitle(_i18n.translate('error')),
               const SizedBox(height: DialogStyles.spacingAfterTitle),
@@ -209,7 +210,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DialogStyles.buildSuccessIcon(icon: Iconsax.tick_circle, iconSize: 40),
+              DialogStyles.buildSuccessIcon(icon: Iconsax.tick_circle, iconSize: 40.w),
               const SizedBox(height: DialogStyles.spacingAfterIcon),
               DialogStyles.buildTitle(_i18n.translate('success')),
               const SizedBox(height: DialogStyles.spacingAfterTitle),
@@ -218,26 +219,26 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
               if (location != null && location.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
                   decoration: BoxDecoration(
                     color: GlimpseColors.primaryLight,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Iconsax.location,
-                        size: 18,
+                        size: 18.w,
                         color: GlimpseColors.primary,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8.w),
                       Flexible(
                         child: Text(
                           location,
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 14,
+                            fontSize: 14.sp,
                             fontWeight: FontWeight.w600,
                             color: GlimpseColors.primaryColorLight,
                           ),
@@ -279,7 +280,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DialogStyles.buildWarningIcon(icon: Iconsax.location_slash, iconSize: 40),
+              DialogStyles.buildWarningIcon(icon: Iconsax.location_slash, iconSize: 40.w),
               const SizedBox(height: DialogStyles.spacingAfterIcon),
               DialogStyles.buildTitle(_i18n.translate('permission_required')),
               const SizedBox(height: DialogStyles.spacingAfterTitle),
@@ -302,7 +303,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
@@ -335,12 +336,12 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
               backgroundColor: Colors.white,
               elevation: 0,
               leading: Padding(
-                padding: const EdgeInsets.only(left: 16.0),
+                padding: EdgeInsets.only(left: 16.w),
                 child: GlimpseBackButton(
                   onTap: () => Navigator.of(context).pop(),
                 ),
               ),
-              leadingWidth: 56,
+              leadingWidth: 56.w,
             )
           : null,
       body: Column(
@@ -354,46 +355,46 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                   child: SafeArea(
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+                      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 40.h),
                       child: Column(
                         children: [
                           // Logo/ícone principal
                           Container(
-                            width: 80,
-                            height: 80,
+                            width: 80.w,
+                            height: 80.h,
                             decoration: BoxDecoration(
                               color: GlimpseColors.primary.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Iconsax.location,
-                              size: 40,
+                              size: 40.w,
                               color: GlimpseColors.primary,
                             ),
                           ),
                           
-                          const SizedBox(height: 40),
+                          SizedBox(height: 40.h),
                           
                           // Título principal
                           Text(
                             _i18n.translate('connect_with_nearby_travelers'),
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 28,
+                              fontSize: 28.sp,
                               fontWeight: FontWeight.w700,
                               color: Colors.black,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16.h),
                           
                           // Subtítulo
                           Text(
                             _i18n.translate('enable_location_to_discover'),
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 16,
+                              fontSize: 16.sp,
                               fontWeight: FontWeight.w400,
                               color: Colors.grey[600],
                               height: 1.5,
@@ -401,7 +402,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                             textAlign: TextAlign.center,
                           ),
                           
-                          const SizedBox(height: 24),
+                          SizedBox(height: 24.h),
                           
                           // Lista de benefícios
                           _buildBenefitItem(
@@ -410,7 +411,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                             description: _i18n.translate('find_and_join_spontaneous_meetups'),
                           ),
                           
-                          const SizedBox(height: 32),
+                          SizedBox(height: 32.h),
                           
                           _buildBenefitItem(
                             icon: Iconsax.people,
@@ -418,7 +419,7 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                             description: _i18n.translate('other_travelers_can_see_you'),
                           ),
                           
-                          const SizedBox(height: 32),
+                          SizedBox(height: 32.h),
                           
                           _buildBenefitItem(
                             icon: Iconsax.shield_tick,
@@ -438,13 +439,13 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
           SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: EdgeInsets.all(24.w),
               child: GlimpseButton(
                 text: _i18n.translate('enable_and_continue'),
                 onPressed: _handleSaveLocation,
                 isProcessing: _isSaving,
                 width: double.infinity,
-                height: 56,
+                height: 56.h,
               ),
             ),
           ),
@@ -463,20 +464,20 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: 48.w,
+          height: 48.h,
           decoration: BoxDecoration(
             color: GlimpseColors.primaryLight,
             shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
-            size: 24,
+            size: 24.w,
             color: GlimpseColors.primary,
           ),
         ),
         
-        const SizedBox(width: 16),
+        SizedBox(width: 16.w),
         
         Expanded(
           child: Column(
@@ -486,19 +487,19 @@ class UpdateLocationScreenRefactoredState extends State<UpdateLocationScreenRefa
                 title,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w600,
                   color: Colors.black,
                 ),
               ),
               
-              const SizedBox(height: 4),
+              SizedBox(height: 4.h),
               
               Text(
                 description,
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   fontWeight: FontWeight.w400,
                   color: Colors.grey[600],
                   height: 1.4,

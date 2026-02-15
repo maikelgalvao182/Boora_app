@@ -323,7 +323,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       case SignupWizardStep.origin:
         return i18n.translate('how_did_you_hear_about_us');
       case SignupWizardStep.evaluation:
-        return i18n.translate('what_people_are_saying');
+        return '';
     }
   }
   
@@ -352,7 +352,7 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
       case SignupWizardStep.origin:
         return i18n.translate('we_would_love_to_know');
       case SignupWizardStep.evaluation:
-        return i18n.translate('see_what_our_community_thinks');
+        return null;
     }
   }
 
@@ -609,10 +609,9 @@ class _SignupWizardScreenState extends State<SignupWizardScreen> {
         return Container(
           color: Colors.white,
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
             child: const AppEvaluationWidget(
               isBride: false, // Vendor flow
-              shouldAutoRequestReview: true,
             ),
           ),
         );

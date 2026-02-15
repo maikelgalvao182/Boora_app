@@ -8,9 +8,6 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/features/event_photo_feed/presentation/controllers/event_photo_composer_controller.dart';
 import 'package:partiu/features/event_photo_feed/presentation/widgets/event_photo_participant_selector_sheet.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
-import 'package:partiu/features/home/presentation/widgets/list_card.dart';
-import 'package:partiu/features/home/presentation/widgets/list_card/list_card_controller.dart';
-import 'package:partiu/features/home/presentation/widgets/list_drawer.dart';
 
 final recentEligibleEventsProvider = FutureProvider<List<EventModel>>((ref) async {
   print('🎯 [recentEligibleEventsProvider] Iniciando carregamento de eventos...');
@@ -73,7 +70,7 @@ class EventPhotoEventSelectorSheet extends ConsumerWidget {
               const SizedBox(height: 12),
               asyncEvents.when(
                 data: (events) {
-                  final visibleEvents = events.where((e) => e.isAvailable).toList(growable: false);
+                  final visibleEvents = events;
                   if (visibleEvents.isEmpty) {
                     return SizedBox(
                       height: 120,
@@ -170,30 +167,28 @@ class EventPhotoEventSelectorSheet extends ConsumerWidget {
                                 color: Colors.red[800],
                               ).merge(const TextStyle(fontFamily: 'monospace')),
                             ),
-                            if (stack != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                i18n.translate('event_photo_error_stack_trace_label'),
-                                style: GoogleFonts.getFont(
-                                  FONT_PLUS_JAKARTA_SANS,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.red[900],
-                                ),
+                            const SizedBox(height: 8),
+                            Text(
+                              i18n.translate('event_photo_error_stack_trace_label'),
+                              style: GoogleFonts.getFont(
+                                FONT_PLUS_JAKARTA_SANS,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red[900],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$stack',
-                                maxLines: 10,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.getFont(
-                                  FONT_PLUS_JAKARTA_SANS,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.red[700],
-                                ).merge(const TextStyle(fontFamily: 'monospace')),
-                              ),
-                            ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$stack',
+                              maxLines: 10,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.getFont(
+                                FONT_PLUS_JAKARTA_SANS,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w400,
+                                color: Colors.red[700],
+                              ).merge(const TextStyle(fontFamily: 'monospace')),
+                            ),
                           ],
                         ),
                       ),
@@ -223,33 +218,84 @@ class _EventListCardItem extends StatefulWidget {
 }
 
 class _EventListCardItemState extends State<_EventListCardItem> {
-  late final ListCardController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    // Usa o cache para evitar rebuilds desnecessários ao abrir/fechar o sheet
-    _controller = ListCardControllerCache.get(widget.event.id);
-    _controller.load();
-  }
-
-  @override
-  void dispose() {
-    // Não damos dispose aqui pois o controller vive no cache
-    // _controller.dispose(); 
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _controller.dataReadyNotifier,
-      builder: (context, _, __) {
-        return ListCard(
-          controller: _controller,
-          onTap: widget.onSelect,
-        );
-      },
+    final event = widget.event;
+    final eventDate = event.scheduleDate;
+    final locationName = event.locationName?.trim();
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onSelect,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: GlimpseColors.borderColorLight),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: GlimpseColors.lightTextField,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  event.emoji,
+                  style: const TextStyle(fontSize: 22),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.getFont(
+                        FONT_PLUS_JAKARTA_SANS,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: GlimpseColors.primaryColorLight,
+                      ),
+                    ),
+                    if (locationName != null && locationName.isNotEmpty)
+                      Text(
+                        locationName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: GlimpseColors.textSubTitle,
+                        ),
+                      ),
+                    if (eventDate != null)
+                      Text(
+                        '${eventDate.day.toString().padLeft(2, '0')}/${eventDate.month.toString().padLeft(2, '0')} • ${eventDate.hour.toString().padLeft(2, '0')}:${eventDate.minute.toString().padLeft(2, '0')}',
+                        style: GoogleFonts.getFont(
+                          FONT_PLUS_JAKARTA_SANS,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: GlimpseColors.textSubTitle,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

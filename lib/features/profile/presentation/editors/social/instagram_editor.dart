@@ -4,6 +4,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 
@@ -47,6 +48,7 @@ class InstagramEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,15 +70,15 @@ class InstagramEditor extends StatelessWidget {
           ],
           validator: _validateUsername,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         // Texto helper abaixo do input
         Padding(
-          padding: const EdgeInsets.only(left: 4),
+          padding: EdgeInsets.only(left: 4.w),
           child: Text(
             i18n.translate('instagram_helper'),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 12,
+              fontSize: (isCompactScreen ? 11 : 12).sp,
               fontWeight: FontWeight.w400,
               color: GlimpseColors.textSubTitle,
             ),

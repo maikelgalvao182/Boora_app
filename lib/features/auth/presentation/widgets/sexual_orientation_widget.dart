@@ -1,6 +1,8 @@
 import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_dropdown.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:partiu/core/constants/glimpse_styles.dart';
 
 /// Widget de seleção de orientação sexual
 class SexualOrientationWidget extends StatelessWidget {
@@ -38,6 +40,9 @@ class SexualOrientationWidget extends StatelessWidget {
       hintText: i18n.translate('sexual_orientation_hint'),
       items: orientationOptions,
       selectedValue: initialOrientation.isNotEmpty ? initialOrientation : null,
+      labelStyle: GlimpseStyles.fieldLabelStyle(
+        color: Theme.of(context).textTheme.titleMedium?.color,
+      ).copyWith(fontSize: 14.sp),
       itemBuilder: (item) {
         if (item == orientationHeterosexual) {
           return i18n.translate('sexual_orientation_heterosexual');

@@ -135,7 +135,7 @@ class NotificationsCounterService {
         .collection('Connections')
         .doc(currentUserId)
         .collection('Conversations')
-      .limit(1000)
+      .limit(200) // Reduzido de 1000 — suficiente para contagem de unread
         .snapshots()
         .listen(
       (snapshot) {
@@ -198,7 +198,7 @@ class NotificationsCounterService {
         .collection('Notifications')
         .where('n_receiver_id', isEqualTo: currentUserId)
         .where('n_read', isEqualTo: false)
-      .limit(1000)
+      .limit(200) // Reduzido de 1000 — suficiente para contagem de unread
         .snapshots()
         .listen(
       (snapshot) {

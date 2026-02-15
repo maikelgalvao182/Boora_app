@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -32,6 +33,7 @@ class AboutMeSection extends StatelessWidget {
     final i18n = AppLocalizations.of(context);
     final effectiveTitleColor = titleColor ?? GlimpseColors.primaryColorLight;
     final effectiveTextColor = textColor ?? GlimpseColors.primaryColorLight;
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     final trimmed = bio?.trim() ?? '';
     
@@ -40,7 +42,7 @@ class AboutMeSection extends StatelessWidget {
     
     return Container(
       padding: hasActionsBelow
-        ? const EdgeInsets.only(left: 20, right: 20, bottom: 16)
+        ? EdgeInsets.only(left: 20.w, right: 20.w, bottom: 16.h)
         : GlimpseStyles.profileSectionPadding,
       width: double.infinity,
       child: Column(
@@ -51,17 +53,17 @@ class AboutMeSection extends StatelessWidget {
             title ?? i18n.translate('about_me_title'),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: (isCompactScreen ? 17 : 18).sp,
               color: GlimpseColors.primaryColorLight,
             ),
             textAlign: TextAlign.left,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
 
           Text(
             trimmed,
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
-              fontSize: 14,
+              fontSize: (isCompactScreen ? 13 : 14).sp,
               color: effectiveTextColor,
             ),
             textAlign: TextAlign.left,

@@ -48,7 +48,7 @@ class ChatAvatarWidget extends StatelessWidget {
     return StableAvatar(
       key: ValueKey(user.userId),
       userId: user.userId,
-      size: 40,
+      size: ConversationStyles.avatarSizeChatAppBar,
       enableNavigation: false,
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -79,6 +80,13 @@ class FindPeopleController {
   // 🚀 OTIMIZAÇÃO 1: Debounce de queries Firestore (reduz até 40% de leituras)
   List<UserWithDistance>? _lastUsersCached;
   DateTime? _lastFetch;
+
+  // 🚀 P0 getPeople (bounds): throttle + histerese + cancelamento lógico em voo
+  static const Duration _boundsCooldown = Duration(milliseconds: 5000);
+  DateTime _lastBoundsFetch = DateTime.fromMillisecondsSinceEpoch(0);
+  String? _lastBoundsKey;
+  MapBounds? _lastBounds;
+  int _boundsRequestVersion = 0;
   
   // 🚀 OTIMIZAÇÃO 2: Versionamento para concorrência (Google Meet/Instagram Live style)
   int _listVersion = 0;
@@ -328,10 +336,10 @@ class FindPeopleController {
   Future<List<UserWithDistance>> _getRadiusUsersDebounced() async {
     final now = DateTime.now();
     
-    // Cache válido por 5 segundos
+    // Cache válido por 15 segundos (reduz chamadas à Cloud Function)
     if (_lastFetch != null && 
         _lastUsersCached != null &&
-        now.difference(_lastFetch!).inSeconds < 5) {
+        now.difference(_lastFetch!).inSeconds < 15) {
       debugPrint('🗂️ [Debounce] Usando cache de query (${now.difference(_lastFetch!).inSeconds}s atrás)');
       return _lastUsersCached!;
     }
@@ -340,6 +348,90 @@ class FindPeopleController {
     _lastFetch = now;
     _lastUsersCached = await _locationService.getUsersWithinRadiusOnce();
     return _lastUsersCached!;
+  }
+
+  String _buildBoundsKey(MapBounds bounds) {
+    final centerLat = ((bounds.minLat + bounds.maxLat) / 2.0);
+    final centerLng = ((bounds.minLng + bounds.maxLng) / 2.0);
+    final latSpan = (bounds.maxLat - bounds.minLat).abs();
+    final lngSpan = (bounds.maxLng - bounds.minLng).abs();
+
+    // Quantização leve (~200m) para reduzir micro-variações de pan
+    final qLat = (centerLat / 0.002).round();
+    final qLng = (centerLng / 0.002).round();
+
+    int zoomBucket;
+    final maxSpan = math.max(latSpan, lngSpan);
+    if (maxSpan > 0.30) {
+      zoomBucket = 0;
+    } else if (maxSpan > 0.15) {
+      zoomBucket = 1;
+    } else if (maxSpan > 0.07) {
+      zoomBucket = 2;
+    } else {
+      zoomBucket = 3;
+    }
+
+    final interestsSorted = [..._currentFilters.interests]..sort();
+
+    final filtersSig = [
+      _currentFilters.gender,
+      _currentFilters.minAge,
+      _currentFilters.maxAge,
+      _currentFilters.isVerified,
+      _currentFilters.sexualOrientation,
+      interestsSorted.join(','),
+      _currentFilters.radiusKm,
+    ].join('|');
+
+    return '$qLat:$qLng|zb:$zoomBucket|f:$filtersSig';
+  }
+
+  double _distanceMeters(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final dLat = (lat2 - lat1) * (math.pi / 180.0);
+    final dLng = (lng2 - lng1) * (math.pi / 180.0);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * (math.pi / 180.0)) *
+            math.cos(lat2 * (math.pi / 180.0)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusMeters * c;
+  }
+
+  bool _isSignificantBoundsChange(MapBounds previous, MapBounds next) {
+    final prevCenterLat = (previous.minLat + previous.maxLat) / 2.0;
+    final prevCenterLng = (previous.minLng + previous.maxLng) / 2.0;
+    final nextCenterLat = (next.minLat + next.maxLat) / 2.0;
+    final nextCenterLng = (next.minLng + next.maxLng) / 2.0;
+
+    final centerDistanceMeters = _distanceMeters(
+      prevCenterLat,
+      prevCenterLng,
+      nextCenterLat,
+      nextCenterLng,
+    );
+
+    final prevLatSpan = (previous.maxLat - previous.minLat).abs();
+    final prevLngSpan = (previous.maxLng - previous.minLng).abs();
+    final nextLatSpan = (next.maxLat - next.minLat).abs();
+    final nextLngSpan = (next.maxLng - next.minLng).abs();
+
+    final prevArea = prevLatSpan * prevLngSpan;
+    final nextArea = nextLatSpan * nextLngSpan;
+    final areaDeltaRatio = prevArea <= 0
+        ? 1.0
+        : (nextArea - prevArea).abs() / prevArea;
+
+    // Histerese: só considera mudança relevante se mover >800m
+    // ou alterar área visível em >35% (reduz chamadas em pan/zoom leve)
+    return centerDistanceMeters > 800 || areaDeltaRatio > 0.35;
   }
   
   /// Busca o raio configurado pelo usuário no Firestore
@@ -378,6 +470,31 @@ class FindPeopleController {
   ///
   /// Usado para manter a tela sincronizada com pan/zoom (mesmo comportamento do ListDrawer com eventos).
   Future<void> refreshForBounds(MapBounds bounds) async {
+    final now = DateTime.now();
+    final newKey = _buildBoundsKey(bounds);
+    final withinCooldown = now.difference(_lastBoundsFetch) < _boundsCooldown;
+    final hasPreviousBounds = _lastBounds != null;
+    final significantChange = hasPreviousBounds
+        ? _isSignificantBoundsChange(_lastBounds!, bounds)
+        : true;
+
+    if (_lastBoundsKey == newKey && withinCooldown) {
+      debugPrint('⏭️ [FindPeopleBounds] Skip: key idêntica em cooldown');
+      return;
+    }
+
+    if (withinCooldown && !significantChange) {
+      debugPrint('⏭️ [FindPeopleBounds] Skip: micro-pan/micro-zoom dentro do cooldown');
+      return;
+    }
+
+    _lastBoundsFetch = now;
+    _lastBoundsKey = newKey;
+    _lastBounds = bounds;
+
+    // Cancelamento lógico: invalida resposta anterior em voo
+    final requestVersion = ++_boundsRequestVersion;
+
     try {
       isLoading.value = true;
       error.value = null;
@@ -392,6 +509,12 @@ class FindPeopleController {
         filters: _currentFilters,
       );
 
+      // Se já entrou uma requisição mais nova, descarta esta resposta
+      if (requestVersion != _boundsRequestVersion) {
+        debugPrint('⏭️ [FindPeopleBounds] Resposta descartada (stale request)');
+        return;
+      }
+
       // Atualiza UI rápido
       final quickUsers = await _buildUserList(usersWithDistance, heavyProcessing: false);
       _updateUsersList(quickUsers);
@@ -400,6 +523,9 @@ class FindPeopleController {
       // Enriquecer em background (ratings/interesses)
       _enrichUsersInBackground(usersWithDistance);
     } catch (e) {
+      if (requestVersion != _boundsRequestVersion) {
+        return;
+      }
       debugPrint('❌ FindPeopleController.refreshForBounds: $e');
       error.value = 'Erro ao carregar pessoas na região';
       isLoading.value = false;
@@ -457,7 +583,7 @@ class FindPeopleController {
         _cache.set(
           cacheKeyForSave,
           users.value,
-          ttl: const Duration(minutes: 3),
+          ttl: const Duration(minutes: 5),
         );
         debugPrint('🗂️ [FindPeople] Cache SAVED - ${users.value.length} pessoas');
       }
@@ -887,7 +1013,7 @@ class FindPeopleController {
         _cache.set(
           cacheKey,
           enrichedUsers,
-          ttl: const Duration(minutes: 3),
+          ttl: const Duration(minutes: 5),
         );
         
         debugPrint('✅ [Progressive] Dados enriquecidos aplicados');
@@ -969,7 +1095,7 @@ class FindPeopleController {
         _cache.set(
           cacheKey,
           loadedUsers,
-          ttl: const Duration(minutes: 3),
+          ttl: const Duration(minutes: 5),
         );
       } else {
         debugPrint('✅ [FindPeople] Lista está atualizada (sem mudanças significativas)');

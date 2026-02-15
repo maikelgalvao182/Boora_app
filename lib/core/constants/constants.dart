@@ -14,6 +14,21 @@ const int IOS_APP_VERSION_NUMBER = 1; // App Store Version Number
 /// REFERRAL CONSTANTS
 const String REFERRAL_DEEP_LINK_VALUE = 'invite';
 
+/// APPSFLYER
+///
+/// Pode ser sobrescrito via --dart-define em CI/CD:
+/// --dart-define=APPSFLYER_DEV_KEY=xxx
+/// --dart-define=APPSFLYER_APP_ID=1234567890
+const String APPSFLYER_DEV_KEY = String.fromEnvironment(
+  'APPSFLYER_DEV_KEY',
+  defaultValue: 'vNSZa9dsyauCnc6zZEdtnR',
+);
+
+const String APPSFLYER_APP_ID = String.fromEnvironment(
+  'APPSFLYER_APP_ID',
+  defaultValue: '6755944656',
+);
+
 /// GOOGLE MAPS / PLACES API KEYS
 /// ÚNICA fonte de verdade no app (Dart).
 ///

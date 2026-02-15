@@ -2,12 +2,30 @@ import Flutter
 import UIKit
 import GoogleMaps
 import flutter_local_notifications
+import TikTokBusinessSDK
 
 // Obs: FBSDKCoreKit pode não expor módulos Swift (dependendo da instalação via CocoaPods).
 // O SDK do Facebook normalmente é inicializado automaticamente via plugin.
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  private func initializeTikTokBusinessSDK() {
+    guard
+      let appId = Bundle.main.object(forInfoDictionaryKey: "TikTokAppID") as? String,
+      let accessToken = Bundle.main.object(forInfoDictionaryKey: "TikTokAppSecret") as? String,
+      !appId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      NSLog("[TikTokSDK] TikTokAppID/TikTokAppSecret ausentes no Info.plist")
+      return
+    }
+
+    let config = TikTokConfig(appId: appId, tiktokAppId: appId)
+    TikTokBusiness.initializeSdk(config)
+    TikTokBusiness.updateAccessToken(accessToken)
+    NSLog("[TikTokSDK] Inicializado com sucesso")
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -21,6 +39,8 @@ import flutter_local_notifications
     
     // Registrar plugins normalmente
     GeneratedPluginRegistrant.register(with: self)
+
+    initializeTikTokBusinessSDK()
 
     // ✅ Configurar para receber notificações quando app está em foreground
     if #available(iOS 10.0, *) {

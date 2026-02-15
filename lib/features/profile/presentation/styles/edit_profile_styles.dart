@@ -1,6 +1,7 @@
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Centralized styles for EditProfile components
 /// Following Flutter best practices for style separation
@@ -19,23 +20,23 @@ class EditProfileStyles {
   // =============================================================================
   // DIMENSIONS & SPACING
   // =============================================================================
-  static const double profilePhotoSize = 88;
-  static const double cameraButtonSize = 35;
-  static const double cameraButtonRadius = 17.5;
-  static const double profilePhotoBorderRadius = 12;
-  static const double cameraButtonBorderWidth = 1.5;
+  static double get profilePhotoSize => 88.w;
+  static double get cameraButtonSize => 35.w;
+  static double get cameraButtonRadius => 17.5.r;
+  static double get profilePhotoBorderRadius => 12.r;
+  static double get cameraButtonBorderWidth => 1.5.w;
   
   // Camera button positioning
-  static const double cameraButtonRight = -5;
-  static const double cameraButtonBottom = -4;
+  static double get cameraButtonRight => -5.w;
+  static double get cameraButtonBottom => -4.h;
   
   // AppBar dimensions
-  static const double appBarIconSize = 24;
-  static const double appBarIconWidth = 28;
-  static const double appBarRightPadding = 20;
+  static double get appBarIconSize => 24.sp;
+  static double get appBarIconWidth => 28.w;
+  static double get appBarRightPadding => 20.w;
   
   // Icon sizes
-  static const double cameraIconSize = 18;
+  static double get cameraIconSize => 18.sp;
   
   // =============================================================================
   // SPACING
@@ -43,20 +44,20 @@ class EditProfileStyles {
   static EdgeInsets get screenPadding => GlimpseStyles.screenAllPadding;
   static double get horizontalMargin => GlimpseStyles.horizontalMargin;
   
-  static const EdgeInsets profilePhotoSpacing = EdgeInsets.only(bottom: 8);
-  static const EdgeInsets tabSpacing = EdgeInsets.only(bottom: 16);
-  static const EdgeInsets contentSpacing = EdgeInsets.only(bottom: 20);
+  static EdgeInsets get profilePhotoSpacing => EdgeInsets.only(bottom: 8.h);
+  static EdgeInsets get tabSpacing => EdgeInsets.only(bottom: 16.h);
+  static EdgeInsets get contentSpacing => EdgeInsets.only(bottom: 20.h);
   
   // =============================================================================
   // TEXT STYLES
   // =============================================================================
-  static TextStyle get appBarTitleStyle => const TextStyle(
-    fontSize: 20,
+  static TextStyle get appBarTitleStyle => TextStyle(
+    fontSize: 20.sp,
     fontWeight: FontWeight.w700,
   );
   
   static TextStyle get saveButtonStyle => TextStyle(
-    fontSize: 16,
+    fontSize: 16.sp,
     fontWeight: FontWeight.w600,
     color: actionColor,
   );
@@ -85,7 +86,7 @@ class EditProfileStyles {
   // BUTTON STYLES
   // =============================================================================
   static TextStyle get saveButtonTextStyle => TextStyle(
-    fontSize: 14,
+    fontSize: 14.sp,
     fontWeight: FontWeight.w600,
     color: actionColor,
   );
@@ -111,25 +112,25 @@ class EditProfileStyles {
   static Color get borderColor => GlimpseColors.borderColorLight;
   
   // Form spacing
-  static const EdgeInsets formPadding = EdgeInsets.all(16);
-  static const SizedBox verticalSpacing = SizedBox(height: 16);
-  static const double inputBorderRadius = 8;
+  static EdgeInsets get formPadding => EdgeInsets.all(16.w);
+  static SizedBox get verticalSpacing => SizedBox(height: 16.h);
+  static double get inputBorderRadius => 8.r;
   
   // Form text styles
-  static const TextStyle labelTextStyle = TextStyle(
-    fontSize: 14,
+  static TextStyle get labelTextStyle => TextStyle(
+    fontSize: 14.sp,
     fontWeight: FontWeight.w500,
     color: GlimpseColors.textSubTitle,
   );
   
-  static const TextStyle inputTextStyle = TextStyle(
-    fontSize: 16,
+  static TextStyle get inputTextStyle => TextStyle(
+    fontSize: 16.sp,
     fontWeight: FontWeight.w500,
     color: GlimpseColors.textSubTitle,
   );
   
-  static const TextStyle placeholderTextStyle = TextStyle(
-    fontSize: 16,
+  static TextStyle get placeholderTextStyle => TextStyle(
+    fontSize: 16.sp,
     fontWeight: FontWeight.w400,
     color: GlimpseColors.textSubTitle,
   );

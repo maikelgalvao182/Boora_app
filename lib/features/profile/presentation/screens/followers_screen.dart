@@ -200,9 +200,9 @@ class _FollowersListTabState extends State<_FollowersListTab> {
           builder: (context, isLoading, __) {
             if (isLoading && users.isEmpty) {
               return ListView.separated(
-                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
                 itemCount: 6,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) => SizedBox(height: 12.h),
                 itemBuilder: (context, index) => const UserCardShimmer(),
               );
             }
@@ -219,11 +219,11 @@ class _FollowersListTabState extends State<_FollowersListTab> {
                           _tr(i18n, 'error_try_again', 'Erro, tente novamente'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             color: GlimpseColors.textSubTitle,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16.h),
                         TextButton(
                           onPressed: widget.controller.refreshFollowers,
                           child: Text(
@@ -259,7 +259,7 @@ class _FollowersListTabState extends State<_FollowersListTab> {
                         return PlatformPullToRefresh(
                           onRefresh: widget.controller.refreshFollowers,
                           controller: widget.scrollController,
-                          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                          padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
                           itemCount: users.length,
                           onLoadMore: widget.controller.loadMoreFollowers,
                           hasMore: hasMore,
@@ -330,9 +330,9 @@ class _FollowingListTabState extends State<_FollowingListTab> {
           builder: (context, isLoading, __) {
             if (isLoading && users.isEmpty) {
               return ListView.separated(
-                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
                 itemCount: 6,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) => SizedBox(height: 12.h),
                 itemBuilder: (context, index) => const UserCardShimmer(),
               );
             }
@@ -349,18 +349,18 @@ class _FollowingListTabState extends State<_FollowingListTab> {
                           _tr(i18n, 'error_try_again', 'Erro, tente novamente'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             color: GlimpseColors.textSubTitle,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16.h),
                         TextButton(
                           onPressed: widget.controller.refreshFollowing,
                           child: Text(
                             _tr(i18n, 'try_again', 'Tentar novamente'),
                             style: GoogleFonts.getFont(
                               FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 14,
+                              fontSize: 14.sp,
                               fontWeight: FontWeight.w600,
                               color: GlimpseColors.primary,
                             ),
@@ -389,7 +389,7 @@ class _FollowingListTabState extends State<_FollowingListTab> {
                         return PlatformPullToRefresh(
                           onRefresh: widget.controller.refreshFollowing,
                           controller: widget.scrollController,
-                          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                          padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
                           itemCount: users.length,
                           onLoadMore: widget.controller.loadMoreFollowing,
                           hasMore: hasMore,
@@ -479,17 +479,17 @@ class _FollowActionButtonState extends State<_FollowActionButton> {
                 : GlimpseColors.borderColorLight;
 
             return SizedBox(
-              height: 36,
-              width: 110,
+              height: 36.h,
+              width: 110.w,
               child: TextButton(
                 style: TextButton.styleFrom(
                   backgroundColor: outline ? Colors.transparent : bgColor,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10.r),
                     side: outline
-                        ? const BorderSide(
+                        ? BorderSide(
                             color: GlimpseColors.borderColorLight,
-                            width: 1,
+                            width: 1.w,
                           )
                         : BorderSide.none,
                   ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:partiu/shared/widgets/glimpse_button.dart';
@@ -32,14 +33,14 @@ class ProfileActionsSection extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 22),
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 22.h),
       child: Row(
         children: [
           if (showFollowButton && followController != null) ...[
             Expanded(
               child: _FollowButtonIsolated(controller: followController!),
             ),
-            if (showMessageButton) const SizedBox(width: 8),
+            if (showMessageButton) SizedBox(width: 8.w),
           ],
           if (showMessageButton)
             Expanded(
@@ -49,8 +50,8 @@ class ProfileActionsSection extends StatelessWidget {
                 textColor: Colors.white,
                 icon: Iconsax.message,
                 onTap: onMessage ?? () {},
-                height: 52,
-                fontSize: 14,
+                height: 52.h,
+                fontSize: 14.sp,
               ),
             ),
         ],
@@ -97,8 +98,8 @@ class _FollowButtonIsolated extends StatelessWidget {
                 debugPrint('🔘 [_FollowButtonIsolated] GlimpseButton onTap() chamado');
                 controller.toggleFollow();
               },
-              height: 52,
-              fontSize: 14,
+              height: 52.h,
+              fontSize: 14.sp,
             );
           },
         );

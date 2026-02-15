@@ -53,14 +53,14 @@ class PeopleMapDiscoveryService {
   final ValueNotifier<bool> isLoading = ValueNotifier<bool>(false);
   final ValueNotifier<Object?> lastError = ValueNotifier<Object?>(null);
 
-  /// TTL do cache por tile. 3min reduz refetch em pan/zoom.
-  static const Duration cacheTTL = Duration(seconds: 180);
+  /// TTL do cache por tile. 10min reduz invocações de getPeople.
+  static const Duration cacheTTL = Duration(minutes: 10);
   /// TTL do cache persistente (Hive) por tile.
   static const Duration persistentCacheTTL = Duration(hours: 24);
   /// Refresh em background quando o cache persistente estiver "velho".
-  static const Duration persistentSoftRefreshAge = Duration(hours: 6);
+  static const Duration persistentSoftRefreshAge = Duration(hours: 12);
   static const Duration debounceTime = Duration(milliseconds: 300);
-  static const Duration softRefreshCooldown = Duration(minutes: 10);
+  static const Duration softRefreshCooldown = Duration(minutes: 30);
   static const Duration softRefreshMinIdle = Duration(seconds: 4);
   static const double _expandMarginDefault = 0.30;
   static const double _expandMarginHighZoom = 0.18;
@@ -259,6 +259,19 @@ class PeopleMapDiscoveryService {
     _currentZoom = zoom;
     _lastCameraIdleAt = DateTime.now();
 
+    // Skip: se o bounds atual está contido no coverage já carregado
+    // e filtros/zoom não mudaram, não precisa nova query
+    final filtersSignature = _buildFiltersSignature(_locationQueryService.currentFilters);
+    final zoomBucket = _zoomBucket(zoom);
+    final coverage = _coverageBounds;
+    if (coverage != null &&
+        _coverageFiltersSignature == filtersSignature &&
+        _coverageZoomBucket == zoomBucket &&
+        _isBoundsContained(bounds, coverage)) {
+      debugPrint('⏭️ [PeopleMapDiscovery] Skip: bounds contido no coverage existente');
+      return;
+    }
+
     _pendingBounds = _expandBounds(bounds, _expandMarginForZoom(zoom));
 
     _debounceTimer?.cancel();
@@ -266,7 +279,7 @@ class PeopleMapDiscoveryService {
       final b = _pendingBounds;
       if (b != null) {
         _pendingBounds = null;
-        unawaited(_executeQuery(b, throttleMs: 2000, trigger: 'idle'));
+        unawaited(_executeQuery(b, throttleMs: 5000, trigger: 'idle'));
       }
     });
   }

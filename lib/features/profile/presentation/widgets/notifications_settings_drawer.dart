@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/common/state/app_state.dart';
@@ -120,6 +121,7 @@ class _NotificationsSettingsDrawerState
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
 
     return Container(
       decoration: const BoxDecoration(
@@ -151,16 +153,16 @@ class _NotificationsSettingsDrawerState
                     // Handle
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 40.w,
+                        height: 4.h,
                         decoration: BoxDecoration(
                           color: GlimpseColors.borderColorLight,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(2.r),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
 
                     // Header: Título + Close
                     Row(
@@ -172,15 +174,15 @@ class _NotificationsSettingsDrawerState
                               'Configurar Notificações'),
                           style: GoogleFonts.getFont(
                             FONT_PLUS_JAKARTA_SANS,
-                            fontSize: 20,
+                            fontSize: (isCompactScreen ? 16 : 18).sp,
                             fontWeight: FontWeight.w800,
                             color: GlimpseColors.primaryColorLight,
                           ),
                         ),
 
                         // Botão fechar
-                        const GlimpseCloseButton(
-                          size: 32,
+                        GlimpseCloseButton(
+                          size: 32.w,
                         ),
                       ],
                     ),
@@ -188,7 +190,7 @@ class _NotificationsSettingsDrawerState
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Conteúdo
               if (_isLoading)
@@ -207,7 +209,7 @@ class _NotificationsSettingsDrawerState
                         context,
                         _tr(i18n, 'notification_types', 'Tipos de notificação'),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8.h),
 
                       // Card com switches
                       Card(
@@ -260,14 +262,14 @@ class _NotificationsSettingsDrawerState
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24.h),
 
                       // Seção: Raio de eventos
                       _buildSectionHeader(
                         context,
                         _tr(i18n, 'event_radius', 'Raio de eventos'),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8.h),
 
                       // Card com slider
                       Card(
@@ -308,12 +310,12 @@ class _NotificationsSettingsDrawerState
                                               'Raio de notificações'),
                                           style: GoogleFonts.getFont(
                                             FONT_PLUS_JAKARTA_SANS,
-                                            fontSize: 15,
+                                            fontSize: (isCompactScreen ? 14 : 15).sp,
                                             fontWeight: FontWeight.w600,
                                             color: Colors.black,
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
+                                        SizedBox(height: 2.h),
                                         Text(
                                           _tr(
                                               i18n,
@@ -321,7 +323,7 @@ class _NotificationsSettingsDrawerState
                                               'Receba notificações de eventos criados dentro deste raio'),
                                           style: GoogleFonts.getFont(
                                             FONT_PLUS_JAKARTA_SANS,
-                                            fontSize: 12,
+                                            fontSize: (isCompactScreen ? 11 : 12).sp,
                                             fontWeight: FontWeight.w400,
                                             color: Colors.black54,
                                           ),
@@ -349,7 +351,7 @@ class _NotificationsSettingsDrawerState
                                     '${_eventNotificationRadius.toStringAsFixed(0)} km (${(_eventNotificationRadius * 0.621371).toStringAsFixed(0)} mi)',
                                     style: GoogleFonts.getFont(
                                       FONT_PLUS_JAKARTA_SANS,
-                                      fontSize: 14,
+                                          fontSize: (isCompactScreen ? 13 : 14).sp,
                                       fontWeight: FontWeight.w700,
                                       color: GlimpseColors.primary,
                                     ),
@@ -402,7 +404,7 @@ class _NotificationsSettingsDrawerState
                                       '1 km',
                                       style: GoogleFonts.getFont(
                                         FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 12,
+                                        fontSize: (isCompactScreen ? 11 : 12).sp,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.black45,
                                       ),
@@ -411,7 +413,7 @@ class _NotificationsSettingsDrawerState
                                       '30 km',
                                       style: GoogleFonts.getFont(
                                         FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 12,
+                                        fontSize: (isCompactScreen ? 11 : 12).sp,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.black45,
                                       ),
@@ -427,10 +429,10 @@ class _NotificationsSettingsDrawerState
                   ),
                 ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
 
               // Padding bottom para safe area
-              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16.h),
             ],
           ),
         ),
@@ -439,13 +441,14 @@ class _NotificationsSettingsDrawerState
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      padding: EdgeInsets.only(left: 4.w, bottom: 4.h),
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.getFont(
           FONT_PLUS_JAKARTA_SANS,
-          fontSize: 12,
+          fontSize: (isCompactScreen ? 11 : 12).sp,
           fontWeight: FontWeight.w700,
           color: Colors.black.withValues(alpha: 0.40),
           letterSpacing: 0.5,
@@ -462,23 +465,24 @@ class _NotificationsSettingsDrawerState
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: BorderRadius.circular(100.r),
             ),
             child: Icon(
               icon,
-              size: 20,
+              size: 20.sp,
               color: Colors.black,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,17 +491,17 @@ class _NotificationsSettingsDrawerState
                   title,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 15,
+                    fontSize: (isCompactScreen ? 14 : 15).sp,
                     fontWeight: FontWeight.w600,
                     color: Colors.black,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2.h),
                 Text(
                   subtitle,
                   style: GoogleFonts.getFont(
                     FONT_PLUS_JAKARTA_SANS,
-                    fontSize: 12,
+                    fontSize: (isCompactScreen ? 11 : 12).sp,
                     fontWeight: FontWeight.w400,
                     color: Colors.black54,
                   ),
@@ -505,14 +509,14 @@ class _NotificationsSettingsDrawerState
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
           CupertinoSwitch(
             value: value,
             onChanged: (v) {
               HapticFeedback.lightImpact();
               onChanged(v);
             },
-            activeColor: GlimpseColors.primary,
+            activeTrackColor: GlimpseColors.primary,
           ),
         ],
       ),

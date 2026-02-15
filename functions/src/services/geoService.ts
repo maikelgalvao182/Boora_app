@@ -178,7 +178,7 @@ export async function findUsersInRadius(options: {
     longitude,
     radiusKm = DEFAULT_RADIUS_KM,
     excludeUserIds = [],
-    limit = 500,
+    limit = 100,
   } = options;
 
   console.log("\n🌍 [GeoService] findUsersInRadius()");
@@ -192,46 +192,19 @@ export async function findUsersInRadius(options: {
   const firestore = admin.firestore();
 
   // 🔒 SEGURANÇA: Usa displayLatitude/displayLongitude (com offset ~1-3km)
-  // A localização real está protegida em Users/{userId}/private/location
-  // Mantemos fallback para latitude/longitude durante transição
-  const queryDefs = [
-    {collection: "Users", fieldPath: "displayLatitude", label: "Users.displayLatitude"},
-    {collection: "Users", fieldPath: "latitude", label: "Users.latitude (legacy)"},
-    {
-      collection: "Users",
-      fieldPath: "lastLocation.latitude",
-      label: "Users.lastLocation.latitude (legacy)",
-    },
-  ];
+  // ✅ Query única — legacy paths removidos (economia de 2 queries extras)
+  const snapshot = await firestore
+    .collection("Users")
+    .where("displayLatitude", ">=", bounds.minLat)
+    .where("displayLatitude", "<=", bounds.maxLat)
+    .limit(limit)
+    .get();
 
-  const snapshots = await Promise.all(
-    queryDefs.map((q) =>
-      firestore
-        .collection(q.collection)
-        .where(q.fieldPath, ">=", bounds.minLat)
-        .where(q.fieldPath, "<=", bounds.maxLat)
-        .limit(limit)
-        .get()
-    )
-  );
-
-  const docsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((doc) => {
-      if (!docsById.has(doc.id)) {
-        docsById.set(doc.id, doc);
-      }
-    });
-  });
-  const counts = queryDefs
-    .map((q, index) => `${q.label}:${snapshots[index].size}`)
-    .join(", ");
   console.log(
-    `📍 [GeoService] ${docsById.size} usuários no bounding box ` +
-      `(${counts})`
+    `📍 [GeoService] ${snapshot.size} usuários no bounding box (displayLatitude)`
   );
 
-  if (docsById.size === 0) {
+  if (snapshot.empty) {
     console.log("⚠️ [GeoService] Nenhum usuário no bounding box");
     return [];
   }
@@ -239,7 +212,7 @@ export async function findUsersInRadius(options: {
   // Filtrar por distância real e longitude
   const usersInRadius: string[] = [];
 
-  for (const doc of docsById.values()) {
+  for (const doc of snapshot.docs) {
     // Excluir IDs especificados
     if (excludeSet.has(doc.id)) {
       continue;
@@ -303,7 +276,7 @@ export async function findUsersForEventNotification(options: {
     eventLatitude,
     eventLongitude,
     excludeUserIds = [],
-    limit = 500,
+    limit = 100,
   } = options;
 
   console.log("\n🔔 [GeoService] findUsersForEventNotification()");
@@ -312,7 +285,7 @@ export async function findUsersForEventNotification(options: {
 
   const excludeSet = new Set(excludeUserIds);
 
-  // Buscar todos usuários no raio máximo (100km)
+  // Buscar todos usuários no raio máximo
   const bounds = calculateBoundingBox(
     eventLatitude,
     eventLongitude,
@@ -321,43 +294,24 @@ export async function findUsersForEventNotification(options: {
 
   const firestore = admin.firestore();
 
-  // Query com bounding box
-  const queryDefs = [
-    {collection: "Users", fieldPath: "displayLatitude", label: "displayLatitude"},
-    {collection: "Users", fieldPath: "latitude", label: "latitude (legacy)"},
-  ];
+  // ✅ Query única — legacy paths removidos (economia de 1 query extra)
+  const snapshot = await firestore
+    .collection("Users")
+    .where("displayLatitude", ">=", bounds.minLat)
+    .where("displayLatitude", "<=", bounds.maxLat)
+    .limit(limit * 2) // Buscar mais para compensar filtros
+    .get();
 
-  const snapshots = await Promise.all(
-    queryDefs.map((q) =>
-      firestore
-        .collection(q.collection)
-        .where(q.fieldPath, ">=", bounds.minLat)
-        .where(q.fieldPath, "<=", bounds.maxLat)
-        .limit(limit * 2) // Buscar mais para compensar filtros
-        .get()
-    )
-  );
+  console.log(`📍 [GeoService] ${snapshot.size} usuários no bounding box`);
 
-  // Deduplicar documentos
-  const docsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((doc) => {
-      if (!docsById.has(doc.id)) {
-        docsById.set(doc.id, doc);
-      }
-    });
-  });
-
-  console.log(`📍 [GeoService] ${docsById.size} usuários no bounding box`);
-
-  if (docsById.size === 0) {
+  if (snapshot.empty) {
     return [];
   }
 
   // Filtrar por distância real E raio personalizado do usuário
   const eligibleUsers: string[] = [];
 
-  for (const doc of docsById.values()) {
+  for (const doc of snapshot.docs) {
     if (excludeSet.has(doc.id)) {
       continue;
     }

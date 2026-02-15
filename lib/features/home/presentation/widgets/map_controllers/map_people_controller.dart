@@ -21,6 +21,7 @@ class MapPeopleController {
     final viewportActive = zoom > clusterZoomThreshold;
     _service.setViewportActive(viewportActive);
     if (viewportActive) {
+      // Throttle extra: evita calls quando bounds muda pouco
       final bounds = MapBounds.fromLatLngBounds(visibleRegion);
       await _service.loadPeopleCountInBounds(bounds, zoom: zoom);
     }

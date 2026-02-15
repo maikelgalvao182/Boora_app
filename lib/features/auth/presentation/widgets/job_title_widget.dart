@@ -1,6 +1,8 @@
 import 'package:partiu/core/utils/app_localizations.dart';
+import 'package:partiu/core/constants/glimpse_styles.dart';
 import 'package:partiu/shared/widgets/glimpse_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Widget de profissão/cargo
 /// Extraído para reutilização no wizard
@@ -43,6 +45,9 @@ class _JobTitleWidgetState extends State<JobTitleWidget> {
       controller: _jobTitleController,
       textCapitalization: TextCapitalization.words,
       onChanged: widget.onJobTitleChanged,
+      labelStyle: GlimpseStyles.fieldLabelStyle(
+        color: Theme.of(context).textTheme.titleMedium?.color,
+      ).copyWith(fontSize: 14.sp),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -23,29 +24,29 @@ class ListButton extends StatelessWidget {
       color: GlimpseColors.bgColorLight,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.3),
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(30.r),
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();
           onPressed();
         },
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(30.r),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Iconsax.sort,
-                size: 20,
+                size: 20.sp,
                 color: GlimpseColors.primaryColorLight,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8.w),
               Text(
                 i18n.translate('activities_list'),
                 style: GoogleFonts.getFont(
                   FONT_PLUS_JAKARTA_SANS,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                   color: GlimpseColors.primaryColorLight,
                 ),

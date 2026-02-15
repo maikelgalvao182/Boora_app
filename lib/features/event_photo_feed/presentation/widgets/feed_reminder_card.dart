@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -106,137 +107,150 @@ class _FeedReminderCardState extends State<FeedReminderCard>
       position: _slideAnim,
       child: FadeTransition(
         opacity: _fadeAnim,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.10),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+        child: SizedBox.expand(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.45),
+                ),
               ),
-            ],
-            border: Border.all(
-              color: GlimpseColors.borderColorLight,
-              width: 1,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Imagem à esquerda
-                  SizedBox(
-                    width: 100,
-                    child: Image.asset(
-                      imagePath,
-                      fit: BoxFit.cover,
+              Center(
+                child: Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16.w),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.10),
+                        blurRadius: 16.r,
+                        offset: Offset(0, 4.h),
+                      ),
+                    ],
+                    border: Border.all(
+                      color: GlimpseColors.borderColorLight,
+                      width: 1.w,
                     ),
                   ),
-
-                  // Textos e botões à direita
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16.r),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Título
-                          Text(
-                            title,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: GlimpseColors.primaryColorLight,
+                          // Imagem à esquerda
+                          SizedBox(
+                            width: 100.w,
+                            child: Image.asset(
+                              imagePath,
+                              fit: BoxFit.cover,
                             ),
                           ),
 
-                          const SizedBox(height: 4),
-
-                          // Subtítulo
-                          Text(
-                            subtitle,
-                            style: GoogleFonts.getFont(
-                              FONT_PLUS_JAKARTA_SANS,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: GlimpseColors.textSubTitle,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Botões
-                          Row(
-                            children: [
-                              // Botão primário: Abrir feed
-                              Expanded(
-                                child: SizedBox(
-                                  height: 34,
-                                  child: ElevatedButton(
-                                    onPressed: _handleOpenFeed,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: GlimpseColors.primary,
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      i18n.translate('feed_reminder_open_feed'),
-                                      style: GoogleFonts.getFont(
-                                        FONT_PLUS_JAKARTA_SANS,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(width: 8),
-
-                              // Botão secundário: Não mostrar mais
-                              SizedBox(
-                                height: 34,
-                                child: TextButton(
-                                  onPressed: _handleDontShowAgain,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: GlimpseColors.textSubTitle,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    i18n.translate('dont_show'),
+                          // Textos e botões à direita
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.all(12.r),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Título
+                                  Text(
+                                    title,
                                     style: GoogleFonts.getFont(
                                       FONT_PLUS_JAKARTA_SANS,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: GlimpseColors.primaryColorLight,
                                     ),
                                   ),
-                                ),
+
+                                  SizedBox(height: 4.h),
+
+                                  // Subtítulo
+                                  Text(
+                                    subtitle,
+                                    style: GoogleFonts.getFont(
+                                      FONT_PLUS_JAKARTA_SANS,
+                                      fontSize: 12.sp,
+                                      fontWeight: FontWeight.w400,
+                                      color: GlimpseColors.textSubTitle,
+                                    ),
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+
+                                  SizedBox(height: 12.h),
+
+                                  // Botões
+                                  Row(
+                                    children: [
+                                      // Botão primário: Abrir feed
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 34.h,
+                                          child: ElevatedButton(
+                                            onPressed: _handleOpenFeed,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: GlimpseColors.primary,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              padding: EdgeInsets.symmetric(horizontal: 12.w),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8.r),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              i18n.translate('feed_reminder_open_feed'),
+                                              style: GoogleFonts.getFont(
+                                                FONT_PLUS_JAKARTA_SANS,
+                                                fontSize: 12.sp,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                      SizedBox(width: 8.w),
+
+                                      // Botão secundário: Não mostrar mais
+                                      SizedBox(
+                                        height: 34.h,
+                                        child: TextButton(
+                                          onPressed: _handleDontShowAgain,
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: GlimpseColors.textSubTitle,
+                                            padding: EdgeInsets.symmetric(horizontal: 8.w),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8.r),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            i18n.translate('dont_show'),
+                                            style: GoogleFonts.getFont(
+                                              FONT_PLUS_JAKARTA_SANS,
+                                              fontSize: 11.sp,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

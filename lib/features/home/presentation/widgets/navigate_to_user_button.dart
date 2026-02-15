@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
 import 'package:iconsax/iconsax.dart';
 
@@ -59,35 +60,39 @@ class _NavigateToUserButtonState extends State<NavigateToUserButton>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: FloatingActionButton(
-        heroTag: 'navigate_to_user_button',
-        onPressed: _handlePress,
-        backgroundColor: Colors.white,
-        elevation: 0, // Elevation handled by Container shadow
+    return Hero(
+      tag: 'navigate_to_user_button',
+      child: Material(
+        elevation: 8.r,
+        shadowColor: Colors.black.withValues(alpha: 0.1),
         shape: const CircleBorder(),
-        child: AnimatedBuilder(
-          animation: _rotationAnimation,
-          builder: (context, child) {
-            return Transform.rotate(
-              angle: _rotationAnimation.value * 2 * 3.14159, // 360 graus em radianos
-              child: child,
-            );
-          },
-          child: const Icon(
-            Iconsax.direct_up,
-            color: GlimpseColors.primaryColorLight,
-            size: 28,
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _handlePress,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 56.w,
+            height: 56.h,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _rotationAnimation,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: _rotationAnimation.value * 2 * 3.14159, // 360 graus em radianos
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  Iconsax.direct_up,
+                  color: GlimpseColors.primaryColorLight,
+                  size: 28.sp,
+                ),
+              ),
+            ),
           ),
         ),
       ),

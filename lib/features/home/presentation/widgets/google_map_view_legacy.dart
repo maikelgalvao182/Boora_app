@@ -752,7 +752,7 @@ class GoogleMapViewState extends State<GoogleMapView> with TickerProviderStateMi
   /// (Pattern: Extract Method para Redundância Tripla)
   void _registerMapServices() {
     MapNavigationService.instance.registerMapHandler(
-      (eventId, {showConfetti = false}) {
+      (eventId, {showConfetti = false}) async {
         if (!mounted) return;
         _handleEventNavigation(eventId, showConfetti: showConfetti);
       },

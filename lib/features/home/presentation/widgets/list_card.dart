@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:partiu/core/constants/constants.dart';
@@ -58,9 +59,9 @@ class _ListCardState extends State<ListCard> {
     final totalCount = _controller.totalParticipantsCount;
     
     // Configurações unificadas de tamanho e estilo
-    const double size = 40.0;
-    const double border = 2.0;
-    const double offset = 28.0; // Distância visual entre os itens
+    final double size = 40.w;
+    final double border = 2.w;
+    final double offset = 28.w; // Distância visual entre os itens
     
     final displayCount = participants.length > 4 ? 4 : participants.length;
     final hasCounter = totalCount > 0;
@@ -82,7 +83,7 @@ class _ListCardState extends State<ListCard> {
             userId: participants[i]['userId'] as String,
             photoUrl: participants[i]['photoUrl'] as String?,
             size: size,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(999.r),
             enableNavigation: true,
           ),
         ),
@@ -105,7 +106,7 @@ class _ListCardState extends State<ListCard> {
             totalCount.toString(),
             style: GoogleFonts.getFont(
               FONT_PLUS_JAKARTA_SANS,
-              fontSize: 12,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w600,
               color: GlimpseColors.primary,
             ),
@@ -137,7 +138,7 @@ class _ListCardState extends State<ListCard> {
   /// Constrói o avatar de emoji do evento
   Widget _buildEmojiAvatar() {
     final emoji = _controller.emoji ?? ListEmojiAvatar.defaultEmoji;
-    const double size = 56.0;
+    final double size = 56.w;
     
     return Container(
       width: size,
@@ -151,7 +152,7 @@ class _ListCardState extends State<ListCard> {
           emoji: emoji,
           eventId: _controller.eventId,
           size: size,
-          emojiSize: 28,
+          emojiSize: 28.sp,
         ),
       ),
     );
@@ -175,21 +176,21 @@ class _ListCardState extends State<ListCard> {
       }
 
       return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.only(bottom: 12.h),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
             color: GlimpseColors.borderColorLight,
-            width: 1,
+            width: 1.w,
           ),
         ),
         child: Text(
           _controller.error!,
           style: GoogleFonts.getFont(
             FONT_PLUS_JAKARTA_SANS,
-            fontSize: 13,
+            fontSize: 13.sp,
             color: Colors.red,
           ),
         ),
@@ -223,14 +224,14 @@ class _ListCardState extends State<ListCard> {
         }
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.only(bottom: 12.h),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
             color: GlimpseColors.borderColorLight,
-            width: 1,
+            width: 1.w,
           ),
         ),
         child: Column(
@@ -242,7 +243,7 @@ class _ListCardState extends State<ListCard> {
               children: [
                 // Avatar de emoji
                 _buildEmojiAvatar(),
-                const SizedBox(width: 12),
+                SizedBox(width: 12.w),
                 // Texto formatado: "João quer jogar futebol em Parque dia 15/12 às 18:00"
                 Expanded(
                   child: _buildFormattedText(
@@ -257,7 +258,7 @@ class _ListCardState extends State<ListCard> {
               ],
             ),
             
-            const SizedBox(height: 16),
+            SizedBox(height: 16.h),
             
             // Base: Avatars (Esquerda)
             Row(
@@ -284,7 +285,7 @@ class _ListCardState extends State<ListCard> {
   }) {
     final baseStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 15,
+      fontSize: 15.sp,
       fontWeight: FontWeight.w600,
     );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/core/constants/glimpse_colors.dart';
@@ -30,6 +31,7 @@ class InterestsProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
     final effectiveTitleColor = titleColor ?? GlimpseColors.primaryColorLight;
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
     
     // ✅ AUTO-OCULTA: não renderiza seção vazia
     if (interests == null || interests!.isEmpty) {
@@ -47,12 +49,12 @@ class InterestsProfileSection extends StatelessWidget {
             title ?? i18n.translate('interests_section_title'),
             style: GoogleFonts.getFont(FONT_PLUS_JAKARTA_SANS, 
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: (isCompactScreen ? 17 : 18).sp,
               color: effectiveTitleColor,
             ),
             textAlign: TextAlign.left,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           
           // Tags with Wrap
           Wrap(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:math' as math;
 import 'package:partiu/core/constants/constants.dart';
 import 'package:partiu/features/home/data/models/event_model.dart';
 import 'package:partiu/features/home/presentation/widgets/helpers/marker_color_helper.dart';
@@ -70,6 +72,8 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
     }
 
     final theme = Theme.of(context);
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+    final overlayHeight = isLargeScreen ? math.min(46.0, 46.h) : 58.h;
 
     // Usa um builder que escuta mudanças nos notifiers VIP
     return _VipEventsBuilder(
@@ -86,16 +90,16 @@ class _VipEventPromoOverlayState extends State<VipEventPromoOverlay> {
         return AnimatedSlideIn(
           key: ValueKey('vip_overlay_$eventsKey'),
           child: SizedBox(
-            height: 58, // 48 (card) + 10 (espaço para sombra)
+            height: overlayHeight, // card compacto + espaço para sombra
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
               itemCount: vipEvents.length,
-              padding: const EdgeInsets.only(right: 8, top: 8),
+              padding: EdgeInsets.only(right: 8.w),
               itemBuilder: (context, index) {
                 final event = vipEvents[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(right: 8.w),
                   child: _PromoCard(
                     event: event,
                     backgroundColor: MarkerColorHelper.getColorForId(event.id),
@@ -236,9 +240,12 @@ class _PromoCardState extends State<_PromoCard> {
 
   @override
   Widget build(BuildContext context) {
-  const double kAvatarAndEmojiSize = 44;
-  const double kAvatarAndEmojiBorderWidth = 4;
-  const double kAvatarInnerSize = kAvatarAndEmojiSize - (kAvatarAndEmojiBorderWidth * 2);
+    final isCompactScreen = MediaQuery.sizeOf(context).width <= 360;
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 390;
+    final avatarAndEmojiSize = math.min(40.0, 40.w);
+    final avatarAndEmojiBorderWidth = math.min(4.0, 4.w);
+    final promoCardHeight = isLargeScreen ? math.min(40.0, 40.h) : 48.h;
+    final avatarInnerSize = avatarAndEmojiSize - (avatarAndEmojiBorderWidth * 2);
 
     final rawActivityName = widget.event.title.trim().isEmpty 
         ? 'um rolê' 
@@ -250,14 +257,14 @@ class _PromoCardState extends State<_PromoCard> {
     // Tipografia idêntica ao PeopleButton (GoogleFonts Plus Jakarta Sans) - cores pretas
     final titleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 14,
+      fontSize: (isCompactScreen ? 13 : 14).sp,
       fontWeight: FontWeight.w600,
       color: Colors.black87,
     );
 
     final subtitleStyle = GoogleFonts.getFont(
       FONT_PLUS_JAKARTA_SANS,
-      fontSize: 12,
+      fontSize: (isCompactScreen ? 11 : 12).sp,
       fontWeight: FontWeight.w600,
       color: Colors.black54,
     );
@@ -271,73 +278,73 @@ class _PromoCardState extends State<_PromoCard> {
         final displayName = _buildDisplayName(name ?? '');
 
         return Material(
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.3),
-      borderRadius: BorderRadius.circular(100),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(100),
-        onTap: widget.onTap,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.only(left: 4, right: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Avatar (emoji removido)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Container(
-                  width: kAvatarAndEmojiSize,
-                  height: kAvatarAndEmojiSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white,
-                      width: kAvatarAndEmojiBorderWidth,
+          elevation: 8,
+          shadowColor: Colors.black.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(100.r),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(100.r),
+            onTap: widget.onTap,
+            child: Container(
+              height: promoCardHeight,
+              padding: EdgeInsets.only(left: 4.w, right: 10.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(100.r),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Avatar (emoji removido)
+                  Padding(
+                    padding: EdgeInsets.only(right: 8.w),
+                    child: Container(
+                      width: avatarAndEmojiSize,
+                      height: avatarAndEmojiSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: avatarAndEmojiBorderWidth,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: StableAvatar(
+                        userId: widget.event.createdBy,
+                        photoUrl: '',
+                        size: avatarInnerSize,
+                        enableNavigation: false,
+                      ),
                     ),
                   ),
-                  alignment: Alignment.center,
-                  child: StableAvatar(
-                    userId: widget.event.createdBy,
-                    photoUrl: '',
-                    size: kAvatarInnerSize,
-                    enableNavigation: false,
-                  ),
-                ),
-              ),
-              // 2 linhas: "nome quer" / atividade
-              Flexible(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
+                  // 2 linhas: "nome quer" / atividade
+                  Flexible(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: 8.w),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: titleStyle,
+                          ),
+                          Text(
+                            'quer $activityName',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: subtitleStyle,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'quer $activityName',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: subtitleStyle,
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }

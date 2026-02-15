@@ -70,20 +70,40 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
     if (_hasShownAutoPrompt) return;
     _hasShownAutoPrompt = true;
 
-    // Sem dialog Material: tenta abrir direto o prompt nativo (iOS/Android).
-    await _requestReview();
+    final i18n = AppLocalizations.of(context);
+    final shouldOpenStore = await showAdaptiveDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(i18n.translate('app_review_title')),
+          content: Text(i18n.translate('app_review_message')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(i18n.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(i18n.translate('review_action_rate')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldOpenStore == true) {
+      await _openStoreListing();
+    }
   }
 
-  Future<void> _requestReview() async {
+  Future<void> _openStoreListing() async {
     if (_hasRequestedReview) return;
     _hasRequestedReview = true;
     
     try {
       if (!_canRequestReview()) return;
       final inAppReview = InAppReview.instance;
-      
-      // Em desenvolvimento/TestFlight, o diálogo nativo não permite enviar reviews.
-      // Sempre abrir a página da loja garante que o usuário pode avaliar de verdade.
       await inAppReview.openStoreListing(appStoreId: '6755944656');
     } catch (e) {
       AppLogger.error('Error requesting review: $e', tag: 'AppEvaluationWidget');
@@ -159,8 +179,7 @@ class _AppEvaluationWidgetState extends State<AppEvaluationWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(height: 8.h),
-        const _RatingSummary(rating: 4.5, reviewsCount: 63),
+        const _RatingSummary(rating: 4.5, reviewsCount: 400),
         SizedBox(height: 20.h),
         Center(
           child: Text(
@@ -250,7 +269,9 @@ class _RatingSummary extends StatelessWidget {
                 ),
                 SizedBox(height: 6.h),
                 Text(
-                  AppLocalizations.of(context).translate('over_x_app_reviews').replaceAll('{count}', (reviewsCount / 1000).floor().toString()),
+                  AppLocalizations.of(context)
+                      .translate('over_x_app_reviews')
+                      .replaceAll('{count}', reviewsCount.toString()),
                   textAlign: TextAlign.center,
                   style: TextStyles.reviewsDescription,
                 ),

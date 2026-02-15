@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:math' as math;
 import 'package:partiu/features/home/create_flow/create_flow_coordinator.dart';
 import 'package:partiu/features/home/presentation/screens/discover_screen.dart';
 import 'package:partiu/features/home/presentation/screens/event_creator_filters_screen.dart';
@@ -58,8 +59,10 @@ class _DiscoverTabState extends State<DiscoverTab> {
   static const double _peopleButtonTop = 16;
   static const double _peopleButtonRight = 16;
   static const double _peopleButtonLeft = 16;
-  static const double _peopleButtonHeight = 48;
-  static const double _filtersSpacing = 16;
+  static const double _peopleButtonHeight = 56;
+  static const double _peopleToCategorySpacing = 8;
+  static const double _categoryFiltersHeight = 32;
+  static const double _categoryToVipSpacing = 8;
 
   bool _isShowingOnboarding = false;
 
@@ -332,6 +335,14 @@ class _DiscoverTabState extends State<DiscoverTab> {
   @override
   Widget build(BuildContext context) {
     final i18n = AppLocalizations.of(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isLargeScreen = screenWidth > 390;
+    final largeScreenExtraSpacing = screenWidth > 390 ? 4.h : 0.0;
+    final peopleToCategorySpacing = _peopleToCategorySpacing.h + largeScreenExtraSpacing;
+    final categoryToVipSpacing = _categoryToVipSpacing.h + largeScreenExtraSpacing;
+    final effectivePeopleHeight = isLargeScreen ? math.min(56.0, 56.w) : 56.h;
+    final effectiveCategoryFiltersHeight = isLargeScreen ? math.min(32.0, 32.h) : 40.h;
 
     return Stack(
       children: [
@@ -341,36 +352,54 @@ class _DiscoverTabState extends State<DiscoverTab> {
           mapViewModel: widget.mapViewModel,
         ),
 
-        // Filtro de data (calendário horizontal compacto) - canto superior esquerdo
+        // Linha superior de overlays (calendário + people) orientada por constraints
         Positioned(
-          top: _peopleButtonTop,
-          left: _peopleButtonLeft,
-          child: ListenableBuilder(
-            listenable: widget.mapViewModel,
-            builder: (context, _) {
-              return DateFilterCalendar(
-                selectedDate: widget.mapViewModel.selectedDate,
-                onDateSelected: (date) {
-                  widget.mapViewModel.setDateFilter(date);
-                },
+          top: _peopleButtonTop.h,
+          left: _peopleButtonLeft.w,
+          right: _peopleButtonRight.w,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontalGap = 8.w;
+              final reservedPeopleWidth = 176.w;
+              final dateAvailableWidth = (constraints.maxWidth - reservedPeopleWidth - horizontalGap)
+                  .clamp(120.w, constraints.maxWidth);
+
+              return Stack(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: dateAvailableWidth,
+                      child: ListenableBuilder(
+                        listenable: widget.mapViewModel,
+                        builder: (context, _) {
+                          return DateFilterCalendar(
+                            selectedDate: widget.mapViewModel.selectedDate,
+                            onDateSelected: (date) {
+                              widget.mapViewModel.setDateFilter(date);
+                            },
+                            availableWidth: dateAvailableWidth,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: PeopleButton(
+                      onPressed: _showPeopleNearby,
+                    ),
+                  ),
+                ],
               );
             },
-          ),
-        ),
-
-        // Botão "Perto de você" (canto superior direito)
-        Positioned(
-          top: _peopleButtonTop,
-          right: _peopleButtonRight,
-          child: PeopleButton(
-            onPressed: _showPeopleNearby,
           ),
         ),
 
         // Filtro dinâmico por categoria (abaixo do PeopleButton)
         // Só exibe se houver eventos no mapa E o mapa estiver pronto
         Positioned(
-          top: _peopleButtonTop + _peopleButtonHeight + _filtersSpacing,
+          top: _peopleButtonTop.h + effectivePeopleHeight + peopleToCategorySpacing,
           left: 0,
           right: 0,
           child: ListenableBuilder(
@@ -436,6 +465,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
               
               // Key inclui data selecionada para forçar rebuild quando filtro muda
               final selectedDateKey = widget.mapViewModel.selectedDate?.toIso8601String() ?? 'all';
+              final sidePadding = MediaQuery.sizeOf(context).width <= 390 ? 12.w : 16.w;
 
               return NotificationHorizontalFilters(
                 key: ValueKey('filters_${filteredTotal}_$selectedDateKey'),
@@ -448,7 +478,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     widget.mapViewModel.setCategoryFilter(categoriesWithCarnaval[index - 1]);
                   }
                 },
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                padding: EdgeInsets.symmetric(horizontal: sidePadding),
                 unselectedBackgroundColor: Colors.white,
               );
             },
@@ -457,8 +487,12 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
         // Promo horizontal do(s) evento(s) de criadores VIP (abaixo do filtro)
         Positioned(
-          top: _peopleButtonTop + _peopleButtonHeight + _filtersSpacing + 54,
-          left: 16,
+          top: _peopleButtonTop.h +
+            effectivePeopleHeight +
+              peopleToCategorySpacing +
+              effectiveCategoryFiltersHeight +
+              categoryToVipSpacing,
+          left: 0,
           right: 0,
           child: ListenableBuilder(
             listenable: widget.mapViewModel,
@@ -467,13 +501,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 return const SizedBox.shrink();
               }
 
-              return VipEventPromoOverlay(
-                events: widget.mapViewModel.events,
-                visibleBounds: widget.mapViewModel.visibleBounds,
-                onEventTap: (event) async {
-                  if (!mounted) return;
-                  await _eventPresenter.onMarkerTap(context, event);
-                },
+              final sidePadding = MediaQuery.sizeOf(context).width <= 390 ? 12.w : 16.w;
+
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: sidePadding),
+                child: VipEventPromoOverlay(
+                  events: widget.mapViewModel.events,
+                  visibleBounds: widget.mapViewModel.visibleBounds,
+                  onEventTap: (event) async {
+                    if (!mounted) return;
+                    await _eventPresenter.onMarkerTap(context, event);
+                  },
+                ),
               );
             },
           ),
@@ -482,7 +521,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
         // Botão de centralizar no usuário + Spinner de carregamento (Zoom Out) + Compartilhar
         Positioned(
           right: 16,
-          bottom: 96, // 24 (bottom do CreateButton) + 56 (tamanho do FAB) + 16 (espaçamento)
+          bottom: bottomInset + 96, // 24 (bottom do CreateButton) + 56 (tamanho do FAB) + 16 (espaçamento)
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -540,7 +579,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
         Positioned(
           left: 0,
           right: 0,
-          bottom: 24,
+          bottom: bottomInset + 24,
           child: Center(
             child: AnimatedVisibility(
               visible: _listButtonVisible,
@@ -554,7 +593,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
         // Botão flutuante para criar atividade
         Positioned(
           right: 16,
-          bottom: 24,
+          bottom: bottomInset + 24,
           child: CreateButton(
             onPressed: _handleCreatePressed,
           ),

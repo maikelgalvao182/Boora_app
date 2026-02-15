@@ -4,6 +4,7 @@ import 'package:partiu/core/utils/app_localizations.dart';
 import 'package:partiu/shared/widgets/glimpse_back_button.dart';
 import 'package:partiu/shared/widgets/typing_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:partiu/core/constants/constants.dart';
 
@@ -30,7 +31,7 @@ class EditProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
     final i18n = AppLocalizations.of(context);
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.only(right: 20),
+        padding: EdgeInsets.only(right: EditProfileStyles.appBarRightPadding),
         child: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: true,
@@ -55,12 +56,12 @@ class EditProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
         actions: [
           if (onSave != null)
             isSaving
-                ? const Center(
+                ? Center(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20),
                       child: TypingIndicator(
                         color: Color(0xFFFF006B),
-                        dotSize: 6.0,
+                        dotSize: 6.w,
                       ),
                     ),
                   )
